@@ -1,0 +1,60 @@
+services:
+  # ==============================================================
+  # Base de Datos PostgreSQL con soporte ACID y alta concurrencia
+  # ==============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: skillmatch-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-skillmatch_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skillmatch_password}
+      POSTGRES_DB: ${POSTGRES_DB:-skillmatch_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-skillmatch_user} -d ${POSTGRES_DB:-skillmatch_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - skillmatch-network
+
+  # ==============================================================
+  # API Backend FastAPI
+  # ==============================================================
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: skillmatch-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: development
+      DEBUG: "True"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-skillmatch_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skillmatch_password}
+      POSTGRES_DB: ${POSTGRES_DB:-skillmatch_db}
+      ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+      SECRET_KEY: ${SECRET_KEY:-09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app:ro
+    networks:
+      - skillmatch-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  skillmatch-network:
+    driver: bridge
