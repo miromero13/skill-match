@@ -82,7 +82,7 @@ cp env.template .env
 
 | Variable | Descripción | Valor por Defecto |
 |---|---|---|
-| `VITE_API_URL` | URL base del backend FastAPI. En desarrollo se recomienda `"/api"` para usar el proxy de Vite y evitar problemas de CORS hacia `http://localhost:8000`. | `"/api"` |
+| `VITE_API_URL` | URL base de la API backend FastAPI. En desarrollo apunta directamente a `http://localhost:8000/api` (autorizado en `ALLOWED_ORIGINS` del backend). | `"http://localhost:8000/api"` |
 | `VITE_APP_ENV` | Entorno de despliegue (`development`, `staging`, `production`). | `"development"` |
 | `VITE_APP_NAME` | Nombre de la plataforma mostrado en la interfaz. | `"SkillMatch"` |
 | `VITE_APP_VERSION` | Versión semántica del cliente frontend. | `"0.1.0"` |
@@ -92,7 +92,7 @@ Plantilla lista para copiar y pegar:
 # ==============================================================================
 # SkillMatch Frontend — Variables de Entorno (.env)
 # ==============================================================================
-VITE_API_URL="/api"
+VITE_API_URL="http://localhost:8000/api"
 VITE_APP_ENV="development"
 VITE_APP_NAME="SkillMatch"
 VITE_APP_VERSION="0.1.0"
