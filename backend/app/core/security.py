@@ -31,7 +31,11 @@ def create_access_token(subject: str, role: str, expires_delta: Optional[timedel
         "iat": datetime.now(timezone.utc),
         "type": "access",
     }
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY.get_secret_value(),
+        algorithm=settings.ALGORITHM
+    )
     return encoded_jwt
 
 def create_refresh_token(subject: str, role: str) -> str:
@@ -44,4 +48,8 @@ def create_refresh_token(subject: str, role: str) -> str:
         "iat": datetime.now(timezone.utc),
         "type": "refresh",
     }
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(
+        to_encode,
+        settings.SECRET_KEY.get_secret_value(),
+        algorithm=settings.ALGORITHM
+    )
