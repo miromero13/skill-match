@@ -156,11 +156,11 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   - **Mobile Responsive:** N/A — Configuración y parametrización ágil del backlog en Jira Software
   - **Alcance Visual:** N/A — Gobernanza de proyecto y tableros Scrum
 - **Criterios de Aceptación:**
-  - [ ] Tablero Scrum configurado en Jira con los estados del flujo de trabajo (*To Do*, *In Progress*, *Review/QA*, *Done*).
-  - [ ] Épicas creadas y vinculadas a todas las Historias de Usuario.
-  - [ ] Carga completa de descripciones en formato estándar (*Como / Quiero / Para*), criterios de aceptación duales, prioridades (A/M/B) y puntos de historia en escala Fibonacci.
-  - [ ] Distribución de las historias en los 5 sprints (Sprint 0 al 4) garantizando carga balanceada.
-  - [ ] Configuración de tableros de seguimiento, filtros por componente y reportes de velocidad/burndown.
+  - [x] Tablero Scrum configurado en Jira con los estados del flujo de trabajo (*To Do*, *In Progress*, *Review/QA*, *Done*).
+  - [x] Épicas creadas y vinculadas a todas las Historias de Usuario.
+  - [x] Carga completa de descripciones en formato estándar (*Como / Quiero / Para*), criterios de aceptación duales, prioridades (A/M/B) y puntos de historia en escala Fibonacci.
+  - [x] Distribución de las historias en los 5 sprints (Sprint 0 al 4) garantizando carga balanceada.
+  - [x] Configuración de tableros de seguimiento, filtros por componente y reportes de velocidad/burndown.
 
 ---
 
@@ -244,10 +244,10 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   - **Mobile Responsive:** Página 1: Lienzo completo de Mobile Responsive (Vistas `01` a `32`)
   - **Alcance Visual:** Vista Completa — Prototipo interactivo integral en OpenPencil (`skillmatch-prototype.op`)
 - **Criterios de Aceptación:**
-  - [ ] Prototipo diseñado en Figma siguiendo como referencia directa el preset de Shadcn/ui: [https://ui.shadcn.com/create?preset=b7BFgTjg8](https://ui.shadcn.com/create?preset=b7BFgTjg8).
-  - [ ] Aplicación estricta de la paleta **Mist**, bordes/radios del preset y tipografía **Inter**.
-  - [ ] Diseño 100% responsive adaptable tanto a pantallas de escritorio (Web) como a dispositivos móviles (Capacitor).
-  - [ ] Cobertura completa de todos los flujos clave:
+  - [x] Prototipo diseñado en Figma siguiendo como referencia directa el preset de Shadcn/ui: [https://ui.shadcn.com/create?preset=b7BFgTjg8](https://ui.shadcn.com/create?preset=b7BFgTjg8).
+  - [x] Aplicación estricta de la paleta **Mist**, bordes/radios del preset y tipografía **Inter**.
+  - [x] Diseño 100% responsive adaptable tanto a pantallas de escritorio (Web) como a dispositivos móviles (Capacitor).
+  - [x] Cobertura completa de todos los flujos clave:
     1. Landing Page de presentación y botones de acceso rápido (Google, WhatsApp, GitHub) y acceso login de Administrador.
     2. Perfil de miembro y catálogo de habilidades (enseñar / aprender).
     3. Flujo de validación: modal de consentimiento biométrico previo, verificación de entorno, liveness, editor de código sandbox con tests, reto con cámara y reporte de resultados.
