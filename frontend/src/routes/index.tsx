@@ -7,6 +7,7 @@ import { FeedPage } from "@/pages/feed-page"
 import { ExamPage } from "@/pages/exam-page"
 import { NotFoundPage } from "@/pages/not-found-page"
 import { AdminLoginPage } from "@/pages/admin-login-page"
+import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
 
 export const router = createBrowserRouter([
   // 1. Public Layout (Landing Page, Institucional)
@@ -87,13 +88,19 @@ export const router = createBrowserRouter([
     element: <AdminLoginPage />,
   },
 
-  // 5. Admin Direct Redirection (Protección preventiva)
+  // 5. Admin Dashboard (HU-08 Redirección exitosa)
+  {
+    path: "/admin/dashboard",
+    element: <AdminDashboardPage />,
+  },
+
+  // 6. Admin Direct Redirection (Protección preventiva)
   {
     path: "/admin",
     element: <Navigate to="/admin/login" replace />,
   },
 
-  // 6. 404 Dedicated Not Found
+  // 7. 404 Dedicated Not Found
   {
     path: "*",
     element: <NotFoundPage />,
