@@ -15246,23 +15246,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4317",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -15295,23 +15278,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4320",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Matching",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -15344,23 +15310,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4323",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Sesiones",
-                      "fontSize": 10.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -15393,23 +15342,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4326",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -15442,23 +15374,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4329",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Menú",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -16294,23 +16209,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4373",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -16343,23 +16241,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4376",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Matching",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -16392,23 +16273,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4379",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Sesiones",
-                      "fontSize": 10.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -16441,23 +16305,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4382",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -16490,23 +16337,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4385",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Menú",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -19243,23 +19073,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4738",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -19292,23 +19105,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4741",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Matching",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -19341,23 +19137,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4744",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Sesiones",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -19390,23 +19169,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4747",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -19439,23 +19201,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4750",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Menú",
-                      "fontSize": 10.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -20557,23 +20302,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4959",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -20606,23 +20334,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4962",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Matching",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -20655,23 +20366,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4965",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Sesiones",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -20704,23 +20398,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4968",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -20753,23 +20430,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n4971",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Menú",
-                      "fontSize": 10.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -21682,23 +21342,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n5269",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -21731,23 +21374,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n5272",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Matching",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -21780,23 +21406,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n5275",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Sesiones",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -21829,23 +21438,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n5278",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 10.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -21878,23 +21470,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n5281",
-                      "name": "Txt",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Menú",
-                      "fontSize": 10.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -26605,23 +26180,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n7951",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -26653,23 +26211,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n7954",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Explorar",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -26701,23 +26242,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n7957",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Trueques",
-                      "fontSize": 9.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -26749,23 +26273,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n7960",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -26797,23 +26304,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n7963",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Perfil",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -27219,23 +26709,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8036",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -27267,23 +26740,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8039",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Explorar",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -27315,23 +26771,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8042",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Trueques",
-                      "fontSize": 9.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -27363,23 +26802,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8045",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -27411,23 +26833,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8048",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Perfil",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -27919,23 +27324,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8074",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -27967,23 +27355,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8077",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Explorar",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -28015,23 +27386,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8080",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Trueques",
-                      "fontSize": 9.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -28063,23 +27417,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8083",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -28111,23 +27448,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8086",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Perfil",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -28533,23 +27853,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8108",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -28581,23 +27884,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8111",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Explorar",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -28629,23 +27915,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8114",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Trueques",
-                      "fontSize": 9.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -28677,23 +27946,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8117",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -28725,23 +27977,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8120",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Perfil",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -30513,23 +29748,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8434",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -30561,23 +29779,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8437",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Explorar",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -30609,23 +29810,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8440",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Trueques",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -30657,23 +29841,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8443",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -30705,23 +29872,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8446",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Perfil",
-                      "fontSize": 9.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -31153,23 +30303,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8683",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -31201,23 +30334,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8686",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Explorar",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -31249,23 +30365,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8689",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Trueques",
-                      "fontSize": 9.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -31297,23 +30396,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8692",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -31345,23 +30427,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8695",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Perfil",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -31782,23 +30847,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8718",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -31830,23 +30878,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8721",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Explorar",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -31878,23 +30909,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8724",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Trueques",
-                      "fontSize": 9.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -31926,23 +30940,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8727",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -31974,23 +30971,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8730",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Perfil",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -32586,23 +31566,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8761",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -32634,23 +31597,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8764",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Explorar",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -32682,23 +31628,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8767",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Trueques",
-                      "fontSize": 9.0,
-                      "fontWeight": 700,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#00786F"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -32730,23 +31659,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8770",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -32778,23 +31690,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n8773",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Perfil",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -33640,23 +32535,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n9119",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -33664,7 +32542,7 @@
                   "type": "frame",
                   "id": "n9120",
                   "name": "Tab",
-                  "width": "fit_content",
+                  "width": 34.0,
                   "height": "fit_content",
                   "layout": "vertical",
                   "gap": 2.0,
@@ -33688,23 +32566,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n9122",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Explorar",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -33736,23 +32597,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n9125",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Trueques",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -33784,23 +32628,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n9128",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -33832,23 +32659,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n9131",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Perfil",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -34386,23 +33196,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n9159",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Inicio",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -34434,23 +33227,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n9162",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Explorar",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -34482,23 +33258,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n9165",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Trueques",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -34530,23 +33289,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n9168",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Billetera",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 },
@@ -34578,23 +33320,6 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "type": "text",
-                      "id": "n9171",
-                      "name": "L",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "Perfil",
-                      "fontSize": 9.0,
-                      "fontWeight": 500,
-                      "textGrowth": "auto",
-                      "fill": [
-                        {
-                          "type": "solid",
-                          "color": "#67787C"
-                        }
-                      ]
                     }
                   ]
                 }
@@ -49383,7 +48108,7 @@
                               "id": "n2297",
                               "name": "Txt",
                               "x": -18.5263671875,
-                              "width": 243.52613830566406,
+                              "width": 243.5261383056641,
                               "height": "fit_content",
                               "content": "Añadir a mi Pasaporte de Habilidades",
                               "fontSize": 13.0,
@@ -50783,7 +49508,7 @@
                           "id": "n2747",
                           "name": "S",
                           "width": 498.47857666015625,
-                          "height": 29.682462692260742,
+                          "height": 29.682462692260746,
                           "content": "Se detectó una conducta irregular. Tu prueba continúa activa, pero tenés una advertencia formal registrada.",
                           "fontSize": 12.0,
                           "fontWeight": 500,
@@ -57136,7 +55861,7 @@
                       "id": "n4191",
                       "name": "Val",
                       "width": 533.580810546875,
-                      "height": 41.225257873535156,
+                      "height": 41.22525787353515,
                       "content": "Sofía tiene una pedagogía excelente para enseñar la postura de mano derecha y los compases del rasgueo. Muy paciente y puntual.",
                       "fontSize": 11.0,
                       "fontWeight": 400,
@@ -97266,7 +95991,7 @@
   ],
   "children": [],
   "editorMeta": {
-    "activePageIndex": 2,
+    "activePageIndex": 1,
     "preserveAuthoredGeometry": false
   }
 }
