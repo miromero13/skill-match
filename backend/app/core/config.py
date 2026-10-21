@@ -1,11 +1,23 @@
+from pathlib import Path
 from typing import List, Union, Optional
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Rutas absolutas a los posibles archivos .env (tanto si se ejecuta desde /backend como desde la raíz)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent  # backend/
+ROOT_DIR = BASE_DIR.parent                               # raíz del monorepo
+
+ENV_FILES = [
+    str(BASE_DIR / ".env"),
+    str(ROOT_DIR / ".env"),
+    ".env",
+]
+
 class Settings(BaseSettings):
     """
-    Configuración global de la aplicación validada estrictamente por variables de entorno.
-    Los secretos críticos se encapsulan como SecretStr para prevenir fugas accidentales en logs.
+    Configuración global de la aplicación alimentada y validada estrictamente
+    a partir de las variables de entorno del sistema y de los archivos .env.
+    Los secretos críticos se encapsulan como SecretStr para prevenir fugas accidentales.
     """
     PROJECT_NAME: str = "SkillMatch API"
     VERSION: str = "0.1.0"
@@ -22,7 +34,7 @@ class Settings(BaseSettings):
         description="Lista de orígenes permitidos para CORS"
     )
 
-    # Base de Datos PostgreSQL Asíncrona
+    # Base de Datos PostgreSQL Asíncrona (Cargadas de .env)
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "skillmatch_user"
@@ -41,7 +53,7 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
 
-    # Seguridad y JWT (Secretos obligatorios)
+    # Seguridad y JWT (Cargadas de .env)
     SECRET_KEY: SecretStr = Field(
         default=SecretStr("09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"),
         description="Clave secreta criptográfica para firma de tokens JWT (Secreto)"
@@ -50,7 +62,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 día
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
-    # Proveedores de Autenticación Externa (OAuth & OTP)
+    # Proveedores de Autenticación Externa (Cargadas de .env)
     GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Client ID de Google OAuth")
     GOOGLE_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Client Secret de Google (Secreto)")
     
@@ -60,7 +72,7 @@ class Settings(BaseSettings):
     WHATSAPP_API_KEY: Optional[SecretStr] = Field(default=None, description="API Key para envío de OTP WhatsApp (Secreto)")
     WHATSAPP_PHONE_NUMBER_ID: Optional[str] = Field(default=None, description="ID de teléfono emisor de WhatsApp Business")
 
-    # Almacenamiento de Objetos S3 / MinIO (Auditorías, Videos y Datasets)
+    # Almacenamiento de Objetos S3 / MinIO (Cargadas de .env)
     MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Host y puerto de MinIO/S3")
     MINIO_ROOT_USER: str = Field(default="minioadmin", description="Usuario root de MinIO")
     MINIO_ROOT_PASSWORD: SecretStr = Field(default=SecretStr("minioadmin"), description="Clave de MinIO (Secreto)")
@@ -109,10 +121,14 @@ class Settings(BaseSettings):
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
+    # Configuración de carga de Pydantic Settings:
+    # 1. Variables de entorno reales del sistema operativo (tienen máxima prioridad).
+    # 2. Archivo backend/.env o raíz .env en orden de resolución.
+    # 3. Soporta nombres de variables en mayúsculas o minúsculas (case-insensitive).
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
-        case_sensitive=True,
+        case_sensitive=False,
         extra="ignore"
     )
 
