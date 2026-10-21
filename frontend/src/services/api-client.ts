@@ -2,7 +2,7 @@ import { type APIResponse, type RequestOptions, ApiError } from "@/types/api"
 import { useAuthStore } from "@/stores/auth-store"
 import { toast } from "sonner"
 
-const BASE_URL = import.meta.env.VITE_API_URL || "/api/v1"
+const BASE_URL = import.meta.env.VITE_API_URL || "/api"
 
 class ApiClient {
   private baseUrl: string
@@ -87,14 +87,16 @@ class ApiClient {
       } else {
         const text = await response.text()
         jsonResponse = {
+          statuscode: response.status,
           success: response.ok,
           data: text as unknown as T,
           message: response.statusText,
         }
       }
 
-      // 3. Manejo de errores HTTP o de lógica de negocio (success: false)
-      if (!response.ok || !jsonResponse.success) {
+      // 3. Manejo de errores HTTP o de lógica de negocio (statuscode >= 400)
+      const isSuccess = response.ok && (jsonResponse.statuscode ? jsonResponse.statuscode < 400 : jsonResponse.success !== false)
+      if (!isSuccess) {
         const errorMessage =
           jsonResponse.message || `Error del servidor (Código ${response.status})`
 

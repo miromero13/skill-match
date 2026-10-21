@@ -1,9 +1,13 @@
 // Tipado estándar del sobre de respuesta de la API de SkillMatch
+// Sincronizado con el contrato del backend: { statuscode, message, data, count }
 
 export interface APIResponse<T = unknown> {
-  success: boolean
-  data: T
+  statuscode: number
   message: string
+  data: T
+  count?: number | null
+  // Propiedades opcionales para retrocompatibilidad
+  success?: boolean
   errors?: Record<string, string[]> | string[] | null
   timestamp?: string
 }
