@@ -8,6 +8,7 @@ import { ExamPage } from "@/pages/exam-page"
 import { NotFoundPage } from "@/pages/not-found-page"
 import { AdminLoginPage } from "@/pages/admin-login-page"
 import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
+import { AdminRouteGuard } from "@/components/admin-route-guard"
 
 export const router = createBrowserRouter([
   // 1. Public Layout (Landing Page, Institucional)
@@ -88,10 +89,14 @@ export const router = createBrowserRouter([
     element: <AdminLoginPage />,
   },
 
-  // 5. Admin Dashboard (HU-08 Redirección exitosa)
+  // 5. Admin Dashboard (Protegido por AdminRouteGuard con política de ofuscación 404)
   {
     path: "/admin/dashboard",
-    element: <AdminDashboardPage />,
+    element: (
+      <AdminRouteGuard>
+        <AdminDashboardPage />
+      </AdminRouteGuard>
+    ),
   },
 
   // 6. Admin Direct Redirection (Protección preventiva)

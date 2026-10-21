@@ -5,7 +5,7 @@ from jose import jwt
 from app.main import app
 from app.db.session import get_db
 from app.core.config import settings
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, create_access_token
 from app.models.user import User, UserRole
 
 class MockUserSession:
@@ -272,5 +272,41 @@ async def test_admin_login_rejects_inactive_account():
             body = response.json()
             assert body["statuscode"] == 403
             assert "suspendida o inactiva" in body["message"].lower()
+    finally:
+        app.dependency_overrides.clear()
+
+@pytest.mark.asyncio
+async def test_admin_route_obfuscates_with_404_for_member():
+    """Prueba la política de seguridad por ofuscación: un MEMBER en ruta protegida de ADMIN recibe 404."""
+    member_id = uuid.uuid4()
+    mock_member = User(
+        id=member_id,
+        email="miembro.curioso@skillmatch.io",
+        full_name="Miembro Curioso",
+        role=UserRole.MEMBER,
+        is_active=True,
+        is_locked=False
+    )
+
+    member_token = create_access_token(subject=str(member_id), role="MEMBER")
+
+    session = MockUserSession(mock_member)
+    async def override_db():
+        yield session
+
+    app.dependency_overrides[get_db] = override_db
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.get(
+                "/api/admin/auth/verify",
+                headers={"Authorization": f"Bearer {member_token}"}
+            )
+
+            # Debe ser estrictamente 404 Not Found (nunca 403)
+            assert response.status_code == 404
+            body = response.json()
+            assert body["statuscode"] == 404
+            assert "recurso no encontrado" in body["message"].lower()
     finally:
         app.dependency_overrides.clear()
