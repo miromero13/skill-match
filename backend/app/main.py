@@ -14,6 +14,7 @@ from app.core.exceptions import (
     unhandled_exception_handler,
 )
 from app.api.health import health_router
+from app.api.admin.auth import admin_auth_router
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -52,6 +53,7 @@ def create_application() -> FastAPI:
 
     # 3. Montaje de Routers Modulares
     app.include_router(health_router, prefix="/api")
+    app.include_router(admin_auth_router, prefix="/api")
 
     return app
 
