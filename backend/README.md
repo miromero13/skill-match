@@ -79,22 +79,7 @@ MINIO_DEFAULT_BUCKET="skillmatch-media"
 
 ## 3. Puesta en Marcha
 
-### Opción A: Ejecución con Docker Compose (Recomendado)
-Para levantar la base de datos PostgreSQL persistente y la API FastAPI contenedorizada:
-```bash
-# Desde la raíz del repositorio:
-docker compose up -d --build
-
-# Ver logs de la API:
-docker compose logs -f api
-```
-- La API estará accesible en: `http://localhost:8000`
-- Documentación Swagger UI: `http://localhost:8000/docs`
-- Verificación de salud: `http://localhost:8000/api/health`
-
----
-
-### Opción B: Ejecución Local en Entorno Virtual
+### Ejecución Local en Entorno Virtual
 
 1. **Configurar el entorno virtual con `uv`:**
    ```bash
@@ -110,11 +95,8 @@ docker compose logs -f api
    cp env.template .env
    ```
 
-3. **Levantar PostgreSQL con Docker:**
-   ```bash
-   # En la raíz del proyecto:
-   docker compose up -d postgres
-   ```
+3. **Asegurar instancia de PostgreSQL:**
+   Asegúrate de tener un servidor PostgreSQL activo con las credenciales indicadas en tu `.env`.
 
 4. **Ejecutar migraciones de base de datos con Alembic:**
    ```bash
@@ -126,6 +108,9 @@ docker compose logs -f api
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
+- La API estará accesible en: `http://localhost:8000`
+- Documentación Swagger UI: `http://localhost:8000/docs`
+- Verificación de salud: `http://localhost:8000/api/health`
 
 ---
 
