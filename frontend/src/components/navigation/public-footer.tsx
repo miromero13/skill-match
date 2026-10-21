@@ -2,9 +2,10 @@ import { Link } from "react-router-dom"
 
 export function PublicFooter() {
   return (
-    <footer className="border-t bg-[#0F1416] text-[#8E9B9E]">
-      <div className="container mx-auto max-w-7xl px-4 py-16 sm:px-8">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-4 text-xs">
+    <footer className="border-t bg-[#0B1011] text-[#8E9B9E]">
+      <div className="container mx-auto max-w-7xl px-4 py-10 sm:py-16 sm:px-8">
+        {/* Link columns for mobile (1 col) and desktop (4 cols) */}
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4 text-xs">
           {/* Column 1 */}
           <div className="space-y-3">
             <h4 className="font-bold text-[11px] tracking-wider uppercase text-white">
@@ -122,8 +123,8 @@ export function PublicFooter() {
           </div>
         </div>
 
-        <div className="mt-14 border-t border-white/10 pt-8 text-[11px] text-[#67787C]">
-          <p>© 2024 SkillMatch Inc. Todos los derechos reservados. Plataforma auditada con IA propia y contratos de custodia Escrow.</p>
+        <div className="mt-10 sm:mt-14 border-t border-white/10 pt-6 sm:pt-8 text-[11px] text-[#67787C]">
+          <p>© 2026 SkillMatch Inc. Todos los derechos reservados. Plataforma auditada con IA propia y contratos de custodia Escrow.</p>
         </div>
       </div>
     </footer>
