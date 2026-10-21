@@ -199,7 +199,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Actor Principal:** Desarrollador Frontend
 - **Roles Permitidos:** N/A (Infraestructura y scaffolding base)
 - **Sprint:** Sprint 0
-- **Estado:** Por hacer
+- **Estado:** Listo
 - **Puntos de Historia:** 8
 - **Prioridad:** Alta
 - **Trazabilidad:** SIBC Software, Cap. 2.1, 2.2
@@ -213,16 +213,16 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   - **Alcance Visual:** Vista Completa — Shell base transversal y paridad de navegación 1:1 (Navbar, Sidebar, Bottom Bar, StatusBar)
 - **Criterios de Aceptación:**
   - **Frontend:**
-    - [ ] Estructura modular del proyecto que organice componentes, vistas y servicios de forma limpia y mantenible.
-    - [ ] Configuración del sistema de rutas (React Router) con layout público, layout de plataforma, layout de examen en pantalla completa y **pantalla 404 Not Found dedicada**.
-    - [ ] Integración de **Zustand** para la gestión centralizada del estado global de la aplicación.
-    - [ ] Capa de comunicación con el Backend preparada con cliente HTTP tipado con interfaces, interceptores y extracción automática del `message` para la retroalimentación de usuario.
-    - [ ] Integración de Shadcn/ui siguiendo el preset oficial ([https://ui.shadcn.com/create?preset=b7BFgTjg8](https://ui.shadcn.com/create?preset=b7BFgTjg8)), paleta de colores Mist y tipografía Inter.
-    - [ ] Configuración completa de Capacitor con `@capacitor/core` y `@capacitor/cli` (`appId: com.skillmatch.app`), vinculando plataformas `@capacitor/android` e `@capacitor/ios`.
-    - [ ] Permisos iniciales configurados en `AndroidManifest.xml` e `Info.plist` para acceso a hardware de cámara y micrófono.
-    - [ ] Scripts en `package.json` listos para build web y sincronización nativa (`cap sync`, `cap open android`).
-    - [ ] Diseño y estructura base 100% responsive comprobado en mobile, tablet y desktop.
-    - [ ] Documentación en `frontend/README.md` con contexto, arquitectura e instrucciones para ejecutar el proyecto en web y en móvil con Capacitor.
+    - [x] Estructura modular del proyecto que organice componentes, vistas y servicios de forma limpia y mantenible.
+    - [x] Configuración del sistema de rutas (React Router) con layout público, layout de plataforma, layout de examen en pantalla completa y **pantalla 404 Not Found dedicada**.
+    - [x] Integración de **Zustand** para la gestión centralizada del estado global de la aplicación.
+    - [x] Capa de comunicación con el Backend preparada con cliente HTTP tipado con interfaces, interceptores y extracción automática del `message` para la retroalimentación de usuario.
+    - [x] Integración de Shadcn/ui siguiendo el preset oficial ([https://ui.shadcn.com/create?preset=b7BFgTjg8](https://ui.shadcn.com/create?preset=b7BFgTjg8)), paleta de colores Mist y tipografía Inter.
+    - [x] Configuración completa de Capacitor con `@capacitor/core` y `@capacitor/cli` (`appId: com.skillmatch.app`), vinculando plataformas `@capacitor/android` e `@capacitor/ios`.
+    - [x] Permisos iniciales configurados en `AndroidManifest.xml` e `Info.plist` para acceso a hardware de cámara y micrófono.
+    - [x] Scripts en `package.json` listos para build web y sincronización nativa (`cap sync`, `cap open android`).
+    - [x] Diseño y estructura base 100% responsive comprobado en mobile, tablet y desktop.
+    - [x] Documentación en `frontend/README.md` con contexto, arquitectura e instrucciones para ejecutar el proyecto en web y en móvil con Capacitor.
 
 ---
 
