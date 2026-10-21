@@ -6,6 +6,9 @@ import { LandingPage } from "@/pages/landing-page"
 import { FeedPage } from "@/pages/feed-page"
 import { ExamPage } from "@/pages/exam-page"
 import { NotFoundPage } from "@/pages/not-found-page"
+import { AdminLoginPage } from "@/pages/admin-login-page"
+import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
+import { AdminRouteGuard } from "@/components/admin-route-guard"
 
 export const router = createBrowserRouter([
   // 1. Public Layout (Landing Page, Institucional)
@@ -80,13 +83,29 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // 4. Admin Direct Redirection
+  // 4. Admin Dedicated Login (HU-08 - Vista 29 & 31)
   {
-    path: "/admin",
-    element: <Navigate to="/app" replace />,
+    path: "/admin/login",
+    element: <AdminLoginPage />,
   },
 
-  // 5. 404 Dedicated Not Found
+  // 5. Admin Dashboard (Protegido por AdminRouteGuard con política de ofuscación 404)
+  {
+    path: "/admin/dashboard",
+    element: (
+      <AdminRouteGuard>
+        <AdminDashboardPage />
+      </AdminRouteGuard>
+    ),
+  },
+
+  // 6. Admin Direct Redirection (Protección preventiva)
+  {
+    path: "/admin",
+    element: <Navigate to="/admin/login" replace />,
+  },
+
+  // 7. 404 Dedicated Not Found
   {
     path: "*",
     element: <NotFoundPage />,

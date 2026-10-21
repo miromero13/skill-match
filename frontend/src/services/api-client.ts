@@ -2,7 +2,7 @@ import { type APIResponse, type RequestOptions, ApiError } from "@/types/api"
 import { useAuthStore } from "@/stores/auth-store"
 import { toast } from "sonner"
 
-const BASE_URL = import.meta.env.VITE_API_URL || "/api/v1"
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api"
 
 class ApiClient {
   private baseUrl: string
@@ -41,7 +41,7 @@ class ApiClient {
 
     const url = this.buildUrl(endpoint, params)
 
-    // 1. Interceptor de Petición: Inyección automática de Headers y Token JWT
+    // 1. Inyección de Headers y Token JWT
     const token = useAuthStore.getState().token
     const headers = new Headers(customHeaders)
 
@@ -57,7 +57,6 @@ class ApiClient {
     if (body !== undefined && body !== null) {
       if (body instanceof FormData) {
         serializedBody = body
-        // El navegador asigna el multipart boundary automáticamente
       } else {
         headers.set("Content-Type", "application/json")
         serializedBody = JSON.stringify(body)
@@ -71,8 +70,8 @@ class ApiClient {
         body: serializedBody,
       })
 
-      // 2. Interceptor de Respuesta: Manejo de 401 Unauthorized (Sesión expirada)
-      if (response.status === 401) {
+      // 2. Interceptor de 401 Unauthorized (Sesión expirada)
+      if (response.status === 401 && !endpoint.includes("/auth/login")) {
         useAuthStore.getState().logout()
         toast.error("Sesión expirada", {
           description: "Por favor, iniciá sesión nuevamente para continuar.",
@@ -87,27 +86,29 @@ class ApiClient {
       } else {
         const text = await response.text()
         jsonResponse = {
+          statuscode: response.status,
           success: response.ok,
           data: text as unknown as T,
           message: response.statusText,
         }
       }
 
-      // 3. Manejo de errores HTTP o de lógica de negocio (success: false)
-      if (!response.ok || !jsonResponse.success) {
+      // 3. Manejo estándar de errores bajo el contrato APIResponse (statuscode >= 400)
+      const isSuccess = response.ok && (jsonResponse.statuscode ? jsonResponse.statuscode < 400 : jsonResponse.success !== false)
+      if (!isSuccess) {
         const errorMessage =
-          jsonResponse.message || `Error del servidor (Código ${response.status})`
+          jsonResponse.message || `Error en la solicitud (Código ${response.status})`
 
         if (showToastOnError) {
-          toast.error("Error en la solicitud", {
+          toast.error("Error", {
             description: errorMessage,
           })
         }
 
-        throw new ApiError(errorMessage, response.status, jsonResponse.errors)
+        throw new ApiError(errorMessage, response.status, jsonResponse.data)
       }
 
-      // 4. Notificación automática de éxito si se solicitó
+      // 4. Notificación de éxito si se solicitó
       if (showToastOnSuccess || successMessage) {
         toast.success(successMessage || jsonResponse.message || "Operación exitosa")
       }
@@ -118,13 +119,13 @@ class ApiClient {
         throw error
       }
 
-      // Errores de red, DNS o conexión rechazada
+      // Errores de red o conexión
       const networkErrorMessage =
-        error instanceof Error ? error.message : "Error de conexión con el servidor"
+        error instanceof Error ? error.message : "Error de comunicación con el servidor"
 
       if (showToastOnError) {
         toast.error("Error de Red", {
-          description: "No se pudo establecer comunicación con el backend de SkillMatch.",
+          description: "No se pudo establecer conexión con el backend de SkillMatch.",
         })
       }
 
@@ -133,20 +134,44 @@ class ApiClient {
   }
 
   // Métodos HTTP semánticos
+  // Soportan tanto: apiClient.post("/url", body, options)
+  // Como la sobrecarga directa: apiClient.post("/url", { body, ...options })
   public get<T>(endpoint: string, options?: RequestOptions): Promise<APIResponse<T>> {
     return this.request<T>(endpoint, { ...options, method: "GET" })
   }
 
-  public post<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<APIResponse<T>> {
-    return this.request<T>(endpoint, { ...options, method: "POST", body })
+  public post<T>(endpoint: string, bodyOrOptions?: unknown, options?: RequestOptions): Promise<APIResponse<T>> {
+    if (options !== undefined) {
+      return this.request<T>(endpoint, { ...options, method: "POST", body: bodyOrOptions })
+    }
+    // Si solo viene un argumento y tiene estructura de RequestOptions con body explícito
+    if (bodyOrOptions && typeof bodyOrOptions === "object" && "body" in bodyOrOptions) {
+      const opts = bodyOrOptions as RequestOptions
+      return this.request<T>(endpoint, { ...opts, method: "POST" })
+    }
+    return this.request<T>(endpoint, { method: "POST", body: bodyOrOptions })
   }
 
-  public put<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<APIResponse<T>> {
-    return this.request<T>(endpoint, { ...options, method: "PUT", body })
+  public put<T>(endpoint: string, bodyOrOptions?: unknown, options?: RequestOptions): Promise<APIResponse<T>> {
+    if (options !== undefined) {
+      return this.request<T>(endpoint, { ...options, method: "PUT", body: bodyOrOptions })
+    }
+    if (bodyOrOptions && typeof bodyOrOptions === "object" && "body" in bodyOrOptions) {
+      const opts = bodyOrOptions as RequestOptions
+      return this.request<T>(endpoint, { ...opts, method: "PUT" })
+    }
+    return this.request<T>(endpoint, { method: "PUT", body: bodyOrOptions })
   }
 
-  public patch<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<APIResponse<T>> {
-    return this.request<T>(endpoint, { ...options, method: "PATCH", body })
+  public patch<T>(endpoint: string, bodyOrOptions?: unknown, options?: RequestOptions): Promise<APIResponse<T>> {
+    if (options !== undefined) {
+      return this.request<T>(endpoint, { ...options, method: "PATCH", body: bodyOrOptions })
+    }
+    if (bodyOrOptions && typeof bodyOrOptions === "object" && "body" in bodyOrOptions) {
+      const opts = bodyOrOptions as RequestOptions
+      return this.request<T>(endpoint, { ...opts, method: "PATCH" })
+    }
+    return this.request<T>(endpoint, { method: "PATCH", body: bodyOrOptions })
   }
 
   public delete<T>(endpoint: string, options?: RequestOptions): Promise<APIResponse<T>> {

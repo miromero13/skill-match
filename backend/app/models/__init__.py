@@ -1,4 +1,4 @@
 from app.db.base import Base, TimestampMixin
+from app.models.user import User, UserRole
 
-# Los modelos de dominio se importarán aquí para que Alembic y SQLAlchemy conozcan su metadata
-__all__ = ["Base", "TimestampMixin"]
+__all__ = ["Base", "TimestampMixin", "User", "UserRole"]

@@ -1,11 +1,31 @@
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, List, Dict
 from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger("skillmatch.exceptions")
+
+# Traductor y formateador semántico de mensajes de validación Pydantic
+SPANISH_VALIDATION_MESSAGES: Dict[str, str] = {
+    "missing": "es obligatorio",
+    "string_too_short": "es demasiado corto",
+    "string_too_long": "es demasiado largo",
+    "value_error": "tiene un valor inválido",
+    "int_parsing": "debe ser un número entero válido",
+    "bool_parsing": "debe ser un valor booleano",
+    "enum": "no corresponde a un valor permitido",
+}
+
+FIELD_NAME_TRANSLATIONS: Dict[str, str] = {
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "remember_me": "Recordar sesión",
+    "full_name": "Nombre completo",
+    "role": "Rol de usuario",
+    "phone_number": "Número de teléfono",
+}
 
 class SkillMatchException(Exception):
     """Excepción base para lógica de dominio de SkillMatch."""
@@ -47,26 +67,56 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """
-    Captura errores de validación 422 de Pydantic y los formatea limpiamente sin exponer estructuras crudas.
+    Captura errores de validación 422 de Pydantic y los formatea con mensajes profesionales,
+    claros y orientados a la experiencia del usuario final.
     """
     errors = exc.errors()
-    # Construir un mensaje amigable resumiendo el primer o principales campos con error
-    field_errors = []
-    for err in errors:
-        loc = " -> ".join([str(x) for x in err.get("loc", []) if x != "body"])
-        msg = err.get("msg", "Dato inválido")
-        field_errors.append(f"{loc}: {msg}" if loc else msg)
+    formatted_errors: List[Dict[str, Any]] = []
+    summary_parts: List[str] = []
 
-    summary_message = "Error de validación en los datos enviados: " + "; ".join(field_errors[:3])
-    if len(field_errors) > 3:
-        summary_message += f" (+{len(field_errors) - 3} errores más)"
+    for err in errors:
+        loc = err.get("loc", [])
+        field_raw = str(loc[-1]) if loc else "campo"
+        field_label = FIELD_NAME_TRANSLATIONS.get(field_raw, field_raw)
+
+        err_type = err.get("type", "")
+        # Determinar mensaje profesional en español
+        if "missing" in err_type:
+            msg_spanish = f"El campo '{field_label}' es obligatorio."
+        elif "email" in err_type or "value_error" in err_type and "email" in field_raw:
+            msg_spanish = f"El campo '{field_label}' debe ser una dirección de correo válida."
+        elif "too_short" in err_type:
+            min_len = err.get("ctx", {}).get("min_length", "")
+            msg_spanish = f"El campo '{field_label}' debe tener al menos {min_len} caracteres." if min_len else f"El campo '{field_label}' es demasiado corto."
+        else:
+            raw_msg = err.get("msg", "Dato inválido")
+            msg_spanish = f"Error en '{field_label}': {raw_msg}"
+
+        summary_parts.append(msg_spanish)
+        formatted_errors.append({
+            "field": field_raw,
+            "field_label": field_label,
+            "message": msg_spanish,
+            "type": err_type,
+        })
+
+    # Mensaje principal unificado para UI / Toasts
+    if len(summary_parts) == 1:
+        summary_message = f"Error de validación: {summary_parts[0]}"
+    else:
+        summary_message = "Error de validación en los datos enviados: " + "; ".join(summary_parts[:3])
+        if len(summary_parts) > 3:
+            summary_message += f" (+{len(summary_parts) - 3} errores adicionales)"
 
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "statuscode": status.HTTP_422_UNPROCESSABLE_ENTITY,
             "message": summary_message,
-            "data": {"errors": errors},
+            "data": {
+                "errors": errors,
+                "validation_errors": formatted_errors,
+            },
             "count": len(errors),
         },
     )

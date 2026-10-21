@@ -14,6 +14,9 @@ from app.core.exceptions import (
     unhandled_exception_handler,
 )
 from app.api.health import health_router
+from app.api.admin.auth import admin_auth_router
+from app.db.session import AsyncSessionLocal
+from app.db.seed import ensure_initial_admin
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -25,6 +28,14 @@ logger = logging.getLogger("skillmatch.main")
 async def lifespan(app: FastAPI):
     """Ciclo de vida de la aplicación FastAPI (startup y shutdown)."""
     logger.info(f"Iniciando {settings.PROJECT_NAME} v{settings.VERSION} en entorno '{settings.ENVIRONMENT}'...")
+    
+    # Provisionamiento seguro del Administrador Inicial desde variables de entorno
+    try:
+        async with AsyncSessionLocal() as db:
+            await ensure_initial_admin(db)
+    except Exception as exc:
+        logger.error(f"Fallo crítico durante el seed de inicio del administrador: {exc}")
+
     yield
     logger.info("Cerrando conexiones y apagando servicios de SkillMatch API...")
 
@@ -52,6 +63,7 @@ def create_application() -> FastAPI:
 
     # 3. Montaje de Routers Modulares
     app.include_router(health_router, prefix="/api")
+    app.include_router(admin_auth_router, prefix="/api")
 
     return app
 

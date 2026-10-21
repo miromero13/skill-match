@@ -55,6 +55,11 @@ ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 REFRESH_TOKEN_EXPIRE_DAYS=30
 
+# --- Credenciales del Administrador Inicial (Seed Automático) ---
+ADMIN_EMAIL="admin@skillmatch.io"
+ADMIN_PASSWORD="SuperSecretAdminPassword123!"
+ADMIN_FULL_NAME="Administrador Principal"
+
 # --- Proveedores de Autenticación Social & OTP (Sprint 0 - HU-07) ---
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
