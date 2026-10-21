@@ -70,7 +70,12 @@ Antes de generar o modificar código, el agente debe consultar los siguientes do
 - **Gestión de Estado:** Tiendas atómicas y modulares con **Zustand**. No inflar estados globales innecesarios.
 - **Responsividad:** 100% responsive en móvil, tablet y desktop; en móvil la navegación principal reside en la barra inferior (Bottom Navigation).
 
-### 3.3 Flujo de Trabajo ODD (Organic Driven Development)
+### 3.3 Flujo de Trabajo Git y Contribución
+- **Prohibido trabajar directo en `main` o `dev`:** Los commits directos están prohibidos en estas dos ramas.
+- **Ramas individuales y PRs a `dev`:** Todo desarrollador o agente debe trabajar en su propia rama (ej. `dev-luis` o `feat/<id-historia>`) y subir sus cambios mediante Pull Request con destino estricto a la rama `dev`.
+- Consultar la guía completa de contribución en [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+### 3.4 Flujo de Trabajo ODD (Organic Driven Development)
 1. **Planificar:** Desglosar tareas en unidades atómicas y registrarlas en `odd/tasks/<feature>.md` y la memoria de Engram.
 2. **Test-First cuando aplique:** Crear pruebas unitarias o de integración automatizadas antes de dar por cerrada una funcionalidad.
 3. **Commits en Unidades de Trabajo:** Commits descriptivos bajo la convención *Conventional Commits* (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`).
