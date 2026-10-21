@@ -33332,9 +33332,10 @@
           "id": "n9172",
           "name": "30 - Mobile Registro & Auth Miembros",
           "x": 0.0,
-          "y": 5784.0,
+          "y": 4807.364391777664,
           "width": 390.0,
           "height": 844.0,
+          "layout": "vertical",
           "padding": [
             0.0,
             20.0
@@ -33543,9 +33544,10 @@
           "id": "n9183",
           "name": "31 - Mobile Login Administradores",
           "x": 440.0,
-          "y": 5784.0,
+          "y": 4807.364391777664,
           "width": 390.0,
           "height": 844.0,
+          "layout": "vertical",
           "padding": [
             0.0,
             20.0
@@ -33683,9 +33685,9 @@
           "id": "n9190",
           "name": "32 - Mobile Landing Page Institucional",
           "x": 0.0,
-          "y": 6748.0,
+          "y": 5781.299759702757,
           "width": 390.0,
-          "height": 2800.0,
+          "height": 1894.3016357421875,
           "layout": "vertical",
           "fill": [
             {
@@ -33793,6 +33795,8 @@
                 24.0,
                 16.0
               ],
+              "justifyContent": "center",
+              "alignItems": "center",
               "fill": [
                 {
                   "type": "solid",
@@ -33822,11 +33826,11 @@
                   "id": "n9197",
                   "name": "H1",
                   "width": "fit_content",
-                  "height": "fit_content",
+                  "height": 56.160972595214844,
                   "content": "Aprende lo que quieras enseñando lo que sabes.",
                   "fontSize": 24.0,
                   "fontWeight": 900,
-                  "textGrowth": "auto",
+                  "textGrowth": "fixed-width-height",
                   "fill": [
                     {
                       "type": "solid",
@@ -33838,12 +33842,12 @@
                   "type": "text",
                   "id": "n9198",
                   "name": "Sub",
-                  "width": "fit_content",
-                  "height": "fit_content",
+                  "width": 311.0511169433594,
+                  "height": 28.835407257080078,
                   "content": "Intercambiá conocimientos de forma justa. Tu nivel técnico se valida con pruebas reales supervisadas por IA propia.",
                   "fontSize": 11.0,
                   "fontWeight": 400,
-                  "textGrowth": "auto",
+                  "textGrowth": "fixed-width-height",
                   "fill": [
                     {
                       "type": "solid",
@@ -33900,6 +33904,8 @@
                 24.0,
                 16.0
               ],
+              "justifyContent": "center",
+              "alignItems": "center",
               "fill": [
                 {
                   "type": "solid",
@@ -34106,6 +34112,8 @@
                 24.0,
                 16.0
               ],
+              "justifyContent": "center",
+              "alignItems": "center",
               "fill": [
                 {
                   "type": "solid",
@@ -34339,6 +34347,7 @@
                 24.0,
                 16.0
               ],
+              "justifyContent": "center",
               "alignItems": "center",
               "fill": [
                 {
@@ -34442,7 +34451,7 @@
                   "name": "T",
                   "width": "fit_content",
                   "height": "fit_content",
-                  "content": "SkillMatch Inc. © 2024",
+                  "content": "SkillMatch Inc. © 2026",
                   "fontSize": 11.0,
                   "fontWeight": 800,
                   "textGrowth": "auto",
@@ -34457,12 +34466,12 @@
                   "type": "text",
                   "id": "n9230",
                   "name": "D",
-                  "width": "fit_content",
+                  "width": 339.9968566894531,
                   "height": "fit_content",
                   "content": "Plataforma de Trueque de Habilidades con Validación por IA Propia y Contratos de Escrow.",
                   "fontSize": 9.0,
                   "fontWeight": 400,
-                  "textGrowth": "auto",
+                  "textGrowth": "fixed-width-height",
                   "fill": [
                     {
                       "type": "solid",
@@ -54059,6 +54068,7 @@
                       "type": "frame",
                       "id": "n4092",
                       "name": "Logo_Icon",
+                      "rotation": 0.0,
                       "width": 40.0,
                       "height": 40.0,
                       "justifyContent": "center",
@@ -64698,7 +64708,7 @@
                               "type": "text",
                               "id": "n5078",
                               "name": "Desc",
-                              "width": "fill_container",
+                              "width": 330.31622314453125,
                               "height": "fit_content",
                               "content": "Tus 100 SP están custodiados de manera segura. Si la otra parte cancela sin aviso o no se presenta, el Tribunal de Arbitraje te reintegra el 100% de los tokens automáticamente.",
                               "fontSize": 11.0,
@@ -65384,69 +65394,14 @@
                       "type": "frame",
                       "id": "n5704",
                       "name": "Right",
+                      "rotation": 0.0026921617500428384,
                       "width": "fit_content",
                       "height": "fit_content",
                       "layout": "horizontal",
                       "gap": 14.0,
                       "alignItems": "center",
                       "fill": [],
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "n5705",
-                          "name": "StatusPill",
-                          "width": "fit_content",
-                          "height": 26.0,
-                          "layout": "horizontal",
-                          "gap": 6.0,
-                          "padding": [
-                            0.0,
-                            10.0
-                          ],
-                          "alignItems": "center",
-                          "cornerRadius": 13.0,
-                          "fill": [
-                            {
-                              "type": "solid",
-                              "color": "#D1FAE5"
-                            }
-                          ],
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "n5706",
-                              "name": "Dot",
-                              "width": 6.0,
-                              "height": 6.0,
-                              "cornerRadius": 3.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#10B981"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "text",
-                              "id": "n5707",
-                              "name": "T",
-                              "width": "fit_content",
-                              "height": "fit_content",
-                              "content": "Sistema En Línea · Latencia 24ms",
-                              "fontSize": 10.0,
-                              "fontWeight": 700,
-                              "textGrowth": "auto",
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#065F46"
-                                }
-                              ]
-                            }
-                          ]
-                        }
-                      ]
+                      "children": []
                     }
                   ]
                 },
@@ -66258,6 +66213,8 @@
                             16.0,
                             18.0
                           ],
+                          "justifyContent": "start",
+                          "alignItems": "start",
                           "cornerRadius": 10.0,
                           "fill": [
                             {
@@ -66289,99 +66246,6 @@
                                 {
                                   "type": "solid",
                                   "color": "#090B0C"
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "n5751",
-                              "name": "DItem",
-                              "width": "fill_container",
-                              "height": "fit_content",
-                              "layout": "vertical",
-                              "gap": 4.0,
-                              "padding": [
-                                6.0,
-                                0.0
-                              ],
-                              "fill": [],
-                              "children": [
-                                {
-                                  "type": "frame",
-                                  "id": "n5752",
-                                  "name": "TRow",
-                                  "width": "fill_container",
-                                  "height": "fit_content",
-                                  "layout": "horizontal",
-                                  "justifyContent": "space_between",
-                                  "fill": [],
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "n5753",
-                                      "name": "N",
-                                      "width": "fit_content",
-                                      "height": "fit_content",
-                                      "content": "Python Backend & FastAPI",
-                                      "fontSize": 11.0,
-                                      "fontWeight": 700,
-                                      "textGrowth": "auto",
-                                      "fill": [
-                                        {
-                                          "type": "solid",
-                                          "color": "#090B0C"
-                                        }
-                                      ]
-                                    },
-                                    {
-                                      "type": "text",
-                                      "id": "n5754",
-                                      "name": "Stats",
-                                      "width": "fit_content",
-                                      "height": "fit_content",
-                                      "content": "Demanda: 42% búsqueda · Oferta: 28% oferta",
-                                      "fontSize": 10.0,
-                                      "fontWeight": 500,
-                                      "textGrowth": "auto",
-                                      "fill": [
-                                        {
-                                          "type": "solid",
-                                          "color": "#67787C"
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                },
-                                {
-                                  "type": "frame",
-                                  "id": "n5755",
-                                  "name": "Track",
-                                  "width": "fill_container",
-                                  "height": 6.0,
-                                  "cornerRadius": 3.0,
-                                  "fill": [
-                                    {
-                                      "type": "solid",
-                                      "color": "#F1F3F3"
-                                    }
-                                  ],
-                                  "children": [
-                                    {
-                                      "type": "frame",
-                                      "id": "n5756",
-                                      "name": "Fill",
-                                      "width": 420.0,
-                                      "height": 6.0,
-                                      "cornerRadius": 3.0,
-                                      "fill": [
-                                        {
-                                          "type": "solid",
-                                          "color": "#00786F"
-                                        }
-                                      ],
-                                      "children": []
-                                    }
-                                  ]
                                 }
                               ]
                             },
@@ -66430,7 +66294,7 @@
                                       "type": "text",
                                       "id": "n5760",
                                       "name": "Stats",
-                                      "width": "fit_content",
+                                      "width": 226.64463806152344,
                                       "height": "fit_content",
                                       "content": "Demanda: 38% búsqueda · Oferta: 19% oferta",
                                       "fontSize": 10.0,
@@ -66523,7 +66387,7 @@
                                       "type": "text",
                                       "id": "n5766",
                                       "name": "Stats",
-                                      "width": "fit_content",
+                                      "width": 224.4060821533203,
                                       "height": "fit_content",
                                       "content": "Demanda: 31% búsqueda · Oferta: 22% oferta",
                                       "fontSize": 10.0,
@@ -66616,7 +66480,7 @@
                                       "type": "text",
                                       "id": "n5772",
                                       "name": "Stats",
-                                      "width": "fit_content",
+                                      "width": 225.97193908691406,
                                       "height": "fit_content",
                                       "content": "Demanda: 29% búsqueda · Oferta: 14% oferta",
                                       "fontSize": 10.0,
@@ -67343,63 +67207,7 @@
                       "gap": 14.0,
                       "alignItems": "center",
                       "fill": [],
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "n6013",
-                          "name": "StatusPill",
-                          "width": "fit_content",
-                          "height": 26.0,
-                          "layout": "horizontal",
-                          "gap": 6.0,
-                          "padding": [
-                            0.0,
-                            10.0
-                          ],
-                          "alignItems": "center",
-                          "cornerRadius": 13.0,
-                          "fill": [
-                            {
-                              "type": "solid",
-                              "color": "#D1FAE5"
-                            }
-                          ],
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "n6014",
-                              "name": "Dot",
-                              "width": 6.0,
-                              "height": 6.0,
-                              "cornerRadius": 3.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#10B981"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "text",
-                              "id": "n6015",
-                              "name": "T",
-                              "width": "fit_content",
-                              "height": "fit_content",
-                              "content": "Sistema En Línea · Latencia 24ms",
-                              "fontSize": 10.0,
-                              "fontWeight": 700,
-                              "textGrowth": "auto",
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#065F46"
-                                }
-                              ]
-                            }
-                          ]
-                        }
-                      ]
+                      "children": []
                     }
                   ]
                 },
@@ -67941,12 +67749,12 @@
                               "type": "text",
                               "id": "n6044",
                               "name": "ABody",
-                              "width": "fill_container",
-                              "height": "fit_content",
+                              "width": 561.8680419921875,
+                              "height": 27.164031982421875,
                               "content": "\"Hubo una notificación de mi sistema operativo que minimizó la ventana por error, no utilicé apuntes externos. Pido revisar la grabación para levantar la sanción de 7 días.\"",
                               "fontSize": 11.0,
                               "fontWeight": 500,
-                              "textGrowth": "fixed-width",
+                              "textGrowth": "fixed-width-height",
                               "fill": [
                                 {
                                   "type": "solid",
@@ -68724,63 +68532,7 @@
                       "gap": 14.0,
                       "alignItems": "center",
                       "fill": [],
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "n6778",
-                          "name": "StatusPill",
-                          "width": "fit_content",
-                          "height": 26.0,
-                          "layout": "horizontal",
-                          "gap": 6.0,
-                          "padding": [
-                            0.0,
-                            10.0
-                          ],
-                          "alignItems": "center",
-                          "cornerRadius": 13.0,
-                          "fill": [
-                            {
-                              "type": "solid",
-                              "color": "#D1FAE5"
-                            }
-                          ],
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "n6779",
-                              "name": "Dot",
-                              "width": 6.0,
-                              "height": 6.0,
-                              "cornerRadius": 3.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#10B981"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "text",
-                              "id": "n6780",
-                              "name": "T",
-                              "width": "fit_content",
-                              "height": "fit_content",
-                              "content": "Sistema En Línea · Latencia 24ms",
-                              "fontSize": 10.0,
-                              "fontWeight": 700,
-                              "textGrowth": "auto",
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#065F46"
-                                }
-                              ]
-                            }
-                          ]
-                        }
-                      ]
+                      "children": []
                     }
                   ]
                 },
@@ -68909,7 +68661,7 @@
                               "type": "text",
                               "id": "n6787",
                               "name": "T",
-                              "width": "fit_content",
+                              "width": 192.8919219970703,
                               "height": "fit_content",
                               "content": "+ Dar de Alta Nuevo Administrador",
                               "fontSize": 11.0,
@@ -69242,7 +68994,8 @@
                                       "type": "text",
                                       "id": "n6805",
                                       "name": "T",
-                                      "width": "fit_content",
+                                      "rotation": 0.0,
+                                      "width": 45.805397033691406,
                                       "height": "fit_content",
                                       "content": "Python L5",
                                       "fontSize": 9.0,
@@ -69309,7 +69062,7 @@
                                       "type": "text",
                                       "id": "n6808",
                                       "name": "T",
-                                      "width": "fit_content",
+                                      "width": 46.751285552978516,
                                       "height": "fit_content",
                                       "content": "Docker L4",
                                       "fontSize": 9.0,
@@ -69358,7 +69111,7 @@
                                       "type": "text",
                                       "id": "n6810",
                                       "name": "T",
-                                      "width": "fit_content",
+                                      "width": 21.09860610961914,
                                       "height": "fit_content",
                                       "content": "Rust",
                                       "fontSize": 9.0,
@@ -69407,7 +69160,7 @@
                                       "type": "text",
                                       "id": "n6813",
                                       "name": "Txt",
-                                      "width": "fit_content",
+                                      "width": 29.084062576293945,
                                       "height": "fit_content",
                                       "content": "Activo",
                                       "fontSize": 9.0,
@@ -69658,7 +69411,7 @@
                                       "type": "text",
                                       "id": "n6827",
                                       "name": "T",
-                                      "width": "fit_content",
+                                      "width": 96.79271697998047,
                                       "height": "fit_content",
                                       "content": "Guitarra Flamenca L3",
                                       "fontSize": 9.0,
@@ -69707,7 +69460,7 @@
                                       "type": "text",
                                       "id": "n6830",
                                       "name": "Txt",
-                                      "width": "fit_content",
+                                      "width": 30.848222732543945,
                                       "height": "fit_content",
                                       "content": "Activo",
                                       "fontSize": 9.0,
@@ -69940,7 +69693,7 @@
                                       "type": "text",
                                       "id": "n6843",
                                       "name": "T",
-                                      "width": "fit_content",
+                                      "width": 76.92434692382812,
                                       "height": "fit_content",
                                       "content": "Rust Concurrente",
                                       "fontSize": 9.0,
@@ -69989,7 +69742,7 @@
                                       "type": "text",
                                       "id": "n6846",
                                       "name": "Txt",
-                                      "width": "fit_content",
+                                      "width": 49.48471450805664,
                                       "height": "fit_content",
                                       "content": "En Disputa",
                                       "fontSize": 9.0,
@@ -70239,7 +69992,7 @@
                                       "type": "text",
                                       "id": "n6861",
                                       "name": "Txt",
-                                      "width": "fit_content",
+                                      "width": 100.88436889648438,
                                       "height": "fit_content",
                                       "content": "Activo (0 Habilidades)",
                                       "fontSize": 9.0,
@@ -70489,7 +70242,7 @@
                                       "type": "text",
                                       "id": "n6876",
                                       "name": "Txt",
-                                      "width": "fit_content",
+                                      "width": 87.3038330078125,
                                       "height": "fit_content",
                                       "content": "SuperAdmin Activo",
                                       "fontSize": 9.0,
@@ -70722,7 +70475,7 @@
                                       "type": "text",
                                       "id": "n6889",
                                       "name": "T",
-                                      "width": "fit_content",
+                                      "width": 30.675277709960938,
                                       "height": "fit_content",
                                       "content": "Python",
                                       "fontSize": 9.0,
@@ -70771,7 +70524,8 @@
                                       "type": "text",
                                       "id": "n6892",
                                       "name": "Txt",
-                                      "width": "fit_content",
+                                      "rotation": 0.0,
+                                      "width": 75.1427993774414,
                                       "height": "fit_content",
                                       "content": "Suspendido (7d)",
                                       "fontSize": 9.0,
@@ -71513,63 +71267,7 @@
                       "gap": 14.0,
                       "alignItems": "center",
                       "fill": [],
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "n6935",
-                          "name": "StatusPill",
-                          "width": "fit_content",
-                          "height": 26.0,
-                          "layout": "horizontal",
-                          "gap": 6.0,
-                          "padding": [
-                            0.0,
-                            10.0
-                          ],
-                          "alignItems": "center",
-                          "cornerRadius": 13.0,
-                          "fill": [
-                            {
-                              "type": "solid",
-                              "color": "#D1FAE5"
-                            }
-                          ],
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "n6936",
-                              "name": "Dot",
-                              "width": 6.0,
-                              "height": 6.0,
-                              "cornerRadius": 3.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#10B981"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "text",
-                              "id": "n6937",
-                              "name": "T",
-                              "width": "fit_content",
-                              "height": "fit_content",
-                              "content": "Sistema En Línea · Latencia 24ms",
-                              "fontSize": 10.0,
-                              "fontWeight": 700,
-                              "textGrowth": "auto",
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#065F46"
-                                }
-                              ]
-                            }
-                          ]
-                        }
-                      ]
+                      "children": []
                     }
                   ]
                 },
@@ -73224,9 +72922,9 @@
                           "type": "text",
                           "id": "n6991",
                           "name": "T",
-                          "width": "fit_content",
+                          "width": 208.2706756591797,
                           "height": "fit_content",
-                          "content": "SOLICITUDES DE LA COMUNIDAD (CATEGORÍA ➔ SUBCATEGORÍA)",
+                          "content": "SOLICITUDES DE LA COMUNIDAD ",
                           "fontSize": 12.0,
                           "fontWeight": 800,
                           "textGrowth": "auto",
@@ -73317,12 +73015,12 @@
                               "type": "text",
                               "id": "n6996",
                               "name": "Path",
-                              "width": "fit_content",
-                              "height": "fit_content",
+                              "width": 344.01251220703125,
+                              "height": 26.646120071411133,
                               "content": "Categoría propuesta: Tecnología & Software ➔ Subcategoría: Desarrollo Móvil con Flutter",
                               "fontSize": 11.0,
                               "fontWeight": 600,
-                              "textGrowth": "auto",
+                              "textGrowth": "fixed-width-height",
                               "fill": [
                                 {
                                   "type": "solid",
@@ -73381,7 +73079,7 @@
                                       "type": "text",
                                       "id": "n7000",
                                       "name": "T",
-                                      "width": "fit_content",
+                                      "width": 110.30010986328125,
                                       "height": "fit_content",
                                       "content": "Aprobar Subcategoría",
                                       "fontSize": 10.0,
@@ -73518,12 +73216,12 @@
                               "type": "text",
                               "id": "n7007",
                               "name": "Path",
-                              "width": "fit_content",
-                              "height": "fit_content",
+                              "width": 331.12579345703125,
+                              "height": 27.252002716064453,
                               "content": "Categoría propuesta: Música & Expresión ➔ Subcategoría: Edición de Video en DaVinci Resolve",
                               "fontSize": 11.0,
                               "fontWeight": 600,
-                              "textGrowth": "auto",
+                              "textGrowth": "fixed-width-height",
                               "fill": [
                                 {
                                   "type": "solid",
@@ -73582,7 +73280,7 @@
                                       "type": "text",
                                       "id": "n7011",
                                       "name": "T",
-                                      "width": "fit_content",
+                                      "width": 107.83949279785156,
                                       "height": "fit_content",
                                       "content": "Aprobar Subcategoría",
                                       "fontSize": 10.0,
@@ -74301,74 +73999,6 @@
                             {
                               "type": "solid",
                               "color": "#67787C"
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "n7052",
-                      "name": "Right",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "layout": "horizontal",
-                      "gap": 14.0,
-                      "alignItems": "center",
-                      "fill": [],
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "n7053",
-                          "name": "StatusPill",
-                          "width": "fit_content",
-                          "height": 26.0,
-                          "layout": "horizontal",
-                          "gap": 6.0,
-                          "padding": [
-                            0.0,
-                            10.0
-                          ],
-                          "alignItems": "center",
-                          "cornerRadius": 13.0,
-                          "fill": [
-                            {
-                              "type": "solid",
-                              "color": "#D1FAE5"
-                            }
-                          ],
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "n7054",
-                              "name": "Dot",
-                              "width": 6.0,
-                              "height": 6.0,
-                              "cornerRadius": 3.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#10B981"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "text",
-                              "id": "n7055",
-                              "name": "T",
-                              "width": "fit_content",
-                              "height": "fit_content",
-                              "content": "Sistema En Línea · Latencia 24ms",
-                              "fontSize": 10.0,
-                              "fontWeight": 700,
-                              "textGrowth": "auto",
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#065F46"
-                                }
-                              ]
                             }
                           ]
                         }
@@ -75804,74 +75434,6 @@
                             {
                               "type": "solid",
                               "color": "#67787C"
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "n7133",
-                      "name": "Right",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "layout": "horizontal",
-                      "gap": 14.0,
-                      "alignItems": "center",
-                      "fill": [],
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "n7134",
-                          "name": "StatusPill",
-                          "width": "fit_content",
-                          "height": 26.0,
-                          "layout": "horizontal",
-                          "gap": 6.0,
-                          "padding": [
-                            0.0,
-                            10.0
-                          ],
-                          "alignItems": "center",
-                          "cornerRadius": 13.0,
-                          "fill": [
-                            {
-                              "type": "solid",
-                              "color": "#D1FAE5"
-                            }
-                          ],
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "n7135",
-                              "name": "Dot",
-                              "width": 6.0,
-                              "height": 6.0,
-                              "cornerRadius": 3.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#10B981"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "text",
-                              "id": "n7136",
-                              "name": "T",
-                              "width": "fit_content",
-                              "height": "fit_content",
-                              "content": "Sistema En Línea · Latencia 24ms",
-                              "fontSize": 10.0,
-                              "fontWeight": 700,
-                              "textGrowth": "auto",
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#065F46"
-                                }
-                              ]
                             }
                           ]
                         }
@@ -77721,6 +77283,7 @@
                   "type": "frame",
                   "id": "n7430",
                   "name": "Left",
+                  "rotation": 0.0,
                   "width": "fit_content",
                   "height": "fit_content",
                   "layout": "horizontal",
@@ -77729,19 +77292,38 @@
                   "fill": [],
                   "children": [
                     {
-                      "type": "text",
-                      "id": "n7431",
-                      "name": "Logo",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "SkillMatch",
-                      "fontSize": 20.0,
-                      "fontWeight": 900,
-                      "textGrowth": "auto",
+                      "type": "frame",
+                      "id": "n9231",
+                      "name": "Logo_Icon",
+                      "rotation": 0.0,
+                      "width": 40.0,
+                      "height": 40.0,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 20.0,
                       "fill": [
                         {
                           "type": "solid",
                           "color": "#00786F"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n9232",
+                          "name": "LogoTxt",
+                          "width": "fit_content",
+                          "height": "fit_content",
+                          "content": "SM",
+                          "fontSize": 16.0,
+                          "fontWeight": 800,
+                          "textGrowth": "auto",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#F0FDFA"
+                            }
+                          ]
                         }
                       ]
                     },
@@ -79248,12 +78830,12 @@
                           "type": "text",
                           "id": "n7523",
                           "name": "WD",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 260.7335205078125,
+                          "height": 35.89056396484375,
                           "content": "Al iniciar cada sesión se activa el temporizador sincronizado. En presencial, intercambiá el PIN mutuo de 4 dígitos para liberar los fondos de Escrow al finalizar.",
                           "fontSize": 10.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -79326,19 +78908,38 @@
                   "fill": [],
                   "children": [
                     {
-                      "type": "text",
-                      "id": "n7678",
-                      "name": "Logo",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "SkillMatch",
-                      "fontSize": 20.0,
-                      "fontWeight": 900,
-                      "textGrowth": "auto",
+                      "type": "frame",
+                      "id": "n9241",
+                      "name": "Logo_Icon",
+                      "rotation": 0.0,
+                      "width": 40.0,
+                      "height": 40.0,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 20.0,
                       "fill": [
                         {
                           "type": "solid",
                           "color": "#00786F"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n9242",
+                          "name": "LogoTxt",
+                          "width": "fit_content",
+                          "height": "fit_content",
+                          "content": "SM",
+                          "fontSize": 16.0,
+                          "fontWeight": 800,
+                          "textGrowth": "auto",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#F0FDFA"
+                            }
+                          ]
                         }
                       ]
                     },
@@ -80646,12 +80247,12 @@
                           "type": "text",
                           "id": "n7757",
                           "name": "WD",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 265.3200378417969,
+                          "height": 36.08949279785156,
                           "content": "Los Sellos de IA tienen validez permanente para el nivel alcanzado y pueden adjuntarse a tu CV mediante el enlace público de auditoría.",
                           "fontSize": 10.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -80724,19 +80325,38 @@
                   "fill": [],
                   "children": [
                     {
-                      "type": "text",
-                      "id": "n7761",
-                      "name": "Logo",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "SkillMatch",
-                      "fontSize": 20.0,
-                      "fontWeight": 900,
-                      "textGrowth": "auto",
+                      "type": "frame",
+                      "id": "n9245",
+                      "name": "Logo_Icon",
+                      "rotation": 0.0,
+                      "width": 40.0,
+                      "height": 40.0,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 20.0,
                       "fill": [
                         {
                           "type": "solid",
                           "color": "#00786F"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n9246",
+                          "name": "LogoTxt",
+                          "width": "fit_content",
+                          "height": "fit_content",
+                          "content": "SM",
+                          "fontSize": 16.0,
+                          "fontWeight": 800,
+                          "textGrowth": "auto",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#F0FDFA"
+                            }
+                          ]
                         }
                       ]
                     },
@@ -82124,7 +81744,7 @@
                           "type": "text",
                           "id": "n7846",
                           "name": "WT",
-                          "width": "fit_content",
+                          "width": 122.30426025390625,
                           "height": "fit_content",
                           "content": "Propinas y Cashout",
                           "fontSize": 12.0,
@@ -82141,12 +81761,12 @@
                           "type": "text",
                           "id": "n7847",
                           "name": "WD",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 279.87347412109375,
+                          "height": 23.558732986450195,
                           "content": "Las propinas otorgadas por alumnos satisfechos son 100% transferibles a dinero real en la sección Billetera & Cashout.",
                           "fontSize": 10.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -82211,7 +81831,7 @@
                   "type": "frame",
                   "id": "n7850",
                   "name": "Left",
-                  "width": "fit_content",
+                  "width": 350.0,
                   "height": "fit_content",
                   "layout": "horizontal",
                   "gap": 16.0,
@@ -82219,19 +81839,38 @@
                   "fill": [],
                   "children": [
                     {
-                      "type": "text",
-                      "id": "n7851",
-                      "name": "Logo",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "SkillMatch",
-                      "fontSize": 20.0,
-                      "fontWeight": 900,
-                      "textGrowth": "auto",
+                      "type": "frame",
+                      "id": "n9247",
+                      "name": "Logo_Icon",
+                      "rotation": 0.0,
+                      "width": 40.0,
+                      "height": 40.0,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 20.0,
                       "fill": [
                         {
                           "type": "solid",
                           "color": "#00786F"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n9248",
+                          "name": "LogoTxt",
+                          "width": "fit_content",
+                          "height": "fit_content",
+                          "content": "SM",
+                          "fontSize": 16.0,
+                          "fontWeight": 800,
+                          "textGrowth": "auto",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#F0FDFA"
+                            }
+                          ]
                         }
                       ]
                     },
@@ -83428,7 +83067,7 @@
                           "type": "text",
                           "id": "n7924",
                           "name": "WT",
-                          "width": "fit_content",
+                          "width": 122.11277770996094,
                           "height": "fit_content",
                           "content": "Reglas del Arbitraje",
                           "fontSize": 12.0,
@@ -83445,12 +83084,12 @@
                           "type": "text",
                           "id": "n7925",
                           "name": "WD",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 277.5687255859375,
+                          "height": 35.009376525878906,
                           "content": "El árbitro de la plataforma inspecciona logs de conexión WebRTC y geolocalización. Si se confirma el no-show, se reembolsa el 100% de los puntos.",
                           "fontSize": 10.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -83523,19 +83162,38 @@
                   "fill": [],
                   "children": [
                     {
-                      "type": "text",
-                      "id": "n8124",
-                      "name": "Logo",
-                      "width": "fit_content",
-                      "height": "fit_content",
-                      "content": "SkillMatch",
-                      "fontSize": 20.0,
-                      "fontWeight": 900,
-                      "textGrowth": "auto",
+                      "type": "frame",
+                      "id": "n9235",
+                      "name": "Logo_Icon",
+                      "rotation": 0.0,
+                      "width": 40.0,
+                      "height": 40.0,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "cornerRadius": 20.0,
                       "fill": [
                         {
                           "type": "solid",
                           "color": "#00786F"
+                        }
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "n9236",
+                          "name": "LogoTxt",
+                          "width": "fit_content",
+                          "height": "fit_content",
+                          "content": "SM",
+                          "fontSize": 16.0,
+                          "fontWeight": 800,
+                          "textGrowth": "auto",
+                          "fill": [
+                            {
+                              "type": "solid",
+                              "color": "#F0FDFA"
+                            }
+                          ]
                         }
                       ]
                     },
@@ -84426,7 +84084,7 @@
                           "type": "frame",
                           "id": "n8177",
                           "name": "L",
-                          "width": 520.0,
+                          "width": 481.2623291015625,
                           "height": "fit_content",
                           "layout": "vertical",
                           "gap": 3.0,
@@ -84453,12 +84111,12 @@
                               "type": "text",
                               "id": "n8179",
                               "name": "S",
-                              "width": "fit_content",
-                              "height": "fit_content",
+                              "width": 442.8686218261719,
+                              "height": 29.222274780273438,
                               "content": "Configurá tus franjas laborales, agregá o eliminá intervalos de 30 minutos y sincronizá con tu calendario personal.",
                               "fontSize": 11.0,
                               "fontWeight": 400,
-                              "textGrowth": "auto",
+                              "textGrowth": "fixed-width-height",
                               "fill": [
                                 {
                                   "type": "solid",
@@ -84532,7 +84190,7 @@
                                   "name": "T",
                                   "width": "fit_content",
                                   "height": "fit_content",
-                                  "content": "+ Agregar Franja",
+                                  "content": "Agregar Franja",
                                   "fontSize": 11.0,
                                   "fontWeight": 700,
                                   "textGrowth": "auto",
@@ -84588,9 +84246,10 @@
                                   "type": "text",
                                   "id": "n8186",
                                   "name": "T",
-                                  "width": "fit_content",
+                                  "rotation": -0.014368583579591199,
+                                  "width": 98.30037689208984,
                                   "height": "fit_content",
-                                  "content": "Guardar Cambios ✓",
+                                  "content": "Guardar Cambios ",
                                   "fontSize": 11.0,
                                   "fontWeight": 700,
                                   "textGrowth": "auto",
@@ -85209,8 +84868,8 @@
                                   "type": "text",
                                   "id": "n8217",
                                   "name": "C2",
-                                  "width": "fit_content",
-                                  "height": "fit_content",
+                                  "width": 132.0,
+                                  "height": 16.0,
                                   "content": "☑ Presencial (Punto Seguro)",
                                   "fontSize": 10.0,
                                   "fontWeight": 600,
@@ -85221,43 +84880,44 @@
                                       "color": "#1E40AF"
                                     }
                                   ]
-                                }
-                              ]
-                            },
-                            {
-                              "type": "frame",
-                              "id": "n8218",
-                              "name": "BtnCommitSlot",
-                              "width": "fit_content",
-                              "height": 32.0,
-                              "padding": [
-                                0.0,
-                                14.0
-                              ],
-                              "justifyContent": "center",
-                              "alignItems": "center",
-                              "cornerRadius": 6.0,
-                              "fill": [
+                                },
                                 {
-                                  "type": "solid",
-                                  "color": "#00786F"
-                                }
-                              ],
-                              "children": [
-                                {
-                                  "type": "text",
-                                  "id": "n8219",
-                                  "name": "T",
-                                  "width": "fit_content",
-                                  "height": "fit_content",
-                                  "content": "+ Agregar a la Agenda",
-                                  "fontSize": 10.0,
-                                  "fontWeight": 700,
-                                  "textGrowth": "auto",
+                                  "type": "frame",
+                                  "id": "n8218",
+                                  "name": "BtnCommitSlot",
+                                  "width": 144.0,
+                                  "height": 32.0,
+                                  "padding": [
+                                    0.0,
+                                    14.0
+                                  ],
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "cornerRadius": 6.0,
                                   "fill": [
                                     {
                                       "type": "solid",
-                                      "color": "#F0FDFA"
+                                      "color": "#00786F"
+                                    }
+                                  ],
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "n8219",
+                                      "name": "T",
+                                      "x": -13.00341796875,
+                                      "width": 116.0034408569336,
+                                      "height": "fit_content",
+                                      "content": "+ Agregar a la Agenda",
+                                      "fontSize": 10.0,
+                                      "fontWeight": 700,
+                                      "textGrowth": "auto",
+                                      "fill": [
+                                        {
+                                          "type": "solid",
+                                          "color": "#F0FDFA"
+                                        }
+                                      ]
                                     }
                                   ]
                                 }
@@ -87247,12 +86907,12 @@
                           "type": "text",
                           "id": "n8331",
                           "name": "D",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 262.26300048828125,
+                          "height": 35.67994689941406,
                           "content": "Google Calendar sincronizado con lucia.mendez@dev.uy. Los eventos personales bloquean automáticamente los slots en SkillMatch para evitar superposiciones.",
                           "fontSize": 10.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -87331,7 +86991,7 @@
                           "name": "B1",
                           "width": "fit_content",
                           "height": "fit_content",
-                          "content": "• 25 Dic 2024 (Feriado Navidad) · Todo el día ✕",
+                          "content": "• 25 Dic 2026 (Feriado Navidad) · Todo el día ✕",
                           "fontSize": 10.0,
                           "fontWeight": 500,
                           "textGrowth": "auto",
@@ -87649,6 +87309,7 @@
               "name": "Body",
               "width": 1440.0,
               "height": 840.0,
+              "layout": "vertical",
               "padding": [
                 24.0,
                 0.0
@@ -87829,7 +87490,7 @@
                           "type": "frame",
                           "id": "n8470",
                           "name": "R",
-                          "width": "fit_content",
+                          "width": 193.42271423339844,
                           "height": "fit_content",
                           "layout": "vertical",
                           "gap": 2.0,
@@ -87856,7 +87517,7 @@
                               "type": "text",
                               "id": "n8472",
                               "name": "T2",
-                              "width": "fit_content",
+                              "width": 196.24029541015625,
                               "height": "fit_content",
                               "content": "Figma Design Systems (Nivel 5 ✓)",
                               "fontSize": 11.0,
@@ -88628,6 +88289,7 @@
               "name": "Body",
               "width": 1440.0,
               "height": 840.0,
+              "layout": "vertical",
               "padding": [
                 24.0,
                 0.0
@@ -90807,6 +90469,7 @@
               "name": "Body",
               "width": 1440.0,
               "height": 840.0,
+              "layout": "vertical",
               "padding": [
                 24.0,
                 0.0
@@ -92252,10 +91915,12 @@
               "name": "Body",
               "width": 1440.0,
               "height": 840.0,
+              "layout": "vertical",
               "padding": [
                 24.0,
                 0.0
               ],
+              "justifyContent": "center",
               "alignItems": "center",
               "fill": [],
               "children": [
@@ -92361,7 +92026,7 @@
                                   "name": "D",
                                   "width": "fit_content",
                                   "height": "fit_content",
-                                  "content": "Bloqueaste a este usuario el 22 de Mayo de 2024. No puede enviarte propuestas, chats ni acceder a tus horarios. La queja está en auditoría.",
+                                  "content": "Bloqueaste a este usuario el 22 de Mayo de 2026. No puede enviarte propuestas, chats ni acceder a tus horarios. La queja está en auditoría.",
                                   "fontSize": 10.0,
                                   "fontWeight": 500,
                                   "textGrowth": "auto",
@@ -92739,9 +92404,10 @@
           "id": "n8911",
           "name": "28 - Registro & Autenticación de Miembros (Social & OTP)",
           "x": 0.0,
-          "y": 6240.0,
+          "y": 5214.529650902376,
           "width": 1440.0,
           "height": 900.0,
+          "layout": "vertical",
           "justifyContent": "center",
           "alignItems": "center",
           "fill": [
@@ -93090,7 +92756,7 @@
                           "id": "n8930",
                           "name": "Prefix",
                           "width": "fit_content",
-                          "height": "fit_content",
+                          "height": 12.707324981689453,
                           "content": "🇺🇾 +598 ▾",
                           "fontSize": 11.0,
                           "fontWeight": 700,
@@ -93490,7 +93156,7 @@
           "id": "n8950",
           "name": "29 - Login Exclusivo de Administradores (/admin/login)",
           "x": 1520.0,
-          "y": 6240.0,
+          "y": 5214.529650902376,
           "width": 1440.0,
           "height": 900.0,
           "justifyContent": "center",
@@ -93635,6 +93301,7 @@
                       "name": "InB",
                       "width": "fill_container",
                       "height": 40.0,
+                      "layout": "vertical",
                       "padding": [
                         0.0,
                         12.0
@@ -93711,6 +93378,7 @@
                       "name": "InB",
                       "width": "fill_container",
                       "height": 40.0,
+                      "layout": "vertical",
                       "padding": [
                         0.0,
                         12.0
@@ -93841,12 +93509,12 @@
                       "type": "text",
                       "id": "n8969",
                       "name": "T",
-                      "width": "fit_content",
-                      "height": "fit_content",
+                      "width": 381.16876220703125,
+                      "height": 23.755516052246094,
                       "content": "Política de Seguridad: Intentos no autorizados son bloqueados tras 5 fallos. Solicitudes de miembros comunes responden con 404 Not Found.",
                       "fontSize": 9.0,
                       "fontWeight": 500,
-                      "textGrowth": "auto",
+                      "textGrowth": "fixed-width-height",
                       "fill": [
                         {
                           "type": "solid",
@@ -93865,9 +93533,9 @@
           "id": "n8970",
           "name": "30 - Landing Page Pública (Presentación Institucional)",
           "x": 0.0,
-          "y": 7280.0,
+          "y": 6250.707544438541,
           "width": 1440.0,
-          "height": 2800.0,
+          "height": 2755.98046875,
           "layout": "vertical",
           "fill": [
             {
@@ -94182,12 +93850,12 @@
                       "type": "text",
                       "id": "n8988",
                       "name": "H1",
-                      "width": "fit_content",
-                      "height": "fit_content",
+                      "width": 671.0946044921875,
+                      "height": 94.19986724853516,
                       "content": "Aprende lo que quieras enseñando lo que sabes. Validado con IA.",
                       "fontSize": 38.0,
                       "fontWeight": 900,
-                      "textGrowth": "auto",
+                      "textGrowth": "fixed-width-height",
                       "fill": [
                         {
                           "type": "solid",
@@ -94199,12 +93867,12 @@
                       "type": "text",
                       "id": "n8989",
                       "name": "Sub",
-                      "width": "fit_content",
-                      "height": "fit_content",
+                      "width": 716.2135620117188,
+                      "height": 34.07398223876953,
                       "content": "Intercambiá conocimientos de forma justa y objetiva sin intermediarios costosos. Tu nivel técnico se certifica con desafíos en Docker, análisis acústico y visión motriz.",
                       "fontSize": 14.0,
                       "fontWeight": 400,
-                      "textGrowth": "auto",
+                      "textGrowth": "fixed-width-height",
                       "fill": [
                         {
                           "type": "solid",
@@ -94247,7 +93915,7 @@
                               "type": "text",
                               "id": "n8992",
                               "name": "T",
-                              "width": "fit_content",
+                              "width": 317.1893310546875,
                               "height": "fit_content",
                               "content": "Unirse a la Comunidad (3 Validaciones Gratis) ➔",
                               "fontSize": 13.0,
@@ -94586,12 +94254,12 @@
                           "type": "text",
                           "id": "n9011",
                           "name": "D",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 370.476318359375,
+                          "height": 27.757524490356445,
                           "content": "Indicá qué podés enseñar y qué querés aprender. Configurá tu agenda de franjas horarias de 30 minutos.",
                           "fontSize": 11.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -94668,12 +94336,12 @@
                           "type": "text",
                           "id": "n9015",
                           "name": "D",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 360.40972900390625,
+                          "height": 25.717445373535156,
                           "content": "Demostrá tu conocimiento con pruebas en Sandbox Docker, análisis espectral o visión motriz para obtener tu Sello Verificado.",
                           "fontSize": 11.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -94750,12 +94418,12 @@
                           "type": "text",
                           "id": "n9019",
                           "name": "D",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 360.26910400390625,
+                          "height": 29.280399322509766,
                           "content": "Conectá con personas compatibles, agendá la sesión (Virtual o Presencial) y asegurá la clase con garantía de Escrow.",
                           "fontSize": 11.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -94914,12 +94582,12 @@
                           "type": "text",
                           "id": "n9028",
                           "name": "D",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 375.7799377441406,
+                          "height": 27.498924255371094,
                           "content": "Evaluación en contenedores efímeros aislados, análisis estático de complejidad por AST y defensa oral.",
                           "fontSize": 11.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -95044,12 +94712,12 @@
                           "type": "text",
                           "id": "n9035",
                           "name": "D",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 360.9781188964844,
+                          "height": 28.809402465820312,
                           "content": "Procesamiento de audio espectral en tiempo real para verificar afinación de cuerdas, tempo y armonía.",
                           "fontSize": 11.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -95174,12 +94842,12 @@
                           "type": "text",
                           "id": "n9042",
                           "name": "D",
-                          "width": "fit_content",
-                          "height": "fit_content",
+                          "width": 373.53778076171875,
+                          "height": 30.135568618774414,
                           "content": "Tracking de pose corporal y detección esférica de balón para contar repeticiones y control motriz.",
                           "fontSize": 11.0,
                           "fontWeight": 400,
-                          "textGrowth": "auto",
+                          "textGrowth": "fixed-width-height",
                           "fill": [
                             {
                               "type": "solid",
@@ -95971,7 +95639,7 @@
                   "name": "Copy",
                   "width": "fit_content",
                   "height": "fit_content",
-                  "content": "© 2024 SkillMatch Inc. Todos los derechos reservados. Plataforma auditada con IA propia y contratos de custodia Escrow.",
+                  "content": "© 2026 SkillMatch Inc. Todos los derechos reservados. Plataforma auditada con IA propia y contratos de custodia Escrow.",
                   "fontSize": 10.0,
                   "fontWeight": 400,
                   "textGrowth": "auto",
