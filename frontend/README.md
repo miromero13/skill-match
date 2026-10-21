@@ -73,6 +73,33 @@ npm run build
 
 ---
 
+## ⚙️ Variables de Entorno (.env)
+
+Copia el archivo de plantilla `env.template` a tu archivo local `.env`:
+```bash
+cp env.template .env
+```
+
+| Variable | Descripción | Valor por Defecto |
+|---|---|---|
+| `VITE_API_URL` | URL base del backend FastAPI. En desarrollo se recomienda `"/api"` para usar el proxy de Vite y evitar problemas de CORS hacia `http://localhost:8000`. | `"/api"` |
+| `VITE_APP_ENV` | Entorno de despliegue (`development`, `staging`, `production`). | `"development"` |
+| `VITE_APP_NAME` | Nombre de la plataforma mostrado en la interfaz. | `"SkillMatch"` |
+| `VITE_APP_VERSION` | Versión semántica del cliente frontend. | `"0.1.0"` |
+
+Plantilla lista para copiar y pegar:
+```bash
+# ==============================================================================
+# SkillMatch Frontend — Variables de Entorno (.env)
+# ==============================================================================
+VITE_API_URL="/api"
+VITE_APP_ENV="development"
+VITE_APP_NAME="SkillMatch"
+VITE_APP_VERSION="0.1.0"
+```
+
+---
+
 ## 📱 Flujo de Trabajo Móvil (Capacitor)
 
 ### Sincronizar Cambios Web con Android e iOS
