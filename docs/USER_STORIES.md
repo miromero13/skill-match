@@ -271,8 +271,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** explorar una página de aterrizaje interactiva, moderna y clara,  
   > **para** comprender la propuesta de valor del intercambio de habilidades con validación por IA y registrarme o iniciar sesión en un clic.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 7: `30 - Landing Page Pública (Presentación Institucional)`
-  - **Mobile Responsive:** Fila 7: `32 - Mobile Landing Page Institucional`
+  - **Web Desktop:** `30 - Landing Page Pública (Presentación Institucional)`
+  - **Mobile Responsive:** `32 - Mobile Landing Page Institucional`
   - **Alcance Visual:** Vista Completa — Portada pública de 2800px (Navbar pública, Hero, Cómo Funciona en 3 pasos, Demos de las 3 áreas de IA, Métricas en vivo y Footer)
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -303,8 +303,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** registrarme e iniciar sesión de forma ágil usando mi cuenta de Google, GitHub o verificación de WhatsApp sin contraseñas,  
   > **para** acceder de inmediato a la plataforma sin trámites engorrosos ni necesidad de recordar claves.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 6: `28 - Registro & Autenticación de Miembros (Social & OTP)`
-  - **Mobile Responsive:** Fila 6: `30 - Mobile Registro & Auth Miembros`
+  - **Web Desktop:** `28 - Registro & Autenticación de Miembros (Social & OTP)`
+  - **Mobile Responsive:** `30 - Mobile Registro & Auth Miembros`
   - **Alcance Visual:** Vista Completa — Auth Card con botones de acceso Google y GitHub, selector de prefijo de país y slots de 6 dígitos para código OTP de WhatsApp
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -341,8 +341,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** iniciar sesión en un acceso administrativo seguro mediante mi correo electrónico institucional y contraseña,  
   > **para** acceder al panel de control de la plataforma (sin recuperación de contraseña por correo).
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 6: `29 - Login Exclusivo de Administradores (/admin/login)`
-  - **Mobile Responsive:** Fila 6: `31 - Mobile Login Administradores`
+  - **Web Desktop:** `29 - Login Exclusivo de Administradores (/admin/login)`
+  - **Mobile Responsive:** `31 - Mobile Login Administradores`
   - **Alcance Visual:** Vista Completa — Pantalla sobria `#0F1416` con formulario de correo institucional, contraseña cifrada y aviso de seguridad 404 Not Found
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -376,8 +376,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** mantener mi sesión persistente y poder cerrarla cuando lo desee,  
   > **para** navegar de forma continua y segura tanto en navegador web como en aplicación móvil.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 0: `01 - Shell Maestro Web` (y cabecera de todas las vistas autenticadas)
-  - **Mobile Responsive:** Fila 0: `01 - Mobile Feed (Home)` (y header de todas las vistas autenticadas)
+  - **Web Desktop:** `01 - Shell Maestro Web` (y cabecera de todas las vistas autenticadas)
+  - **Mobile Responsive:** `01 - Mobile Feed (Home)` (y header de todas las vistas autenticadas)
   - **Alcance Visual:** Solo una parte de esa vista — Topbar / Mobile Header: Avatar de usuario logueado, saldo de puntos (150 SP), botón de logout y persistencia Zustand
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -409,8 +409,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** dar de alta nuevas cuentas de administrador ingresando su correo, nombre y contraseña inicial,  
   > **para** delegar la gestión del sistema a otros miembros del equipo administrativo (sin alterar ni asignar roles a miembros comunes).
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 4: `15A - Gestión de Usuarios, Administradores y Control RBAC` y `15B - Modal Alta de Nuevo Administrador & RBAC`
-  - **Mobile Responsive:** Fila 4: `17A - Mobile Gestión de Usuarios & RBAC` y `17B - Mobile Modal Alta Nuevo Administrador`
+  - **Web Desktop:** `15A - Gestión de Usuarios, Administradores y Control RBAC` y `15B - Modal Alta de Nuevo Administrador & RBAC`
+  - **Mobile Responsive:** `17A - Mobile Gestión de Usuarios & RBAC` y `17B - Mobile Modal Alta Nuevo Administrador`
   - **Alcance Visual:** Vista Completa — En 15A/17A tabla y control de administradores; en 15B/17B modal formulario de alta con asignación de rol y privilegios RBAC
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -442,8 +442,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** revisar y aceptar los términos de uso de cámara, micrófono y procesamiento de biometría justo antes de comenzar mi evaluación,  
   > **para** dar mi consentimiento informado únicamente cuando decido someterme a una prueba supervisada por IA.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `04B - Pre-embarque: Paso 2 (Normas de Integridad)`
-  - **Mobile Responsive:** Fila 1: `06B - Mobile Pre-embarque: Paso 2 (Normas)`
+  - **Web Desktop:** `04B - Pre-embarque: Paso 2 (Normas de Integridad)`
+  - **Mobile Responsive:** `06B - Mobile Pre-embarque: Paso 2 (Normas)`
   - **Alcance Visual:** Vista Completa — Paso 2 del stepper: términos legales, advertencia de periféricos (cámara/micrófono), aviso de 3 pruebas gratis y checkboxes de consentimiento obligatorio
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -479,8 +479,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** consultar y gestionar el catálogo de habilidades organizado por categorías y subcategorías,  
   > **para** estandarizar los conocimientos disponibles en la plataforma evitando duplicados y nombres redundantes.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 4: `16A - Catálogo Maestro de Habilidades & Aprobaciones` y `16B - Modal Crear Nueva Habilidad / Categoría`
-  - **Mobile Responsive:** Fila 4: `18A - Mobile Catálogo Maestro de Habilidades` y `18B - Mobile Modal Nueva Habilidad`
+  - **Web Desktop:** `16A - Catálogo Maestro de Habilidades & Aprobaciones` y `16B - Modal Crear Nueva Habilidad / Categoría`
+  - **Mobile Responsive:** `18A - Mobile Catálogo Maestro de Habilidades` y `18B - Mobile Modal Nueva Habilidad`
   - **Alcance Visual:** Vista Completa — Árbol jerárquico de Categorías y Subcategorías, Escalera de Niveles 1 al 5, panel de sugerencias comunitarias y modal de creación
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -517,8 +517,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** configurar mi biografía, avatar, matriz de disponibilidad semanal y modalidad de intercambio (presencial/virtual),  
   > **para** establecer las condiciones en las que puedo realizar intercambios formativos.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 2: `09 - Perfil de Usuario & Matriz de Disponibilidad Semanal` y Fila 3: `21 - Disponibilidad, Agenda y Horarios Semanales`
-  - **Mobile Responsive:** Fila 2: `11 - Mobile Perfil de Usuario & Matriz Semanal` y Fila 3: `23 - Mobile Disponibilidad y Agenda`
+  - **Web Desktop:** `09 - Perfil de Usuario & Matriz de Disponibilidad Semanal` y `21 - Disponibilidad, Agenda y Horarios Semanales`
+  - **Mobile Responsive:** `11 - Mobile Perfil de Usuario & Matriz Semanal` y `23 - Mobile Disponibilidad y Agenda`
   - **Alcance Visual:** Vista Completa — En 09/11 edición de biografía, avatar y modalidad; en 21/23 editor completo de franjas de 30 min, toggles por día, sincronización GCal y buffer de descanso
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -556,8 +556,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** asociar a mi perfil habilidades del catálogo que puedo enseñar indicando nivel declarado, experiencia y tarifa opcional en puntos por hora para clases no recíprocas,  
   > **para** ponerlas a disposición de la comunidad tanto para intercambio como para clases remuneradas en puntos.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 2: `09 - Perfil de Usuario & Matriz de Disponibilidad Semanal`
-  - **Mobile Responsive:** Fila 2: `11 - Mobile Perfil de Usuario & Matriz Semanal`
+  - **Web Desktop:** `09 - Perfil de Usuario & Matriz de Disponibilidad Semanal`
+  - **Mobile Responsive:** `11 - Mobile Perfil de Usuario & Matriz Semanal`
   - **Alcance Visual:** Solo una parte de esa vista — Sección 'Habilidades que enseño' en el perfil, con nivel declarado 1-5, años de experiencia, badge no verificado y tarifa horaria opcional en puntos
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -595,8 +595,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** registrar las habilidades que deseo adquirir indicando mi nivel de partida y nivel meta,  
   > **para** que el motor de emparejamiento me conecte con instructores compatibles para intercambio o pago con puntos.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 2: `09 - Perfil de Usuario & Matriz de Disponibilidad Semanal`
-  - **Mobile Responsive:** Fila 2: `11 - Mobile Perfil de Usuario & Matriz Semanal`
+  - **Web Desktop:** `09 - Perfil de Usuario & Matriz de Disponibilidad Semanal`
+  - **Mobile Responsive:** `11 - Mobile Perfil de Usuario & Matriz Semanal`
   - **Alcance Visual:** Solo una parte de esa vista — Sección 'Habilidades que deseo aprender' en el perfil, con nivel actual vs nivel meta y etiqueta de urgencia
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -631,8 +631,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** adjuntar enlaces de respaldo (repositorios, videos, certificados) a mis habilidades ofrecidas,  
   > **para** reforzar la confianza de los interesados antes de la evaluación formal.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 2: `09 - Perfil de Usuario` y `10 - Pasaporte de Habilidades: Reporte de Auditoría Pública`
-  - **Mobile Responsive:** Fila 2: `11 - Mobile Perfil de Usuario` y `12 - Mobile Pasaporte de Habilidades Público`
+  - **Web Desktop:** `09 - Perfil de Usuario` y `10 - Pasaporte de Habilidades: Reporte de Auditoría Pública`
+  - **Mobile Responsive:** `11 - Mobile Perfil de Usuario` y `12 - Mobile Pasaporte de Habilidades Público`
   - **Alcance Visual:** Solo una parte de esa vista — Componente de evidencias externas y enlaces a repositorios/certificados dentro de la tarjeta de habilidad y en el dossier público
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -664,8 +664,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** una interfaz web y móvil para capturar video, audio y código de pruebas piloto con consentimiento explícito,  
   > **para** alimentar los datasets de entrenamiento internos de música y fútbol desde etapas tempranas.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 4: `19 - Administración de Modelos de IA, Datasets & Desafíos`
-  - **Mobile Responsive:** Fila 4: `21 - Mobile Administración de IA & Banco de Desafíos`
+  - **Web Desktop:** `19 - Administración de Modelos de IA, Datasets & Desafíos`
+  - **Mobile Responsive:** `21 - Mobile Administración de IA & Banco de Desafíos`
   - **Alcance Visual:** Solo una parte de esa vista — Panel de 'Ingesta y Captura de Muestras Multimedia' con subida multipart, hash SHA-256 y metadatos de video, audio y código
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -700,8 +700,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** una consola para reproducir muestras capturadas y calificarlas pericialmente,  
   > **para** generar el *ground truth* del dataset con métricas técnicas rigurosas.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 4: `19 - Administración de Modelos de IA, Datasets & Desafíos`
-  - **Mobile Responsive:** Fila 4: `21 - Mobile Administración de IA & Banco de Desafíos`
+  - **Web Desktop:** `19 - Administración de Modelos de IA, Datasets & Desafíos`
+  - **Mobile Responsive:** `21 - Mobile Administración de IA & Banco de Desafíos`
   - **Alcance Visual:** Solo una parte de esa vista — Consola central de 'Etiquetado y Anotación Ground Truth' con reproductor frame a frame, registro de toques y desviación acústica
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -735,8 +735,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** compilar las muestras etiquetadas en un dataset versionado con división balanceada (Train, Val, Test),  
   > **para** entrenar los clasificadores de PyTorch de manera reproducible y científica.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 4: `19 - Administración de Modelos de IA, Datasets & Desafíos`
-  - **Mobile Responsive:** Fila 4: `21 - Mobile Administración de IA & Banco de Desafíos`
+  - **Web Desktop:** `19 - Administración de Modelos de IA, Datasets & Desafíos`
+  - **Mobile Responsive:** `21 - Mobile Administración de IA & Banco de Desafíos`
   - **Alcance Visual:** Solo una parte de esa vista — Sección de 'Particionamiento Estratificado 70/15/15', control de versiones congeladas y exportación de manifiestos JSON/CSV para PyTorch
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -774,8 +774,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** buscar instructores aplicando filtros de habilidad, nivel, verificación, modalidad y distancia geográfica,  
   > **para** hallar perfiles idóneos para el intercambio.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 0: `02 - Resultados de Búsqueda & Filtros Dinámicos`
-  - **Mobile Responsive:** Fila 0: `03 - Mobile Búsqueda y Resultados` y `04 - Mobile Drawer de Filtros Avanzados`
+  - **Web Desktop:** `02 - Resultados de Búsqueda & Filtros Dinámicos`
+  - **Mobile Responsive:** `03 - Mobile Búsqueda y Resultados` y `04 - Mobile Drawer de Filtros Avanzados`
   - **Alcance Visual:** Vista Completa — Buscador facetado, panel lateral / drawer de filtros multidimensionales (categoría, nivel, radio geográfico, modalidad y solo verificados)
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -806,8 +806,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** que la plataforma detecte automáticamente a personas cuyas habilidades enseñadas coinciden con las que busco y viceversa,  
   > **para** recibir sugerencias de intercambio de beneficio mutuo directo.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 0: `01 - Shell Maestro Web`, `02 - Resultados de Búsqueda` y `03 - Modal de Cadenas Triangulares`
-  - **Mobile Responsive:** Fila 0: `01 - Mobile Feed`, `03 - Mobile Búsqueda` y `05 - Mobile Modal Cadena Triangular`
+  - **Web Desktop:** `01 - Shell Maestro Web`, `02 - Resultados de Búsqueda` y `03 - Modal de Cadenas Triangulares`
+  - **Mobile Responsive:** `01 - Mobile Feed`, `03 - Mobile Búsqueda` y `05 - Mobile Modal Cadena Triangular`
   - **Alcance Visual:** Solo una parte de esa vista — Feed de sugerencias automáticas en columna central de 01, algoritmo de compatibilidad en 02 y modal de trueque triangular en 03/05
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -841,8 +841,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** ver un porcentaje de compatibilidad y los factores que lo justifican,  
   > **para** entender el grado de afinidad antes de aceptar el intercambio.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 0: `02 - Resultados de Búsqueda & Filtros Dinámicos` y `03B - Crear Propuesta de Intercambio & Horario`
-  - **Mobile Responsive:** Fila 0: `03 - Mobile Búsqueda y Resultados` y `05B - Mobile Crear Propuesta de Intercambio`
+  - **Web Desktop:** `02 - Resultados de Búsqueda & Filtros Dinámicos` y `03B - Crear Propuesta de Intercambio & Horario`
+  - **Mobile Responsive:** `03 - Mobile Búsqueda y Resultados` y `05B - Mobile Crear Propuesta de Intercambio`
   - **Alcance Visual:** Solo una parte de esa vista — Badge de compatibilidad porcentual (96%) y desglose explicativo de factores (afinidad 40%, horarios 25%, modalidad 20%, reputación 15%)
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -875,8 +875,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** ver la tarjeta comparativa de lo que ambos ofrecemos y aprenderemos, y poder aceptar o declinar la propuesta,  
   > **para** formalizar el inicio del intercambio cuando ambos coincidan.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 0: `01 - Shell Maestro Web`, `03B - Crear Propuesta`, `03C - Revisión de Propuesta Recibida` y `03D - Modal Intercambio Aceptado`
-  - **Mobile Responsive:** Fila 0: `01 - Mobile Feed`, `05B - Crear Propuesta`, `05C - Revisión de Propuesta` y `05D - Modal Intercambio Aceptado`
+  - **Web Desktop:** `01 - Shell Maestro Web`, `03B - Crear Propuesta`, `03C - Revisión de Propuesta Recibida` y `03D - Modal Intercambio Aceptado`
+  - **Mobile Responsive:** `01 - Mobile Feed`, `05B - Crear Propuesta`, `05C - Revisión de Propuesta` y `05D - Modal Intercambio Aceptado`
   - **Alcance Visual:** Vista Completa en 03B, 03C y 03D / 05B, 05C y 05D — Flujo completo: tarjeta comparativa de trueque, selección de horarios, revisión bilateral con botones de Aceptar/Contraproponer/Rechazar y modal de confirmación
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -940,8 +940,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** ver el histórico de mis notificaciones no leídas y configurar qué tipos de alertas recibir,  
   > **para** gestionar mi bandeja de entrada de forma personalizada.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `25 - Bandeja de Notificaciones & Eventos`
-  - **Mobile Responsive:** Fila 1: `27 - Mobile Bandeja de Notificaciones`
+  - **Web Desktop:** `25 - Bandeja de Notificaciones & Eventos`
+  - **Mobile Responsive:** `27 - Mobile Bandeja de Notificaciones`
   - **Alcance Visual:** Vista Completa — Panel desplegable con histórico de alertas filtrable por no leídas, intercambios y puntos, con opción de marcar todas como leídas
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -973,8 +973,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** bloquear y reportar a ese usuario,  
   > **para** cesar todo contacto y enviar la incidencia a moderación.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `26 - Modal Reporte y Bloqueo de Usuario` y `27 - Perfil Bloqueado (Acciones Restringidas)`
-  - **Mobile Responsive:** Fila 1: `28 - Mobile Modal Reporte y Bloqueo` y `29 - Mobile Perfil Bloqueado`
+  - **Web Desktop:** `26 - Modal Reporte y Bloqueo de Usuario` y `27 - Perfil Bloqueado (Acciones Restringidas)`
+  - **Mobile Responsive:** `28 - Mobile Modal Reporte y Bloqueo` y `29 - Mobile Perfil Bloqueado`
   - **Alcance Visual:** Vista Completa — En 26/28 modal de reporte con selección de infracción; en 27/29 interfaz del perfil bloqueado con banner de sanción y todos los botones de acción desactivados con candado
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1008,8 +1008,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** rendir un examen teórico con preguntas aleatorias y límite de tiempo estricto,  
   > **para** acreditar mis fundamentos conceptuales antes del reto práctico.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `06 - Preguntas Orales Técnicas con Cámara`
-  - **Mobile Responsive:** Fila 1: `08 - Mobile Preguntas con Cámara`
+  - **Web Desktop:** `06 - Preguntas Orales Técnicas con Cámara`
+  - **Mobile Responsive:** `08 - Mobile Preguntas con Cámara`
   - **Alcance Visual:** Solo una parte de esa vista — Panel de preguntas teóricas aleatorias con cronómetro regresivo y evaluación conceptual previa al sandbox
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1044,8 +1044,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** escribir mi solución en un editor integrado y ejecutar casos de prueba en un contenedor aislado con validaciones de seguridad y rendimiento,  
   > **para** validar que mi algoritmo resuelve correctamente el problema sin vulnerar el sistema.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `05 - Sandbox de Evaluación de Código (Paso 1: Resolución)`
-  - **Mobile Responsive:** Fila 1: `07 - Mobile Sandbox de Código (Paso 1: Resolución)`
+  - **Web Desktop:** `05 - Sandbox de Evaluación de Código (Paso 1: Resolución)`
+  - **Mobile Responsive:** `07 - Mobile Sandbox de Código (Paso 1: Resolución)`
   - **Alcance Visual:** Vista Completa — Layout de examen en pantalla completa: Monaco Editor, panel de consigna, consola de ejecución Pytest 4/4 passed y contenedor Docker aislado
 - **Criterios de Aceptación:**
   - **Backend (Sandbox Worker & Validaciones):**
@@ -1081,8 +1081,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** procesar la solución entregada mediante el AST de Python y métricas estáticas,  
   > **para** medir complejidad ciclomática, legibilidad y buenas prácticas sin recurrir a LLMs externos.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `05 - Sandbox de Evaluación de Código` y `07 - Dictamen y Emisión del Sello Verificado`
-  - **Mobile Responsive:** Fila 1: `07 - Mobile Sandbox de Código` y `09 - Mobile Dictamen y Sello Verificado`
+  - **Web Desktop:** `05 - Sandbox de Evaluación de Código` y `07 - Dictamen y Emisión del Sello Verificado`
+  - **Mobile Responsive:** `07 - Mobile Sandbox de Código` y `09 - Mobile Dictamen y Sello Verificado`
   - **Alcance Visual:** Solo una parte de esa vista — Widget de métricas estáticas en la consola de 05/07 (complejidad ciclomática de McCabe, profundidad de anidamiento) y reporte consolidado en 07/09
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1114,8 +1114,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** plantear preguntas específicas basadas en las variables y estructuras del AST del miembro para que responda por texto,  
   > **para** comprobar que entiende su código y descartar soluciones copiadas.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `06 - Preguntas Orales Técnicas con Cámara`
-  - **Mobile Responsive:** Fila 1: `08 - Mobile Preguntas con Cámara`
+  - **Web Desktop:** `06 - Preguntas Orales Técnicas con Cámara`
+  - **Mobile Responsive:** `08 - Mobile Preguntas con Cámara`
   - **Alcance Visual:** Vista Completa — Pantalla de defensa oral/escrita con preguntas ancladas a las líneas de código del aspirante, cámara web, medidor VU de audio y transcripción Whisper
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1147,8 +1147,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** bloquear el portapapeles y registrar cualquier cambio de pestaña o ventana minimizada,  
   > **para** impedir que el aspirante busque respuestas externas durante la prueba.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `08B - Advertencia Preventiva Anti-Fraude (Aviso 1 de 2)` y `08 - Detección de Trampa e Infracción Anti-Fraude`
-  - **Mobile Responsive:** Fila 1: `10B - Mobile Advertencia Preventiva Anti-Fraude` y `10 - Mobile Alerta Detección de Trampa`
+  - **Web Desktop:** `08B - Advertencia Preventiva Anti-Fraude (Aviso 1 de 2)` y `08 - Detección de Trampa e Infracción Anti-Fraude`
+  - **Mobile Responsive:** `10B - Mobile Advertencia Preventiva Anti-Fraude` y `10 - Mobile Alerta Detección de Trampa`
   - **Alcance Visual:** Vista Completa — Modal de advertencia preventiva ámbar tras primer blur/paste en 08B/10B, y modal terminal rojo de expulsión con bloqueo de 7 días en 08/10
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1178,8 +1178,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** verificar periféricos y solicitar un gesto motor aleatorio antes de iniciar la evaluación,  
   > **para** confirmar que la prueba la rinde una persona viva en tiempo real y no una fotografía estática.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `04C - Pre-embarque: Paso 3 (Calibración y Validación)`
-  - **Mobile Responsive:** Fila 1: `06C - Mobile Pre-embarque: Paso 3 (Calibración)`
+  - **Web Desktop:** `04C - Pre-embarque: Paso 3 (Calibración y Validación)`
+  - **Mobile Responsive:** `06C - Mobile Pre-embarque: Paso 3 (Calibración)`
   - **Alcance Visual:** Vista Completa — Paso 3 del stepper: comprobación de webcam, micrófono, iluminación y reto motor aleatorio de prueba de vida con OpenCV
 - **Criterios de Aceptación:**
   - **Backend (OpenCV Service):**
@@ -1210,8 +1210,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** recibir mi calificación ponderada, el reporte del Entrenador de IA con sugerencias y mi sello de certificación,  
   > **para** exhibir mi nivel verificado en mi perfil.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `07 - Dictamen y Emisión del Sello Verificado` y Fila 3: `22 - Mis Certificados de IA & Sellos Verificados`
-  - **Mobile Responsive:** Fila 1: `09 - Mobile Dictamen y Sello Verificado` y Fila 3: `24 - Mobile Mis Certificados de IA`
+  - **Web Desktop:** `07 - Dictamen y Emisión del Sello Verificado` y `22 - Mis Certificados de IA & Sellos Verificados`
+  - **Mobile Responsive:** `09 - Mobile Dictamen y Sello Verificado` y `24 - Mobile Mis Certificados de IA`
   - **Alcance Visual:** Vista Completa — En 07/09 pantalla de dictamen con desglose ponderado, feedback del Entrenador de IA y sello verificado; en 22/24 galería de certificados y hashes SHA-256
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1246,8 +1246,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** revisar la bitácora de incidencias de evaluaciones dudosas y resolver apelaciones de miembros,  
   > **para** velar por la rigurosidad y transparencia de las certificaciones.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 4: `17 - Consola Forense de Auditoría Anti-Fraude & Apelaciones`
-  - **Mobile Responsive:** Fila 4: `19 - Mobile Auditoría Forense de Fraude`
+  - **Web Desktop:** `17 - Consola Forense de Auditoría Anti-Fraude & Apelaciones`
+  - **Mobile Responsive:** `19 - Mobile Auditoría Forense de Fraude`
   - **Alcance Visual:** Vista Completa — Consola administrativa SaaS con listado de exámenes sospechosos, bitácora segundo a segundo de telemetría, lectura de apelaciones del alumno y botones de dictamen
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1283,8 +1283,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** procesar la pista de audio grabada durante la ejecución del instrumento,  
   > **para** medir afinación (pitch), ritmo/tempo y limpieza acústica frente al patrón esperado.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 4: `16B - Modal Crear Nueva Habilidad`, `19 - Datasets` y Fila 3: `22 - Certificados IA`
-  - **Mobile Responsive:** Fila 4: `18B - Mobile Modal Nueva Habilidad`, `21 - Datasets` y Fila 3: `24 - Certificados IA`
+  - **Web Desktop:** `16B - Modal Crear Nueva Habilidad`, `19 - Datasets` y `22 - Certificados IA`
+  - **Mobile Responsive:** `18B - Mobile Modal Nueva Habilidad`, `21 - Datasets` y `24 - Certificados IA`
   - **Alcance Visual:** Solo una parte de esa vista — Parametrización de la rúbrica acústica en 16B/18B, ingesta y etiquetado espectral en 19/21 y credencial de audio en 22/24
 - **Criterios de Aceptación:**
   - **Backend (Audio Worker):**
@@ -1318,8 +1318,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** analizar el video grabado de un reto de toques y dominio de balón,  
   > **para** contabilizar repeticiones válidas, control motriz y estabilidad técnica mediante visión artificial.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 4: `16B - Modal Crear Nueva Habilidad`, `19 - Datasets` y Fila 3: `22 - Certificados IA`
-  - **Mobile Responsive:** Fila 4: `18B - Mobile Modal Nueva Habilidad`, `21 - Datasets` y Fila 3: `24 - Certificados IA`
+  - **Web Desktop:** `16B - Modal Crear Nueva Habilidad`, `19 - Datasets` y `22 - Certificados IA`
+  - **Mobile Responsive:** `18B - Mobile Modal Nueva Habilidad`, `21 - Datasets` y `24 - Certificados IA`
   - **Alcance Visual:** Solo una parte de esa vista — Parametrización del reto deportivo en 16B/18B, etiquetado de toques en 19/21 y certificación de habilidades motrices en 22/24
 - **Criterios de Aceptación:**
   - **Backend (Vision Worker):**
@@ -1353,8 +1353,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** alertar si aparece más de una persona en pantalla o se escuchan voces accesorias,  
   > **para** evitar asistencia externa ilícita.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 1: `06 - Preguntas Orales Técnicas con Cámara` y `08 - Detección de Trampa e Infracción Anti-Fraude`
-  - **Mobile Responsive:** Fila 1: `08 - Mobile Preguntas con Cámara` y `10 - Mobile Alerta Detección de Trampa`
+  - **Web Desktop:** `06 - Preguntas Orales Técnicas con Cámara` y `08 - Detección de Trampa e Infracción Anti-Fraude`
+  - **Mobile Responsive:** `08 - Mobile Preguntas con Cámara` y `10 - Mobile Alerta Detección de Trampa`
   - **Alcance Visual:** Solo una parte de esa vista — Caja de video con algoritmo de detección facial múltiple y medidor VU de actividad vocal en 06/08, y modal de sanción si se confirma intrusión en 08/10
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1384,8 +1384,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** agendar sesiones de hasta 1 hora consumiendo mi cupo gratuito semanal (o pagando con puntos si excedo el cupo), y cancelar con motivo justificado restaurando mi cupo,  
   > **para** coordinar mis clases con equidad y protección contra cancelaciones abusivas.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 0: `03B`, `03C`, `03D`, Fila 3: `20 - Mis Intercambios` y `21 - Disponibilidad y Horarios`
-  - **Mobile Responsive:** Fila 0: `05B`, `05C`, `05D`, Fila 3: `22 - Mis Intercambios` y `23 - Disponibilidad y Agenda`
+  - **Web Desktop:** `03B`, `03C`, `03D`, `20 - Mis Intercambios` y `21 - Disponibilidad y Horarios`
+  - **Mobile Responsive:** `05B`, `05C`, `05D`, `22 - Mis Intercambios` y `23 - Disponibilidad y Agenda`
   - **Alcance Visual:** Vista Completa — Selección de franjas de 1h, control del cupo gratuito de 2 sesiones/semana, cancelación justificada y agenda sincronizada con Google Calendar
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1422,8 +1422,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** confirmar que el encuentro se realizó e indicar las horas efectivas,  
   > **para** que el intercambio impacte formalmente en mi historial y se liberen los puntos si fue una clase paga.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 2: `11A - Sesión Virtual`, `11B - Sesión Presencial` y `12 - Modal Reseña Pedagógica`
-  - **Mobile Responsive:** Fila 2: `13A - Sesión Virtual`, `13B - Sesión Presencial` y `14 - Modal Reseña`
+  - **Web Desktop:** `11A - Sesión Virtual`, `11B - Sesión Presencial` y `12 - Modal Reseña Pedagógica`
+  - **Mobile Responsive:** `13A - Sesión Virtual`, `13B - Sesión Presencial` y `14 - Modal Reseña`
   - **Alcance Visual:** Vista Completa — En 11A/13A fin de llamada y confirmación dual; en 11B/13B verificación mutua con PIN de 4 dígitos (7 4 9 2) y liberación automática de Escrow
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1457,8 +1457,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** calificar a mi compañero y tener la opción de regalarle puntos como propina,  
   > **para** premiar a los tutores excepcionales y construir un ecosistema de alta confianza.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 2: `12 - Modal Reseña Pedagógica & Propinas SkillPoints` y Fila 3: `23 - Reputación, Reseñas y Propinas`
-  - **Mobile Responsive:** Fila 2: `14 - Mobile Modal Reseña Pedagógica` y Fila 3: `25 - Mobile Reputación y Reseñas`
+  - **Web Desktop:** `12 - Modal Reseña Pedagógica & Propinas SkillPoints` y `23 - Reputación, Reseñas y Propinas`
+  - **Mobile Responsive:** `14 - Mobile Modal Reseña Pedagógica` y `25 - Mobile Reputación y Reseñas`
   - **Alcance Visual:** Vista Completa — En 12/14 formulario modal con 3 criterios de 5 estrellas y pills de propina (0, +5, +10, +25 SP); en 23/25 muro público con score 4.9★ y testimonios
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1494,8 +1494,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** disponer de mi Pasaporte de Habilidades accesible por enlace público y código QR verificable,  
   > **para** compartir mis competencias certificadas con terceros o en mi currículum profesional.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 2: `10 - Pasaporte de Habilidades: Reporte de Auditoría Pública` y `09 - Perfil de Usuario`
-  - **Mobile Responsive:** Fila 2: `12 - Mobile Pasaporte de Habilidades Público` y `11 - Mobile Perfil`
+  - **Web Desktop:** `10 - Pasaporte de Habilidades: Reporte de Auditoría Pública` y `09 - Perfil de Usuario`
+  - **Mobile Responsive:** `12 - Mobile Pasaporte de Habilidades Público` y `11 - Mobile Perfil`
   - **Alcance Visual:** Vista Completa — En 10/12 dossier técnico 'Recruiter-Grade' público con código, Pytest, transcripción oral y hash; en 09/11 generador de QR específico por habilidad
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1526,8 +1526,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **quiero** comprar paquetes de puntos con dinero real para pagar clases no recíprocas, y poder retirar en dinero real a mi cuenta bancaria las ganancias obtenidas por enseñar y recibir propinas,  
   > **para** aprender sin depender de tener una habilidad recíproca y monetizar mis conocimientos de forma transparente.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 3: `13A - Billetera de Tokens & Balance Escrow`, `13B - Modal Adquisición` y `13C - Modal Canje y Retiro`
-  - **Mobile Responsive:** Fila 3: `15A - Mobile Billetera`, `15B - Modal Adquisición` y `15C - Modal Canje y Retiro`
+  - **Web Desktop:** `13A - Billetera de Tokens & Balance Escrow`, `13B - Modal Adquisición` y `13C - Modal Canje y Retiro`
+  - **Mobile Responsive:** `15A - Mobile Billetera`, `15B - Modal Adquisición` y `15C - Modal Canje y Retiro`
   - **Alcance Visual:** Vista Completa — En 13A/15A dashboard de saldo y Escrow; en 13B/15B compra de paquetes con pasarela; en 13C/15C retiro de propinas a cuenta bancaria
 - **Criterios de Aceptación:**
   - **Backend:**
@@ -1566,8 +1566,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   > **queremos** un canal formal donde el miembro reporte su queja y el administrador pueda responderle, resolverla y compensarlo con puntos si lo considera oportuno,  
   > **para** brindar una atención justa, resolver disputas y fidelizar a la comunidad.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** Fila 3: `24A - Centro de Quejas Usuario`, `24B - Formulario de Apertura de Queja & Pruebas`, Fila 2: `12 - Modal Reseña` y Fila 4: `18 - Centro de Quejas Admin`
-  - **Mobile Responsive:** Fila 3: `26A - Mobile Quejas Usuario`, `26B - Mobile Formulario Queja`, Fila 2: `14 - Modal Reseña` y Fila 4: `20 - Mobile Centro Quejas Admin`
+  - **Web Desktop:** `24A - Centro de Quejas Usuario`, `24B - Formulario de Apertura de Queja & Pruebas`, `12 - Modal Reseña` y `18 - Centro de Quejas Admin`
+  - **Mobile Responsive:** `26A - Mobile Quejas Usuario`, `26B - Mobile Formulario Queja`, `14 - Modal Reseña` y `20 - Mobile Centro Quejas Admin`
   - **Alcance Visual:** Vista Completa — Formulario de denuncia del alumno con pruebas/telemetría en 24B/26B y consola arbitral Master-Detail en 18/20 con botones para Reembolso y Compensación
 - **Criterios de Aceptación:**
   - **Backend:**
