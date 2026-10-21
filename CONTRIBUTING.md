@@ -118,13 +118,16 @@ Lo siguiente es que **el ámbito puede ser opcional**, como lo menciona la estru
 
 Referencia: [Buenas prácticas para escribir commits en Git](https://midu.dev/buenas-practicas-escribir-commits-git/)
 
-**Se deberá agregar la descripción del commit, empezando siempre por un verbo en imperativo**, por ejemplo:
+**Se deberá redactar el mensaje del commit OBLIGATORIAMENTE EN INGLÉS**, empezando siempre por un verbo en imperativo (por ejemplo: `add`, `create`, `fix`, `update`, `remove`, `enable`, `refactor`, etc.).
 
-añade, crea, remueve, cambia, soluciona y la descripción que generemos.
-
-(Add, Change, Fix, Remove, Enable, Setup, …)
+Ejemplos correctos:
+- `feat(users): enable user profile`
+- `fix(auth): fix token expiration calculation`
+- `docs(readme): update env template instructions`
+- `test(health): add integration test for database connectivity`
 
 > [!IMPORTANT]
+> **El idioma de los mensajes de commit es estrictamente INGLÉS.**
 > **NO se usan puntos finales al término de la descripción.**
 > **La descripción deberá tener como máximo hasta 50 caracteres.**
 
@@ -162,7 +165,7 @@ Todo endpoint desarrollado en el backend debe devolver obligatoriamente el sobre
 
 Antes de que un PR sea fusionado en `dev`, el revisor debe constatar:
 - [ ] El PR apunta a la rama **`dev`** (nunca a `main`).
-- [ ] El título del PR y los commits siguen el estándar de Conventional Commits sin punto final y descripción concisa (máx. 50 caracteres).
+- [ ] Todos los mensajes de commit están redactados estrictamente en **inglés** bajo Conventional Commits, sin punto final y con un máximo de 50 caracteres en el título.
 - [ ] No contiene credenciales ni secretos en el código ni en el historial de commits.
 - [ ] Todas las pruebas automatizadas pasan al 100% (`uv run pytest -v`).
 - [ ] Los endpoints cumplen con el sobre estándar `APIResponse`.

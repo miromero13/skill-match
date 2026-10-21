@@ -79,6 +79,7 @@ Antes de generar o modificar código, el agente debe consultar los siguientes do
 ### 3.3 Flujo de Trabajo Git y Contribución
 - **Prohibido trabajar directo en `main` o `dev`:** Los commits directos están prohibidos en estas dos ramas.
 - **Ramas individuales y PRs a `dev`:** Todo desarrollador o agente debe trabajar en su propia rama (ej. `dev-luis` o `feat/<id-historia>`) y subir sus cambios mediante Pull Request con destino estricto a la rama `dev`.
+- **Commits en Inglés Obligatorio:** Todos los mensajes de commit deben estar redactados estrictamente en **inglés** bajo Conventional Commits (`feat:`, `fix:`, `chore:`, etc.), comenzando con verbo en imperativo (`add`, `fix`, `update`), sin punto final y con un máximo de 50 caracteres en el título.
 - Consultar la guía completa de contribución en [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ### 3.4 Flujo de Trabajo ODD (Organic Driven Development)
