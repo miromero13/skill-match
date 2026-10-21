@@ -52,19 +52,8 @@ git merge dev  # Asegúrate de incorporar los últimos cambios de dev
   uv run pytest -v
   ```
 
-### Paso 4: Realizar commits atómicos bajo Conventional Commits
-Utiliza mensajes de commit descriptivos con la convención estándar:
-- `feat(...)`: Nueva funcionalidad o capacidad.
-- `fix(...)`: Corrección de un defecto o bug.
-- `docs(...)`: Cambios exclusivos en documentación.
-- `refactor(...)`: Reestructuración de código sin alterar su comportamiento.
-- `test(...)`: Incorporación o ajuste de pruebas unitarias/integración.
-
-Ejemplo:
-```bash
-git add backend/
-git commit -m "feat(backend): add auth endpoints for google oauth and whatsapp otp (HU-07)"
-```
+### Paso 4: Realizar commits siguiendo la guía de Conventional Commits
+Sigue la guía detallada de la **Sección 3** para estructurar tus mensajes.
 
 ### Paso 5: Mantener tu rama sincronizada antes de subirla
 Antes de abrir el Pull Request, asegúrate de no tener conflictos con los últimos cambios de `dev`:
@@ -80,18 +69,74 @@ git push -u origin <tu-rama>
 1. Ingresa a GitHub y crea un nuevo Pull Request.
 2. **Selecciona como rama base (`base branch`): `dev`**.
 3. **Selecciona como rama de origen (`compare branch`): `<tu-rama>`** (ej. `dev-luis` o `feat/hu-XX`).
-4. Completa la plantilla del PR describiendo:
-   - Qué problema resuelve o qué HU implementa.
-   - Qué cambios introduce.
-   - Evidencia de pruebas ejecutadas con éxito.
+4. Sigue la guía de [Como crear una pull request con buenas prácticas](/pull_request/pull_request.md).
 
 ---
 
-## 3. Manejo de Secretos y Seguridad
+## 3. ¿Cómo hacer un buen Commit en Git?
+
+Para poder crear un commit utilizaremos el comando `git commit`:
+
+```bash
+git commit -m "feat(users): enable user profile"
+```
+
+El flag `-m` agregado al comando `git commit` nos permitirá agregar un commit a la rama que estamos trabajando y de nueva cuenta aquí vuelve a existir otro conflicto, ya que si no tenemos estructuras, estándares o referencias para poder generarlos, seguramente se volverán un caos.
+
+Ten en consideración lo siguiente: Probablemente el commit que generas hoy, lo tendrás que volver a revisar en algún tiempo: días, semanas, meses o años y si no damos la descripción adecuada, probablemente se vuelva un lío.
+
+Para que esto no suceda, en la comunidad hay distintas sugerencias, sin embargo, una de las más utilizadas, se denomina **conventional commits**.
+
+En términos resumidos, conventional commits sugiere lo siguiente:
+
+### El mensaje del commit deberá seguir una estructura, la cual es:
+
+```
+<tipo>[ámbito opcional]: <descripción>
+
+[cuerpo opcional]
+
+[nota(s) al pie opcional(es)]
+```
+
+Por lo que las recomendaciones son:
+
+**El commit siempre deberá iniciar con un tipo**, algunos de los tipos disponibles que comúnmente se pueden agregar son:
+
+- **feat:** Agregar nueva funcionalidad.
+- **fix:** Al arreglar un error o bug.
+- **chore:** Tareas que no sean una nueva funcionalidad como:
+  - crear un gitignore
+  - actualizar el readme file
+  - agregar nueva librería o dependencia
+- **test:** Agregar o modificar tests.
+- **docs:** Agregar o modificar documentación.
+- **refactor:** Refactorizar el código sin alterar su lógica funcional.
+- **perf:** Mejorando el rendimiento o performance.
+
+Lo siguiente es que **el ámbito puede ser opcional**, como lo menciona la estructura, por ejemplo: podemos poner `api`, que significa que el ámbito es la api, o `users`, que significaría el módulo de usuarios, etc.
+
+Referencia: [Buenas prácticas para escribir commits en Git](https://midu.dev/buenas-practicas-escribir-commits-git/)
+
+**Se deberá agregar la descripción del commit, empezando siempre por un verbo en imperativo**, por ejemplo:
+
+añade, crea, remueve, cambia, soluciona y la descripción que generemos.
+
+(Add, Change, Fix, Remove, Enable, Setup, …)
+
+> [!IMPORTANT]
+> **NO se usan puntos finales al término de la descripción.**
+> **La descripción deberá tener como máximo hasta 50 caracteres.**
+
+A continuación te recomendamos consultar: [Como crear una pull request con buenas prácticas](/pull_request/pull_request.md).
+
+---
+
+## 4. Manejo de Secretos y Seguridad
 
 1. **Nunca comitear archivos `.env` reales:**
    - Todo archivo con credenciales privadas, tokens o contraseñas debe permanecer ignorado en `.gitignore`.
-   - Actualiza únicamente `env.template` si agregas una nueva variable requerida por el sistema.
+   - Actualiza únicamente `env.template` y el bloque `bash` en `backend/README.md` si agregas una nueva variable requerida por el sistema.
 2. **Uso de SecretStr:**
    - En el backend, cualquier variable que almacene tokens, contraseñas o claves privadas debe declararse estrictamente como `SecretStr` en `Settings` para evitar fugas en logs o respuestas HTTP.
 3. **Restricción de IA Propia:**
@@ -99,7 +144,7 @@ git push -u origin <tu-rama>
 
 ---
 
-## 4. Contrato de Respuesta Unificado (Backend)
+## 5. Contrato de Respuesta Unificado (Backend)
 
 Todo endpoint desarrollado en el backend debe devolver obligatoriamente el sobre unificado `APIResponse[T]`:
 ```json
@@ -115,11 +160,13 @@ Todo endpoint desarrollado en el backend debe devolver obligatoriamente el sobre
 
 ---
 
-## 5. Checklist para Aprobar un Pull Request
+## 6. Checklist para Aprobar un Pull Request
 
 Antes de que un PR sea fusionado en `dev`, el revisor debe constatar:
-- [ ] El PR apunta a la rama `dev` (no a `main`).
+- [ ] El PR apunta a la rama **`dev`** (nunca a `main`).
+- [ ] El título del PR y los commits siguen el estándar de Conventional Commits sin punto final y descripción concisa (máx. 50 caracteres).
 - [ ] No contiene credenciales ni secretos en el código ni en el historial de commits.
-- [ ] Todas las pruebas automatizadas pasan al 100%.
+- [ ] Todas las pruebas automatizadas pasan al 100% (`uv run pytest -v`).
 - [ ] Los endpoints cumplen con el sobre estándar `APIResponse`.
 - [ ] La documentación OpenAPI / Swagger UI (`/docs`) refleja fielmente los contratos de entrada y salida.
+- [ ] Se actualizaron `backend/env.template` y `backend/README.md` si se añadieron nuevas variables de entorno.
