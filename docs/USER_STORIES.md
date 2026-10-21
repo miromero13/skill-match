@@ -257,7 +257,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ---
 
-#### HU-06: Landing Page pública y presentación de la plataforma
+#### HU-06: Landing Page pública y presentación de la plataforma (Jira: SM-18)
 - **Épica:** `EPIC-01: Preparación, Documentación y Diseño del Sistema`
 - **Actor Principal:** Visitante / Público General
 - **Roles Permitidos:** Público (Sin autenticación requerida)
@@ -1591,7 +1591,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ### Tareas Técnicas del Backlog (Technical Tasks)
 
-#### TASK-BE-01: Endpoint público de estadísticas consolidadas de la plataforma
+#### TASK-BE-01: Endpoint público de estadísticas consolidadas de la plataforma (Jira: SM-56)
 - **Épica:** `EPIC-01: Preparación, Documentación y Diseño del Sistema` / `EPIC-13: Consolidación y Telemetría`
 - **Tipo:** Tarea Técnica (Backend)
 - **Sprint:** Sprint Final (Fase de Consolidación y Puesta en Producción)
