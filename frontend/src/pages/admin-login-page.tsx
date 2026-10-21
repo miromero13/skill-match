@@ -7,8 +7,8 @@ import { ApiError } from "@/types/api"
 export function AdminLoginPage() {
   const navigate = useNavigate()
 
-  const [email, setEmail] = useState("admin.gonzalo@skillmatch.io")
-  const [password, setPassword] = useState("SuperSecretAdminPassword123!")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -128,7 +128,7 @@ export function AdminLoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin.gonzalo@skillmatch.io"
+                placeholder="admin@skillmatch.io"
                 autoComplete="email"
                 required
                 disabled={isLoading}
