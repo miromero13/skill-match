@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import List, Union, Optional
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Rutas absolutas a los posibles archivos .env (tanto si se ejecuta desde /backend como desde la raíz)
+# Rutas absolutas para resolución de archivos .env (ejecución desde /backend o raíz)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # backend/
 ROOT_DIR = BASE_DIR.parent                               # raíz del monorepo
 
@@ -15,68 +15,64 @@ ENV_FILES = [
 
 class Settings(BaseSettings):
     """
-    Configuración global de la aplicación alimentada y validada estrictamente
-    a partir de las variables de entorno del sistema y de los archivos .env.
-    Los secretos críticos se encapsulan como SecretStr para prevenir fugas accidentales.
+    Configuración global de la aplicación.
+    TODAS las variables y credenciales deben provenir estrictamente de las variables
+    de entorno o del archivo .env. Ningún secreto o parámetro crítico tiene valor
+    harcodeado en el código fuente.
     """
-    PROJECT_NAME: str = "SkillMatch API"
-    VERSION: str = "0.1.0"
-    DESCRIPTION: str = (
-        "API Backend para SkillMatch: Plataforma colaborativa de intercambio de habilidades "
-        "con validación multi-modal asistida por Inteligencia Artificial propia."
+    # Configuración de Entorno
+    PROJECT_NAME: str = Field(..., description="Nombre del proyecto (definido en .env)")
+    VERSION: str = Field(..., description="Versión de la API (definida en .env)")
+    DESCRIPTION: str = Field(
+        default="SkillMatch API: Plataforma colaborativa de intercambio de habilidades con IA propia",
+        description="Descripción de la API"
     )
-    ENVIRONMENT: str = Field(default="development", description="development | staging | production")
-    DEBUG: bool = Field(default=True)
+    ENVIRONMENT: str = Field(..., description="Entorno de ejecución ('development', 'staging', 'production')")
+    DEBUG: bool = Field(..., description="Modo debug booleano (definido en .env)")
 
-    # Configuración de Red y Seguridad
+    # Red y CORS
     ALLOWED_ORIGINS: Union[List[str], str] = Field(
-        default=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"],
-        description="Lista de orígenes permitidos para CORS"
+        ...,
+        description="Lista o cadena separada por comas de orígenes CORS permitidos"
     )
 
-    # Base de Datos PostgreSQL Asíncrona (Cargadas de .env)
-    POSTGRES_HOST: str = "localhost"
-    POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str = "skillmatch_user"
-    POSTGRES_PASSWORD: SecretStr = Field(
-        default=SecretStr("skillmatch_password"),
-        description="Contraseña de PostgreSQL (Secreto)"
-    )
-    POSTGRES_DB: str = "skillmatch_db"
+    # Base de Datos PostgreSQL Asíncrona (Valores obligatorios desde .env)
+    POSTGRES_HOST: str = Field(..., description="Host de PostgreSQL")
+    POSTGRES_PORT: int = Field(..., description="Puerto de PostgreSQL")
+    POSTGRES_USER: str = Field(..., description="Usuario de PostgreSQL")
+    POSTGRES_PASSWORD: SecretStr = Field(..., description="Contraseña de PostgreSQL (Secreto .env)")
+    POSTGRES_DB: str = Field(..., description="Nombre de la base de datos")
     DATABASE_URL: Optional[SecretStr] = Field(
         default=None,
-        description="DSN completa de base de datos opcional (Secreto)"
+        description="DSN completa opcional de conexión a base de datos (Secreto .env)"
     )
 
-    # Parámetros del Pool de Conexiones
-    DB_POOL_SIZE: int = 10
-    DB_MAX_OVERFLOW: int = 20
-    DB_POOL_TIMEOUT: int = 30
+    # Pool de Conexiones
+    DB_POOL_SIZE: int = Field(default=10, description="Tamaño base del pool de conexiones")
+    DB_MAX_OVERFLOW: int = Field(default=20, description="Máximo overflow de conexiones")
+    DB_POOL_TIMEOUT: int = Field(default=30, description="Timeout en segundos para adquirir conexión")
 
-    # Seguridad y JWT (Cargadas de .env)
-    SECRET_KEY: SecretStr = Field(
-        default=SecretStr("09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"),
-        description="Clave secreta criptográfica para firma de tokens JWT (Secreto)"
-    )
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 día
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    # Seguridad y JWT (Valores obligatorios desde .env)
+    SECRET_KEY: SecretStr = Field(..., description="Clave criptográfica para firma de JWT (Secreto .env)")
+    ALGORITHM: str = Field(default="HS256", description="Algoritmo de firma de tokens JWT")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=1440, description="Minutos de expiración de Access Token")
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30, description="Días de expiración de Refresh Token")
 
-    # Proveedores de Autenticación Externa (Cargadas de .env)
-    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Client ID de Google OAuth")
-    GOOGLE_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Client Secret de Google (Secreto)")
-    
-    GITHUB_CLIENT_ID: Optional[str] = Field(default=None, description="Client ID de GitHub OAuth")
-    GITHUB_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Client Secret de GitHub (Secreto)")
+    # Proveedores de Autenticación Social & OTP (Opcionales / Se cargan de .env)
+    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google OAuth Client ID")
+    GOOGLE_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Google OAuth Client Secret (Secreto .env)")
 
-    WHATSAPP_API_KEY: Optional[SecretStr] = Field(default=None, description="API Key para envío de OTP WhatsApp (Secreto)")
-    WHATSAPP_PHONE_NUMBER_ID: Optional[str] = Field(default=None, description="ID de teléfono emisor de WhatsApp Business")
+    GITHUB_CLIENT_ID: Optional[str] = Field(default=None, description="GitHub OAuth Client ID")
+    GITHUB_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="GitHub OAuth Client Secret (Secreto .env)")
 
-    # Almacenamiento de Objetos S3 / MinIO (Cargadas de .env)
-    MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Host y puerto de MinIO/S3")
+    WHATSAPP_API_KEY: Optional[SecretStr] = Field(default=None, description="WhatsApp API Key (Secreto .env)")
+    WHATSAPP_PHONE_NUMBER_ID: Optional[str] = Field(default=None, description="WhatsApp Business Phone Number ID")
+
+    # Almacenamiento MinIO / S3
+    MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Endpoint de MinIO/S3")
     MINIO_ROOT_USER: str = Field(default="minioadmin", description="Usuario root de MinIO")
-    MINIO_ROOT_PASSWORD: SecretStr = Field(default=SecretStr("minioadmin"), description="Clave de MinIO (Secreto)")
-    MINIO_SECURE: bool = Field(default=False, description="Usar HTTPS para MinIO")
+    MINIO_ROOT_PASSWORD: Optional[SecretStr] = Field(default=None, description="Contraseña de MinIO (Secreto .env)")
+    MINIO_SECURE: bool = Field(default=False, description="Uso de HTTPS para MinIO")
     MINIO_DEFAULT_BUCKET: str = Field(default="skillmatch-media", description="Bucket por defecto")
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
@@ -88,43 +84,24 @@ class Settings(BaseSettings):
             return v
         return ["*"]
 
-    @model_validator(mode="after")
-    def validate_production_secrets(self) -> "Settings":
-        """
-        En producción y staging, impide arrancar si se usan claves por defecto o inseguras.
-        """
-        if self.ENVIRONMENT in ("production", "staging"):
-            insecure_keys = (
-                "replace-this-secret-key-in-production-with-openssl-rand-hex-32",
-                "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7",
-                "skillmatch_password",
-                "minioadmin",
-            )
-            if self.SECRET_KEY.get_secret_value() in insecure_keys:
-                raise ValueError("SECRET_KEY no puede ser una clave por defecto en entornos de producción o staging.")
-            if self.POSTGRES_PASSWORD.get_secret_value() in insecure_keys:
-                raise ValueError("POSTGRES_PASSWORD no puede ser la clave de desarrollo en producción.")
-        return self
-
     @property
     def async_database_url(self) -> str:
-        """Retorna la URL asíncrona segura extrayendo el valor de los SecretStr."""
+        """Construye la URL asíncrona segura extrayendo los secretos cargados desde .env."""
         if self.DATABASE_URL:
             raw_url = self.DATABASE_URL.get_secret_value()
             if raw_url.startswith("postgresql://"):
                 return raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
             return raw_url
-        
+
         pwd = self.POSTGRES_PASSWORD.get_secret_value()
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{pwd}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
-    # Configuración de carga de Pydantic Settings:
-    # 1. Variables de entorno reales del sistema operativo (tienen máxima prioridad).
-    # 2. Archivo backend/.env o raíz .env en orden de resolución.
-    # 3. Soporta nombres de variables en mayúsculas o minúsculas (case-insensitive).
+    # Configuración estricta de Pydantic Settings
+    # 1. Variables de entorno del SO / Docker (máxima prioridad)
+    # 2. Archivos .env (backend/.env, raíz .env)
     model_config = SettingsConfigDict(
         env_file=ENV_FILES,
         env_file_encoding="utf-8",
