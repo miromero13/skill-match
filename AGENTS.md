@@ -63,6 +63,12 @@ Antes de generar o modificar código, el agente debe consultar los siguientes do
 - **Manejo Centralizado de Excepciones:** Todas las excepciones (`HTTPException`, `RequestValidationError` y excepciones inesperadas de sistema) deben transformarse en el sobre `APIResponse` con su correspondiente código.
 - **Operaciones Asíncronas:** Uso mandatorio de `async/await` en routers, servicios y consultas a base de datos con `AsyncSession`.
 - **Estructura Modular Limpia:** Separación estricta entre `api` (controladores), `core` (seguridad, config, middleware), `db` (sesión SQLAlchemy), `models` (entidades ORM), `schemas` (contratos Pydantic) y `services` (lógica de dominio).
+- **Gobernanza de Variables de Entorno y Secretos (MANDATORIO):**
+  - Todo dato sensible debe tiparse obligatoriamente con `SecretStr` en `Settings` (`app/core/config.py`).
+  - Cada vez que un agente o desarrollador introduzca una nueva variable de entorno en el sistema, **es obligatorio actualizar inmediatamente la documentación**:
+    1. Agregar la variable con su valor por defecto o plantilla en `backend/env.template`.
+    2. Actualizar el bloque de variables de entorno en el `backend/README.md`.
+    3. Nunca dejar variables de entorno "fantasma" que no estén documentadas ni plantilladas.
 
 ### 3.2 Estándares de Frontend (React / TypeScript / Zustand / Tailwind)
 - **Tipado estricto:** TypeScript estricto sin uso de `any`.

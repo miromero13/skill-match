@@ -18,37 +18,60 @@ Backend asíncrono para la plataforma de intercambio colaborativo de habilidades
 
 El backend utiliza **Pydantic Settings** con tipado fuerte. Todos los secretos e información sensible están declarados explícitamente con `SecretStr` para **prevenir cualquier filtración accidental en logs, excepciones o serializaciones**.
 
-### Tabla Canónica de Variables de Entorno
+Copia y pega la siguiente plantilla en tu archivo local `.env` (en `backend/.env` o en la raíz del proyecto):
 
-| Variable | Tipo / Secreto | Requerido | Valor por Defecto (Dev) | Propósito y Descripción |
-|---|:---:|:---:|---|---|
-| `PROJECT_NAME` | `str` | No | `"SkillMatch API"` | Nombre de la aplicación en OpenAPI / Swagger. |
-| `VERSION` | `str` | No | `"0.1.0"` | Versión del backend. |
-| `ENVIRONMENT` | `str` | Sí | `"development"` | Entorno (`development`, `staging`, `production`). En prod valida secretos obligatorios. |
-| `DEBUG` | `bool` | No | `True` | Activa logs verbosos y debug. |
-| `ALLOWED_ORIGINS` | `list[str]` | No | `http://localhost:3000,...` | Dominios autorizados para políticas de CORS. |
-| **`POSTGRES_HOST`** | `str` | Sí | `"localhost"` | Host del servidor PostgreSQL. |
-| **`POSTGRES_PORT`** | `int` | Sí | `5432` | Puerto de PostgreSQL. |
-| **`POSTGRES_USER`** | `str` | Sí | `"skillmatch_user"` | Usuario de la base de datos. |
-| **`POSTGRES_PASSWORD`** | **`SecretStr` (Secreto)** | **Sí** | `"skillmatch_password"` | Contraseña de PostgreSQL. En producción se exige una clave segura. |
-| **`POSTGRES_DB`** | `str` | Sí | `"skillmatch_db"` | Nombre de la base de datos. |
-| **`DATABASE_URL`** | **`SecretStr` (Secreto)** | No | `None` | DSN directa opcional (`postgresql+asyncpg://...`). |
-| `DB_POOL_SIZE` | `int` | No | `10` | Tamaño base del pool de conexiones `asyncpg`. |
-| `DB_MAX_OVERFLOW` | `int` | No | `20` | Conexiones adicionales permitidas bajo carga. |
-| **`SECRET_KEY`** | **`SecretStr` (Secreto)** | **Sí** | Clave dev por defecto | Clave criptográfica para firma de JWT (generar con `openssl rand -hex 32`). |
-| `ALGORITHM` | `str` | No | `"HS256"` | Algoritmo de firma de tokens JWT. |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `int` | No | `1440` (24h) | Tiempo de expiración del Access Token. |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | `int` | No | `30` | Tiempo de expiración del Refresh Token. |
-| `GOOGLE_CLIENT_ID` | `str` | En Sprint 0 (HU-07) | `None` | Client ID de Google OAuth 2.0. |
-| **`GOOGLE_CLIENT_SECRET`** | **`SecretStr` (Secreto)** | En Sprint 0 (HU-07) | `None` | Secreto de Google OAuth 2.0. |
-| `GITHUB_CLIENT_ID` | `str` | En Sprint 0 (HU-07) | `None` | Client ID de GitHub OAuth. |
-| **`GITHUB_CLIENT_SECRET`** | **`SecretStr` (Secreto)** | En Sprint 0 (HU-07) | `None` | Secreto de GitHub OAuth. |
-| **`WHATSAPP_API_KEY`** | **`SecretStr` (Secreto)** | En Sprint 0 (HU-07) | `None` | API Key de WhatsApp Cloud para OTP. |
-| `WHATSAPP_PHONE_NUMBER_ID`| `str` | En Sprint 0 (HU-07) | `None` | ID del número telefónico de WhatsApp Business. |
-| `MINIO_ENDPOINT` | `str` | No | `"localhost:9000"` | Endpoint del almacenamiento S3 / MinIO. |
-| `MINIO_ROOT_USER` | `str` | No | `"minioadmin"` | Usuario root de MinIO. |
-| **`MINIO_ROOT_PASSWORD`** | **`SecretStr` (Secreto)** | **Sí** | `"minioadmin"` | Contraseña administrativa de MinIO. |
-| `MINIO_DEFAULT_BUCKET` | `str` | No | `"skillmatch-media"` | Bucket para audios, videos y evidencias. |
+```bash
+# ==============================================================================
+# SkillMatch Backend — Variables de Entorno (.env)
+# ==============================================================================
+
+# --- Configuración General de Entorno ---
+PROJECT_NAME="SkillMatch API"
+VERSION="0.1.0"
+ENVIRONMENT="development"
+DEBUG=True
+
+# Orígenes autorizados para CORS (separados por coma)
+ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+
+# --- Base de Datos PostgreSQL Asíncrona (asyncpg) ---
+POSTGRES_HOST="localhost"
+POSTGRES_PORT=5432
+POSTGRES_USER="skillmatch_user"
+POSTGRES_PASSWORD="skillmatch_password"
+POSTGRES_DB="skillmatch_db"
+
+# Opcional: DSN directa (anula host/port/user/password si se especifica)
+# DATABASE_URL="postgresql+asyncpg://skillmatch_user:skillmatch_password@localhost:5432/skillmatch_db"
+
+# Parámetros del Pool de Conexiones
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=20
+DB_POOL_TIMEOUT=30
+
+# --- Seguridad Criptográfica y JWT ---
+SECRET_KEY="09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+ALGORITHM="HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+REFRESH_TOKEN_EXPIRE_DAYS=30
+
+# --- Proveedores de Autenticación Social & OTP (Sprint 0 - HU-07) ---
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+
+GITHUB_CLIENT_ID=""
+GITHUB_CLIENT_SECRET=""
+
+WHATSAPP_API_KEY=""
+WHATSAPP_PHONE_NUMBER_ID=""
+
+# --- Almacenamiento de Evidencias y MinIO S3 (Sprint 1 al 4) ---
+MINIO_ENDPOINT="localhost:9000"
+MINIO_ROOT_USER="minioadmin"
+MINIO_ROOT_PASSWORD="minioadmin"
+MINIO_SECURE=False
+MINIO_DEFAULT_BUCKET="skillmatch-media"
+```
 
 > **Regla de Producción:** El backend incluye un validador en `Settings` (`validate_production_secrets`) que **bloquea el inicio de la aplicación** en entornos `production` o `staging` si se detecta que `SECRET_KEY` o `POSTGRES_PASSWORD` conservan valores por defecto de desarrollo.
 
