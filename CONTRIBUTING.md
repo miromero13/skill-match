@@ -69,7 +69,7 @@ git push -u origin <tu-rama>
 1. Ingresa a GitHub y crea un nuevo Pull Request.
 2. **Selecciona como rama base (`base branch`): `dev`**.
 3. **Selecciona como rama de origen (`compare branch`): `<tu-rama>`** (ej. `dev-luis` o `feat/hu-XX`).
-4. Sigue la guía de [Como crear una pull request con buenas prácticas](/pull_request/pull_request.md).
+4. Describe brevemente el cambio, el problema que soluciona o la Historia de Usuario asociada, y la evidencia de que las pruebas pasaron localmente.
 
 ---
 
@@ -127,8 +127,6 @@ añade, crea, remueve, cambia, soluciona y la descripción que generemos.
 > [!IMPORTANT]
 > **NO se usan puntos finales al término de la descripción.**
 > **La descripción deberá tener como máximo hasta 50 caracteres.**
-
-A continuación te recomendamos consultar: [Como crear una pull request con buenas prácticas](/pull_request/pull_request.md).
 
 ---
 
