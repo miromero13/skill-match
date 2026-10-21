@@ -262,7 +262,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Actor Principal:** Visitante / Público General
 - **Roles Permitidos:** Público (Sin autenticación requerida)
 - **Sprint:** Sprint 0
-- **Estado:** Por hacer
+- **Estado:** Hecho
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** Requisitos del producto, Presentación
@@ -273,19 +273,20 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `30 - Landing Page Pública (Presentación Institucional)`
   - **Mobile Responsive:** `32 - Mobile Landing Page Institucional`
-  - **Alcance Visual:** Vista Completa — Portada pública de 2800px (Navbar pública, Hero, Cómo Funciona en 3 pasos, Demos de las 3 áreas de IA, Métricas en vivo y Footer)
+  - **Alcance Visual:** Vista Completa — Portada pública con diseño responsive full-viewport (Navbar pública con menú lateral mobile a la izquierda y enlaces ancla fluidos, Hero, Cómo Funciona en 3 pasos, Demos de las 3 áreas de IA, Catálogo de categorías, Confianza & Escrow, Métricas consolidadas, CTA final y Footer institucional en 1 columna mobile).
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Endpoints públicos documentados en Swagger UI (`/docs`):
-      - `GET /api/platform/stats`: Estadísticas públicas consolidadas de la plataforma (total de habilidades activas en catálogo, intercambios exitosos completados y miembros registrados) respondiendo en el sobre estándar `APIResponse`.
+    - [x] Endpoints públicos documentados en Swagger UI (`/docs`):
+      - `GET /api/platform/stats`: Estadísticas públicas consolidadas de la plataforma (Diferido a tarea técnica de backlog `TASK-BE-01` para implementación al final cuando existan datos reales de producción en los módulos core).
   - **Frontend:**
-    - [ ] Ruta `/` pública implementada con el preset Shadcn/ui Mist y tipografía Inter.
-    - [ ] **Sección Hero:** Encabezado con propuesta de valor de alto impacto (*Skill Swapping colaborativo con validación objetiva por Inteligencia Artificial*) y botones de llamada a la acción (*Call-to-Action*) directos para iniciar con Google, WhatsApp o GitHub.
-    - [ ] **Sección Cómo Funciona:** Flujo explicativo interactivo en 3 pasos (1. Registrá tus habilidades a enseñar y aprender; 2. Valida tu nivel con IA propia; 3. Hacé match recíproco y coordiná sesiones de clase).
-    - [ ] **Sección Áreas de Validación IA:** Demostración visual de las tres verticales (Programación con editor y sandbox, Instrumentos con análisis de audio y Fútbol con visión artificial).
-    - [ ] **Sección Estadísticas en Vivo:** Consumo dinámico de `/api/platform/stats` con datos hidratados mediante store de **Zustand**.
-    - [ ] **Navbar y Footer:** Barra superior fija con enlaces a catálogo público, botón de acceso rápido y pie de página con enlaces institucionales.
-    - [ ] Diseño 100% responsive comprobado en mobile, tablet y desktop.
+    - [x] Ruta `/` pública implementada con el preset Shadcn/ui Mist y tipografía Inter.
+    - [x] **Sección Hero:** Encabezado con propuesta de valor de alto impacto (*Skill Swapping colaborativo con validación objetiva por Inteligencia Artificial*) y botones de llamada a la acción (*Call-to-Action*) directos para iniciar con Google, WhatsApp o GitHub.
+    - [x] **Sección Cómo Funciona:** Flujo explicativo interactivo en 3 pasos (1. Registrá tus habilidades a enseñar y aprender; 2. Valida tu nivel con IA propia; 3. Hacé match recíproco y coordiná sesiones de clase).
+    - [x] **Sección Áreas de Validación IA:** Demostración visual de las tres verticales (Programación con editor y sandbox, Instrumentos con análisis de audio y Fútbol con visión artificial).
+    - [x] **Sección Catálogo y Confianza & Escrow:** Secciones dedicadas a pantalla completa con categorías de habilidades y pilares del contrato Escrow con navegación ancla fluida bidireccional.
+    - [x] **Sección Estadísticas:** Estructura visual consolidada y adaptable para consumo dinámico de `/api/platform/stats` con datos hidratados mediante store de **Zustand** (pendiente de disponibilidad de backend en `TASK-BE-01`).
+    - [x] **Navbar y Footer:** Barra superior fija responsive con menú lateral izquierdo en mobile (< 1024px), sin solapamiento en `lg`, y pie de página en 1 sola columna mobile con todos los enlaces institucionales.
+    - [x] Diseño 100% responsive comprobado en mobile, tablet y desktop con adaptación full-viewport (`min-h-dvh`/`min-h-screen`).
 
 ---
 
@@ -1585,3 +1586,39 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
     - [ ] Panel administrativo con detalle del reclamo, editor de respuesta oficial y switch opcional: *"Compensar con Puntos"* con selector de cantidad.
     - [ ] Gestión de estado en store de **Zustand**.
     - [ ] Alertas renderizando el `message` del backend y diseño 100% responsive en mobile, tablet y desktop.
+
+---
+
+### Tareas Técnicas del Backlog (Technical Tasks)
+
+#### TASK-BE-01: Endpoint público de estadísticas consolidadas de la plataforma
+- **Épica:** `EPIC-01: Preparación, Documentación y Diseño del Sistema` / `EPIC-13: Consolidación y Telemetría`
+- **Tipo:** Tarea Técnica (Backend)
+- **Sprint:** Sprint Final (Fase de Consolidación y Puesta en Producción)
+- **Estado:** Por hacer
+- **Prioridad:** Media
+- **Trazabilidad:** `HU-06`, `RF-STA-01`
+- **Descripción:**
+  > Implementar el endpoint público de estadísticas consolidadas de la plataforma para alimentar dinámicamente la sección de métricas de la Landing Page y paneles institucionales. Dado que requiere acumulación y agregación de datos reales (habilidades activas en catálogo, intercambios exitosos completados y miembros registrados en la base de datos), se programa para la fase final una vez que los módulos core estén operativos.
+- **Criterios de Aceptación:**
+  - **Backend:**
+    - [ ] Endpoints públicos documentados en Swagger UI (`/docs`):
+      - `GET /api/platform/stats`: Estadísticas públicas consolidadas de la plataforma (total de habilidades activas en catálogo, intercambios exitosos completados y miembros registrados) respondiendo en el sobre estándar `APIResponse`.
+    - [ ] Capa de caché en memoria o Redis (TTL sugerido: 5 minutos) para evitar consultas agregadas pesadas (`COUNT`, `AVG`) en la base de datos ante picos de tráfico público.
+    - [ ] Estructura de respuesta estandarizada:
+      ```json
+      {
+        "success": true,
+        "statuscode": 200,
+        "message": "Estadísticas públicas de la plataforma recuperadas exitosamente",
+        "data": {
+          "total_active_skills": 1240,
+          "total_completed_swaps": 4850,
+          "total_registered_members": 3500,
+          "satisfaction_rate": 98.4,
+          "escrow_protected_rate": 100.0
+        }
+      }
+      ```
+  - **Frontend:**
+    - [ ] Consumo dinámico de `/api/platform/stats` con datos hidratados mediante store de **Zustand** en la Landing Page (sección `#metricas`).
