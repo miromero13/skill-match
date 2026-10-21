@@ -14,9 +14,9 @@ Backend asíncrono para la plataforma de intercambio colaborativo de habilidades
 
 ---
 
-## 2. Gestión de Variables de Entorno y Secretos
+## 2. Gestión de Variables de Entorno y Secretos (.env)
 
-El backend utiliza **Pydantic Settings** con tipado fuerte. Todos los secretos e información sensible están declarados explícitamente con `SecretStr` para **prevenir cualquier filtración accidental en logs, excepciones o serializaciones**.
+El backend utiliza **Pydantic Settings** con tipado fuerte. Todas las variables y credenciales deben provenir estrictamente de tu archivo `.env` o del entorno.
 
 Copia y pega la siguiente plantilla en tu archivo local `.env` (en `backend/.env` o en la raíz del proyecto):
 
@@ -73,34 +73,35 @@ MINIO_SECURE=False
 MINIO_DEFAULT_BUCKET="skillmatch-media"
 ```
 
-> **Regla de Producción:** El backend incluye un validador en `Settings` (`validate_production_secrets`) que **bloquea el inicio de la aplicación** en entornos `production` o `staging` si se detecta que `SECRET_KEY` o `POSTGRES_PASSWORD` conservan valores por defecto de desarrollo.
-
 ---
 
-## 3. Puesta en Marcha
+## 3. Puesta en Marcha Multiplataforma
 
-### Ejecución Local en Entorno Virtual
+### 🍎 Opción 1: En macOS (MacBook - Guía Principal)
 
-1. **Configurar el entorno virtual con `uv`:**
+Requisitos: Python 3.12 o 3.13 (instalado nativamente o vía Homebrew: `brew install python@3.13`).
+
+1. **Crear y activar el entorno virtual estándar con `python3`:**
    ```bash
    cd backend
-   uv venv .venv --python python3.13
+   python3 -m venv .venv
    source .venv/bin/activate
-   uv pip install -e ".[dev]"
    ```
 
-2. **Configurar variables de entorno:**
-   Copia la plantilla `env.template` a tu archivo local `.env`:
+2. **Instalar dependencias con `pip`:**
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+3. **Configurar el archivo `.env`:**
+   Copia la plantilla `env.template` al archivo `.env`:
    ```bash
    cp env.template .env
    ```
 
-3. **Asegurar instancia de PostgreSQL:**
-   Asegúrate de tener un servidor PostgreSQL activo con las credenciales indicadas en tu `.env`.
-
-4. **Ejecutar migraciones de base de datos con Alembic:**
+4. **Ejecutar migraciones en la base de datos:**
    ```bash
-   cd backend
    alembic upgrade head
    ```
 
@@ -108,34 +109,110 @@ MINIO_DEFAULT_BUCKET="skillmatch-media"
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
-- La API estará accesible en: `http://localhost:8000`
-- Documentación Swagger UI: `http://localhost:8000/docs`
-- Verificación de salud: `http://localhost:8000/api/health`
 
 ---
 
-## 4. Ejecución de Pruebas Automatizadas (Pytest)
-Para correr la suite de pruebas unitarias y de integración:
+### 🐧 Opción 2: En Linux (Ubuntu / Debian / Fedora)
+
+1. **Instalar dependencias del sistema y crear entorno:**
+   ```bash
+   sudo apt update && sudo apt install -y python3-venv python3-pip
+   cd backend
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+2. **Instalar requerimientos y migrar:**
+   ```bash
+   pip install -r requirements.txt
+   cp env.template .env
+   alembic upgrade head
+   ```
+
+3. **Iniciar servidor:**
+   ```bash
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+---
+
+### 🪟 Opción 3: En Windows (PowerShell / Command Prompt)
+
+1. **Crear y activar entorno virtual:**
+   ```powershell
+   cd backend
+   python -m venv .venv
+   .venv\Scripts\activate
+   ```
+
+2. **Instalar dependencias:**
+   ```powershell
+   pip install -r requirements.txt
+   copy env.template .env
+   ```
+
+3. **Ejecutar migraciones y arrancar:**
+   ```powershell
+   alembic upgrade head
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+---
+
+## 4. ¿Cómo Probar la Base de Datos con TablePlus?
+
+1. Abre **TablePlus** en tu MacBook.
+2. Haz clic en **Create a new connection...** $\to$ Selecciona **PostgreSQL**.
+3. Ingresa los datos configurados en tu `.env`:
+   - **Name:** `SkillMatch Local`
+   - **Host:** `localhost` o `127.0.0.1`
+   - **Port:** `5432`
+   - **User:** `skillmatch_user`
+   - **Password:** `skillmatch_password`
+   - **Database:** `skillmatch_db`
+4. Haz clic en **Test** (debe marcarse todo en verde) y luego en **Connect**.
+5. Verás la tabla `alembic_version` que confirma que las migraciones están activas y sincronizadas.
+
+---
+
+## 5. ¿Cómo Probar la API y Swagger UI?
+
+Una vez levantado el servidor (`uvicorn app.main:app --reload`):
+
+1. **Documentación Interactiva (Swagger UI):**
+   Abre en tu navegador:
+   👉 **`http://localhost:8000/docs`**
+   Allí podrás ver y probar interactivamente todos los endpoints con sus contratos y respuestas en vivo.
+
+2. **Endpoint de Salud del Sistema:**
+   Abre en tu navegador o terminal:
+   👉 **`http://localhost:8000/api/health`**
+   
+   Respuesta esperada (JSON canónico):
+   ```json
+   {
+     "statuscode": 200,
+     "message": "Sistema operativo y base de datos conectada exitosamente",
+     "data": {
+       "status": "healthy",
+       "environment": "development",
+       "version": "0.1.0",
+       "database": "connected",
+       "services": {
+         "api": "operational",
+         "database_engine": "asyncpg_sqlalchemy2"
+       }
+     },
+     "count": null
+   }
+   ```
+
+---
+
+## 6. Ejecución de Pruebas Automatizadas (Pytest)
+
+Para verificar en cualquier momento que todos los contratos, excepciones y middlewares funcionan al 100%:
 ```bash
-cd backend
-uv run pytest -v
+pytest -v
 ```
-
----
-
-## 5. Esquema del Sobre de Respuesta (APIResponse)
-Todas las rutas responden estrictamente bajo este formato JSON:
-```json
-{
-  "statuscode": 200,
-  "message": "Operación completada exitosamente",
-  "data": {
-    "status": "healthy",
-    "environment": "development",
-    "version": "0.1.0",
-    "database": "connected"
-  },
-  "count": null
-}
-```
-En caso de error (400, 404, 422, 500), el middleware captura la excepción y la traduce automáticamente al sobre estándar con su respectivo `statuscode` y `message` descriptivo.
+*(5 tests automatizados cubriendo respuesta unificada 200, 404, validaciones 422, cabeceras preventivas y salud).*
