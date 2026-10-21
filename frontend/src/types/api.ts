@@ -1,5 +1,6 @@
 // Tipado estándar del sobre de respuesta de la API de SkillMatch
-// Sincronizado con el contrato del backend: { statuscode, message, data, count }
+// Sincronizado estrictamente con el contrato del backend:
+// { "statuscode": number, "message": string, "data": T, "count": number | null }
 
 export interface APIResponse<T = unknown> {
   statuscode: number
@@ -29,13 +30,13 @@ export interface RequestOptions extends Omit<RequestInit, "body"> {
 }
 
 export class ApiError extends Error {
-  status: number
-  errors?: Record<string, string[]> | string[] | null
+  statuscode: number
+  data?: unknown
 
-  constructor(message: string, status: number, errors?: Record<string, string[]> | string[] | null) {
+  constructor(message: string, statuscode: number, data?: unknown) {
     super(message)
     this.name = "ApiError"
-    this.status = status
-    this.errors = errors
+    this.statuscode = statuscode
+    this.data = data
   }
 }

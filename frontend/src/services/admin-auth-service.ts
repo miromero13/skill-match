@@ -25,11 +25,14 @@ export interface AdminTokenDataDto {
 }
 
 export async function loginAdmin(credentials: AdminLoginCredentials): Promise<AdminTokenDataDto> {
-  const response = await apiClient.post<AdminTokenDataDto>("/admin/auth/login", {
-    body: credentials,
-    showToastOnError: false, // Manejado de forma contextual en el formulario
-    showToastOnSuccess: false,
-  })
+  const response = await apiClient.post<AdminTokenDataDto>(
+    "/admin/auth/login",
+    credentials,
+    {
+      showToastOnError: false, // El error se muestra contextualmente en el formulario
+      showToastOnSuccess: false,
+    }
+  )
 
   const tokenData = response.data
 
