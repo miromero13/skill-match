@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ShieldAlert, Loader2 } from "lucide-react"
+import { ShieldAlert, Loader2, Eye, EyeOff } from "lucide-react"
 import { loginAdmin } from "@/services/admin-auth-service"
 import { ApiError } from "@/types/api"
 
@@ -9,6 +9,7 @@ export function AdminLoginPage() {
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -148,7 +149,7 @@ export function AdminLoginPage() {
               CONTRASEÑA CIFRADA:
             </label>
             <div
-              className="w-full h-[40px] rounded-[6px] border flex items-center px-3 transition-colors focus-within:border-[#2DD4BF]"
+              className="w-full h-[40px] rounded-[6px] border flex items-center pl-3 pr-2 transition-colors focus-within:border-[#2DD4BF]"
               style={{
                 backgroundColor: "#0B1011",
                 borderColor: "#1E2629",
@@ -156,16 +157,31 @@ export function AdminLoginPage() {
             >
               <input
                 id="admin-password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••••••••••"
                 autoComplete="current-password"
                 required
                 disabled={isLoading}
-                className="w-full text-[11px] font-medium tracking-widest bg-transparent outline-none placeholder:text-[#425052]"
+                className={`w-full text-[11px] font-medium bg-transparent outline-none placeholder:text-[#425052] ${
+                  !showPassword ? "tracking-widest" : "tracking-normal"
+                }`}
                 style={{ color: "#F0FDFA" }}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="p-1 rounded text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-[#141C1E] transition-colors focus:outline-none cursor-pointer"
+                title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-3.5 h-3.5" />
+                ) : (
+                  <Eye className="w-3.5 h-3.5" />
+                )}
+              </button>
             </div>
           </div>
 
