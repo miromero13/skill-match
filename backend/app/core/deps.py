@@ -8,18 +8,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import SkillMatchException
+from app.core.security import decode_jwt_payload
 from app.db.session import get_db
 from app.models.user import User, UserRole
 
 logger = logging.getLogger("skillmatch.deps")
 
-async def get_current_user_from_token(
+async def get_current_user(
     authorization: Optional[str] = Header(None, description="Bearer <token>"),
     db: AsyncSession = Depends(get_db)
 ) -> User:
     """
-    Extrae, valida y decodifica el token JWT de acceso.
-    Retorna la entidad User persistida en base de datos.
+    Dependencia canónica de FastAPI que valida vigencia temporal, algoritmo,
+    tipo de token ('access'), no revocación y firma del JWT.
+    Retorna la entidad User persistida en base de datos verificando actividad y desbloqueo.
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise SkillMatchException(
@@ -30,11 +32,7 @@ async def get_current_user_from_token(
     token = authorization.split(" ")[1]
 
     try:
-        payload = jwt.decode(
-            token,
-            settings.SECRET_KEY.get_secret_value(),
-            algorithms=[settings.ALGORITHM]
-        )
+        payload = decode_jwt_payload(token)
         user_id_str: Optional[str] = payload.get("sub")
         token_type: Optional[str] = payload.get("type")
 
@@ -45,11 +43,13 @@ async def get_current_user_from_token(
             )
 
         user_id = UUID(user_id_str)
+    except SkillMatchException:
+        raise
     except (JWTError, ValueError) as exc:
         logger.warning(f"Error decodificando token JWT: {exc}")
         raise SkillMatchException(
             statuscode=status.HTTP_401_UNAUTHORIZED,
-            message="Firma del token inválida o expirada. Por favor autentíquese nuevamente."
+            message="Firma del token inválida, expirada o revocada. Por favor autentíquese nuevamente."
         )
 
     # Buscar usuario en base de datos
@@ -76,8 +76,11 @@ async def get_current_user_from_token(
 
     return user
 
+# Alias retrocompatible
+get_current_user_from_token = get_current_user
+
 async def require_admin_role(
-    current_user: User = Depends(get_current_user_from_token)
+    current_user: User = Depends(get_current_user)
 ) -> User:
     """
     Guardia de autorización estricta para rol ADMIN.

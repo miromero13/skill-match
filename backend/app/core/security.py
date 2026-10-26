@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+import uuid
 import bcrypt
 from jose import jwt
 from app.core.config import settings
@@ -33,6 +34,7 @@ def create_access_token(subject: str, role: str, expires_delta: Optional[timedel
         "role": str(role),
         "exp": expire,
         "iat": datetime.now(timezone.utc),
+        "jti": str(uuid.uuid4()),
         "type": "access",
     }
     encoded_jwt = jwt.encode(
@@ -50,6 +52,7 @@ def create_refresh_token(subject: str, role: str) -> str:
         "role": str(role),
         "exp": expire,
         "iat": datetime.now(timezone.utc),
+        "jti": str(uuid.uuid4()),
         "type": "refresh",
     }
     return jwt.encode(
@@ -57,3 +60,34 @@ def create_refresh_token(subject: str, role: str) -> str:
         settings.SECRET_KEY.get_secret_value(),
         algorithm=settings.ALGORITHM
     )
+
+# Conjunto en memoria para revocación inmediata de tokens (Blacklist / Denylist)
+_REVOKED_TOKENS: set[str] = set()
+
+def revoke_token(token: str) -> None:
+    """Registra la cadena del token como revocada."""
+    if token:
+        _REVOKED_TOKENS.add(token.strip())
+
+def is_token_revoked(token: str) -> bool:
+    """Verifica si un token se encuentra en la lista de revocación."""
+    return token.strip() in _REVOKED_TOKENS
+
+def clear_revoked_tokens() -> None:
+    """Limpia el almacenamiento de revocación (exclusivo para suite de tests)."""
+    _REVOKED_TOKENS.clear()
+
+def decode_jwt_payload(token: str) -> Dict[str, Any]:
+    """
+    Decodifica y valida un token JWT con verificación estricta de algoritmo,
+    secreto y revocación en lista negra.
+    """
+    if is_token_revoked(token):
+        raise jwt.JWTError("El token ha sido revocado y ya no es válido.")
+
+    return jwt.decode(
+        token,
+        settings.SECRET_KEY.get_secret_value(),
+        algorithms=[settings.ALGORITHM]
+    )
+
