@@ -19,12 +19,13 @@ interface AdminStoreState {
   // Actions
   setSearchTerm: (term: string) => void
   setIsCreateModalOpen: (open: boolean) => void
+  clearError: () => void
   fetchAdministrators: () => Promise<void>
   createAdmin: (payload: CreateAdminPayload) => Promise<boolean>
   toggleStatus: (adminId: string, is_active: boolean, reason?: string) => Promise<boolean>
 }
 
-export const useAdminStore = create<AdminStoreState>((set) => ({
+export const useAdminStore = create<AdminStoreState>((set, get) => ({
   administrators: [],
   totalCount: 0,
   isLoading: false,
@@ -35,7 +36,9 @@ export const useAdminStore = create<AdminStoreState>((set) => ({
 
   setSearchTerm: (term: string) => set({ searchTerm: term }),
 
-  setIsCreateModalOpen: (open: boolean) => set({ isCreateModalOpen: open }),
+  setIsCreateModalOpen: (open: boolean) => set({ isCreateModalOpen: open, error: null }),
+
+  clearError: () => set({ error: null }),
 
   fetchAdministrators: async () => {
     set({ isLoading: true, error: null })
@@ -49,6 +52,17 @@ export const useAdminStore = create<AdminStoreState>((set) => ({
   },
 
   createAdmin: async (payload: CreateAdminPayload) => {
+    // Validación de unicidad de correo gestionada en Zustand (HU-10)
+    const { administrators } = get()
+    const isDuplicate = administrators.some(
+      (a) => a.email.toLowerCase() === payload.email.trim().toLowerCase()
+    )
+    if (isDuplicate) {
+      const errorMsg = "El correo electrónico ya se encuentra registrado en el directorio administrativo."
+      set({ error: errorMsg, isSubmitting: false })
+      return false
+    }
+
     set({ isSubmitting: true, error: null })
     try {
       const newAdmin = await createAdministrator(payload)
@@ -58,6 +72,7 @@ export const useAdminStore = create<AdminStoreState>((set) => ({
         totalCount: state.totalCount + 1,
         isSubmitting: false,
         isCreateModalOpen: false,
+        error: null,
       }))
       return true
     } catch (err: unknown) {

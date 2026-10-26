@@ -1,5 +1,4 @@
 import type { ReactNode } from "react"
-import { Navigate } from "react-router-dom"
 import { useAuthStore } from "@/stores/auth-store"
 import { NotFoundPage } from "@/pages/not-found-page"
 
@@ -18,11 +17,11 @@ interface AdminRouteGuardProps {
 export function AdminRouteGuard({ children }: AdminRouteGuardProps) {
   const { isAuthenticated, user, token } = useAuthStore()
 
-  if (!isAuthenticated || !token) {
-    return <Navigate to="/admin/login" replace />
-  }
-
-  if (user?.role !== "ADMIN") {
+  // POLÍTICA DE SEGURIDAD POR OFUSCACIÓN (RF-SEC-01 / HU-10):
+  // Si el usuario no está autenticado, no tiene token o su rol NO es "ADMIN" (ej. es un "MEMBER" o anónimo):
+  // Renderiza OBLIGATORIAMENTE la pantalla 404 Not Found (nunca redirige a /admin/login ni 403 Forbidden).
+  // Esto previene que visitantes o miembros descubran la existencia o rutas del panel administrativo.
+  if (!isAuthenticated || !token || user?.role !== "ADMIN") {
     return <NotFoundPage />
   }
 

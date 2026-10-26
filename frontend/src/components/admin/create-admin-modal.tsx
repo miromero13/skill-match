@@ -12,7 +12,15 @@ import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Loader2, Check, ShieldCheck, Lock } from "lucide-react"
 
 export function CreateAdminModal() {
-  const { isCreateModalOpen, setIsCreateModalOpen, createAdmin, isSubmitting } = useAdminStore()
+  const {
+    isCreateModalOpen,
+    setIsCreateModalOpen,
+    createAdmin,
+    isSubmitting,
+    error: storeError,
+    clearError,
+    administrators,
+  } = useAdminStore()
 
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
@@ -24,6 +32,12 @@ export function CreateAdminModal() {
   const emailInputId = useId()
   const passwordInputId = useId()
 
+  // Validación de unicidad de correo en tiempo real gestionada con Zustand (HU-10)
+  const cleanEmail = email.trim().toLowerCase()
+  const isEmailDuplicate = cleanEmail.length > 0 && administrators.some(
+    (a) => a.email.toLowerCase() === cleanEmail
+  )
+
   // Validación en tiempo real de robustez de contraseña
   const hasMinLength = password.length >= 8
   const hasUppercase = /[A-Z]/.test(password)
@@ -34,7 +48,8 @@ export function CreateAdminModal() {
 
   const isFormValid =
     fullName.trim().length >= 2 &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) &&
+    !isEmailDuplicate &&
     isPasswordValid
 
   const resetForm = () => {
@@ -43,6 +58,7 @@ export function CreateAdminModal() {
     setPassword("")
     setShowPassword(false)
     setLocalError(null)
+    clearError()
   }
 
   const handleClose = () => {
@@ -58,7 +74,7 @@ export function CreateAdminModal() {
     setLocalError(null)
     const success = await createAdmin({
       full_name: fullName.trim(),
-      email: email.trim().toLowerCase(),
+      email: cleanEmail,
       password,
     })
 
@@ -66,6 +82,8 @@ export function CreateAdminModal() {
       resetForm()
     }
   }
+
+  const activeError = localError || storeError
 
   return (
     <Dialog open={isCreateModalOpen} onOpenChange={handleClose}>
@@ -76,16 +94,17 @@ export function CreateAdminModal() {
             <span className="text-xs font-bold uppercase tracking-wider">Control de Acceso RBAC</span>
           </div>
           <DialogTitle className="text-lg sm:text-xl font-black text-[#0B1011] tracking-tight">
-            DAR DE ALTA NUEVO USUARIO / ADMINISTRADOR (RBAC)
+            <span className="hidden sm:inline">DAR DE ALTA NUEVO USUARIO / ADMINISTRADOR (RBAC)</span>
+            <span className="sm:hidden">ALTA DE ADMINISTRADOR</span>
           </DialogTitle>
           <DialogDescription className="text-xs text-[#64748B]">
             Asigná credenciales institucionales, rol jerárquico y permisos de auditoría forense o resolución de disputas.
           </DialogDescription>
         </DialogHeader>
 
-        {localError && (
+        {activeError && (
           <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
-            {localError}
+            {activeError}
           </div>
         )}
 
@@ -107,17 +126,31 @@ export function CreateAdminModal() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor={emailInputId} className="text-xs font-bold text-[#334155] uppercase tracking-wider">
-                Correo Institucional
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor={emailInputId} className="text-xs font-bold text-[#334155] uppercase tracking-wider">
+                  Correo Institucional
+                </Label>
+                {isEmailDuplicate && (
+                  <span className="text-[10px] font-bold text-red-500">
+                    Correo ya registrado
+                  </span>
+                )}
+              </div>
               <Input
                 id={emailInputId}
                 type="email"
                 placeholder="gonzalo.martinez@admin.skillmatch.io"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (storeError) clearError()
+                }}
                 required
-                className="h-10 bg-[#F8FAFC] border-gray-200 text-sm focus:border-[#00786F] focus:ring-[#00786F]"
+                className={`h-10 bg-[#F8FAFC] text-sm focus:ring-[#00786F] ${
+                  isEmailDuplicate
+                    ? "border-red-400 focus:border-red-500"
+                    : "border-gray-200 focus:border-[#00786F]"
+                }`}
               />
             </div>
           </div>
@@ -227,7 +260,10 @@ export function CreateAdminModal() {
                   <span>Creando Administrador...</span>
                 </>
               ) : (
-                <span>Crear Administrador y Enviar Acceso ✓</span>
+                <>
+                  <span className="hidden sm:inline">Crear Administrador y Enviar Acceso ✓</span>
+                  <span className="sm:hidden">Crear y Enviar Credenciales ✓</span>
+                </>
               )}
             </button>
           </div>

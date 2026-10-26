@@ -42,10 +42,10 @@ export function AdminLayout() {
       visible: true,
     },
     {
-      label: "Gestión de Usuarios",
+      label: "Equipo Administrador",
       to: "/admin/administrators",
       icon: Users,
-      visible: user?.role === "ADMIN", // Restricción estricta RBAC
+      visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-10)
     },
     {
       label: "Catálogo de Habilidades",

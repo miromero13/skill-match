@@ -204,17 +204,15 @@ class ApiClient {
           jsonResponse.message || `Error en la solicitud (Código ${response.status})`
 
         if (showToastOnError) {
-          toast.error("Error", {
-            description: errorMessage,
-          })
+          toast.error(errorMessage)
         }
 
         throw new ApiError(errorMessage, response.status, jsonResponse.data)
       }
 
-      // 4. Notificación de éxito si se solicitó
+      // 4. Notificación de éxito si se solicitó (muestra textualmente el message del backend - HU-10)
       if (showToastOnSuccess || successMessage) {
-        toast.success(successMessage || jsonResponse.message || "Operación exitosa")
+        toast.success(jsonResponse.message || successMessage || "Operación exitosa")
       }
 
       return jsonResponse

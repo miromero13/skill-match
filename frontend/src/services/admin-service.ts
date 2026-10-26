@@ -40,12 +40,12 @@ export async function getAdministrators(): Promise<{ items: AdminUser[]; count: 
 
 /**
  * Registra un nuevo administrador institucional con contraseña robusta (POST /api/admin).
+ * Muestra el toast con el message textual devuelto por el backend (HU-10).
  */
 export async function createAdministrator(payload: CreateAdminPayload): Promise<AdminUser> {
   const response = await apiClient.post<AdminUser>("/admin", payload, {
     showToastOnError: true,
     showToastOnSuccess: true,
-    successMessage: "Administrador dado de alta exitosamente.",
   })
 
   return response.data
@@ -53,16 +53,15 @@ export async function createAdministrator(payload: CreateAdminPayload): Promise<
 
 /**
  * Suspende o reactiva una cuenta de administrador (PATCH /api/admin/{id}/status).
+ * Muestra el toast con el message textual devuelto por el backend (HU-10).
  */
 export async function updateAdministratorStatus(
   adminId: string,
   payload: UpdateAdminStatusPayload
 ): Promise<AdminUser> {
-  const actionLabel = payload.is_active ? "reactivada" : "suspendida"
   const response = await apiClient.patch<AdminUser>(`/admin/${adminId}/status`, payload, {
     showToastOnError: true,
     showToastOnSuccess: true,
-    successMessage: `Cuenta administrativa ${actionLabel} exitosamente.`,
   })
 
   return response.data
