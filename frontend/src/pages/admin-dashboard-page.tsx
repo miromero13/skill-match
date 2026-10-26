@@ -1,14 +1,29 @@
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuthStore } from "@/stores/auth-store"
-import { Shield, LogOut, Users, BookOpen, Database, AlertCircle } from "lucide-react"
+import { getMe, logoutSession } from "@/services/auth-service"
+import { Shield, LogOut, Users, BookOpen, Database, AlertCircle, Loader2 } from "lucide-react"
 
 export function AdminDashboardPage() {
   const navigate = useNavigate()
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-  const handleLogout = () => {
-    logout()
-    navigate("/admin/login", { replace: true })
+  // Sincronizar datos frescos del perfil del administrador desde el backend
+  useEffect(() => {
+    getMe().catch((err) => {
+      console.warn("Verificación de sesión en segundo plano:", err)
+    })
+  }, [])
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await logoutSession()
+    } finally {
+      setIsLoggingOut(false)
+      navigate("/admin/login", { replace: true })
+    }
   }
 
   return (
@@ -34,10 +49,15 @@ export function AdminDashboardPage() {
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-[#1E2629] bg-[#0B1011] text-[#8B9D9F] hover:text-[#F0FDFA] hover:border-red-500/50 hover:bg-red-500/10 text-xs font-semibold transition-colors cursor-pointer"
+            disabled={isLoggingOut}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-[#1E2629] bg-[#0B1011] text-[#8B9D9F] hover:text-[#F0FDFA] hover:border-red-500/50 hover:bg-red-500/10 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Cerrar Sesión</span>
+            {isLoggingOut ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2DD4BF]" />
+            ) : (
+              <LogOut className="w-3.5 h-3.5" />
+            )}
+            <span>{isLoggingOut ? "Cerrando..." : "Cerrar Sesión"}</span>
           </button>
         </div>
       </header>

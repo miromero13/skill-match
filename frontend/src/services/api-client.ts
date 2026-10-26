@@ -6,9 +6,61 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api"
 
 class ApiClient {
   private baseUrl: string
+  private isRefreshing = false
+  private refreshSubscribers: Array<{
+    resolve: (token: string) => void
+    reject: (error: unknown) => void
+  }> = []
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl.replace(/\/$/, "")
+  }
+
+  private onTokenRefreshed(newToken: string) {
+    this.refreshSubscribers.forEach((sub) => sub.resolve(newToken))
+    this.refreshSubscribers = []
+  }
+
+  private onTokenRefreshFailed(error: unknown) {
+    this.refreshSubscribers.forEach((sub) => sub.reject(error))
+    this.refreshSubscribers = []
+  }
+
+  private async performTokenRefresh(): Promise<string> {
+    const currentRefreshToken = useAuthStore.getState().refreshToken
+
+    if (!currentRefreshToken) {
+      throw new Error("No refresh token available")
+    }
+
+    const refreshUrl = `${this.baseUrl}/auth/refresh`
+    const response = await fetch(refreshUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ refresh_token: currentRefreshToken }),
+    })
+
+    if (!response.ok) {
+      throw new Error("Failed to refresh token from server")
+    }
+
+    const json = (await response.json()) as APIResponse<{
+      access_token: string
+      refresh_token: string
+      token_type: string
+      expires_in: number
+    }>
+
+    if (!json.data || !json.data.access_token) {
+      throw new Error("Invalid token refresh response payload")
+    }
+
+    const { access_token, refresh_token } = json.data
+    useAuthStore.getState().setTokens(access_token, refresh_token)
+    return access_token
   }
 
   private buildUrl(endpoint: string, params?: Record<string, string | number | boolean | undefined>): string {
@@ -28,7 +80,11 @@ class ApiClient {
     return queryString ? `${fullUrl}?${queryString}` : fullUrl
   }
 
-  private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<APIResponse<T>> {
+  private async request<T>(
+    endpoint: string,
+    options: RequestOptions = {},
+    isRetry = false
+  ): Promise<APIResponse<T>> {
     const {
       params,
       showToastOnError = true,
@@ -70,13 +126,61 @@ class ApiClient {
         body: serializedBody,
       })
 
-      // 2. Interceptor de 401 Unauthorized (Sesión expirada)
-      if (response.status === 401 && !endpoint.includes("/auth/login")) {
-        useAuthStore.getState().logout()
-        toast.error("Sesión expirada", {
-          description: "Por favor, iniciá sesión nuevamente para continuar.",
-        })
-        throw new ApiError("No autorizado o sesión expirada", 401)
+      // 2. Interceptor de 401 Unauthorized (Auto-refresh con cola concurrente)
+      if (
+        response.status === 401 &&
+        !isRetry &&
+        !endpoint.includes("/auth/login") &&
+        !endpoint.includes("/auth/refresh")
+      ) {
+        const { refreshToken } = useAuthStore.getState()
+        if (refreshToken) {
+          try {
+            let newToken: string
+            if (this.isRefreshing) {
+              newToken = await new Promise<string>((resolve, reject) => {
+                this.refreshSubscribers.push({ resolve, reject })
+              })
+            } else {
+              this.isRefreshing = true
+              try {
+                newToken = await this.performTokenRefresh()
+                this.onTokenRefreshed(newToken)
+              } catch (refreshErr) {
+                this.onTokenRefreshFailed(refreshErr)
+                throw refreshErr
+              } finally {
+                this.isRefreshing = false
+              }
+            }
+
+            // Reintentar la solicitud original con el nuevo Access Token
+            const retryHeaders = new Headers(customHeaders)
+            retryHeaders.set("Authorization", `Bearer ${newToken}`)
+
+            return await this.request<T>(
+              endpoint,
+              {
+                ...options,
+                headers: retryHeaders,
+              },
+              true
+            )
+          } catch (refreshError) {
+            console.warn("Fallo crítico durante el auto-refresh de tokens:", refreshError)
+            useAuthStore.getState().logout()
+            toast.error("Sesión expirada", {
+              description: "Por favor, iniciá sesión nuevamente para continuar.",
+            })
+            throw new ApiError("No autorizado o sesión expirada", 401)
+          }
+        } else {
+          useAuthStore.getState().logout()
+          toast.error("Sesión expirada", {
+            description: "Por favor, iniciá sesión nuevamente para continuar.",
+          })
+          throw new ApiError("No autorizado o sesión expirada", 401)
+        }
       }
 
       let jsonResponse: APIResponse<T>

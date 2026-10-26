@@ -12,12 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuthStore } from "@/stores"
+import { logoutSession } from "@/services/auth-service"
 import { ModeToggle } from "@/components/mode-toggle"
 
 export function PlatformHeader() {
   const location = useLocation()
   const path = location.pathname
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
 
   const navItems = [
     { label: "Inicio", icon: Home, to: "/app", active: path === "/app" },
@@ -138,7 +139,7 @@ export function PlatformHeader() {
                 <Link to="/app/exam-demo">Sandbox de Evaluación IA</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => logout()} asChild>
+              <DropdownMenuItem onClick={() => void logoutSession()} asChild>
                 <Link to="/">Cerrar Sesión</Link>
               </DropdownMenuItem>
             </DropdownMenuContent>

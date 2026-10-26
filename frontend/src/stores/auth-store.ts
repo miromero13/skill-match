@@ -25,6 +25,7 @@ interface AuthState {
   // Actions
   login: (user: UserProfile, token: string, refreshToken?: string) => void
   logout: () => void
+  setTokens: (token: string, refreshToken: string) => void
   updateProfile: (updates: Partial<UserProfile>) => void
   updateSkillPoints: (delta: number) => void
   setLoading: (loading: boolean) => void
@@ -55,6 +56,13 @@ export const useAuthStore = create<AuthState>()(
           refreshToken: null,
           isAuthenticated: false,
           isLoading: false,
+        }),
+
+      setTokens: (token, refreshToken) =>
+        set({
+          token,
+          refreshToken,
+          isAuthenticated: true,
         }),
 
       updateProfile: (updates) =>
