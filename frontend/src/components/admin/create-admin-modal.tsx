@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff, Loader2, Check, ShieldCheck, Lock } from "lucide-react"
+import { Eye, EyeOff, Loader2, Check, ShieldCheck } from "lucide-react"
 
 export function CreateAdminModal() {
   const {
@@ -87,13 +87,9 @@ export function CreateAdminModal() {
 
   return (
     <Dialog open={isCreateModalOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl bg-white text-[#0F172A] p-6 sm:p-8 rounded-2xl border border-gray-200 shadow-2xl">
-        <DialogHeader className="space-y-1.5 pb-4 border-b border-gray-100">
-          <div className="flex items-center gap-2 text-[#00786F]">
-            <ShieldCheck className="w-5 h-5" />
-            <span className="text-xs font-bold uppercase tracking-wider">Control de Acceso RBAC</span>
-          </div>
-          <DialogTitle className="text-lg sm:text-xl font-black text-[#0B1011] tracking-tight">
+      <DialogContent className="max-w-2xl bg-white text-[#0F172A] p-7 sm:p-8 rounded-[16px] border border-[#E2E8F0] shadow-2xl">
+        <DialogHeader className="space-y-1 pb-2">
+          <DialogTitle className="text-base sm:text-lg font-black text-[#0B1011] tracking-tight uppercase">
             <span className="hidden sm:inline">DAR DE ALTA NUEVO USUARIO / ADMINISTRADOR (RBAC)</span>
             <span className="sm:hidden">ALTA DE ADMINISTRADOR</span>
           </DialogTitle>
@@ -108,12 +104,12 @@ export function CreateAdminModal() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5 pt-2">
-          {/* Fila 1: Nombre y Correo Institucional */}
+        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+          {/* Fila 1: Nombre y Correo Institucional (Fiel a 15B) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor={nameInputId} className="text-xs font-bold text-[#334155] uppercase tracking-wider">
-                Nombre y Apellido
+              <Label htmlFor={nameInputId} className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider block">
+                NOMBRE Y APELLIDO:
               </Label>
               <Input
                 id={nameInputId}
@@ -121,14 +117,14 @@ export function CreateAdminModal() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
-                className="h-10 bg-[#F8FAFC] border-gray-200 text-sm focus:border-[#00786F] focus:ring-[#00786F]"
+                className="h-11 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] text-xs font-medium text-[#0F172A] focus:border-[#00786F] focus:ring-[#00786F]"
               />
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label htmlFor={emailInputId} className="text-xs font-bold text-[#334155] uppercase tracking-wider">
-                  Correo Institucional
+                <Label htmlFor={emailInputId} className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider block">
+                  CORREO INSTITUCIONAL:
                 </Label>
                 {isEmailDuplicate && (
                   <span className="text-[10px] font-bold text-red-500">
@@ -146,19 +142,42 @@ export function CreateAdminModal() {
                   if (storeError) clearError()
                 }}
                 required
-                className={`h-10 bg-[#F8FAFC] text-sm focus:ring-[#00786F] ${
+                className={`h-11 bg-[#F8FAFC] rounded-[6px] text-xs font-medium text-[#0F172A] focus:ring-[#00786F] ${
                   isEmailDuplicate
                     ? "border-red-400 focus:border-red-500"
-                    : "border-gray-200 focus:border-[#00786F]"
+                    : "border-[#E2E8F0] focus:border-[#00786F]"
                 }`}
               />
             </div>
           </div>
 
-          {/* Fila 2: Contraseña Inicial y Verificaciones */}
-          <div className="space-y-2">
-            <Label htmlFor={passwordInputId} className="text-xs font-bold text-[#334155] uppercase tracking-wider">
-              Contraseña Inicial
+          {/* Fila 2: Rol en la Plataforma y Estado (Fiel a 15B) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider block">
+                ROL EN LA PLATAFORMA:
+              </span>
+              <div className="h-11 px-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[6px] flex items-center justify-between text-xs font-bold text-[#0F172A]">
+                <span>Auditor Forense & Mediador Arbitral</span>
+                <span className="text-[#64748B] text-xs">▾</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider block">
+                ESTADO DE CUENTA:
+              </span>
+              <div className="h-11 px-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[6px] flex items-center justify-between text-xs font-bold text-[#0F172A]">
+                <span>Activa (Verificada)</span>
+                <span className="text-[#64748B] text-xs">▾</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Fila 3: Contraseña Inicial y Verificaciones (RF-USR-10 / HU-10) */}
+          <div className="space-y-2 pt-1">
+            <Label htmlFor={passwordInputId} className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider block">
+              CONTRASEÑA INICIAL:
             </Label>
             <div className="relative">
               <Input
@@ -168,7 +187,7 @@ export function CreateAdminModal() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="h-10 pr-10 bg-[#F8FAFC] border-gray-200 text-sm focus:border-[#00786F] focus:ring-[#00786F]"
+                className="h-11 pr-10 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] text-xs font-medium text-[#0F172A] focus:border-[#00786F] focus:ring-[#00786F]"
               />
               <button
                 type="button"
@@ -181,7 +200,7 @@ export function CreateAdminModal() {
             </div>
 
             {/* Checklist de Robustez de Contraseña */}
-            <div className="p-3 bg-[#F8FAFC] rounded-lg border border-gray-100 text-[11px] grid grid-cols-2 sm:grid-cols-3 gap-2 text-gray-500">
+            <div className="p-3 bg-[#F8FAFC] rounded-[6px] border border-[#E2E8F0] text-[11px] grid grid-cols-2 sm:grid-cols-3 gap-2 text-gray-500">
               <span className={`flex items-center gap-1 ${hasMinLength ? "text-emerald-600 font-semibold" : ""}`}>
                 <Check className={`w-3.5 h-3.5 ${hasMinLength ? "opacity-100" : "opacity-30"}`} />
                 Mínimo 8 caracteres
@@ -205,54 +224,26 @@ export function CreateAdminModal() {
             </div>
           </div>
 
-          {/* Fila 3: Rol en la Plataforma y Estado (Fiel a 15B) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <span className="text-xs font-bold text-[#334155] uppercase tracking-wider block">
-                Rol en la Plataforma
-              </span>
-              <div className="h-10 px-3 bg-[#F8FAFC] border border-gray-200 rounded-md flex items-center justify-between text-xs font-semibold text-[#0B1011]">
-                <span>Auditor Forense & Mediador Arbitral</span>
-                <span className="px-1.5 py-0.5 rounded bg-[#00786F] text-white text-[10px] font-black">
-                  ADMIN
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <span className="text-xs font-bold text-[#334155] uppercase tracking-wider block">
-                Estado de Cuenta
-              </span>
-              <div className="h-10 px-3 bg-[#F8FAFC] border border-gray-200 rounded-md flex items-center justify-between text-xs font-semibold text-emerald-700">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  Activa (Verificada)
-                </span>
-                <Lock className="w-3.5 h-3.5 text-gray-400" />
-              </div>
-            </div>
-          </div>
-
-          {/* Privilegios Concedidos */}
-          <div className="text-[11px] text-gray-500 flex items-center gap-1.5 pt-1">
+          {/* Privilegios Concedidos en Mobile (Fiel a 17B) */}
+          <div className="sm:hidden text-[11px] text-[#64748B] flex items-center gap-1.5 pt-1">
             <ShieldCheck className="w-3.5 h-3.5 text-[#00786F]" />
-            <span>Privilegios RBAC asignados: Telemetría WebRTC, Retención Escrow, Moderación Forense.</span>
+            <span>Privilegios: Telemetría WebRTC, Retención Escrow ✓</span>
           </div>
 
-          {/* Botones de Acción (Fiel a 15B & 17B) */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+          {/* Botones de Acción (Fiel a Vista 15B) */}
+          <div className="flex items-center gap-3 pt-3">
             <button
               type="button"
               onClick={handleClose}
               disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+              className="h-12 px-8 rounded-[6px] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#334155] text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 shrink-0"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={!isFormValid || isSubmitting}
-              className="px-6 py-2.5 rounded-lg bg-[#00786F] hover:bg-[#00665E] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-12 flex-1 rounded-[6px] bg-[#00786F] hover:bg-[#005E57] text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>

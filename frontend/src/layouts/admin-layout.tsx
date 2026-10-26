@@ -33,7 +33,7 @@ export function AdminLayout() {
     }
   }
 
-  // Menú con restricción RBAC: 'Equipo Administrador' solo visible para rol ADMIN
+  // Menú con restricción RBAC: 'Gestión de Usuarios' (Equipo Administrador) solo visible para rol ADMIN (HU-10 / Vista 15A)
   const navItems = [
     {
       label: "Dashboard & Analítica",
@@ -42,7 +42,7 @@ export function AdminLayout() {
       visible: true,
     },
     {
-      label: "Equipo Administrador",
+      label: "Gestión de Usuarios",
       to: "/admin/administrators",
       icon: Users,
       visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-10)
@@ -180,15 +180,12 @@ export function AdminLayout() {
             </div>
           </div>
 
-          {/* Derecha: Badge de Estado del Sistema y Rol */}
+          {/* Derecha: Badge de Estado del Sistema (Fiel a Vista 15A) */}
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E6F7F3] text-[#00786F] text-xs font-semibold border border-[#00786F33]">
               <Circle className="w-2 h-2 fill-[#00786F] text-[#00786F] animate-pulse" />
               <span className="hidden sm:inline">Sistema En Línea · Latencia 24ms</span>
               <span className="sm:hidden">En Línea</span>
-            </div>
-            <div className="hidden sm:flex items-center px-2.5 py-1 rounded bg-[#0B1011] text-[#2DD4BF] text-[10px] font-extrabold tracking-wider uppercase">
-              {user?.role === "ADMIN" ? "SuperAdmin" : user?.role}
             </div>
           </div>
         </header>
