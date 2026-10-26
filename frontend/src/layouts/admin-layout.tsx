@@ -92,23 +92,23 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen w-full flex bg-[#F8FAFC] text-[#0F172A]">
-      {/* 1. SIDEBAR DESKTOP (Fiel a Vista 15A) */}
-      <aside className="hidden lg:flex flex-col w-64 bg-[#0B1011] text-[#F0FDFA] border-r border-[#1B2426] shrink-0 justify-between">
-        <div>
-          {/* Header del Sidebar */}
-          <div className="h-18 px-5 flex items-center gap-3 border-b border-[#1B2426]">
-            <div className="w-10 h-10 rounded-lg bg-[#00786F] flex items-center justify-center font-black text-white text-base shadow-sm">
+    <div className="min-h-screen w-full flex bg-[#FFFFFF] text-[#090B0C]">
+      {/* 1. SIDEBAR DESKTOP (Fiel a OpenPencil n6740: w: 260px, fill: #0F1416, stroke: #1E2629) */}
+      <aside className="hidden lg:flex flex-col w-[260px] bg-[#0F1416] text-[#FFFFFF] border-r border-[#1E2629] shrink-0 justify-between p-[20px_16px]">
+        <div className="flex flex-col gap-5">
+          {/* BrandRow (n6742) */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-[34px] h-[34px] rounded-[8px] bg-[#00786F] flex items-center justify-center font-extrabold text-white text-sm shadow-xs shrink-0">
               SM
             </div>
-            <div>
-              <div className="font-extrabold text-sm tracking-wide text-white">SkillMatch Admin</div>
-              <div className="text-[11px] text-[#6E8284]">Sistema de Información v2.4</div>
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <div className="font-extrabold text-[13px] tracking-wide text-white leading-tight">SkillMatch Admin</div>
+              <div className="text-[9px] font-medium text-[#67787C] leading-none">Sistema de Información v2.4</div>
             </div>
           </div>
 
-          {/* Lista de Navegación */}
-          <nav className="p-3 space-y-1">
+          {/* MenuList (n6748: gap: 4px) */}
+          <nav className="flex flex-col gap-1">
             {navItems.map((item) => {
               const Icon = item.icon
               return (
@@ -116,10 +116,10 @@ export function AdminLayout() {
                   key={item.to}
                   to={item.to}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    `h-[38px] px-3 rounded-[6px] flex items-center gap-2.5 text-[12px] transition-colors ${
                       isActive
-                        ? "bg-[#00786F] text-white shadow-xs"
-                        : "text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-[#141C1E]"
+                        ? "bg-[#00786F] text-white font-bold shadow-xs"
+                        : "text-[#67787C] hover:text-white hover:bg-[#1A2225] font-medium"
                     }`
                   }
                 >
@@ -131,58 +131,58 @@ export function AdminLayout() {
           </nav>
         </div>
 
-        {/* Footer del Administrador en Sesión */}
-        <div className="p-4 border-t border-[#1B2426] bg-[#0E1517]">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-[#00786F33] border border-[#00786F66] text-[#2DD4BF] flex items-center justify-center text-xs font-black shrink-0">
-                {getInitials(user?.fullName)}
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-white truncate">{user?.fullName || "Administrador"}</p>
-                <p className="text-[10px] text-[#2DD4BF] font-semibold tracking-wider uppercase">
-                  Rol: {user?.role || "ADMIN"}
-                </p>
-              </div>
+        {/* AdminUserBox (OpenPencil n6767: padding: 10px, cornerRadius: 8px, fill: #1A2225) */}
+        <div className="p-2.5 rounded-[8px] bg-[#1A2225] flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-[#00786F] text-[#F0FDFA] flex items-center justify-center text-[11px] font-extrabold shrink-0">
+              {getInitials(user?.fullName)}
             </div>
-            <button
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              title="Cerrar Sesión"
-              className="p-1.5 rounded-md text-[#8B9D9F] hover:text-white hover:bg-red-500/10 hover:border-red-500/20 transition-colors cursor-pointer"
-            >
-              {isLoggingOut ? (
-                <Loader2 className="w-4 h-4 animate-spin text-[#2DD4BF]" />
-              ) : (
-                <LogOut className="w-4 h-4" />
-              )}
-            </button>
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <p className="text-[11px] font-bold text-white truncate leading-tight">
+                {user?.fullName || "Administrador Central"}
+              </p>
+              <p className="text-[9px] font-medium text-[#00786F] leading-none">
+                Rol: SuperAdmin
+              </p>
+            </div>
           </div>
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            title="Cerrar Sesión"
+            className="p-1 rounded text-[#67787C] hover:text-white hover:bg-red-500/10 transition-colors cursor-pointer"
+          >
+            {isLoggingOut ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00786F]" />
+            ) : (
+              <LogOut className="w-3.5 h-3.5" />
+            )}
+          </button>
         </div>
       </aside>
 
       {/* 2. CONTENIDO PRINCIPAL Y TOPBAR */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        {/* Topbar Desktop & Mobile Header (Fiel a 15A & 17A) */}
-        <header className="h-16 bg-white border-b border-[#E2E8F0] px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#FFFFFF]">
+        {/* Admin_Topbar (OpenPencil n6774: height: 54px, padding: 0 24px, fill: #FFFFFF, stroke: #E3E7E8) */}
+        <header className="h-[54px] px-4 sm:px-6 bg-white border-b border-[#E3E7E8] flex items-center justify-between sticky top-0 z-30 shadow-2xs">
           {/* Izquierda: Hamburguesa en mobile + Breadcrumb */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-2 rounded-md text-[#0B1011] hover:bg-gray-100 cursor-pointer"
+              className="lg:hidden p-1.5 rounded-md text-[#090B0C] hover:bg-gray-100 cursor-pointer"
               aria-label="Abrir Menú"
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <div>
-              <span className="text-xs text-[#64748B] hidden sm:inline">Consola de Administración / </span>
-              <span className="text-xs font-bold text-[#0F172A]">{getBreadcrumbTitle()}</span>
+            <div className="text-[12px] font-semibold text-[#67787C]">
+              <span className="hidden sm:inline">Consola de Administración / </span>
+              <span className="text-[#090B0C] font-bold">{getBreadcrumbTitle()}</span>
             </div>
           </div>
 
-          {/* Derecha: Badge de Estado del Sistema (Fiel a Vista 15A) */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E6F7F3] text-[#00786F] text-xs font-semibold border border-[#00786F33]">
+          {/* Derecha: Badge de Estado del Sistema */}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E6F7F3] text-[#00786F] text-[11px] font-semibold border border-[#00786F33]">
               <Circle className="w-2 h-2 fill-[#00786F] text-[#00786F] animate-pulse" />
               <span className="hidden sm:inline">Sistema En Línea · Latencia 24ms</span>
               <span className="sm:hidden">En Línea</span>

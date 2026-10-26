@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff, Loader2, Check, ShieldCheck } from "lucide-react"
+import { Eye, EyeOff, Loader2, Check } from "lucide-react"
 
 export function CreateAdminModal() {
   const {
@@ -19,7 +19,7 @@ export function CreateAdminModal() {
     isSubmitting,
     error: storeError,
     clearError,
-    users,
+    administrators,
   } = useAdminStore()
 
   const [fullName, setFullName] = useState("")
@@ -34,7 +34,7 @@ export function CreateAdminModal() {
 
   // Validación de unicidad de correo en tiempo real gestionada con Zustand (HU-10)
   const cleanEmail = email.trim().toLowerCase()
-  const isEmailDuplicate = cleanEmail.length > 0 && users.some(
+  const isEmailDuplicate = cleanEmail.length > 0 && administrators.some(
     (a) => a.email.toLowerCase() === cleanEmail
   )
 
@@ -87,178 +87,177 @@ export function CreateAdminModal() {
 
   return (
     <Dialog open={isCreateModalOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl bg-white text-[#0F172A] p-7 sm:p-8 rounded-[16px] border border-[#E2E8F0] shadow-2xl">
-        <DialogHeader className="space-y-1 pb-2">
-          <DialogTitle className="text-base sm:text-lg font-black text-[#0B1011] tracking-tight uppercase">
-            <span className="hidden sm:inline">DAR DE ALTA NUEVO USUARIO / ADMINISTRADOR (RBAC)</span>
-            <span className="sm:hidden">ALTA DE ADMINISTRADOR</span>
-          </DialogTitle>
-          <DialogDescription className="text-xs text-[#64748B]">
-            Asigná credenciales institucionales, rol jerárquico y permisos de auditoría forense o resolución de disputas.
-          </DialogDescription>
-        </DialogHeader>
+      {/* Dialog_Alta_Administrador: width: 680px, padding: 24px 28px, gap: 14px, cornerRadius: 14px, fill: #FFFFFF, stroke: #E3E7E8 (Fiel a OpenPencil n8555) */}
+      <DialogContent className="max-w-[680px] w-full bg-white text-[#090B0C] p-0 rounded-[14px] border border-[#E3E7E8] shadow-2xl overflow-hidden">
+        <div className="p-[24px_28px] flex flex-col gap-[14px]">
+          {/* Head (OpenPencil n8556) */}
+          <DialogHeader className="space-y-[4px] text-left">
+            <DialogTitle className="text-[15px] font-[800] text-[#090B0C] tracking-tight uppercase leading-snug">
+              DAR DE ALTA NUEVO USUARIO / ADMINISTRADOR (RBAC)
+            </DialogTitle>
+            <DialogDescription className="text-[11px] font-[400] text-[#67787C] leading-normal">
+              Asigná credenciales institucionales, rol jerárquico y permisos de auditoría forense o resolución de disputas.
+            </DialogDescription>
+          </DialogHeader>
 
-        {activeError && (
-          <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
-            {activeError}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-          {/* Fila 1: Nombre y Correo Institucional (Fiel a 15B) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor={nameInputId} className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider block">
-                NOMBRE Y APELLIDO:
-              </Label>
-              <Input
-                id={nameInputId}
-                placeholder="Ing. Gonzalo Martínez"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-                className="h-11 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] text-xs font-medium text-[#0F172A] focus:border-[#00786F] focus:ring-[#00786F]"
-              />
+          {activeError && (
+            <div className="p-2.5 rounded-[6px] bg-red-50 border border-red-200 text-red-700 text-[11px] font-medium">
+              {activeError}
             </div>
+          )}
 
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor={emailInputId} className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider block">
-                  CORREO INSTITUCIONAL:
+          <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]">
+            {/* RowInputs1: layout: horizontal, gap: 12px (OpenPencil n8559) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-[12px]">
+              {/* Field: Nombre y Apellido (n8560) */}
+              <div className="flex flex-col gap-[3px]">
+                <Label htmlFor={nameInputId} className="text-[10px] font-[700] text-[#67787C] uppercase tracking-wider block">
+                  NOMBRE Y APELLIDO:
                 </Label>
-                {isEmailDuplicate && (
-                  <span className="text-[10px] font-bold text-red-500">
-                    Correo ya registrado
-                  </span>
-                )}
+                <Input
+                  id={nameInputId}
+                  placeholder="Ing. Gonzalo Martínez"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  className="h-[36px] bg-[#F8FAFB] border-[#E3E7E8] rounded-[6px] px-[10px] text-[11px] font-[500] text-[#090B0C] placeholder:text-[#67787C]/60 focus:border-[#00786F] focus:ring-[#00786F]"
+                />
               </div>
-              <Input
-                id={emailInputId}
-                type="email"
-                placeholder="gonzalo.martinez@admin.skillmatch.io"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value)
-                  if (storeError) clearError()
-                }}
-                required
-                className={`h-11 bg-[#F8FAFC] rounded-[6px] text-xs font-medium text-[#0F172A] focus:ring-[#00786F] ${
-                  isEmailDuplicate
-                    ? "border-red-400 focus:border-red-500"
-                    : "border-[#E2E8F0] focus:border-[#00786F]"
-                }`}
-              />
-            </div>
-          </div>
 
-          {/* Fila 2: Rol en la Plataforma y Estado (Fiel a 15B) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider block">
-                ROL EN LA PLATAFORMA:
-              </span>
-              <div className="h-11 px-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[6px] flex items-center justify-between text-xs font-bold text-[#0F172A]">
-                <span>Auditor Forense & Mediador Arbitral</span>
-                <span className="text-[#64748B] text-xs">▾</span>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider block">
-                ESTADO DE CUENTA:
-              </span>
-              <div className="h-11 px-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[6px] flex items-center justify-between text-xs font-bold text-[#0F172A]">
-                <span>Activa (Verificada)</span>
-                <span className="text-[#64748B] text-xs">▾</span>
+              {/* Field: Correo Institucional (n8564) */}
+              <div className="flex flex-col gap-[3px]">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor={emailInputId} className="text-[10px] font-[700] text-[#67787C] uppercase tracking-wider block">
+                    CORREO INSTITUCIONAL:
+                  </Label>
+                  {isEmailDuplicate && (
+                    <span className="text-[9px] font-[700] text-red-500">
+                      Correo ya registrado
+                    </span>
+                  )}
+                </div>
+                <Input
+                  id={emailInputId}
+                  type="email"
+                  placeholder="gonzalo.martinez@admin.skillmatch.io"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    if (storeError) clearError()
+                  }}
+                  required
+                  className={`h-[36px] bg-[#F8FAFB] rounded-[6px] px-[10px] text-[11px] font-[500] text-[#090B0C] placeholder:text-[#67787C]/60 focus:ring-[#00786F] ${
+                    isEmailDuplicate
+                      ? "border-red-400 focus:border-red-500"
+                      : "border-[#E3E7E8] focus:border-[#00786F]"
+                  }`}
+                />
               </div>
             </div>
-          </div>
 
-          {/* Fila 3: Contraseña Inicial y Verificaciones (RF-USR-10 / HU-10) */}
-          <div className="space-y-2 pt-1">
-            <Label htmlFor={passwordInputId} className="text-[10px] font-extrabold text-[#475569] uppercase tracking-wider block">
-              CONTRASEÑA INICIAL:
-            </Label>
-            <div className="relative">
-              <Input
-                id={passwordInputId}
-                type={showPassword ? "text" : "password"}
-                placeholder="Contraseña inicial robusta"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="h-11 pr-10 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] text-xs font-medium text-[#0F172A] focus:border-[#00786F] focus:ring-[#00786F]"
-              />
+            {/* RowInputs2: layout: horizontal, gap: 12px (OpenPencil n8568) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-[12px]">
+              {/* Field: Rol en la Plataforma (n8569) */}
+              <div className="flex flex-col gap-[3px]">
+                <span className="text-[10px] font-[700] text-[#67787C] uppercase tracking-wider block">
+                  ROL EN LA PLATAFORMA:
+                </span>
+                <div className="h-[36px] px-[10px] bg-[#F8FAFB] border border-[#E3E7E8] rounded-[6px] flex items-center justify-between text-[11px] font-[500] text-[#090B0C] cursor-default select-none">
+                  <span>Auditor Forense & Mediador Arbitral ▾</span>
+                </div>
+              </div>
+
+              {/* Field: Estado de Cuenta (n8573) */}
+              <div className="flex flex-col gap-[3px]">
+                <span className="text-[10px] font-[700] text-[#67787C] uppercase tracking-wider block">
+                  ESTADO DE CUENTA:
+                </span>
+                <div className="h-[36px] px-[10px] bg-[#F8FAFB] border border-[#E3E7E8] rounded-[6px] flex items-center justify-between text-[11px] font-[500] text-[#090B0C] cursor-default select-none">
+                  <span>Activa (Verificada) ▾</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Fila Contraseña Inicial (Requisito Funcional RF-USR-10 / HU-10) */}
+            <div className="flex flex-col gap-[3px]">
+              <Label htmlFor={passwordInputId} className="text-[10px] font-[700] text-[#67787C] uppercase tracking-wider block">
+                CONTRASEÑA INICIAL:
+              </Label>
+              <div className="relative">
+                <Input
+                  id={passwordInputId}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Contraseña inicial robusta"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="h-[36px] pr-9 bg-[#F8FAFB] border-[#E3E7E8] rounded-[6px] px-[10px] text-[11px] font-[500] text-[#090B0C] placeholder:text-[#67787C]/60 focus:border-[#00786F] focus:ring-[#00786F]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#67787C] hover:text-[#090B0C] cursor-pointer"
+                  aria-label={showPassword ? "Ocultar contraseña" : "Ver contraseña"}
+                >
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+
+              {/* Checklist de Robustez de Contraseña */}
+              <div className="p-2 bg-[#F8FAFB] rounded-[6px] border border-[#E3E7E8] text-[10px] grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[#67787C] mt-1">
+                <span className={`flex items-center gap-1 ${hasMinLength ? "text-emerald-600 font-semibold" : ""}`}>
+                  <Check className={`w-3 h-3 ${hasMinLength ? "opacity-100" : "opacity-30"}`} />
+                  Mínimo 8 caracteres
+                </span>
+                <span className={`flex items-center gap-1 ${hasUppercase ? "text-emerald-600 font-semibold" : ""}`}>
+                  <Check className={`w-3 h-3 ${hasUppercase ? "opacity-100" : "opacity-30"}`} />
+                  Una mayúscula
+                </span>
+                <span className={`flex items-center gap-1 ${hasLowercase ? "text-emerald-600 font-semibold" : ""}`}>
+                  <Check className={`w-3 h-3 ${hasLowercase ? "opacity-100" : "opacity-30"}`} />
+                  Una minúscula
+                </span>
+                <span className={`flex items-center gap-1 ${hasNumber ? "text-emerald-600 font-semibold" : ""}`}>
+                  <Check className={`w-3 h-3 ${hasNumber ? "opacity-100" : "opacity-30"}`} />
+                  Un número
+                </span>
+                <span className={`flex items-center gap-1 col-span-2 sm:col-span-1 ${hasSpecialChar ? "text-emerald-600 font-semibold" : ""}`}>
+                  <Check className={`w-3 h-3 ${hasSpecialChar ? "opacity-100" : "opacity-30"}`} />
+                  Especial (!@#$...)
+                </span>
+              </div>
+            </div>
+
+            {/* Actions: layout: horizontal, gap: 10px (OpenPencil n8582) */}
+            <div className="flex items-center gap-[10px] pt-[6px]">
+              {/* BtnCancel: width: 140px, height: 42px, cornerRadius: 8px, fill: #F4F4F5 (n8583) */}
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                aria-label={showPassword ? "Ocultar contraseña" : "Ver contraseña"}
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className="w-[140px] h-[42px] rounded-[8px] bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#67787C] text-[11px] font-[700] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shrink-0"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                Cancelar
+              </button>
+
+              {/* BtnSubmit: width: fill_container, height: 42px, cornerRadius: 8px, fill: #00786F (n8585) */}
+              <button
+                type="submit"
+                disabled={!isFormValid || isSubmitting}
+                className="flex-1 h-[42px] rounded-[8px] bg-[#00786F] hover:bg-[#00665E] text-[#F0FDFA] text-[11px] font-[700] transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Creando Administrador...</span>
+                  </>
+                ) : (
+                  <span>Crear Administrador y Enviar Acceso ✓</span>
+                )}
               </button>
             </div>
-
-            {/* Checklist de Robustez de Contraseña */}
-            <div className="p-3 bg-[#F8FAFC] rounded-[6px] border border-[#E2E8F0] text-[11px] grid grid-cols-2 sm:grid-cols-3 gap-2 text-gray-500">
-              <span className={`flex items-center gap-1 ${hasMinLength ? "text-emerald-600 font-semibold" : ""}`}>
-                <Check className={`w-3.5 h-3.5 ${hasMinLength ? "opacity-100" : "opacity-30"}`} />
-                Mínimo 8 caracteres
-              </span>
-              <span className={`flex items-center gap-1 ${hasUppercase ? "text-emerald-600 font-semibold" : ""}`}>
-                <Check className={`w-3.5 h-3.5 ${hasUppercase ? "opacity-100" : "opacity-30"}`} />
-                Una mayúscula
-              </span>
-              <span className={`flex items-center gap-1 ${hasLowercase ? "text-emerald-600 font-semibold" : ""}`}>
-                <Check className={`w-3.5 h-3.5 ${hasLowercase ? "opacity-100" : "opacity-30"}`} />
-                Una minúscula
-              </span>
-              <span className={`flex items-center gap-1 ${hasNumber ? "text-emerald-600 font-semibold" : ""}`}>
-                <Check className={`w-3.5 h-3.5 ${hasNumber ? "opacity-100" : "opacity-30"}`} />
-                Un número
-              </span>
-              <span className={`flex items-center gap-1 col-span-2 sm:col-span-1 ${hasSpecialChar ? "text-emerald-600 font-semibold" : ""}`}>
-                <Check className={`w-3.5 h-3.5 ${hasSpecialChar ? "opacity-100" : "opacity-30"}`} />
-                Carácter especial (!@#$...)
-              </span>
-            </div>
-          </div>
-
-          {/* Privilegios Concedidos en Mobile (Fiel a 17B) */}
-          <div className="sm:hidden text-[11px] text-[#64748B] flex items-center gap-1.5 pt-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#00786F]" />
-            <span>Privilegios: Telemetría WebRTC, Retención Escrow ✓</span>
-          </div>
-
-          {/* Botones de Acción (Fiel a Vista 15B) */}
-          <div className="flex items-center gap-3 pt-3">
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={isSubmitting}
-              className="h-12 px-8 rounded-[6px] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#334155] text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={!isFormValid || isSubmitting}
-              className="h-12 flex-1 rounded-[6px] bg-[#00786F] hover:bg-[#005E57] text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Creando Administrador...</span>
-                </>
-              ) : (
-                <>
-                  <span className="hidden sm:inline">Crear Administrador y Enviar Acceso ✓</span>
-                  <span className="sm:hidden">Crear y Enviar Credenciales ✓</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </DialogContent>
     </Dialog>
   )
