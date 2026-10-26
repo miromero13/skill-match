@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Ban,
   ShieldAlert,
+  ShieldCheck,
   Info,
 } from "lucide-react"
 import {
@@ -22,7 +23,7 @@ import { Input } from "@/components/ui/input"
 
 export function AdminUsersPage() {
   const {
-    administrators,
+    users,
     totalCount,
     isLoading,
     searchTerm,
@@ -44,21 +45,21 @@ export function AdminUsersPage() {
   const [statusReason, setStatusReason] = useState("")
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
-  // Cargar administradores al montar
+  // Sincronizar directorio administrativo con el backend
   useEffect(() => {
     fetchAdministrators()
   }, [fetchAdministrators])
 
-  // Filtrado reactivo en memoria por término de búsqueda
-  const filteredAdmins = useMemo(() => {
-    if (!searchTerm.trim()) return administrators
+  // Filtrado reactivo en memoria por término de búsqueda (Fiel a 15A & 17A)
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm.trim()) return users
     const term = searchTerm.toLowerCase()
-    return administrators.filter(
-      (admin) =>
-        admin.full_name.toLowerCase().includes(term) ||
-        admin.email.toLowerCase().includes(term)
+    return users.filter(
+      (user) =>
+        user.full_name.toLowerCase().includes(term) ||
+        user.email.toLowerCase().includes(term)
     )
-  }, [administrators, searchTerm])
+  }, [users, searchTerm])
 
   const handleOpenStatusModal = (id: string, name: string, email: string, newStatus: boolean) => {
     setStatusDialogTarget({ id, name, email, newStatus })
@@ -120,62 +121,94 @@ export function AdminUsersPage() {
             <Loader2 className="w-6 h-6 animate-spin text-[#00786F]" />
             <p className="text-xs">Cargando directorio administrativo...</p>
           </div>
-        ) : filteredAdmins.length === 0 ? (
+        ) : filteredUsers.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-gray-400 gap-2 bg-white rounded-[8px] border border-[#E2E8F0]">
             <Info className="w-8 h-8 text-gray-300" />
-            <p className="text-sm font-semibold text-gray-600">No se encontraron administradores</p>
+            <p className="text-sm font-semibold text-gray-600">No se encontraron usuarios</p>
             <p className="text-xs text-gray-400">Probá modificando el término de búsqueda.</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {filteredAdmins.map((admin) => {
-              const isCurrent = currentUser?.id === admin.id
+            {filteredUsers.map((user) => {
+              const isCurrent = currentUser?.id === user.id
+              const status = user.status_label || (user.is_active ? "Activo" : "Suspendido")
 
               return (
                 <div
-                  key={admin.id}
+                  key={user.id}
                   className="grid grid-cols-12 gap-4 px-6 py-4 bg-white border border-[#E2E8F0] rounded-[8px] items-center shadow-2xs hover:border-[#CBD5E1] transition-colors"
                 >
                   {/* Columna 1: Usuario (Nombre / Correo) */}
                   <div className="col-span-3 min-w-0">
                     <div className="font-bold text-[#0F172A] text-xs truncate flex items-center gap-1.5">
-                      <span>{admin.full_name}</span>
+                      <span>{user.full_name}</span>
                       {isCurrent && (
                         <span className="text-[10px] text-gray-400 font-normal">(Tú)</span>
                       )}
                     </div>
-                    <div className="text-[#64748B] text-[11px] truncate">{admin.email}</div>
+                    <div className="text-[#64748B] text-[11px] truncate">{user.email}</div>
                   </div>
 
-                  {/* Columna 2: Rol RBAC (Pill verde sólido con texto blanco en 15A) */}
+                  {/* Columna 2: Rol RBAC (Pill verde sólido para ADMIN, gris para MEMBER en 15A) */}
                   <div className="col-span-2">
-                    <span className="inline-block px-3 py-1 rounded-[6px] bg-[#00786F] text-white text-[10px] font-extrabold tracking-wider uppercase">
-                      {admin.role}
-                    </span>
+                    {user.role === "ADMIN" ? (
+                      <span className="inline-block px-3 py-1 rounded-[6px] bg-[#00786F] text-white text-[10px] font-extrabold tracking-wider uppercase">
+                        ADMIN
+                      </span>
+                    ) : (
+                      <span className="inline-block px-3 py-1 rounded-[6px] bg-[#F1F5F9] text-[#0F172A] text-[10px] font-extrabold tracking-wider uppercase">
+                        MEMBER
+                      </span>
+                    )}
                   </div>
 
-                  {/* Columna 3: Habilidades Registradas (0 a N) (Sin habilidades registradas en 15A) */}
+                  {/* Columna 3: Habilidades Registradas (0 a N) (Badges con shield check y gris de 15A) */}
                   <div className="col-span-3">
-                    <span className="text-[#64748B] text-[11px]">
-                      Sin habilidades registradas
-                    </span>
+                    {user.skills && user.skills.length > 0 ? (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {user.skills.map((skill) => (
+                          skill.isVerified ? (
+                            <span
+                              key={skill.name}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] border border-[#00786F] bg-[#E6F7F3] text-[#00786F] text-[10px] font-bold"
+                            >
+                              <ShieldCheck className="w-3 h-3 text-[#00786F]" />
+                              {skill.name}{skill.level ? ` ${skill.level}` : ""}
+                            </span>
+                          ) : (
+                            <span
+                              key={skill.name}
+                              className="inline-block px-2 py-0.5 rounded-[4px] bg-[#F1F5F9] text-[#64748B] text-[10px] font-medium"
+                            >
+                              {skill.name}
+                            </span>
+                          )
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[#64748B] text-[11px]">
+                        Sin habilidades registradas
+                      </span>
+                    )}
                   </div>
 
-                  {/* Columna 4: Estado de Cuenta (Pill estilizado de 15A) */}
+                  {/* Columna 4: Estado de Cuenta (Pill estilizado fiel a 15A) */}
                   <div className="col-span-2">
-                    {admin.is_active ? (
-                      isCurrent ? (
-                        <span className="inline-block px-3 py-1 rounded-full bg-[#DCFCE7] text-[#00786F] text-[10px] font-extrabold">
-                          SuperAdmin Activo
-                        </span>
-                      ) : (
-                        <span className="inline-block px-3 py-1 rounded-full bg-[#DCFCE7] text-[#16A34A] text-[10px] font-extrabold">
-                          Activo
-                        </span>
-                      )
+                    {status === "SuperAdmin Activo" ? (
+                      <span className="inline-block px-3 py-1 rounded-full bg-[#DCFCE7] text-[#00786F] text-[10px] font-extrabold">
+                        SuperAdmin Activo
+                      </span>
+                    ) : status.includes("Activo") ? (
+                      <span className="inline-block px-3 py-1 rounded-full bg-[#DCFCE7] text-[#16A34A] text-[10px] font-extrabold">
+                        {status}
+                      </span>
+                    ) : status === "En Disputa" ? (
+                      <span className="inline-block px-3 py-1 rounded-full bg-[#FEF3C7] text-[#D97706] text-[10px] font-extrabold">
+                        En Disputa
+                      </span>
                     ) : (
                       <span className="inline-block px-3 py-1 rounded-full bg-[#FEE2E2] text-[#DC2626] text-[10px] font-extrabold">
-                        Suspendido
+                        {status}
                       </span>
                     )}
                   </div>
@@ -190,17 +223,17 @@ export function AdminUsersPage() {
                       >
                         Examinar
                       </button>
-                      {admin.is_active ? (
+                      {user.is_active ? (
                         <button
                           type="button"
                           onClick={() =>
-                            handleOpenStatusModal(admin.id, admin.full_name, admin.email, false)
+                            handleOpenStatusModal(user.id, user.full_name, user.email, false)
                           }
                           disabled={isCurrent}
                           title={
                             isCurrent
                               ? "No podés suspender tu propia cuenta administrativa activa"
-                              : "Suspender administrador"
+                              : "Suspender usuario"
                           }
                           className={`cursor-pointer transition-colors ${
                             isCurrent
@@ -214,7 +247,7 @@ export function AdminUsersPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            handleOpenStatusModal(admin.id, admin.full_name, admin.email, true)
+                            handleOpenStatusModal(user.id, user.full_name, user.email, true)
                           }
                           className="text-[#16A34A] hover:underline cursor-pointer"
                         >
@@ -231,16 +264,16 @@ export function AdminUsersPage() {
 
         {/* Footer Informativo */}
         <div className="p-4 bg-[#F8FAFC] rounded-[8px] border border-[#E2E8F0] mt-3 flex items-center justify-between text-xs text-[#64748B]">
-          <span>Mostrando {filteredAdmins.length} de {totalCount} cuentas administrativas registradas</span>
+          <span>Mostrando {filteredUsers.length} de {totalCount} cuentas registradas</span>
           <span className="font-semibold text-[#00786F]">Control RBAC Estricto (RF-USR-10 / RF-USR-15)</span>
         </div>
       </div>
 
-      {/* 3. VISTA MÓVIL RESPONSIVE (Vista 17A) */}
+      {/* 3. VISTA MÓVIL RESPONSIVE (Fiel a Vista 17A) */}
       <div className="lg:hidden space-y-3">
         <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-            Directorio ({filteredAdmins.length} Administradores)
+          <span className="text-[11px] font-black text-[#475569] uppercase tracking-wider">
+            DIRECTORIO (USUARIOS CON 0 A N HABILIDADES)
           </span>
         </div>
 
@@ -249,72 +282,101 @@ export function AdminUsersPage() {
             <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#00786F] mb-2" />
             <span className="text-xs">Cargando directorio...</span>
           </div>
-        ) : filteredAdmins.length === 0 ? (
+        ) : filteredUsers.length === 0 ? (
           <div className="p-6 bg-white rounded-xl border border-gray-200 text-center text-gray-400 text-xs">
-            No se encontraron administradores.
+            No se encontraron usuarios.
           </div>
         ) : (
-          filteredAdmins.map((admin) => {
-            const isCurrent = currentUser?.id === admin.id
+          filteredUsers.map((user) => {
+            const isCurrent = currentUser?.id === user.id
+            const status = user.status_label || (user.is_active ? "Activo" : "Suspendido")
 
             return (
               <div
-                key={admin.id}
-                className="p-4 bg-white rounded-xl border border-gray-200 shadow-2xs space-y-3"
+                key={user.id}
+                className="p-4 bg-white rounded-[10px] border border-[#E2E8F0] shadow-2xs space-y-2.5"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <h2 className="text-sm font-bold text-[#0F172A] flex items-center gap-1.5">
-                      <span>{admin.full_name}</span>
-                      <span className="text-[10px] text-[#00786F] font-black uppercase">
-                        (ADMIN)
+                      <span>{user.full_name}</span>
+                      <span className={`text-[10px] font-black uppercase ${
+                        user.role === "ADMIN" ? "text-[#00786F]" : "text-[#64748B]"
+                      }`}>
+                        ({user.role})
                       </span>
                     </h2>
-                    <p className="text-xs text-gray-500">{admin.email}</p>
+                    <p className="text-xs text-gray-500">{user.email}</p>
                   </div>
                   <div>
-                    {admin.is_active ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                    {status === "SuperAdmin Activo" || status === "Admin Activo" ? (
+                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#DCFCE7] text-[#00786F] text-[10px] font-bold">
                         Admin Activo
                       </span>
+                    ) : status === "En Disputa" || status === "Disputa" ? (
+                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#FEF3C7] text-[#D97706] text-[10px] font-bold">
+                        Disputa
+                      </span>
+                    ) : user.is_active ? (
+                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#DCFCE7] text-[#16A34A] text-[10px] font-bold">
+                        Activo
+                      </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200">
+                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#FEE2E2] text-[#DC2626] text-[10px] font-bold">
                         Suspendido
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="text-[11px] text-gray-600 bg-gray-50 p-2 rounded-md">
-                  <span className="font-semibold text-gray-700">Área: </span>
-                  SuperAdmin de Plataforma
+                <div className="text-[11px] text-[#00786F]">
+                  <span className="font-semibold text-gray-600">Habilidades: </span>
+                  {user.skills && user.skills.length > 0 ? (
+                    user.skills.map((s, i) => (
+                      <span key={s.name}>
+                        {s.name}{s.level ? ` ${s.level}` : ""}{s.isVerified ? " (✓)" : ""}
+                        {i < user.skills!.length - 1 ? ", " : ""}
+                      </span>
+                    ))
+                  ) : (
+                    <span>{user.role === "ADMIN" ? "SuperAdmin de Plataforma" : "Sin habilidades registradas (0)"}</span>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
                   <span className="text-[10px] text-gray-400">
-                    {isCurrent ? "Sesión actual" : "Cuenta delegada"}
+                    {isCurrent ? "Sesión actual" : user.role === "ADMIN" ? "Cuenta institucional" : "Miembro comunidad"}
                   </span>
                   <div className="flex items-center gap-3">
-                    {admin.is_active ? (
+                    <button
+                      type="button"
+                      onClick={() => {}}
+                      className="text-[#00786F] font-bold text-xs hover:underline cursor-pointer"
+                    >
+                      Examinar
+                    </button>
+                    {user.is_active ? (
                       <button
+                        type="button"
                         onClick={() =>
-                          handleOpenStatusModal(admin.id, admin.full_name, admin.email, false)
+                          handleOpenStatusModal(user.id, user.full_name, user.email, false)
                         }
                         disabled={isCurrent}
-                        className={`font-bold ${
+                        className={`font-bold text-xs ${
                           isCurrent
                             ? "text-gray-300"
-                            : "text-red-600 hover:text-red-700 cursor-pointer"
+                            : "text-[#DC2626] hover:underline cursor-pointer"
                         }`}
                       >
                         Suspender
                       </button>
                     ) : (
                       <button
+                        type="button"
                         onClick={() =>
-                          handleOpenStatusModal(admin.id, admin.full_name, admin.email, true)
+                          handleOpenStatusModal(user.id, user.full_name, user.email, true)
                         }
-                        className="text-emerald-600 font-bold hover:underline cursor-pointer"
+                        className="text-[#16A34A] font-bold text-xs hover:underline cursor-pointer"
                       >
                         Reactivar
                       </button>
@@ -346,8 +408,8 @@ export function AdminUsersPage() {
             </div>
             <DialogTitle className="text-base font-bold text-[#0F172A]">
               {statusDialogTarget?.newStatus
-                ? "¿Reactivar cuenta administrativa?"
-                : "¿Suspender cuenta administrativa?"}
+                ? "¿Reactivar cuenta de usuario?"
+                : "¿Suspender cuenta de usuario?"}
             </DialogTitle>
             <DialogDescription className="text-xs text-[#64748B]">
               Estás a punto de {statusDialogTarget?.newStatus ? "reactivar" : "suspender"} el acceso de{" "}

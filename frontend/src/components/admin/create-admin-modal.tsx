@@ -19,7 +19,7 @@ export function CreateAdminModal() {
     isSubmitting,
     error: storeError,
     clearError,
-    administrators,
+    users,
   } = useAdminStore()
 
   const [fullName, setFullName] = useState("")
@@ -34,7 +34,7 @@ export function CreateAdminModal() {
 
   // Validación de unicidad de correo en tiempo real gestionada con Zustand (HU-10)
   const cleanEmail = email.trim().toLowerCase()
-  const isEmailDuplicate = cleanEmail.length > 0 && administrators.some(
+  const isEmailDuplicate = cleanEmail.length > 0 && users.some(
     (a) => a.email.toLowerCase() === cleanEmail
   )
 
