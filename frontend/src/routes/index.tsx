@@ -8,6 +8,8 @@ import { ExamPage } from "@/pages/exam-page"
 import { NotFoundPage } from "@/pages/not-found-page"
 import { AdminLoginPage } from "@/pages/admin-login-page"
 import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
+import { AdminUsersPage } from "@/pages/admin-users-page"
+import { AdminLayout } from "@/layouts/admin-layout"
 import { AdminRouteGuard } from "@/components/admin-route-guard"
 
 export const router = createBrowserRouter([
@@ -97,6 +99,22 @@ export const router = createBrowserRouter([
         <AdminDashboardPage />
       </AdminRouteGuard>
     ),
+  },
+
+  // 6. Admin Backoffice - Gestión de Usuarios y Administradores (HU-10 - Vistas 15A, 15B, 17A, 17B)
+  {
+    path: "/admin/administrators",
+    element: (
+      <AdminRouteGuard>
+        <AdminLayout />
+      </AdminRouteGuard>
+    ),
+    children: [
+      {
+        index: true,
+        element: <AdminUsersPage />,
+      },
+    ],
   },
 
   // 6. Admin Direct Redirection (Protección preventiva)

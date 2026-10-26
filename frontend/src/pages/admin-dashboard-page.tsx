@@ -79,11 +79,19 @@ export function AdminDashboardPage() {
 
         {/* Tarjetas de Módulos Administrativos */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 rounded-xl border border-[#1E2629] bg-[#141C1E] flex flex-col gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#00786F33] flex items-center justify-center text-[#2DD4BF]">
+          <div
+            onClick={() => navigate("/admin/administrators")}
+            className="p-5 rounded-xl border border-[#1E2629] bg-[#141C1E] flex flex-col gap-3 cursor-pointer hover:border-[#00786F] hover:bg-[#142022] transition-all group"
+          >
+            <div className="w-9 h-9 rounded-lg bg-[#00786F33] flex items-center justify-center text-[#2DD4BF] group-hover:bg-[#00786F] group-hover:text-white transition-colors">
               <Users className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-bold text-[#F0FDFA]">Equipo Administrador</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-[#F0FDFA]">Equipo Administrador</h3>
+              <span className="text-[10px] text-[#2DD4BF] font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                Gestionar →
+              </span>
+            </div>
             <p className="text-xs text-[#8B9D9F]">Gestión y creación de cuentas institucionales con rol ADMIN.</p>
           </div>
 
