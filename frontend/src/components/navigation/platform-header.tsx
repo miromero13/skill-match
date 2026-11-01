@@ -1,7 +1,8 @@
-import { Link, useLocation } from "react-router-dom"
-import { Home, Users, Calendar, Award, ShieldCheck, Bell, Plus, Search, CreditCard } from "lucide-react"
+import { Link, useLocation, useNavigate } from "react-router-dom"
+import { Home, Users, Calendar, Award, ShieldCheck, Bell, Plus, Search, CreditCard, LogOut } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   DropdownMenu,
@@ -17,8 +18,25 @@ import { ModeToggle } from "@/components/mode-toggle"
 
 export function PlatformHeader() {
   const location = useLocation()
+  const navigate = useNavigate()
   const path = location.pathname
   const { user } = useAuthStore()
+
+  const handleLogout = async () => {
+    await logoutSession()
+    navigate("/login", { replace: true })
+  }
+
+  const userInitials =
+    user?.fullName
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "MB"
+
+  const balancePoints = user?.skillPointsBalance ?? 150
+
 
   const navItems = [
     { label: "Inicio", icon: Home, to: "/app", active: path === "/app" },
@@ -90,14 +108,14 @@ export function PlatformHeader() {
                 className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold hover:bg-muted/50 transition-colors"
               >
                 <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="font-bold text-foreground">150 pts</span>
+                <span className="font-bold text-foreground">{balancePoints} SP</span>
                 <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground ml-0.5">
                   <Plus className="h-3 w-3 stroke-[3]" />
                 </div>
               </Link>
             </TooltipTrigger>
             <TooltipContent>
-              <p className="text-xs">Billetera de SkillPoints (150 pts disponibles)</p>
+              <p className="text-xs">Billetera de SkillPoints ({balancePoints} SP disponibles)</p>
             </TooltipContent>
           </Tooltip>
 
@@ -116,16 +134,21 @@ export function PlatformHeader() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full p-0">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground font-black text-xs">
-                  {user?.fullName?.split(" ").map(n => n[0]).join("").slice(0, 2) || "CM"}
-                </div>
+                <Avatar className="h-9 w-9">
+                  {user?.avatarUrl ? (
+                    <AvatarImage src={user.avatarUrl} alt={user.fullName} />
+                  ) : null}
+                  <AvatarFallback className="bg-primary text-primary-foreground font-black text-xs">
+                    {userInitials}
+                  </AvatarFallback>
+                </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-semibold leading-none">{user?.fullName || "Carlos Méndez"}</p>
-                  <p className="text-xs leading-none text-muted-foreground">@carlos.dev</p>
+                  <p className="text-sm font-semibold leading-none">{user?.fullName || "Miembro de la Comunidad"}</p>
+                  <p className="text-xs leading-none text-muted-foreground">{user?.email || "miembro@skillmatch.io"}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -139,8 +162,12 @@ export function PlatformHeader() {
                 <Link to="/app/exam-demo">Sandbox de Evaluación IA</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void logoutSession()} asChild>
-                <Link to="/">Cerrar Sesión</Link>
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="cursor-pointer text-destructive focus:text-destructive flex items-center justify-between"
+              >
+                <span>Cerrar Sesión</span>
+                <LogOut className="h-4 w-4" />
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

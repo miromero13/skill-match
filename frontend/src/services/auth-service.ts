@@ -20,6 +20,50 @@ export interface TokenRefreshResponseDto {
   expires_in: number
 }
 
+export interface GoogleAuthResponseDto {
+  access_token: string
+  refresh_token: string
+  token_type: string
+  expires_in: number
+  user: UserMeDto
+}
+
+/**
+ * Autentica o registra a un miembro de la comunidad mediante Google OAuth (POST /api/auth/oauth/google).
+ */
+export async function loginWithGoogle(idToken: string): Promise<GoogleAuthResponseDto> {
+  const response = await apiClient.post<GoogleAuthResponseDto>(
+    "/auth/oauth/google",
+    { id_token: idToken },
+    {
+      showToastOnError: true,
+      showToastOnSuccess: true,
+      successMessage: "¡Bienvenido a SkillMatch!",
+    }
+  )
+
+  const authData = response.data
+
+  useAuthStore.getState().login(
+    {
+      id: authData.user.id,
+      email: authData.user.email,
+      fullName: authData.user.full_name,
+      role: authData.user.role,
+      avatarUrl: authData.user.avatar_url || undefined,
+      skillPointsBalance: 150, // Bono de bienvenida inicial (3 validaciones gratis)
+      reputationScore: 5.0,
+      trustLevel: 1,
+      isVerified: true,
+    },
+    authData.access_token,
+    authData.refresh_token
+  )
+
+  return authData
+}
+
+
 /**
  * Consulta la identidad y perfil del usuario autenticado actual (GET /api/auth/me).
  * Sincroniza la información devuelta con useAuthStore.

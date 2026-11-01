@@ -9,7 +9,9 @@ from app.schemas.response import APIResponse
 from app.schemas.auth import (
     TokenRefreshRequest,
     TokenRefreshResponse,
-    UserMeResponse
+    UserMeResponse,
+    GoogleAuthRequest,
+    AuthTokenResponse,
 )
 from app.services.auth_service import AuthService
 
@@ -17,6 +19,28 @@ router = APIRouter(
     prefix="/auth",
     tags=["Unified Authentication & Sessions (HU-09)"]
 )
+
+@router.post(
+    "/oauth/google",
+    response_model=APIResponse[AuthTokenResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Autenticación y registro JIT de miembros con Google OAuth (HU-07 / RF-USR-01)",
+    description=(
+        "Valida la credencial / id_token emitida por Google Identity Services. Si el miembro no existe, "
+        "lo aprovisiona automáticamente con rol 'MEMBER' y emite el par de tokens JWT correspondientes."
+    )
+)
+async def login_with_google(
+    payload: GoogleAuthRequest,
+    db: AsyncSession = Depends(get_db)
+) -> APIResponse[AuthTokenResponse]:
+    """Endpoint de autenticación y registro rápido con Google OAuth."""
+    auth_data = await AuthService.authenticate_with_google(db, payload.id_token)
+    return APIResponse.ok(
+        data=auth_data,
+        message="Autenticación con Google completada exitosamente."
+    )
+
 
 @router.post(
     "/refresh",

@@ -1,7 +1,9 @@
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
+import { hybridAuthStorage } from "./storage-adapter"
 
 export type UserRole = "MEMBER" | "ADMIN"
+
 
 export interface UserProfile {
   id: string
@@ -84,7 +86,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "skillmatch-auth-storage",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => hybridAuthStorage),
     }
   )
 )

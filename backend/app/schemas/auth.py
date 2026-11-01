@@ -30,3 +30,20 @@ class UserMeResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class GoogleAuthRequest(BaseModel):
+    """Payload para autenticación / registro de miembros vía Google OAuth (POST /api/auth/oauth/google)."""
+    id_token: str = Field(
+        ...,
+        description="Google ID Token / Credencial JWT emitida por Google Identity Services",
+        examples=["eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..."]
+    )
+
+class AuthTokenResponse(BaseModel):
+    """Respuesta unificada de autenticación conteniendo tokens de sesión y perfil básico."""
+    access_token: str = Field(..., description="Access Token JWT con claim 'role'")
+    refresh_token: str = Field(..., description="Refresh Token JWT")
+    token_type: str = Field(default="bearer", description="Esquema de autenticación HTTP")
+    expires_in: int = Field(..., description="Segundos hasta la expiración del Access Token")
+    user: UserMeResponse = Field(..., description="Perfil del usuario autenticado")
+
