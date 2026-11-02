@@ -1,7 +1,9 @@
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
+import { hybridAuthStorage } from "./storage-adapter"
 
-export type UserRole = "member" | "admin" | "superadmin"
+export type UserRole = "MEMBER" | "ADMIN"
+
 
 export interface UserProfile {
   id: string
@@ -18,12 +20,14 @@ export interface UserProfile {
 interface AuthState {
   user: UserProfile | null
   token: string | null
+  refreshToken: string | null
   isAuthenticated: boolean
   isLoading: boolean
 
   // Actions
-  login: (user: UserProfile, token: string) => void
+  login: (user: UserProfile, token: string, refreshToken?: string) => void
   logout: () => void
+  setTokens: (token: string, refreshToken: string) => void
   updateProfile: (updates: Partial<UserProfile>) => void
   updateSkillPoints: (delta: number) => void
   setLoading: (loading: boolean) => void
@@ -32,25 +36,17 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      user: {
-        id: "usr_mock_1",
-        email: "ilseromero35@gmail.com",
-        fullName: "Ilse Romero",
-        avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop",
-        role: "member",
-        skillPointsBalance: 120,
-        reputationScore: 4.9,
-        trustLevel: 4,
-        isVerified: true,
-      },
-      token: "mock_jwt_token_skillmatch",
-      isAuthenticated: true,
+      user: null,
+      token: null,
+      refreshToken: null,
+      isAuthenticated: false,
       isLoading: false,
 
-      login: (user, token) =>
+      login: (user, token, refreshToken) =>
         set({
           user,
           token,
+          refreshToken: refreshToken || null,
           isAuthenticated: true,
           isLoading: false,
         }),
@@ -59,8 +55,16 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           token: null,
+          refreshToken: null,
           isAuthenticated: false,
           isLoading: false,
+        }),
+
+      setTokens: (token, refreshToken) =>
+        set({
+          token,
+          refreshToken,
+          isAuthenticated: true,
         }),
 
       updateProfile: (updates) =>
@@ -82,7 +86,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "skillmatch-auth-storage",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => hybridAuthStorage),
     }
   )
 )

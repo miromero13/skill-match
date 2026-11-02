@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom"
+import { useAuthStore } from "@/stores/auth-store"
 import {
   User,
   ArrowLeftRight,
@@ -8,11 +9,13 @@ import {
   Star,
   AlertTriangle,
   ShieldCheck,
+  Shield,
 } from "lucide-react"
 
 export function PlatformSidebar() {
   const location = useLocation()
   const path = location.pathname
+  const { user } = useAuthStore()
 
   const menuItems = [
     { label: "Mi Perfil", icon: User, to: "/app/profile", active: path === "/app/profile" || path === "/app" },
@@ -102,6 +105,22 @@ export function PlatformSidebar() {
           ))}
         </div>
       </div>
+
+      {/* 4. Restricción en Sidebar: 'Equipo Administrador' solo visible para UserRole.ADMIN (HU-10) */}
+      {user?.role === "ADMIN" && (
+        <div className="pt-2 space-y-2 border-t">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-primary px-3 block">
+            EQUIPO ADMINISTRADOR
+          </span>
+          <Link
+            to="/admin/administrators"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
+          >
+            <Shield className="h-4 w-4 text-primary" />
+            <span>Gestión de Administradores</span>
+          </Link>
+        </div>
+      )}
     </aside>
   )
 }

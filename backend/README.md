@@ -55,9 +55,16 @@ ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 REFRESH_TOKEN_EXPIRE_DAYS=30
 
+# --- Credenciales del Administrador Inicial (Seed Automático) ---
+ADMIN_EMAIL="admin@skillmatch.io"
+ADMIN_PASSWORD="SuperSecretAdminPassword123!"
+ADMIN_FULL_NAME="Administrador Principal"
+
 # --- Proveedores de Autenticación Social & OTP (Sprint 0 - HU-07) ---
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
+# Google OAuth 2.0 (Google Identity Services / Web Client)
+# Obtener en Google Cloud Console -> APIs & Services -> Credentials -> OAuth 2.0 Client IDs
+GOOGLE_CLIENT_ID="tu-google-client-id.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="GOCSPX-tu-google-client-secret"
 
 GITHUB_CLIENT_ID=""
 GITHUB_CLIENT_SECRET=""

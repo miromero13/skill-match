@@ -123,8 +123,18 @@ export function PublicFooter() {
           </div>
         </div>
 
-        <div className="mt-10 sm:mt-14 border-t border-white/10 pt-6 sm:pt-8 text-[11px] text-[#67787C]">
+        <div className="mt-10 sm:mt-14 border-t border-white/10 pt-6 sm:pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-[#67787C]">
           <p>© 2026 SkillMatch Inc. Todos los derechos reservados. Plataforma auditada con IA propia y contratos de custodia Escrow.</p>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/admin/login"
+              className="text-[#67787C] hover:text-[#2DD4BF] transition-colors flex items-center gap-1.5"
+              title="Acceso exclusivo para personal administrativo de SkillMatch"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00786F]"></span>
+              <span>Para administradores</span>
+            </Link>
+          </div>
         </div>
       </div>
     </footer>

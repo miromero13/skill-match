@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=1440, description="Minutos de expiración de Access Token")
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30, description="Días de expiración de Refresh Token")
 
+    # Administrador Inicial por Defecto (Cargado estrictamente desde .env)
+    ADMIN_EMAIL: str = Field(..., description="Correo institucional del Administrador inicial del sistema")
+    ADMIN_PASSWORD: SecretStr = Field(..., description="Contraseña maestra del Administrador inicial (Secreto .env)")
+    ADMIN_FULL_NAME: str = Field(default="Administrador Principal", description="Nombre completo del Administrador inicial")
+
     # Proveedores de Autenticación Social & OTP (Opcionales / Se cargan de .env)
     GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google OAuth Client ID")
     GOOGLE_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Google OAuth Client Secret (Secreto .env)")

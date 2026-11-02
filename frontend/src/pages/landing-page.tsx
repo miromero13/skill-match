@@ -61,14 +61,14 @@ export function LandingPage() {
                   asChild
                   className="w-full sm:w-auto bg-[#00786F] hover:bg-[#00786F]/90 text-[#F0FDFA] font-bold h-11 sm:h-12 px-6 text-[11px] sm:text-sm shadow-sm rounded-lg"
                 >
-                  <Link to="/app" className="flex items-center justify-center gap-2">
+                  <Link to="/login" className="flex items-center justify-center gap-2">
                     <span className="sm:hidden">Unirse Gratis (3 Certificaciones) ➔</span>
                     <span className="hidden sm:inline">Unirse a la Comunidad (3 Validaciones Gratis) ➔</span>
                   </Link>
                 </Button>
                 <p className="mt-3 text-xs text-[#67787C] dark:text-muted-foreground hidden sm:flex items-center gap-1.5">
                   <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span>Registro instantáneo con Google, WhatsApp y GitHub · Sin contraseñas</span>
+                  <span>Registro instantáneo con Google · Sin contraseñas</span>
                 </p>
               </div>
             </div>
