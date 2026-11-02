@@ -72,6 +72,7 @@ Antes de generar o modificar código, el agente debe consultar los siguientes do
 
 ### 3.2 Estándares de Frontend (React / TypeScript / Zustand / Tailwind)
 - **Tipado estricto:** TypeScript estricto sin uso de `any`.
+- **Uso Obligatorio de Componentes Shadcn (`frontend/src/components/ui/`):** Está terminantemente prohibido reinventar la rueda o maquetar componentes con elementos HTML nativos (`<button>`, `<select>`, `<input>`, checkboxes nativos o tabs caseros) cuando ya existen componentes oficiales y bien diseñados en `frontend/src/components/ui/` (ej. `Button`, `Input`, `Select`, `Dialog`, `Card`, `Badge`, `Tabs`, `Switch`, `Table`, `Label`, `Textarea`, etc.). Todo agente o desarrollador debe importar y reutilizar sí o sí estos componentes para garantizar la identidad visual del preset **Mist**, consistencia de accesibilidad y evitar pérdida de tiempo.
 - **Estética y Design System:** Shadcn/ui con preset **Mist** (paleta de colores fríos, verde esmeralda institucional, tipografía Inter).
 - **Gestión de Estado:** Tiendas atómicas y modulares con **Zustand**. No inflar estados globales innecesarios.
 - **Responsividad:** 100% responsive en móvil, tablet y desktop; en móvil la navegación principal reside en la barra inferior (Bottom Navigation).
