@@ -25,6 +25,10 @@ class APIResponse(BaseModel, Generic[DataT]):
         description="Cantidad total de registros devueltos (exclusivo para listados paginados)"
     )
 
+    @classmethod
+    def ok(cls, data: Optional[DataT] = None, message: str = "Operación completada exitosamente", count: Optional[int] = None) -> "APIResponse[DataT]":
+        return cls(statuscode=200, message=message, data=data, count=count)
+
     class Config:
         from_attributes = True
         json_schema_extra = {

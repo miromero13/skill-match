@@ -6,6 +6,13 @@ import { LandingPage } from "@/pages/landing-page"
 import { FeedPage } from "@/pages/feed-page"
 import { ExamPage } from "@/pages/exam-page"
 import { NotFoundPage } from "@/pages/not-found-page"
+import { MemberLoginPage } from "@/pages/member-login-page"
+import { AdminLoginPage } from "@/pages/admin-login-page"
+import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
+import { AdminUsersPage } from "@/pages/admin-users-page"
+import { AdminLayout } from "@/layouts/admin-layout"
+import { AdminRouteGuard } from "@/components/admin-route-guard"
+import { MemberRouteGuard } from "@/components/member-route-guard"
 
 export const router = createBrowserRouter([
   // 1. Public Layout (Landing Page, Institucional)
@@ -20,11 +27,22 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // 2. Platform Layout (Consumer Platform & Admin Backoffice)
+  // 2. Member Authentication (HU-07 / Vista 28 Web / Vista 30 Mobile)
+  {
+    path: "/login",
+    element: <MemberLoginPage />,
+  },
+
+  // 3. Platform Layout (Consumer Platform de Miembros protegida por MemberRouteGuard)
   {
     path: "/app",
-    element: <PlatformLayout />,
+    element: (
+      <MemberRouteGuard>
+        <PlatformLayout />
+      </MemberRouteGuard>
+    ),
     children: [
+
       {
         index: true,
         element: <FeedPage />,
@@ -80,13 +98,45 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // 4. Admin Direct Redirection
+  // 4. Admin Dedicated Login (HU-08 - Vista 29 & 31)
   {
-    path: "/admin",
-    element: <Navigate to="/app" replace />,
+    path: "/admin/login",
+    element: <AdminLoginPage />,
   },
 
-  // 5. 404 Dedicated Not Found
+  // 5. Admin Dashboard (Protegido por AdminRouteGuard con política de ofuscación 404)
+  {
+    path: "/admin/dashboard",
+    element: (
+      <AdminRouteGuard>
+        <AdminDashboardPage />
+      </AdminRouteGuard>
+    ),
+  },
+
+  // 6. Admin Backoffice - Gestión de Usuarios y Administradores (HU-10 - Vistas 15A, 15B, 17A, 17B)
+  {
+    path: "/admin/administrators",
+    element: (
+      <AdminRouteGuard>
+        <AdminLayout />
+      </AdminRouteGuard>
+    ),
+    children: [
+      {
+        index: true,
+        element: <AdminUsersPage />,
+      },
+    ],
+  },
+
+  // 6. Admin Direct Redirection (Protección preventiva)
+  {
+    path: "/admin",
+    element: <Navigate to="/admin/login" replace />,
+  },
+
+  // 7. 404 Dedicated Not Found
   {
     path: "*",
     element: <NotFoundPage />,

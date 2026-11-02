@@ -86,7 +86,7 @@ export function PublicNavbar() {
                 {/* Action Buttons in Mobile Sheet */}
                 <div className="flex flex-col gap-2.5 pt-6 border-t">
                   <Button variant="outline" asChild className="w-full text-xs font-semibold justify-center">
-                    <Link to="/app" onClick={() => setOpen(false)}>
+                    <Link to="/login" onClick={() => setOpen(false)}>
                       Iniciar Sesión
                     </Link>
                   </Button>
@@ -94,7 +94,7 @@ export function PublicNavbar() {
                     asChild
                     className="w-full bg-[#00786F] hover:bg-[#00786F]/90 text-[#F0FDFA] text-xs font-bold justify-center"
                   >
-                    <Link to="/app" onClick={() => setOpen(false)} className="flex items-center gap-1.5">
+                    <Link to="/login" onClick={() => setOpen(false)} className="flex items-center gap-1.5">
                       <span>Empezar Gratis</span>
                       <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
@@ -155,14 +155,14 @@ export function PublicNavbar() {
         <div className="hidden lg:flex items-center gap-2 xl:gap-3 shrink-0">
           <ModeToggle />
           <Button variant="ghost" size="sm" asChild className="text-[11px] xl:text-xs font-semibold px-2.5 xl:px-3">
-            <Link to="/app">Iniciar Sesión</Link>
+            <Link to="/login">Iniciar Sesión</Link>
           </Button>
           <Button
             size="sm"
             asChild
             className="bg-[#00786F] hover:bg-[#00786F]/90 text-[#F0FDFA] text-[11px] xl:text-xs font-bold h-8 xl:h-9 px-3 xl:px-4 rounded-md xl:rounded-lg shadow-xs"
           >
-            <Link to="/app" className="flex items-center gap-1.5">
+            <Link to="/login" className="flex items-center gap-1.5">
               <span>Empezar Gratis</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -177,7 +177,7 @@ export function PublicNavbar() {
             asChild
             className="bg-[#00786F] hover:bg-[#00786F]/90 text-[#F0FDFA] text-[11px] font-bold h-8 px-3 rounded-md shadow-xs"
           >
-            <Link to="/app">Entrar</Link>
+            <Link to="/login">Entrar</Link>
           </Button>
         </div>
       </div>
