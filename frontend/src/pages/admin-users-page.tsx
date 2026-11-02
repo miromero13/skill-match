@@ -29,7 +29,12 @@ export function AdminUsersPage() {
     setSearchTerm,
     setIsCreateModalOpen,
     fetchAdministrators,
+    fetchAdministrator,
+    updateAdmin,
+    changeAdminPassword,
     toggleStatus,
+    error,
+    isSubmitting,
   } = useAdminStore()
 
   const { user: currentUser } = useAuthStore()
@@ -43,6 +48,15 @@ export function AdminUsersPage() {
   } | null>(null)
   const [statusReason, setStatusReason] = useState("")
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [inspectedAdmin, setInspectedAdmin] = useState<{
+    id: string
+    full_name: string
+    email: string
+  } | null>(null)
+  const [isInspecting, setIsInspecting] = useState(false)
+  const [editName, setEditName] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [detailLoading, setDetailLoading] = useState(false)
 
   // Sincronizar directorio de administradores reales del backend
   useEffect(() => {
@@ -59,6 +73,31 @@ export function AdminUsersPage() {
         admin.email.toLowerCase().includes(term)
     )
   }, [administrators, searchTerm])
+
+  const handleExamine = async (id: string) => {
+    setDetailLoading(true)
+    setIsInspecting(true)
+    const admin = await fetchAdministrator(id)
+    if (admin) {
+      setInspectedAdmin({ id: admin.id, full_name: admin.full_name, email: admin.email })
+      setEditName(admin.full_name)
+    }
+    setDetailLoading(false)
+  }
+
+  const handleUpdateName = async () => {
+    if (!inspectedAdmin || editName.trim().length < 2) return
+    if (await updateAdmin(inspectedAdmin.id, { full_name: editName.trim() })) {
+      setInspectedAdmin({ ...inspectedAdmin, full_name: editName.trim() })
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!inspectedAdmin || !newPassword) return
+    if (await changeAdminPassword(inspectedAdmin.id, { password: newPassword })) {
+      setNewPassword("")
+    }
+  }
 
   const handleOpenStatusModal = (id: string, name: string, email: string, newStatus: boolean) => {
     setStatusDialogTarget({ id, name, email, newStatus })
@@ -82,6 +121,11 @@ export function AdminUsersPage() {
 
   return (
     <div className="flex flex-col gap-[14px]">
+      {error && !isInspecting && (
+        <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </p>
+      )}
       {/* 1. ActionBar (OpenPencil n6782: height: 48px, padding: 0 16px, cornerRadius: 8px, fill: #FFFFFF, stroke: #E3E7E8) */}
       <div className="h-[48px] px-4 bg-white border border-[#E3E7E8] rounded-[8px] flex items-center justify-between shadow-2xs">
         {/* Search (OpenPencil n6783: width: 320px, height: 34px, gap: 6px, padding: 0 10px, cornerRadius: 6px, fill: #F1F3F3) */}
@@ -188,7 +232,7 @@ export function AdminUsersPage() {
                   <div className="w-[120px] shrink-0 flex items-center justify-end gap-2 text-right">
                     <button
                       type="button"
-                      onClick={() => {}}
+                      onClick={() => void handleExamine(admin.id)}
                       className="text-[10px] font-[600] text-[#00786F] hover:underline cursor-pointer"
                     >
                       Examinar
@@ -292,6 +336,9 @@ export function AdminUsersPage() {
                     {isCurrent ? "Sesión actual" : "Cuenta delegada"}
                   </span>
                   <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => void handleExamine(admin.id)} className="font-[600] text-[#00786F]">
+                      Examinar
+                    </button>
                     {admin.is_active ? (
                       <button
                         type="button"
@@ -328,6 +375,47 @@ export function AdminUsersPage() {
 
       {/* 4. MODAL ALTA DE ADMINISTRADOR (Vista 15B) */}
       <CreateAdminModal />
+
+      <Dialog
+        open={isInspecting}
+        onOpenChange={(open) => {
+          setIsInspecting(open)
+          if (!open) {
+            setInspectedAdmin(null)
+            setNewPassword("")
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto bg-white text-[#090B0C]">
+          <DialogHeader>
+            <DialogTitle>Cuenta de administrador</DialogTitle>
+            <DialogDescription>Inspeccioná y actualizá los datos de esta cuenta administrativa.</DialogDescription>
+          </DialogHeader>
+          {detailLoading ? (
+            <Loader2 className="mx-auto my-8 h-5 w-5 animate-spin text-[#00786F]" />
+          ) : inspectedAdmin ? (
+            <div className="space-y-5">
+              {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+              <p className="break-all text-sm text-[#67787C]">{inspectedAdmin.email}</p>
+              <div className="space-y-2">
+                <label htmlFor="admin-full-name" className="text-sm font-medium">Nombre completo</label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input id="admin-full-name" value={editName} onChange={(event) => setEditName(event.target.value)} />
+                  <button type="button" disabled={isSubmitting || editName.trim().length < 2} onClick={() => void handleUpdateName()} className="h-10 shrink-0 rounded-md bg-[#00786F] px-4 text-sm font-semibold text-white disabled:opacity-50">Guardar</button>
+                </div>
+              </div>
+              <div className="space-y-2 border-t pt-4">
+                <label htmlFor="admin-new-password" className="text-sm font-medium">Cambiar contraseña</label>
+                <p className="text-xs text-[#67787C]">Las sesiones existentes permanecerán activas.</p>
+                <Input id="admin-new-password" type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+                <button type="button" disabled={isSubmitting || newPassword.length < 8} onClick={() => void handleChangePassword()} className="h-10 w-full rounded-md border border-[#E3E7E8] px-4 text-sm font-semibold disabled:opacity-50">Actualizar contraseña</button>
+              </div>
+            </div>
+          ) : error ? (
+            <p role="alert" className="text-sm text-red-700">{error}</p>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {/* 5. DIÁLOGO DE CONFIRMACIÓN DE SUSPENSIÓN / REACTIVACIÓN (Auditoría RF-USR-15) */}
       <Dialog
