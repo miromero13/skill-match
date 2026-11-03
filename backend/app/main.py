@@ -16,6 +16,7 @@ from app.core.exceptions import (
 from app.api.health import health_router
 from app.api.admin.auth import admin_auth_router
 from app.api.admin.router import router as admin_management_router
+from app.api.admin.catalog import router as admin_catalog_router
 from app.api.auth import auth_router
 from app.db.session import AsyncSessionLocal
 from app.db.seed import ensure_initial_admin
@@ -67,6 +68,7 @@ def create_application() -> FastAPI:
     app.include_router(health_router, prefix="/api")
     app.include_router(admin_auth_router, prefix="/api")
     app.include_router(admin_management_router, prefix="/api")
+    app.include_router(admin_catalog_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
 
     return app
