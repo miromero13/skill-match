@@ -20,6 +20,7 @@ from app.api.admin.catalog import router as admin_catalog_router
 from app.api.auth import auth_router
 from app.db.session import AsyncSessionLocal
 from app.db.seed import ensure_initial_admin
+from app.api.users.teaching_skills import router as teaching_skills_router
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -70,6 +71,7 @@ def create_application() -> FastAPI:
     app.include_router(admin_management_router, prefix="/api")
     app.include_router(admin_catalog_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
+    app.include_router(teaching_skills_router, prefix="/api")
 
     return app
 
