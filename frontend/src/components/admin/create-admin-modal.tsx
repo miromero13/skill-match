@@ -87,31 +87,31 @@ export function CreateAdminModal() {
 
   return (
     <Dialog open={isCreateModalOpen} onOpenChange={handleClose}>
-      {/* Dialog_Alta_Administrador: width: 680px, padding: 24px 28px, gap: 14px, cornerRadius: 14px, fill: #FFFFFF, stroke: #E3E7E8 (Fiel a OpenPencil n8555) */}
-      <DialogContent className="max-w-[680px] w-full bg-white text-[#090B0C] p-0 rounded-[14px] border border-[#E3E7E8] shadow-2xl overflow-hidden">
+      {/* Dialog_Alta_Administrador: width: 680px, padding: 24px 28px, gap: 14px, cornerRadius: 14px, fill: #141C1E, stroke: #1E2629 */}
+      <DialogContent className="max-w-[680px] w-full bg-[#141C1E] text-[#F0FDFA] p-0 rounded-[14px] border border-[#1E2629] shadow-2xl overflow-hidden">
         <div className="p-[24px_28px] flex flex-col gap-[14px]">
-          {/* Head (OpenPencil n8556) */}
+          {/* Head */}
           <DialogHeader className="space-y-[4px] text-left">
-            <DialogTitle className="text-[15px] font-[800] text-[#090B0C] tracking-tight uppercase leading-snug">
+            <DialogTitle className="text-[15px] font-[800] text-[#F0FDFA] tracking-tight uppercase leading-snug">
               DAR DE ALTA NUEVO USUARIO / ADMINISTRADOR (RBAC)
             </DialogTitle>
-            <DialogDescription className="text-[11px] font-[400] text-[#67787C] leading-normal">
+            <DialogDescription className="text-[11px] font-[400] text-[#8B9D9F] leading-normal">
               Asigná credenciales institucionales, rol jerárquico y permisos de auditoría forense o resolución de disputas.
             </DialogDescription>
           </DialogHeader>
 
           {activeError && (
-            <div className="p-2.5 rounded-[6px] bg-red-50 border border-red-200 text-red-700 text-[11px] font-medium">
+            <div className="p-2.5 rounded-[6px] bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] font-medium">
               {activeError}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]">
-            {/* RowInputs1: layout: horizontal, gap: 12px (OpenPencil n8559) */}
+            {/* RowInputs1: layout: horizontal, gap: 12px */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-[12px]">
-              {/* Field: Nombre y Apellido (n8560) */}
+              {/* Field: Nombre y Apellido */}
               <div className="flex flex-col gap-[3px]">
-                <Label htmlFor={nameInputId} className="text-[10px] font-[700] text-[#67787C] uppercase tracking-wider block">
+                <Label htmlFor={nameInputId} className="text-[10px] font-[700] text-[#8B9D9F] uppercase tracking-wider block">
                   NOMBRE Y APELLIDO:
                 </Label>
                 <Input
@@ -120,18 +120,18 @@ export function CreateAdminModal() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   required
-                  className="h-[36px] bg-[#F8FAFB] border-[#E3E7E8] rounded-[6px] px-[10px] text-[11px] font-[500] text-[#090B0C] placeholder:text-[#67787C]/60 focus:border-[#00786F] focus:ring-[#00786F]"
+                  className="h-[36px] bg-[#0F1416] border-[#1E2629] rounded-[6px] px-[10px] text-[11px] font-[500] text-[#F0FDFA] placeholder:text-[#67787C] focus:border-[#00786F] focus:ring-[#00786F]"
                 />
               </div>
 
-              {/* Field: Correo Institucional (n8564) */}
+              {/* Field: Correo Institucional */}
               <div className="flex flex-col gap-[3px]">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor={emailInputId} className="text-[10px] font-[700] text-[#67787C] uppercase tracking-wider block">
+                  <Label htmlFor={emailInputId} className="text-[10px] font-[700] text-[#8B9D9F] uppercase tracking-wider block">
                     CORREO INSTITUCIONAL:
                   </Label>
                   {isEmailDuplicate && (
-                    <span className="text-[9px] font-[700] text-red-500">
+                    <span className="text-[9px] font-[700] text-red-400">
                       Correo ya registrado
                     </span>
                   )}
@@ -146,33 +146,33 @@ export function CreateAdminModal() {
                     if (storeError) clearError()
                   }}
                   required
-                  className={`h-[36px] bg-[#F8FAFB] rounded-[6px] px-[10px] text-[11px] font-[500] text-[#090B0C] placeholder:text-[#67787C]/60 focus:ring-[#00786F] ${
+                  className={`h-[36px] bg-[#0F1416] rounded-[6px] px-[10px] text-[11px] font-[500] text-[#F0FDFA] placeholder:text-[#67787C] focus:ring-[#00786F] ${
                     isEmailDuplicate
                       ? "border-red-400 focus:border-red-500"
-                      : "border-[#E3E7E8] focus:border-[#00786F]"
+                      : "border-[#1E2629] focus:border-[#00786F]"
                   }`}
                 />
               </div>
             </div>
 
-            {/* RowInputs2: layout: horizontal, gap: 12px (OpenPencil n8568) */}
+            {/* RowInputs2 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-[12px]">
-              {/* Field: Rol en la Plataforma (n8569) */}
+              {/* Field: Rol en la Plataforma */}
               <div className="flex flex-col gap-[3px]">
-                <span className="text-[10px] font-[700] text-[#67787C] uppercase tracking-wider block">
+                <span className="text-[10px] font-[700] text-[#8B9D9F] uppercase tracking-wider block">
                   ROL EN LA PLATAFORMA:
                 </span>
-                <div className="h-[36px] px-[10px] bg-[#F8FAFB] border border-[#E3E7E8] rounded-[6px] flex items-center justify-between text-[11px] font-[500] text-[#090B0C] cursor-default select-none">
+                <div className="h-[36px] px-[10px] bg-[#0F1416] border border-[#1E2629] rounded-[6px] flex items-center justify-between text-[11px] font-[500] text-[#F0FDFA] cursor-default select-none">
                   <span>Auditor Forense & Mediador Arbitral ▾</span>
                 </div>
               </div>
 
-              {/* Field: Estado de Cuenta (n8573) */}
+              {/* Field: Estado de Cuenta */}
               <div className="flex flex-col gap-[3px]">
-                <span className="text-[10px] font-[700] text-[#67787C] uppercase tracking-wider block">
+                <span className="text-[10px] font-[700] text-[#8B9D9F] uppercase tracking-wider block">
                   ESTADO DE CUENTA:
                 </span>
-                <div className="h-[36px] px-[10px] bg-[#F8FAFB] border border-[#E3E7E8] rounded-[6px] flex items-center justify-between text-[11px] font-[500] text-[#090B0C] cursor-default select-none">
+                <div className="h-[36px] px-[10px] bg-[#0F1416] border border-[#1E2629] rounded-[6px] flex items-center justify-between text-[11px] font-[500] text-[#F0FDFA] cursor-default select-none">
                   <span>Activa (Verificada) ▾</span>
                 </div>
               </div>
@@ -180,7 +180,7 @@ export function CreateAdminModal() {
 
             {/* Fila Contraseña Inicial (Requisito Funcional RF-USR-10 / HU-10) */}
             <div className="flex flex-col gap-[3px]">
-              <Label htmlFor={passwordInputId} className="text-[10px] font-[700] text-[#67787C] uppercase tracking-wider block">
+              <Label htmlFor={passwordInputId} className="text-[10px] font-[700] text-[#8B9D9F] uppercase tracking-wider block">
                 CONTRASEÑA INICIAL:
               </Label>
               <div className="relative">
@@ -191,12 +191,12 @@ export function CreateAdminModal() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="h-[36px] pr-9 bg-[#F8FAFB] border-[#E3E7E8] rounded-[6px] px-[10px] text-[11px] font-[500] text-[#090B0C] placeholder:text-[#67787C]/60 focus:border-[#00786F] focus:ring-[#00786F]"
+                  className="h-[36px] pr-9 bg-[#0F1416] border-[#1E2629] rounded-[6px] px-[10px] text-[11px] font-[500] text-[#F0FDFA] placeholder:text-[#67787C] focus:border-[#00786F] focus:ring-[#00786F]"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#67787C] hover:text-[#090B0C] cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B9D9F] hover:text-[#F0FDFA] cursor-pointer"
                   aria-label={showPassword ? "Ocultar contraseña" : "Ver contraseña"}
                 >
                   {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -204,43 +204,41 @@ export function CreateAdminModal() {
               </div>
 
               {/* Checklist de Robustez de Contraseña */}
-              <div className="p-2 bg-[#F8FAFB] rounded-[6px] border border-[#E3E7E8] text-[10px] grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[#67787C] mt-1">
-                <span className={`flex items-center gap-1 ${hasMinLength ? "text-emerald-600 font-semibold" : ""}`}>
+              <div className="p-2 bg-[#0F1416] rounded-[6px] border border-[#1E2629] text-[10px] grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[#8B9D9F] mt-1">
+                <span className={`flex items-center gap-1 ${hasMinLength ? "text-[#2DD4BF] font-semibold" : ""}`}>
                   <Check className={`w-3 h-3 ${hasMinLength ? "opacity-100" : "opacity-30"}`} />
                   Mínimo 8 caracteres
                 </span>
-                <span className={`flex items-center gap-1 ${hasUppercase ? "text-emerald-600 font-semibold" : ""}`}>
+                <span className={`flex items-center gap-1 ${hasUppercase ? "text-[#2DD4BF] font-semibold" : ""}`}>
                   <Check className={`w-3 h-3 ${hasUppercase ? "opacity-100" : "opacity-30"}`} />
                   Una mayúscula
                 </span>
-                <span className={`flex items-center gap-1 ${hasLowercase ? "text-emerald-600 font-semibold" : ""}`}>
+                <span className={`flex items-center gap-1 ${hasLowercase ? "text-[#2DD4BF] font-semibold" : ""}`}>
                   <Check className={`w-3 h-3 ${hasLowercase ? "opacity-100" : "opacity-30"}`} />
                   Una minúscula
                 </span>
-                <span className={`flex items-center gap-1 ${hasNumber ? "text-emerald-600 font-semibold" : ""}`}>
+                <span className={`flex items-center gap-1 ${hasNumber ? "text-[#2DD4BF] font-semibold" : ""}`}>
                   <Check className={`w-3 h-3 ${hasNumber ? "opacity-100" : "opacity-30"}`} />
                   Un número
                 </span>
-                <span className={`flex items-center gap-1 col-span-2 sm:col-span-1 ${hasSpecialChar ? "text-emerald-600 font-semibold" : ""}`}>
+                <span className={`flex items-center gap-1 col-span-2 sm:col-span-1 ${hasSpecialChar ? "text-[#2DD4BF] font-semibold" : ""}`}>
                   <Check className={`w-3 h-3 ${hasSpecialChar ? "opacity-100" : "opacity-30"}`} />
                   Especial (!@#$...)
                 </span>
               </div>
             </div>
 
-            {/* Actions: layout: horizontal, gap: 10px (OpenPencil n8582) */}
+            {/* Actions */}
             <div className="flex items-center gap-[10px] pt-[6px]">
-              {/* BtnCancel: width: 140px, height: 42px, cornerRadius: 8px, fill: #F4F4F5 (n8583) */}
               <button
                 type="button"
                 onClick={handleClose}
                 disabled={isSubmitting}
-                className="w-[140px] h-[42px] rounded-[8px] bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#67787C] text-[11px] font-[700] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shrink-0"
+                className="w-[140px] h-[42px] rounded-[8px] bg-[#0F1416] border border-[#1E2629] hover:bg-[#1A2225] text-[#8B9D9F] hover:text-[#F0FDFA] text-[11px] font-[700] transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center shrink-0"
               >
                 Cancelar
               </button>
 
-              {/* BtnSubmit: width: fill_container, height: 42px, cornerRadius: 8px, fill: #00786F (n8585) */}
               <button
                 type="submit"
                 disabled={!isFormValid || isSubmitting}
