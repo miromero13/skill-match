@@ -29,6 +29,10 @@ class APIResponse(BaseModel, Generic[DataT]):
     def ok(cls, data: Optional[DataT] = None, message: str = "Operación completada exitosamente", count: Optional[int] = None) -> "APIResponse[DataT]":
         return cls(statuscode=200, message=message, data=data, count=count)
 
+    @classmethod
+    def created(cls, data: Optional[DataT] = None, message: str = "Recurso creado exitosamente") -> "APIResponse[DataT]":
+        return cls(statuscode=201, message=message, data=data)
+
     class Config:
         from_attributes = True
         json_schema_extra = {

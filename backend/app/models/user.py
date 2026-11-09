@@ -1,12 +1,15 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from sqlalchemy import String, Boolean, Integer, DateTime
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.user_learning_skill import UserLearningSkill
 
 class UserRole(str, Enum):
     """
@@ -101,6 +104,13 @@ class User(Base, TimestampMixin):
         String(255),
         nullable=True,
         default=None
+    )
+
+    # Relación con demandas de aprendizaje (HU-15)
+    learning_skills: Mapped[list["UserLearningSkill"]] = relationship(
+        "UserLearningSkill",
+        back_populates="user",
+        cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
