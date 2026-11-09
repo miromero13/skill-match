@@ -88,11 +88,14 @@ export function AdminLayout() {
     if (location.pathname.includes("/admin/administrators")) {
       return "Directorio de Miembros & Control de Acceso"
     }
+    if (location.pathname.includes("/admin/catalog") || location.pathname.includes("/admin/skills")) {
+      return "Catálogo Maestro de Habilidades"
+    }
     return "Panel Central de Control"
   }
 
   return (
-    <div className="min-h-screen w-full flex bg-[#FFFFFF] text-[#090B0C]">
+    <div className="min-h-screen w-full flex bg-[#0F1416] text-[#F0FDFA] dark">
       {/* 1. SIDEBAR DESKTOP (Fiel a OpenPencil n6740: w: 260px, fill: #0F1416, stroke: #1E2629) */}
       <aside className="hidden lg:flex flex-col w-[260px] bg-[#0F1416] text-[#FFFFFF] border-r border-[#1E2629] shrink-0 justify-between p-[20px_16px]">
         <div className="flex flex-col gap-5">
@@ -162,28 +165,28 @@ export function AdminLayout() {
       </aside>
 
       {/* 2. CONTENIDO PRINCIPAL Y TOPBAR */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#FFFFFF]">
-        {/* Admin_Topbar (OpenPencil n6774: height: 54px, padding: 0 24px, fill: #FFFFFF, stroke: #E3E7E8) */}
-        <header className="h-[54px] px-4 sm:px-6 bg-white border-b border-[#E3E7E8] flex items-center justify-between sticky top-0 z-30 shadow-2xs">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#0F1416]">
+        {/* Admin_Topbar (OpenPencil: height: 54px, fill: #0F1416, stroke: #1E2629) */}
+        <header className="h-[54px] px-4 sm:px-6 bg-[#0F1416] border-b border-[#1E2629] flex items-center justify-between sticky top-0 z-30 shadow-2xs">
           {/* Izquierda: Hamburguesa en mobile + Breadcrumb */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-1.5 rounded-md text-[#090B0C] hover:bg-gray-100 cursor-pointer"
+              className="lg:hidden p-1.5 rounded-md text-[#8B9D9F] hover:text-white hover:bg-[#1A2225] cursor-pointer"
               aria-label="Abrir Menú"
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <div className="text-[12px] font-semibold text-[#67787C]">
+            <div className="text-[12px] font-semibold text-[#8B9D9F]">
               <span className="hidden sm:inline">Consola de Administración / </span>
-              <span className="text-[#090B0C] font-bold">{getBreadcrumbTitle()}</span>
+              <span className="text-[#F0FDFA] font-bold">{getBreadcrumbTitle()}</span>
             </div>
           </div>
 
           {/* Derecha: Badge de Estado del Sistema */}
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E6F7F3] text-[#00786F] text-[11px] font-semibold border border-[#00786F33]">
-              <Circle className="w-2 h-2 fill-[#00786F] text-[#00786F] animate-pulse" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00786F1A] text-[#2DD4BF] text-[11px] font-semibold border border-[#00786F40]">
+              <Circle className="w-2 h-2 fill-[#2DD4BF] text-[#2DD4BF] animate-pulse" />
               <span className="hidden sm:inline">Sistema En Línea · Latencia 24ms</span>
               <span className="sm:hidden">En Línea</span>
             </div>
