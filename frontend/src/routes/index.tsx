@@ -11,6 +11,7 @@ import { AdminLoginPage } from "@/pages/admin-login-page"
 import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
 import { AdminUsersPage } from "@/pages/admin-users-page"
 import { AdminCatalogPage } from "@/pages/admin-catalog-page"
+import { LearningSkillsPage } from "@/pages/learning-skills-page"
 import { AdminLayout } from "@/layouts/admin-layout"
 import { AdminRouteGuard } from "@/components/admin-route-guard"
 import { MemberRouteGuard } from "@/components/member-route-guard"
@@ -63,6 +64,10 @@ export const router = createBrowserRouter([
       {
         path: "profile",
         element: <FeedPage />, // Placeholder para Vista 09 / 10
+      },
+      {
+        path: "learning-skills",
+        element: <LearningSkillsPage />, // HU-15 / Vista 09: Habilidades que deseo aprender
       },
       {
         path: "wallet",
