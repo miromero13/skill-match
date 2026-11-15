@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   ShieldCheck,
   Shield,
+  BookOpen,
 } from "lucide-react"
 
 export function PlatformSidebar() {
@@ -19,6 +20,7 @@ export function PlatformSidebar() {
 
   const menuItems = [
     { label: "Mi Perfil", icon: User, to: "/app/profile", active: path === "/app/profile" || path === "/app" },
+    { label: "Quiero Aprender", icon: BookOpen, to: "/app/learning-skills", active: path === "/app/learning-skills" },
     { label: "Intercambios Activos", icon: ArrowLeftRight, to: "/app/swaps", active: path === "/app/swaps", badge: "2" },
     { label: "Billetera & Cashout", icon: Wallet, to: "/app/wallet", active: path === "/app/wallet", value: "150 pts" },
     { label: "Disponibilidad y Horarios", icon: Calendar, to: "/app/availability", active: path === "/app/availability" },

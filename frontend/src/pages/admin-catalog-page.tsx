@@ -337,43 +337,43 @@ export function AdminCatalogPage() {
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1E2629] pb-6">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-emerald-500/10 text-emerald-600 rounded-lg">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-[#00786F]/20 text-[#2DD4BF] border border-[#00786F]/40 rounded-xl">
               <Sparkles className="h-6 w-6" />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#F0FDFA]">
               Catálogo de Habilidades
             </h1>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-[#8B9D9F] mt-1.5 max-w-2xl leading-relaxed">
             Organiza las disciplinas por categoría, configura la escalera canónica de 5 niveles con rúbricas de IA y marca las habilidades listas para producción.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
             variant="outline"
             size="sm"
             onClick={openCategoryModal}
-            className="flex items-center gap-1.5"
+            className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
-            <FolderPlus className="h-4 w-4 text-muted-foreground" />
+            <FolderPlus className="h-4 w-4 text-[#8B9D9F]" />
             <span>+ Categoría</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={openChallengeTypeModal}
-            className="flex items-center gap-1.5"
+            className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
-            <Cpu className="h-4 w-4 text-muted-foreground" />
+            <Cpu className="h-4 w-4 text-[#8B9D9F]" />
             <span>+ Tipo Desafío IA</span>
           </Button>
           <Button
             onClick={handleOpenCreateModal}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
+            className="bg-[#00786F] hover:bg-[#00665E] text-[#F0FDFA] font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <Plus className="h-4 w-4" />
             <span>Nueva Habilidad</span>
@@ -382,15 +382,15 @@ export function AdminCatalogPage() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-card p-4 rounded-xl border border-border shadow-sm">
+      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[#141C1E] p-4 rounded-xl border border-[#1E2629] shadow-sm">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#8B9D9F]" />
           <Input
             placeholder="Buscar por habilidad o descripción..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 bg-background"
+            className="pl-9 bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C] focus-visible:border-[#00786F]"
           />
         </div>
 
@@ -400,7 +400,11 @@ export function AdminCatalogPage() {
             variant={selectedCategoryId === null ? "default" : "outline"}
             size="sm"
             onClick={() => setSelectedCategoryId(null)}
-            className={selectedCategoryId === null ? "bg-emerald-600 text-white" : ""}
+            className={
+              selectedCategoryId === null
+                ? "bg-[#00786F] hover:bg-[#00665E] text-white font-bold shadow-xs cursor-pointer"
+                : "border-[#1E2629] bg-[#0F1416] text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer"
+            }
           >
             Todas ({totalSkills})
           </Button>
@@ -410,7 +414,11 @@ export function AdminCatalogPage() {
               variant={selectedCategoryId === cat.id ? "default" : "outline"}
               size="sm"
               onClick={() => setSelectedCategoryId(cat.id)}
-              className={selectedCategoryId === cat.id ? "bg-emerald-600 text-white" : ""}
+              className={
+                selectedCategoryId === cat.id
+                  ? "bg-[#00786F] hover:bg-[#00665E] text-white font-bold shadow-xs cursor-pointer"
+                  : "border-[#1E2629] bg-[#0F1416] text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer"
+              }
             >
               {cat.name}
             </Button>
@@ -418,31 +426,43 @@ export function AdminCatalogPage() {
         </div>
 
         {/* Ready status filter */}
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+        <div className="flex items-center gap-1 bg-[#0F1416] border border-[#1E2629] p-1 rounded-lg">
           <Button
             type="button"
-            variant={readyFilter === "all" ? "secondary" : "ghost"}
+            variant="ghost"
             size="sm"
             onClick={() => setReadyFilter("all")}
-            className="h-7 text-xs font-medium"
+            className={
+              readyFilter === "all"
+                ? "h-7 text-xs font-bold bg-[#1A2225] text-[#F0FDFA]"
+                : "h-7 text-xs font-medium text-[#8B9D9F] hover:text-[#F0FDFA]"
+            }
           >
             Todas
           </Button>
           <Button
             type="button"
-            variant={readyFilter === "ready" ? "default" : "ghost"}
+            variant="ghost"
             size="sm"
             onClick={() => setReadyFilter("ready")}
-            className={readyFilter === "ready" ? "h-7 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white" : "h-7 text-xs font-medium"}
+            className={
+              readyFilter === "ready"
+                ? "h-7 text-xs font-bold bg-[#00786F] hover:bg-[#00665E] text-white"
+                : "h-7 text-xs font-medium text-[#8B9D9F] hover:text-[#F0FDFA]"
+            }
           >
             Listas
           </Button>
           <Button
             type="button"
-            variant={readyFilter === "draft" ? "default" : "ghost"}
+            variant="ghost"
             size="sm"
             onClick={() => setReadyFilter("draft")}
-            className={readyFilter === "draft" ? "h-7 text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white" : "h-7 text-xs font-medium"}
+            className={
+              readyFilter === "draft"
+                ? "h-7 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white"
+                : "h-7 text-xs font-medium text-[#8B9D9F] hover:text-[#F0FDFA]"
+            }
           >
             En preparación
           </Button>
@@ -451,20 +471,20 @@ export function AdminCatalogPage() {
 
       {/* Skills Grid / Table */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center p-16 text-muted-foreground">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-2" />
+        <div className="flex flex-col items-center justify-center p-16 text-[#8B9D9F]">
+          <Loader2 className="h-8 w-8 animate-spin text-[#00786F] mb-2" />
           <p className="text-sm">Cargando catálogo de habilidades...</p>
         </div>
       ) : filteredSkills.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-16 text-center border border-dashed border-border rounded-2xl bg-card">
-          <BookOpen className="h-12 w-12 text-muted-foreground mb-3 opacity-40" />
-          <h3 className="text-lg font-semibold text-foreground">No se encontraron habilidades</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mt-1">
+        <div className="flex flex-col items-center justify-center p-16 text-center border border-dashed border-[#1E2629] rounded-2xl bg-[#141C1E]">
+          <BookOpen className="h-12 w-12 text-[#8B9D9F]/50 mb-3" />
+          <h3 className="text-lg font-bold text-[#F0FDFA]">No se encontraron habilidades</h3>
+          <p className="text-sm text-[#8B9D9F] max-w-sm mt-1">
             {searchTerm || selectedCategoryId || readyFilter !== "all"
               ? "Prueba cambiando los filtros de búsqueda o categoría."
               : "Comienza creando tu primera habilidad haciendo clic en 'Nueva Habilidad'."}
           </p>
-          <Button onClick={handleOpenCreateModal} className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Button onClick={handleOpenCreateModal} className="mt-4 bg-[#00786F] hover:bg-[#00665E] text-[#F0FDFA] font-bold">
             <Plus className="h-4 w-4 mr-1.5" />
             Crear Habilidad
           </Button>
@@ -478,35 +498,35 @@ export function AdminCatalogPage() {
             return (
               <Card
                 key={skill.id}
-                className="border-border hover:border-emerald-500/40 transition-all shadow-sm"
+                className="bg-[#141C1E] border-[#1E2629] hover:border-[#00786F]/50 transition-all shadow-sm rounded-xl text-[#F0FDFA]"
               >
                 <CardContent className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   {/* Info Column */}
                   <div className="space-y-2 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-lg font-semibold text-foreground">{skill.name}</span>
-                      <Badge variant="secondary" className="text-xs font-normal">
+                      <span className="text-lg font-bold text-[#F0FDFA]">{skill.name}</span>
+                      <Badge className="bg-[#1A2225] text-[#8B9D9F] border-[#1E2629] text-xs font-normal">
                         {category?.name || "Sin categoría"}
                       </Badge>
                       {challenge && (
-                        <Badge variant="outline" className="text-xs border-indigo-500/30 text-indigo-600 dark:text-indigo-400 bg-indigo-500/5">
-                          <Cpu className="h-3 w-3 mr-1" />
+                        <Badge className="bg-indigo-500/15 text-indigo-300 border-indigo-500/30 text-xs">
+                          <Cpu className="h-3 w-3 mr-1 text-indigo-400" />
                           {challenge.name} ({challenge.evaluation_modality})
                         </Badge>
                       )}
-                      <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-600 bg-emerald-500/5">
+                      <Badge className="bg-[#00786F]/15 text-[#2DD4BF] border-[#00786F]/30 text-xs font-semibold">
                         Umbral: {skill.min_approval_threshold}%
                       </Badge>
                     </div>
 
                     {skill.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-1">{skill.description}</p>
+                      <p className="text-xs text-[#8B9D9F] line-clamp-1">{skill.description}</p>
                     )}
 
                     {/* Canonical Levels ladder mini-progress */}
                     <div className="flex items-center gap-1.5 pt-1">
-                      <span className="text-xs text-muted-foreground mr-1 flex items-center gap-1">
-                        <Layers className="h-3 w-3" />
+                      <span className="text-xs text-[#8B9D9F] mr-1 flex items-center gap-1">
+                        <Layers className="h-3 w-3 text-[#67787C]" />
                         Escalera:
                       </span>
                       {CANONICAL_LEVELS_DEF.map((lvl) => {
@@ -519,8 +539,8 @@ export function AdminCatalogPage() {
                             title={`Nivel ${lvl.level_number}: ${lvl.name} (${hasRubric ? "Rúbrica configurada" : "Sin criterios"})`}
                             className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
                               hasRubric
-                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                : "bg-muted text-muted-foreground border-transparent"
+                                ? "bg-[#00786F]/20 text-[#2DD4BF] border-[#00786F]/40"
+                                : "bg-[#0F1416] text-[#67787C] border-[#1E2629]"
                             }`}
                           >
                             <span className="font-semibold">{lvl.level_number}</span>
@@ -532,23 +552,23 @@ export function AdminCatalogPage() {
                   </div>
 
                   {/* Status and Action Column */}
-                  <div className="flex flex-wrap items-center gap-3 border-t md:border-t-0 pt-3 md:pt-0">
+                  <div className="flex flex-wrap items-center gap-3 border-t border-[#1E2629] md:border-t-0 pt-3 md:pt-0">
                     {/* Ready to publish badge/toggle */}
-                    <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-lg border border-border">
-                      <span className="text-xs font-medium text-muted-foreground">¿Lista para publicar?</span>
+                    <div className="flex items-center gap-2 bg-[#0F1416] px-3 py-1.5 rounded-lg border border-[#1E2629]">
+                      <span className="text-xs font-medium text-[#8B9D9F]">¿Lista para publicar?</span>
                       <Button
                         type="button"
                         size="sm"
                         onClick={() => toggleReady(skill.id, skill.is_ready_to_publish)}
-                        className={`h-7 text-xs px-2.5 rounded-full font-medium transition-colors ${
+                        className={`h-7 text-xs px-2.5 rounded-full font-semibold transition-colors cursor-pointer ${
                           skill.is_ready_to_publish
-                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                            : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30"
+                            ? "bg-[#00786F] hover:bg-[#00665E] text-white"
+                            : "bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40"
                         }`}
                       >
                         {skill.is_ready_to_publish ? (
                           <>
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-white" />
                             <span>Lista</span>
                           </>
                         ) : (
@@ -570,7 +590,7 @@ export function AdminCatalogPage() {
                       <Label
                         htmlFor={`status-${skill.id}`}
                         className={`text-xs font-medium cursor-pointer ${
-                          skill.is_active ? "text-emerald-600 font-semibold" : "text-muted-foreground"
+                          skill.is_active ? "text-[#2DD4BF] font-bold" : "text-[#8B9D9F]"
                         }`}
                       >
                         {skill.is_active ? "Publicada" : "Inactiva"}
@@ -582,9 +602,9 @@ export function AdminCatalogPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenEditModal(skill)}
-                      className="flex items-center gap-1.5"
+                      className="border-[#1E2629] bg-[#0F1416] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
-                      <Edit3 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Edit3 className="h-3.5 w-3.5 text-[#8B9D9F]" />
                       <span>Editar y Rúbricas</span>
                     </Button>
                     <Button
@@ -595,7 +615,7 @@ export function AdminCatalogPage() {
                           deleteSkill(skill.id)
                         }
                       }}
-                      className="text-muted-foreground hover:text-destructive h-8 w-8"
+                      className="text-[#8B9D9F] hover:text-red-400 hover:bg-red-500/10 h-8 w-8 cursor-pointer"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -610,16 +630,16 @@ export function AdminCatalogPage() {
       {/* SKILL MODAL: Extra amplio (max-w-[1360px] / w-[96vw]), limpio, 2 columnas con componentes Shadcn */}
       <Dialog open={isSkillModalOpen} onOpenChange={(open) => !open && closeSkillModal()}>
         <DialogContent
-          className="w-[96vw] max-w-[1360px] p-0 border border-border bg-card rounded-2xl shadow-2xl overflow-hidden focus:outline-none"
+          className="w-[96vw] max-w-[1360px] p-0 border border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] rounded-2xl shadow-2xl overflow-hidden focus:outline-none"
           style={{ width: "96vw", maxWidth: "1360px", maxHeight: "90vh" }}
           showCloseButton={false}
         >
           <div className="flex flex-col h-full max-h-[90vh]">
             {/* Header conciso */}
-            <DialogHeader className="px-6 py-4 border-b border-border flex flex-row items-center justify-between shrink-0 bg-card space-y-0">
+            <DialogHeader className="px-6 py-4 border-b border-[#1E2629] flex flex-row items-center justify-between shrink-0 bg-[#141C1E] space-y-0">
               <div className="flex items-center gap-3">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
-                <DialogTitle className="text-base font-bold text-foreground uppercase tracking-tight">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#00786F]" />
+                <DialogTitle className="text-base font-bold text-[#F0FDFA] uppercase tracking-tight">
                   {editingSkill ? `Editar Habilidad: ${editingSkill.name}` : "Nueva Habilidad Técnica"}
                 </DialogTitle>
               </div>
@@ -628,7 +648,7 @@ export function AdminCatalogPage() {
                 variant="ghost"
                 size="icon"
                 onClick={closeSkillModal}
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                className="h-8 w-8 text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer"
                 title="Cerrar modal"
               >
                 <X className="h-4 w-4" />
@@ -639,9 +659,9 @@ export function AdminCatalogPage() {
             <form onSubmit={handleSaveSkill} className="flex-1 overflow-y-auto p-6 sm:p-8 flex flex-col gap-6">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 {/* Columna Izquierda: Información Básica de la Habilidad (lg:col-span-4) */}
-                <Card className="lg:col-span-4 bg-muted/20 border-border">
-                  <CardHeader className="pb-3 border-b border-border">
-                    <CardTitle className="text-xs font-bold text-foreground uppercase tracking-wider">
+                <Card className="lg:col-span-4 bg-[#0F1416] border-[#1E2629]">
+                  <CardHeader className="pb-3 border-b border-[#1E2629]">
+                    <CardTitle className="text-xs font-bold text-[#F0FDFA] uppercase tracking-wider">
                       Configuración General
                     </CardTitle>
                   </CardHeader>
@@ -649,7 +669,7 @@ export function AdminCatalogPage() {
                     {/* Categoría */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="modal-category" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        <Label htmlFor="modal-category" className="text-xs font-semibold text-[#8B9D9F] uppercase tracking-wider">
                           Categoría *
                         </Label>
                         <Button
@@ -657,7 +677,7 @@ export function AdminCatalogPage() {
                           variant="link"
                           size="sm"
                           onClick={openCategoryModal}
-                          className="h-auto p-0 text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                          className="h-auto p-0 text-xs font-semibold text-[#2DD4BF] hover:text-[#2DD4BF]/80"
                         >
                           + Nueva
                         </Button>
@@ -667,10 +687,10 @@ export function AdminCatalogPage() {
                         onValueChange={setSkillFormCategoryId}
                         required
                       >
-                        <SelectTrigger id="modal-category" className="w-full bg-background">
+                        <SelectTrigger id="modal-category" className="w-full bg-[#141C1E] border-[#1E2629] text-[#F0FDFA]">
                           <SelectValue placeholder="Seleccionar categoría..." />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-[#141C1E] border-[#1E2629] text-[#F0FDFA]">
                           {categories.map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.name}
@@ -682,7 +702,7 @@ export function AdminCatalogPage() {
 
                     {/* Nombre de la Habilidad */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="modal-skill-name" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <Label htmlFor="modal-skill-name" className="text-xs font-semibold text-[#8B9D9F] uppercase tracking-wider">
                         Nombre de la Habilidad *
                       </Label>
                       <Input
@@ -692,14 +712,14 @@ export function AdminCatalogPage() {
                         value={skillFormName}
                         onChange={(e) => setSkillFormName(e.target.value)}
                         required
-                        className="bg-background"
+                        className="bg-[#141C1E] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C]"
                       />
                     </div>
 
                     {/* Tipo de Desafío IA */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="modal-challenge-type" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        <Label htmlFor="modal-challenge-type" className="text-xs font-semibold text-[#8B9D9F] uppercase tracking-wider">
                           Tipo de Desafío IA:
                         </Label>
                         <Button
@@ -707,7 +727,7 @@ export function AdminCatalogPage() {
                           variant="link"
                           size="sm"
                           onClick={openChallengeTypeModal}
-                          className="h-auto p-0 text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                          className="h-auto p-0 text-xs font-semibold text-[#2DD4BF] hover:text-[#2DD4BF]/80"
                         >
                           + Nuevo
                         </Button>
@@ -716,10 +736,10 @@ export function AdminCatalogPage() {
                         value={skillFormChallengeTypeId || "none"}
                         onValueChange={(val) => setSkillFormChallengeTypeId(val === "none" ? "" : val)}
                       >
-                        <SelectTrigger id="modal-challenge-type" className="w-full bg-background">
+                        <SelectTrigger id="modal-challenge-type" className="w-full bg-[#141C1E] border-[#1E2629] text-[#F0FDFA]">
                           <SelectValue placeholder="Sin evaluación de IA asignada" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-[#141C1E] border-[#1E2629] text-[#F0FDFA]">
                           <SelectItem value="none">Sin evaluación de IA asignada</SelectItem>
                           {challengeTypes.map((ct) => (
                             <SelectItem key={ct.id} value={ct.id}>
@@ -732,17 +752,17 @@ export function AdminCatalogPage() {
 
                     {/* Umbral de Aprobación */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="modal-threshold" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <Label htmlFor="modal-threshold" className="text-xs font-semibold text-[#8B9D9F] uppercase tracking-wider">
                         Umbral Mínimo de Aprobación:
                       </Label>
                       <Select
                         value={String(skillFormThreshold)}
                         onValueChange={(val) => setSkillFormThreshold(Number(val))}
                       >
-                        <SelectTrigger id="modal-threshold" className="w-full bg-background">
+                        <SelectTrigger id="modal-threshold" className="w-full bg-[#141C1E] border-[#1E2629] text-[#F0FDFA]">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-[#141C1E] border-[#1E2629] text-[#F0FDFA]">
                           <SelectItem value="60">60% de aprobación</SelectItem>
                           <SelectItem value="70">70% de aprobación</SelectItem>
                           <SelectItem value="75">75% de aprobación</SelectItem>
@@ -755,8 +775,8 @@ export function AdminCatalogPage() {
                     </div>
 
                     {/* Toggle Publicar */}
-                    <div className="flex items-center justify-between pt-3 border-t border-border">
-                      <Label htmlFor="modal-ready-toggle" className="text-xs font-medium text-foreground cursor-pointer">
+                    <div className="flex items-center justify-between pt-3 border-t border-[#1E2629]">
+                      <Label htmlFor="modal-ready-toggle" className="text-xs font-medium text-[#F0FDFA] cursor-pointer">
                         Habilidad lista para publicar
                       </Label>
                       <Switch
@@ -769,10 +789,10 @@ export function AdminCatalogPage() {
                 </Card>
 
                 {/* Columna Derecha: Niveles y Rúbricas (lg:col-span-8) */}
-                <Card className="lg:col-span-8 border-border bg-card shadow-xs overflow-hidden">
-                  <div className="bg-muted/30 px-5 py-3 border-b border-border flex flex-wrap items-center justify-between gap-3">
+                <Card className="lg:col-span-8 border-[#1E2629] bg-[#0F1416] shadow-xs overflow-hidden">
+                  <div className="bg-[#141C1E] px-5 py-3 border-b border-[#1E2629] flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-foreground uppercase tracking-wider">
+                      <span className="text-xs font-bold text-[#F0FDFA] uppercase tracking-wider">
                         Niveles ({skillFormLevels.length}/5)
                       </span>
                       {skillFormLevels.length > 0 && (
@@ -781,13 +801,13 @@ export function AdminCatalogPage() {
                             <Button
                               key={lvl.level_number}
                               type="button"
-                              variant={activeLevelTab === String(lvl.level_number) ? "default" : "outline"}
+                              variant="outline"
                               size="sm"
                               onClick={() => setActiveLevelTab(String(lvl.level_number))}
-                              className={`h-7 px-3 text-xs font-semibold ${
+                              className={`h-7 px-3 text-xs font-semibold cursor-pointer ${
                                 activeLevelTab === String(lvl.level_number)
-                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                  : "text-muted-foreground"
+                                  ? "bg-[#00786F] hover:bg-[#00665E] text-white border-[#00786F]"
+                                  : "border-[#1E2629] bg-[#0F1416] text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-[#1A2225]"
                               }`}
                             >
                               Nivel {lvl.level_number}
@@ -802,7 +822,7 @@ export function AdminCatalogPage() {
                         type="button"
                         size="sm"
                         onClick={addManualLevel}
-                        className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-1.5"
+                        className="h-7 px-3 bg-[#00786F] hover:bg-[#00665E] text-white text-xs font-semibold gap-1.5 cursor-pointer"
                       >
                         <Plus className="h-3.5 w-3.5" />
                         Agregar Nivel
@@ -812,12 +832,12 @@ export function AdminCatalogPage() {
 
                   <CardContent className="p-5">
                     {skillFormLevels.length === 0 ? (
-                      <div className="p-12 text-center flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                      <div className="p-12 text-center flex flex-col items-center justify-center gap-3 text-[#8B9D9F]">
                         <p className="text-sm font-medium">No hay niveles configurados para esta habilidad.</p>
                         <Button
                           type="button"
                           onClick={addManualLevel}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                          className="bg-[#00786F] hover:bg-[#00665E] text-white text-xs font-semibold cursor-pointer"
                         >
                           <Plus className="h-3.5 w-3.5 mr-1.5" />
                           Agregar Nivel 1
@@ -829,9 +849,9 @@ export function AdminCatalogPage() {
                         .map((lvl) => (
                           <div key={lvl.level_number} className="flex flex-col gap-4">
                             {/* Datos del nivel activo */}
-                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 bg-muted/20 p-4 rounded-xl border border-border items-end">
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 bg-[#141C1E] p-4 rounded-xl border border-[#1E2629] items-end">
                               <div className="sm:col-span-7 space-y-1.5">
-                                <Label htmlFor={`level-name-${lvl.level_number}`} className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                <Label htmlFor={`level-name-${lvl.level_number}`} className="text-xs font-semibold text-[#8B9D9F] uppercase tracking-wider">
                                   Nombre del Nivel {lvl.level_number}:
                                 </Label>
                                 <Input
@@ -841,12 +861,12 @@ export function AdminCatalogPage() {
                                   onChange={(e) => updateLevelName(lvl.level_number, e.target.value)}
                                   placeholder="Ej. Principiante, Intermedio, Avanzado..."
                                   required
-                                  className="bg-background"
+                                  className="bg-[#0F1416] border-[#1E2629] text-[#F0FDFA]"
                                 />
                               </div>
 
                               <div className="sm:col-span-3 space-y-1.5">
-                                <Label htmlFor={`min-score-${lvl.level_number}`} className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                <Label htmlFor={`min-score-${lvl.level_number}`} className="text-xs font-semibold text-[#8B9D9F] uppercase tracking-wider">
                                   Puntaje Mínimo (0-100):
                                 </Label>
                                 <Input
@@ -856,7 +876,7 @@ export function AdminCatalogPage() {
                                   max={100}
                                   value={lvl.rubric?.min_score ?? 70}
                                   onChange={(e) => updateLevelRubric(lvl.level_number, "min_score", Number(e.target.value))}
-                                  className="bg-background font-semibold text-emerald-600"
+                                  className="bg-[#0F1416] border-[#1E2629] font-bold text-[#2DD4BF]"
                                 />
                               </div>
 
@@ -866,7 +886,7 @@ export function AdminCatalogPage() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => removeManualLevel(lvl.level_number)}
-                                  className="w-full text-destructive border-destructive/30 hover:bg-destructive/10 text-xs font-semibold"
+                                  className="w-full text-red-400 border-red-500/30 bg-[#0F1416] hover:bg-red-500/10 text-xs font-semibold cursor-pointer"
                                 >
                                   Eliminar
                                 </Button>
@@ -876,7 +896,7 @@ export function AdminCatalogPage() {
                             {/* Criterios del nivel */}
                             <div className="space-y-3">
                               <div className="flex items-center justify-between">
-                                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                <Label className="text-xs font-semibold text-[#8B9D9F] uppercase tracking-wider">
                                   Criterios de Evaluación ({lvl.rubric?.criteria?.length || 0})
                                 </Label>
                                 <Button
@@ -884,14 +904,14 @@ export function AdminCatalogPage() {
                                   variant="link"
                                   size="sm"
                                   onClick={() => addCriterion(lvl.level_number)}
-                                  className="h-auto p-0 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+                                  className="h-auto p-0 text-xs font-semibold text-[#2DD4BF] hover:text-[#2DD4BF]/80"
                                 >
                                   + Agregar Criterio
                                 </Button>
                               </div>
 
                               {lvl.rubric?.criteria?.length === 0 ? (
-                                <div className="p-4 text-center text-xs text-muted-foreground bg-muted/10 rounded-lg border border-dashed border-border">
+                                <div className="p-4 text-center text-xs text-[#8B9D9F] bg-[#141C1E] rounded-lg border border-dashed border-[#1E2629]">
                                   Sin criterios configurados. Haz clic en "+ Agregar Criterio".
                                 </div>
                               ) : (
@@ -899,14 +919,14 @@ export function AdminCatalogPage() {
                                   {lvl.rubric?.criteria.map((crit, cIdx) => (
                                     <div
                                       key={cIdx}
-                                      className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20 border border-border"
+                                      className="flex items-center gap-3 p-2.5 rounded-lg bg-[#141C1E] border border-[#1E2629]"
                                     >
                                       <Input
                                         type="text"
                                         placeholder="Nombre del criterio de evaluación"
                                         value={crit.name}
                                         onChange={(e) => updateCriterion(lvl.level_number, cIdx, "name", e.target.value)}
-                                        className="h-8 flex-1 min-w-0 bg-background text-xs"
+                                        className="h-8 flex-1 min-w-0 bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] text-xs"
                                       />
                                       <div className="flex items-center gap-1.5 shrink-0">
                                         <Input
@@ -915,16 +935,16 @@ export function AdminCatalogPage() {
                                           max={100}
                                           value={crit.weight}
                                           onChange={(e) => updateCriterion(lvl.level_number, cIdx, "weight", Number(e.target.value))}
-                                          className="h-8 w-16 text-center bg-background text-xs font-semibold"
+                                          className="h-8 w-16 text-center bg-[#0F1416] border-[#1E2629] text-[#2DD4BF] text-xs font-bold"
                                         />
-                                        <span className="text-xs text-muted-foreground font-bold">%</span>
+                                        <span className="text-xs text-[#8B9D9F] font-bold">%</span>
                                       </div>
                                       <Button
                                         type="button"
                                         variant="ghost"
                                         size="icon"
                                         onClick={() => removeCriterion(lvl.level_number, cIdx)}
-                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                        className="h-8 w-8 text-[#8B9D9F] hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
                                         title="Eliminar criterio"
                                       >
                                         <X className="h-4 w-4" />
@@ -942,12 +962,13 @@ export function AdminCatalogPage() {
               </div>
 
               {/* Botones de acción en el pie */}
-              <DialogFooter className="px-6 py-4 border-t border-border bg-card flex items-center justify-end gap-3 shrink-0">
+              <DialogFooter className="px-6 py-4 border-t border-[#1E2629] bg-[#141C1E] flex items-center justify-end gap-3 shrink-0">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={closeSkillModal}
                   disabled={isSubmitting}
+                  className="border-[#1E2629] bg-[#0F1416] text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer"
                 >
                   Cancelar
                 </Button>
@@ -955,7 +976,7 @@ export function AdminCatalogPage() {
                 <Button
                   type="submit"
                   disabled={isSubmitting || !skillFormCategoryId || !skillFormName.trim()}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="bg-[#00786F] hover:bg-[#00665E] text-white font-bold cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
@@ -974,20 +995,20 @@ export function AdminCatalogPage() {
 
       {/* CATEGORY IN-PLACE CREATION DIALOG */}
       <Dialog open={isCategoryModalOpen} onOpenChange={(open) => !open && closeCategoryModal()}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-[#141C1E] border border-[#1E2629] text-[#F0FDFA]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FolderPlus className="h-5 w-5 text-emerald-600" />
+            <DialogTitle className="flex items-center gap-2 text-[#F0FDFA]">
+              <FolderPlus className="h-5 w-5 text-[#2DD4BF]" />
               Nueva Categoría
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-[#8B9D9F]">
               Crea una categoría superior para agrupar habilidades (ej. Música, Programación, Idiomas).
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreateCategory} className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <Label htmlFor="cat-name" className="text-xs font-semibold">
+              <Label htmlFor="cat-name" className="text-xs font-semibold text-[#8B9D9F]">
                 Nombre de Categoría *
               </Label>
               <Input
@@ -996,11 +1017,12 @@ export function AdminCatalogPage() {
                 value={catName}
                 onChange={(e) => setCatName(e.target.value)}
                 required
+                className="bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C]"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="cat-desc" className="text-xs font-semibold">
+              <Label htmlFor="cat-desc" className="text-xs font-semibold text-[#8B9D9F]">
                 Descripción (opcional)
               </Label>
               <Textarea
@@ -1009,14 +1031,15 @@ export function AdminCatalogPage() {
                 rows={2}
                 value={catDescription}
                 onChange={(e) => setCatDescription(e.target.value)}
+                className="bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C]"
               />
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={closeCategoryModal}>
+              <Button type="button" variant="outline" onClick={closeCategoryModal} className="border-[#1E2629] bg-[#0F1416] text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer">
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button type="submit" disabled={isSubmitting} className="bg-[#00786F] hover:bg-[#00665E] text-white font-bold cursor-pointer">
                 Crear Categoría
               </Button>
             </DialogFooter>
@@ -1026,20 +1049,20 @@ export function AdminCatalogPage() {
 
       {/* CHALLENGE TYPE IN-PLACE CREATION DIALOG */}
       <Dialog open={isChallengeTypeModalOpen} onOpenChange={(open) => !open && closeChallengeTypeModal()}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-[#141C1E] border border-[#1E2629] text-[#F0FDFA]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Cpu className="h-5 w-5 text-indigo-600" />
+            <DialogTitle className="flex items-center gap-2 text-[#F0FDFA]">
+              <Cpu className="h-5 w-5 text-indigo-400" />
               Nuevo Tipo de Desafío IA
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-[#8B9D9F]">
               Registra un motor o pipeline de evaluación automatizada propio de SkillMatch.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreateChallengeType} className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <Label htmlFor="chal-name" className="text-xs font-semibold">
+              <Label htmlFor="chal-name" className="text-xs font-semibold text-[#8B9D9F]">
                 Nombre del Desafío *
               </Label>
               <Input
@@ -1048,12 +1071,13 @@ export function AdminCatalogPage() {
                 value={challengeName}
                 onChange={(e) => setChallengeName(e.target.value)}
                 required
+                className="bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C]"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="chal-code" className="text-xs font-semibold">
+                <Label htmlFor="chal-code" className="text-xs font-semibold text-[#8B9D9F]">
                   Código Único *
                 </Label>
                 <Input
@@ -1062,21 +1086,22 @@ export function AdminCatalogPage() {
                   value={challengeCode}
                   onChange={(e) => setChallengeCode(e.target.value.toUpperCase())}
                   required
+                  className="bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C]"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="chal-modality" className="text-xs font-semibold">
+                <Label htmlFor="chal-modality" className="text-xs font-semibold text-[#8B9D9F]">
                   Modalidad *
                 </Label>
                 <Select
                   value={challengeModality}
                   onValueChange={setChallengeModality}
                 >
-                  <SelectTrigger id="chal-modality" className="w-full bg-background">
+                  <SelectTrigger id="chal-modality" className="w-full bg-[#0F1416] border-[#1E2629] text-[#F0FDFA]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#141C1E] border-[#1E2629] text-[#F0FDFA]">
                     <SelectItem value="CODE">Código (Sandbox)</SelectItem>
                     <SelectItem value="AUDIO">Audio (Librosa/PyTorch)</SelectItem>
                     <SelectItem value="VIDEO_POSE">Visión / Pose (OpenCV)</SelectItem>
@@ -1087,7 +1112,7 @@ export function AdminCatalogPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="chal-desc" className="text-xs font-semibold">
+              <Label htmlFor="chal-desc" className="text-xs font-semibold text-[#8B9D9F]">
                 Descripción
               </Label>
               <Textarea
@@ -1096,14 +1121,15 @@ export function AdminCatalogPage() {
                 rows={2}
                 value={challengeDescription}
                 onChange={(e) => setChallengeDescription(e.target.value)}
+                className="bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C]"
               />
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={closeChallengeTypeModal}>
+              <Button type="button" variant="outline" onClick={closeChallengeTypeModal} className="border-[#1E2629] bg-[#0F1416] text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer">
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+              <Button type="submit" disabled={isSubmitting} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer">
                 Crear Tipo IA
               </Button>
             </DialogFooter>

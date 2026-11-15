@@ -18,8 +18,10 @@ from app.api.admin.auth import admin_auth_router
 from app.api.admin.router import router as admin_management_router
 from app.api.admin.catalog import router as admin_catalog_router
 from app.api.auth import auth_router
+from app.api.skills.router import router as public_skills_router
+from app.api.users.learning_skills import router as user_learning_skills_router
 from app.db.session import AsyncSessionLocal
-from app.db.seed import ensure_initial_admin
+from app.db.seed import ensure_initial_admin, ensure_initial_catalog
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -32,12 +34,13 @@ async def lifespan(app: FastAPI):
     """Ciclo de vida de la aplicación FastAPI (startup y shutdown)."""
     logger.info(f"Iniciando {settings.PROJECT_NAME} v{settings.VERSION} en entorno '{settings.ENVIRONMENT}'...")
     
-    # Provisionamiento seguro del Administrador Inicial desde variables de entorno
+    # Provisionamiento seguro del Administrador Inicial y Catálogo Maestro Canónico
     try:
         async with AsyncSessionLocal() as db:
             await ensure_initial_admin(db)
+            await ensure_initial_catalog(db)
     except Exception as exc:
-        logger.error(f"Fallo crítico durante el seed de inicio del administrador: {exc}")
+        logger.error(f"Fallo crítico durante el seed de inicio: {exc}")
 
     yield
     logger.info("Cerrando conexiones y apagando servicios de SkillMatch API...")
@@ -70,6 +73,8 @@ def create_application() -> FastAPI:
     app.include_router(admin_management_router, prefix="/api")
     app.include_router(admin_catalog_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
+    app.include_router(public_skills_router, prefix="/api")
+    app.include_router(user_learning_skills_router, prefix="/api")
 
     return app
 
