@@ -81,7 +81,7 @@ async def migrated_schema():
                     await db.flush()
                     offers = [TeachingSkill(
                         id=uuid4(), user_id=user.id, skill_id=skill.id,
-                        declared_level="BEGINNER", years_of_experence=1, accepts_points=False,
+                        declared_level="BEGINNER", years_of_experience=1, accepts_points=False,
                     ) for _ in range(2)]
                     # HU-14 has no UNIQUE in the real schema. Do not silently repair it here.
                     db.add_all(offers)

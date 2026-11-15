@@ -1,4 +1,3 @@
-
 import uuid 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column 
@@ -7,14 +6,14 @@ from app.db.base import Base, TimestampMixin
 
 class TeachingSkill(Base, TimestampMixin):
     __tablename__ = "user_teaching_skills"
-    __tableargs__ = (
+    __table_args__ = (
         UniqueConstraint(
             "user_id", "skill_id", 
             name = "uq_teaching_user_skill", 
         ),
         CheckConstraint(
-            "years_of_experience BETWEEN 0 AND 60 ",
-            name = "uq_teaching_experience", 
+            "years_of_experience BETWEEN 0 AND 60",
+            name = "ck_teaching_experience", 
         ),
         CheckConstraint(
             "declared_level IN "
@@ -39,7 +38,7 @@ class TeachingSkill(Base, TimestampMixin):
         nullable = False , index = True 
     )
     declared_level :Mapped[str] = mapped_column(String(20),  nullable = False)  #nivel declarado 
-    years_of_experence  : Mapped[int] = mapped_column(Integer, nullable = False)    # años de experiencia
+    years_of_experience  : Mapped[int] = mapped_column(Integer, nullable = False)    # años de experiencia
     description: Mapped[str | None] = mapped_column(String(2000)) # descripcion
     accepts_points: Mapped[bool] = mapped_column(nullable = False, default = False) # puntos 
     hourly_points_rate: Mapped[int | None] =  mapped_column(Integer) #tarifa por puntos 

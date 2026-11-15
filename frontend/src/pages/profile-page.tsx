@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAuthStore } from "@/stores/auth-store"
 import { TeachingSkillsSection } from "@/pages/teaching-skills-page"
+import { LearningSkillsSection } from "@/components/learning-skills/learning-skills-section"
 
 export function ProfilePage() {
   const user = useAuthStore((state) => state.user)
@@ -26,12 +27,13 @@ export function ProfilePage() {
               {user?.fullName || "Mi perfil"}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Tus habilidades y los enlaces que respaldan tu experiencia.
+              Tus habilidades, metas de aprendizaje y los enlaces que respaldan tu experiencia.
             </p>
           </div>
         </CardContent>
       </Card>
       <TeachingSkillsSection />
+      <LearningSkillsSection />
     </div>
   )
 }
