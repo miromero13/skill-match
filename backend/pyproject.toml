@@ -38,6 +38,9 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+markers = [
+    "hu16: acceptance tests for the HU-16 API, requiring migrated local PostgreSQL",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]

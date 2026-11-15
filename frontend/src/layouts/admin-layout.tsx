@@ -36,6 +36,12 @@ export function AdminLayout() {
   // Menú con restricción RBAC: 'Gestión de Usuarios' (Equipo Administrador) solo visible para rol ADMIN (HU-10 / Vista 15A)
   const navItems = [
     {
+      label: "Mis habilidades y evidencias",
+      to: "/admin/my-teaching-skills",
+      icon: BookOpen,
+      visible: user?.role === "ADMIN",
+    },
+    {
       label: "Dashboard & Analítica",
       to: "/admin/dashboard",
       icon: LayoutDashboard,

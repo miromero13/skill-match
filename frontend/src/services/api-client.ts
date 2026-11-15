@@ -1,33 +1,21 @@
 import { type APIResponse, type RequestOptions, ApiError } from "@/types/api"
-import { useAuthStore } from "@/stores/auth-store"
+import { getAuthSessionVersion, useAuthStore } from "@/stores/auth-store"
 import { toast } from "sonner"
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api"
 
 class ApiClient {
   private baseUrl: string
-  private isRefreshing = false
-  private refreshSubscribers: Array<{
-    resolve: (token: string) => void
-    reject: (error: unknown) => void
-  }> = []
+  private refreshes = new Map<number, Promise<string>>()
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl.replace(/\/$/, "")
   }
 
-  private onTokenRefreshed(newToken: string) {
-    this.refreshSubscribers.forEach((sub) => sub.resolve(newToken))
-    this.refreshSubscribers = []
-  }
-
-  private onTokenRefreshFailed(error: unknown) {
-    this.refreshSubscribers.forEach((sub) => sub.reject(error))
-    this.refreshSubscribers = []
-  }
-
   private async performTokenRefresh(): Promise<string> {
     const currentRefreshToken = useAuthStore.getState().refreshToken
+    const ownerId = useAuthStore.getState().user?.id
+    const sessionVersion = getAuthSessionVersion()
 
     if (!currentRefreshToken) {
       throw new Error("No refresh token available")
@@ -58,12 +46,22 @@ class ApiClient {
       throw new Error("Invalid token refresh response payload")
     }
 
+    if (
+      getAuthSessionVersion() !== sessionVersion ||
+      useAuthStore.getState().user?.id !== ownerId ||
+      useAuthStore.getState().refreshToken !== currentRefreshToken
+    ) {
+      throw new ApiError("Solicitud de una sesión anterior descartada.", 0)
+    }
     const { access_token, refresh_token } = json.data
     useAuthStore.getState().setTokens(access_token, refresh_token)
     return access_token
   }
 
-  private buildUrl(endpoint: string, params?: Record<string, string | number | boolean | undefined>): string {
+  private buildUrl(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>
+  ): string {
     const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
     const fullUrl = `${this.baseUrl}${cleanEndpoint}`
 
@@ -96,6 +94,11 @@ class ApiClient {
     } = options
 
     const url = this.buildUrl(endpoint, params)
+    const ownerId = useAuthStore.getState().user?.id
+    const sessionVersion = getAuthSessionVersion()
+    const currentSession = () =>
+      getAuthSessionVersion() === sessionVersion &&
+      useAuthStore.getState().user?.id === ownerId
 
     // 1. Inyección de Headers y Token JWT
     const token = useAuthStore.getState().token
@@ -125,6 +128,22 @@ class ApiClient {
         headers,
         body: serializedBody,
       })
+      if (!currentSession())
+        throw new ApiError("Solicitud de una sesión anterior descartada.", 0)
+      let jsonResponse: APIResponse<T>
+      const contentType = response.headers.get("content-type")
+      if (contentType && contentType.includes("application/json")) {
+        jsonResponse = await response.json()
+      } else {
+        const text = await response.text()
+        jsonResponse = {
+          statuscode: response.status,
+          data: text as unknown as T,
+          message: response.statusText,
+        }
+      }
+      if (!currentSession())
+        throw new ApiError("Solicitud de una sesión anterior descartada.", 0)
 
       // 2. Interceptor de 401 Unauthorized (Auto-refresh con cola concurrente)
       if (
@@ -136,29 +155,24 @@ class ApiClient {
         const { refreshToken } = useAuthStore.getState()
         if (refreshToken) {
           try {
+            let refresh = this.refreshes.get(sessionVersion)
+            if (!refresh) {
+              refresh = this.performTokenRefresh()
+              this.refreshes.set(sessionVersion, refresh)
+            }
             let newToken: string
-            if (this.isRefreshing) {
-              newToken = await new Promise<string>((resolve, reject) => {
-                this.refreshSubscribers.push({ resolve, reject })
-              })
-            } else {
-              this.isRefreshing = true
-              try {
-                newToken = await this.performTokenRefresh()
-                this.onTokenRefreshed(newToken)
-              } catch (refreshErr) {
-                this.onTokenRefreshFailed(refreshErr)
-                throw refreshErr
-              } finally {
-                this.isRefreshing = false
-              }
+            try {
+              newToken = await refresh
+            } finally {
+              if (this.refreshes.get(sessionVersion) === refresh)
+                this.refreshes.delete(sessionVersion)
             }
 
             // Reintentar la solicitud original con el nuevo Access Token
             const retryHeaders = new Headers(customHeaders)
             retryHeaders.set("Authorization", `Bearer ${newToken}`)
 
-            return await this.request<T>(
+            return this.request<T>(
               endpoint,
               {
                 ...options,
@@ -167,41 +181,42 @@ class ApiClient {
               true
             )
           } catch (refreshError) {
-            console.warn("Fallo crítico durante el auto-refresh de tokens:", refreshError)
+            if (!currentSession())
+              throw new ApiError(
+                "Solicitud de una sesión anterior descartada.",
+                0
+              )
+            console.warn(
+              "Fallo crítico durante el auto-refresh de tokens:",
+              refreshError
+            )
             useAuthStore.getState().logout()
-            toast.error("Sesión expirada", {
-              description: "Por favor, iniciá sesión nuevamente para continuar.",
-            })
-            throw new ApiError("No autorizado o sesión expirada", 401)
+            const errorMessage =
+              jsonResponse.message || "No autorizado o sesión expirada"
+            if (showToastOnError) toast.error(errorMessage)
+            throw new ApiError(errorMessage, 401)
           }
         } else {
           useAuthStore.getState().logout()
-          toast.error("Sesión expirada", {
-            description: "Por favor, iniciá sesión nuevamente para continuar.",
-          })
-          throw new ApiError("No autorizado o sesión expirada", 401)
+          const errorMessage =
+            jsonResponse.message || "No autorizado o sesión expirada"
+          if (showToastOnError) toast.error(errorMessage)
+          throw new ApiError(errorMessage, 401)
         }
       }
 
-      let jsonResponse: APIResponse<T>
-      const contentType = response.headers.get("content-type")
-      if (contentType && contentType.includes("application/json")) {
-        jsonResponse = await response.json()
-      } else {
-        const text = await response.text()
-        jsonResponse = {
-          statuscode: response.status,
-          success: response.ok,
-          data: text as unknown as T,
-          message: response.statusText,
-        }
-      }
+      if (response.status === 401 && isRetry) useAuthStore.getState().logout()
 
       // 3. Manejo estándar de errores bajo el contrato APIResponse (statuscode >= 400)
-      const isSuccess = response.ok && (jsonResponse.statuscode ? jsonResponse.statuscode < 400 : jsonResponse.success !== false)
+      const isSuccess =
+        response.ok &&
+        (jsonResponse.statuscode
+          ? jsonResponse.statuscode < 400
+          : jsonResponse.success !== false)
       if (!isSuccess) {
         const errorMessage =
-          jsonResponse.message || `Error en la solicitud (Código ${response.status})`
+          jsonResponse.message ||
+          `Error en la solicitud (Código ${response.status})`
 
         if (showToastOnError) {
           toast.error(errorMessage)
@@ -212,7 +227,9 @@ class ApiClient {
 
       // 4. Notificación de éxito si se solicitó (muestra textualmente el message del backend - HU-10)
       if (showToastOnSuccess || successMessage) {
-        toast.success(jsonResponse.message || successMessage || "Operación exitosa")
+        toast.success(
+          jsonResponse.message || successMessage || "Operación exitosa"
+        )
       }
 
       return jsonResponse
@@ -220,14 +237,19 @@ class ApiClient {
       if (error instanceof ApiError) {
         throw error
       }
+      if (!currentSession())
+        throw new ApiError("Solicitud de una sesión anterior descartada.", 0)
 
       // Errores de red o conexión
       const networkErrorMessage =
-        error instanceof Error ? error.message : "Error de comunicación con el servidor"
+        error instanceof Error
+          ? error.message
+          : "Error de comunicación con el servidor"
 
       if (showToastOnError) {
         toast.error("Error de Red", {
-          description: "No se pudo establecer conexión con el backend de SkillMatch.",
+          description:
+            "No se pudo establecer conexión con el backend de SkillMatch.",
         })
       }
 
@@ -238,45 +260,87 @@ class ApiClient {
   // Métodos HTTP semánticos
   // Soportan tanto: apiClient.post("/url", body, options)
   // Como la sobrecarga directa: apiClient.post("/url", { body, ...options })
-  public get<T>(endpoint: string, options?: RequestOptions): Promise<APIResponse<T>> {
+  public get<T>(
+    endpoint: string,
+    options?: RequestOptions
+  ): Promise<APIResponse<T>> {
     return this.request<T>(endpoint, { ...options, method: "GET" })
   }
 
-  public post<T>(endpoint: string, bodyOrOptions?: unknown, options?: RequestOptions): Promise<APIResponse<T>> {
+  public post<T>(
+    endpoint: string,
+    bodyOrOptions?: unknown,
+    options?: RequestOptions
+  ): Promise<APIResponse<T>> {
     if (options !== undefined) {
-      return this.request<T>(endpoint, { ...options, method: "POST", body: bodyOrOptions })
+      return this.request<T>(endpoint, {
+        ...options,
+        method: "POST",
+        body: bodyOrOptions,
+      })
     }
     // Si solo viene un argumento y tiene estructura de RequestOptions con body explícito
-    if (bodyOrOptions && typeof bodyOrOptions === "object" && "body" in bodyOrOptions) {
+    if (
+      bodyOrOptions &&
+      typeof bodyOrOptions === "object" &&
+      "body" in bodyOrOptions
+    ) {
       const opts = bodyOrOptions as RequestOptions
       return this.request<T>(endpoint, { ...opts, method: "POST" })
     }
     return this.request<T>(endpoint, { method: "POST", body: bodyOrOptions })
   }
 
-  public put<T>(endpoint: string, bodyOrOptions?: unknown, options?: RequestOptions): Promise<APIResponse<T>> {
+  public put<T>(
+    endpoint: string,
+    bodyOrOptions?: unknown,
+    options?: RequestOptions
+  ): Promise<APIResponse<T>> {
     if (options !== undefined) {
-      return this.request<T>(endpoint, { ...options, method: "PUT", body: bodyOrOptions })
+      return this.request<T>(endpoint, {
+        ...options,
+        method: "PUT",
+        body: bodyOrOptions,
+      })
     }
-    if (bodyOrOptions && typeof bodyOrOptions === "object" && "body" in bodyOrOptions) {
+    if (
+      bodyOrOptions &&
+      typeof bodyOrOptions === "object" &&
+      "body" in bodyOrOptions
+    ) {
       const opts = bodyOrOptions as RequestOptions
       return this.request<T>(endpoint, { ...opts, method: "PUT" })
     }
     return this.request<T>(endpoint, { method: "PUT", body: bodyOrOptions })
   }
 
-  public patch<T>(endpoint: string, bodyOrOptions?: unknown, options?: RequestOptions): Promise<APIResponse<T>> {
+  public patch<T>(
+    endpoint: string,
+    bodyOrOptions?: unknown,
+    options?: RequestOptions
+  ): Promise<APIResponse<T>> {
     if (options !== undefined) {
-      return this.request<T>(endpoint, { ...options, method: "PATCH", body: bodyOrOptions })
+      return this.request<T>(endpoint, {
+        ...options,
+        method: "PATCH",
+        body: bodyOrOptions,
+      })
     }
-    if (bodyOrOptions && typeof bodyOrOptions === "object" && "body" in bodyOrOptions) {
+    if (
+      bodyOrOptions &&
+      typeof bodyOrOptions === "object" &&
+      "body" in bodyOrOptions
+    ) {
       const opts = bodyOrOptions as RequestOptions
       return this.request<T>(endpoint, { ...opts, method: "PATCH" })
     }
     return this.request<T>(endpoint, { method: "PATCH", body: bodyOrOptions })
   }
 
-  public delete<T>(endpoint: string, options?: RequestOptions): Promise<APIResponse<T>> {
+  public delete<T>(
+    endpoint: string,
+    options?: RequestOptions
+  ): Promise<APIResponse<T>> {
     return this.request<T>(endpoint, { ...options, method: "DELETE" })
   }
 }

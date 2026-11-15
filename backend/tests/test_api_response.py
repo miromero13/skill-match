@@ -24,6 +24,7 @@ async def test_404_not_found_envelope(client: AsyncClient):
     assert payload["statuscode"] == 404
     assert "Not Found" in payload["message"] or "error" in payload["message"].lower() or "encontrado" in payload["message"].lower()
     assert payload["data"] is None
+    assert set(payload) == {"statuscode", "message", "data"}
 
 @pytest.mark.asyncio
 async def test_422_validation_error_envelope(client: AsyncClient):
@@ -36,8 +37,8 @@ async def test_422_validation_error_envelope(client: AsyncClient):
     payload = response.json()
     assert payload["statuscode"] == 422
     assert "Error de validación" in payload["message"]
-    assert "errors" in payload["data"]
-    assert payload["count"] >= 1
+    assert payload["data"] is None
+    assert set(payload) == {"statuscode", "message", "data"}
 
 @pytest.mark.asyncio
 async def test_200_success_envelope(client: AsyncClient):

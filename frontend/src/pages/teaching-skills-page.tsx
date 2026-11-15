@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react"
+import { Link } from "react-router-dom"
+import { useAuthStore } from "@/stores/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +15,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { useTeachingSkillStore } from "@/stores/teaching-skill-store"
+import { EvidenceManager } from "@/components/skill-evidences/evidence-manager"
 import {
     declaredLevels,
     type TeachingSkill,
@@ -28,7 +31,8 @@ const initialForm: TeachingSkillPayload = {
     hourly_points_rate: null,
 }
 
-export function TeachingSkillsPage() {
+export function TeachingSkillsSection() {
+    const role = useAuthStore((state) => state.user?.role)
     const items = useTeachingSkillStore((s) => s.items)
     const catalog = useTeachingSkillStore((s) => s.catalog)
     const page = useTeachingSkillStore((s) => s.page)
@@ -72,10 +76,10 @@ export function TeachingSkillsPage() {
     }
 
     return (
-        <main className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-6">
+        <section className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-6" aria-label="Habilidades que enseño">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-semibold">Habilidades que enseño</h1>
+                    <h2 className="text-2xl font-semibold">Habilidades que enseño</h2>
                     <p className="text-sm text-muted-foreground">
                         Ofrece intercambios y configura tu tarifa para clases con puntos.
                     </p>
@@ -123,6 +127,7 @@ export function TeachingSkillsPage() {
                                         </p>
                                     )}
                                     <div className="flex flex-wrap gap-2">
+                                        <EvidenceManager skill={item} />
                                         <Button
                                             variant="outline"
                                             disabled={saving}
@@ -189,7 +194,7 @@ export function TeachingSkillsPage() {
                             <Label htmlFor="skill">Habilidad</Label>
                             <Select
                                 value={form.skill_id}
-                                disabled={Boolean(editingId) || saving}
+                                disabled={Boolean(editingId) || saving || loading || catalog.length === 0}
                                 onValueChange={(value) =>
                                     setForm((current) => ({ ...current, skill_id: value }))
                                 }
@@ -206,9 +211,11 @@ export function TeachingSkillsPage() {
                                 </SelectContent>
                             </Select>
                             {catalog.length === 0 && (
-                                <p className="text-sm text-muted-foreground">
-                                    No hay habilidades activas disponibles en el catálogo.
-                                </p>
+                                <div className="space-y-3 rounded-lg border bg-muted/40 p-3 text-sm" role="status">
+                                    <p>El catálogo todavía no tiene habilidades disponibles. Un administrador debe crear y activar una habilidad y su categoría antes de que puedas registrarla.</p>
+                                    <Button type="button" variant="outline" disabled={loading || saving} onClick={() => void load(page)}>Actualizar catálogo</Button>
+                                    {role === "ADMIN" && <Button asChild type="button" variant="link"><Link to="/admin/catalog">Administrar catálogo</Link></Button>}
+                                </div>
                             )}
                         </div>
 
@@ -360,6 +367,10 @@ export function TeachingSkillsPage() {
                     </Button>
                 </DialogContent>
             </Dialog>
-        </main>
+        </section>
     )
+}
+
+export function TeachingSkillsPage() {
+    return <><h1 className="sr-only">Mis habilidades ofrecidas</h1><TeachingSkillsSection /></>
 }

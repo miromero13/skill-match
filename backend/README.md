@@ -218,8 +218,8 @@ Una vez levantado el servidor (`uvicorn app.main:app --reload`):
 
 ## 6. Ejecución de Pruebas Automatizadas (Pytest)
 
-Para verificar en cualquier momento que todos los contratos, excepciones y middlewares funcionan al 100%:
+Para ejecutar las pruebas:
 ```bash
 pytest -v
 ```
-*(5 tests automatizados cubriendo respuesta unificada 200, 404, validaciones 422, cabeceras preventivas y salud).*
+

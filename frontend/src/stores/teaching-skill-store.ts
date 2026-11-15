@@ -1,4 +1,6 @@
 import { create } from "zustand"
+import { getAuthSessionVersion, useAuthStore } from "@/stores/auth-store"
+import { useSkillEvidenceStore } from "@/stores/skill-evidence-store"
 
 import {
     deleteTeachingSkill,
@@ -27,6 +29,7 @@ interface TeachingSkillState {
     remove: (id: string) => Promise<void>
 }
 
+let sessionEpoch = 0
 export const useTeachingSkillStore = create<TeachingSkillState>((set, get) => ({
     items: [],
     catalog: [],
@@ -38,6 +41,7 @@ export const useTeachingSkillStore = create<TeachingSkillState>((set, get) => ({
 
     load: async (page = 1) => {
         if (get().loading) return
+        const epoch = sessionEpoch
         set({ loading: true, failed: false })
 
         try {
@@ -46,6 +50,7 @@ export const useTeachingSkillStore = create<TeachingSkillState>((set, get) => ({
                 getTeachingCatalog(),
             ])
 
+            if (epoch !== sessionEpoch) return
             set({
                 items: response.data,
                 total: response.count ?? 0,
@@ -53,42 +58,56 @@ export const useTeachingSkillStore = create<TeachingSkillState>((set, get) => ({
                 page,
             })
         } catch {
-            set({ items: [], catalog: [], failed: true })
+            if (epoch === sessionEpoch) set({ items: [], catalog: [], failed: true })
         } finally {
-            set({ loading: false })
+            if (epoch === sessionEpoch) set({ loading: false })
         }
     },
 
     save: async (payload, id) => {
         if (get().saving) return false
+        const epoch = sessionEpoch
         set({ saving: true })
 
         try {
             await saveTeachingSkill(payload, id)
+            if (epoch !== sessionEpoch) return false
             await get().load(get().page)
             return true
         } catch {
             return false
         } finally {
-            set({ saving: false })
+            if (epoch === sessionEpoch) set({ saving: false })
         }
     },
 
     remove: async (id) => {
         if (get().saving) return
+        const epoch = sessionEpoch
         set({ saving: true })
 
         try {
             await deleteTeachingSkill(id)
+            if (epoch !== sessionEpoch) return
+            if (useSkillEvidenceStore.getState().skillId === id) useSkillEvidenceStore.getState().reset()
             const nextPage = get().items.length === 1 && get().page > 1
                 ? get().page - 1
                 : get().page
             await get().load(nextPage)
         } finally {
-            set({ saving: false })
+            if (epoch === sessionEpoch) set({ saving: false })
         }
     },
 }))
+
+let authVersion = getAuthSessionVersion()
+useAuthStore.subscribe((state, previous) => {
+    if (authVersion !== getAuthSessionVersion() || state.user?.id !== previous.user?.id || state.user?.role !== previous.user?.role || state.isAuthenticated !== previous.isAuthenticated) {
+        authVersion = getAuthSessionVersion()
+        sessionEpoch++
+        useTeachingSkillStore.setState({ items: [], catalog: [], page: 1, total: 0, loading: false, saving: false, failed: false })
+    }
+})
 
 
 

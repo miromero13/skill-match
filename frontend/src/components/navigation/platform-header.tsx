@@ -50,7 +50,7 @@ export function PlatformHeader() {
     <header className="sticky top-0 z-40 w-full border-b bg-card text-card-foreground">
       <div className="flex h-14 items-center justify-between px-4 sm:px-6">
         {/* Left: Brand Circular Badge + Rounded Search Pill */}
-        <div className="flex items-center gap-3 w-1/4">
+        <div className="flex items-center gap-3 md:w-1/4">
           <Link to="/app" className="flex items-center gap-2 shrink-0">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground font-black text-sm shadow-xs">
               SM
@@ -68,7 +68,7 @@ export function PlatformHeader() {
         </div>
 
         {/* Center: Facebook-style Top Navigation with Underline Indicator */}
-        <nav className="flex items-center justify-center gap-1 sm:gap-2 w-2/4">
+        <nav className="hidden w-2/4 items-center justify-center gap-1 md:flex sm:gap-2">
           {navItems.map((item) => {
             const Icon = item.icon
             return (
@@ -99,7 +99,7 @@ export function PlatformHeader() {
         </nav>
 
         {/* Right: Wallet Pill + Bell + User Avatar */}
-        <div className="flex items-center justify-end gap-2.5 w-1/4">
+        <div className="flex items-center justify-end gap-2.5 md:w-1/4">
           {/* Wallet Pill with + Icon */}
           <Tooltip>
             <TooltipTrigger asChild>
