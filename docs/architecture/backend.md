@@ -43,8 +43,10 @@ class APIResponse(BaseModel, Generic[DataT]):
 ### 2.2 Política de Errores y Excepciones
 Un middleware / handler global captura:
 - **`StarletteHTTPException`:** Mapea el código y mensaje en `statuscode` y `message`, con `data=None`.
-- **`RequestValidationError` (422):** Convierte el array de validaciones de Pydantic en un mensaje legible y deposita el detalle estructurado de los campos fallidos en `data`.
+- **`RequestValidationError` (422):** Convierte las validaciones de Pydantic en un mensaje legible, sin reflejar valores enviados ni mensajes arbitrarios de validadores. Devuelve `data: null` y omite `count`, conforme al contrato ratificado para HU-16 y `AGENTS.md`.
 - **`Exception` no controlada (500):** Loguea el traceback en consola con UUID de correlación y devuelve `statuscode: 500` con `message: "Error interno del servidor"` protegiendo los secretos de la infraestructura.
+
+Todos los manejadores de error (dominio, HTTP, validación y errores inesperados) devuelven únicamente `statuscode`, `message` y `data: null`. `count` queda reservado para listados paginados. Las excepciones HTTP conservan sus cabeceras de protocolo, por ejemplo `WWW-Authenticate` y `Retry-After`.
 
 ---
 

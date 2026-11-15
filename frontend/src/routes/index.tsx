@@ -16,6 +16,7 @@ import { AdminLayout } from "@/layouts/admin-layout"
 import { AdminRouteGuard } from "@/components/admin-route-guard"
 import { MemberRouteGuard } from "@/components/member-route-guard"
 import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
+import { ProfilePage } from "@/pages/profile-page"
 
 export const router = createBrowserRouter([
   // 1. Public Layout (Landing Page, Institucional)
@@ -64,7 +65,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "profile",
-        element: <FeedPage />, // Placeholder para Vista 09 / 10
+        element: <ProfilePage />,
       },
       {
         path: "learning-skills",
@@ -158,6 +159,11 @@ export const router = createBrowserRouter([
   },
 
   // 6.2 Alias /admin/skills -> /admin/catalog
+  {
+    path: "/admin/my-teaching-skills",
+    element: <AdminRouteGuard><AdminLayout /></AdminRouteGuard>,
+    children: [{ index: true, element: <ProfilePage /> }],
+  },
   {
     path: "/admin/skills",
     element: <Navigate to="/admin/catalog" replace />,
