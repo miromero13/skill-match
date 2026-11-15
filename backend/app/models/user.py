@@ -34,7 +34,7 @@ class User(Base, TimestampMixin):
     """
     Entidad de persistencia de Usuarios.
     Soporta cuentas de Miembros y de Administradores con control de bloqueo de seguridad,
-    datos de perfil extendido, preferencias de modalidad y biometría facial (HU-13).
+    datos de perfil extendido, preferencias de modalidad y biometría facial.
     """
     __tablename__ = "users"
 
@@ -117,7 +117,7 @@ class User(Base, TimestampMixin):
         default=None
     )
 
-    # Campos de Perfil Personal, Preferencias y Modalidad (HU-13: RF-USR-07, RF-USR-09)
+    # Campos de Perfil Personal, Preferencias y Modalidad
     bio: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
@@ -175,7 +175,7 @@ class User(Base, TimestampMixin):
         default=None,
     )
 
-    # Campos de biometría facial oficial (HU-13: RF-FRA-10 ★)
+    # Campos de biometría facial oficial
     biometric_embedding: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
@@ -201,7 +201,7 @@ class User(Base, TimestampMixin):
         cascade="all, delete-orphan"
     )
 
-    # Relación con disponibilidad semanal (HU-13)
+    # Relación con disponibilidad semanal
     availabilities: Mapped[list["UserAvailability"]] = relationship(
         "UserAvailability",
         back_populates="user",

@@ -14,7 +14,7 @@ from app.services.biometric_service import BiometricService, EMBEDDING_DIMENSION
 
 class UserProfileService:
     """
-    Servicio de dominio para gestión del perfil personal y biometría facial (HU-13).
+    Servicio de dominio para gestión del perfil personal y biometría facial.
     Opera directamente sobre la entidad User (sin tabla 1:1 redundante).
     """
 

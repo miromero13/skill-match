@@ -8,7 +8,7 @@ from app.db.base import Base, TimestampMixin
 
 class UserAvailability(Base, TimestampMixin):
     """
-    Franja horaria de disponibilidad semanal del miembro (HU-13: RF-USR-08).
+    Franja horaria de disponibilidad semanal del miembro.
     """
     __tablename__ = "user_availabilities"
     __table_args__ = (

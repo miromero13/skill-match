@@ -13,7 +13,7 @@ from app.models.user_availability import UserAvailability
 
 
 class MockProfileAvailabilitySession:
-    """Sesión asíncrona en memoria para pruebas determinísticas de HU-13 (Perfil en User + UserAvailability)."""
+    """Sesión asíncrona en memoria para pruebas determinísticas de Perfil en User y UserAvailability."""
 
     def __init__(self, current_user: User):
         self.current_user = current_user

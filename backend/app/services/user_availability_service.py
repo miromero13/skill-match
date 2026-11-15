@@ -13,7 +13,7 @@ from app.schemas.user_availability import (
 
 
 class UserAvailabilityService:
-    """Servicio de dominio para gestionar la matriz de disponibilidad semanal (HU-13 / RF-USR-08)."""
+    """Servicio de dominio para gestionar la matriz de disponibilidad semanal."""
 
     @staticmethod
     async def list_slots(

@@ -16,7 +16,7 @@ MIN_FRAME_BYTES = 16
 class BiometricService:
     """
     Motor local y determinístico de visión artificial y extracción de características
-    faciales (HU-13 / RF-FRA-10 ★).
+    faciales.
     Cumple estrictamente el Principio 1.1 (Zero Third-Party LLM/Vision Cloud API):
     - Decodifica el frame en memoria (sin almacenar la foto cruda en disco ni en BD).
     - Verifica condiciones de iluminación y encuadre centrado del rostro.

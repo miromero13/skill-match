@@ -371,7 +371,7 @@ export function ProfilePage() {
                         Editar Perfil, Idiomas y Modalidad de Intercambio
                       </DialogTitle>
                       <DialogDescription>
-                        Configurá tu biografía, avatar, idiomas, enlaces externos y modalidad presencial/virtual (HU-13).
+                        Configurá tu biografía, avatar, idiomas, enlaces externos y modalidad presencial/virtual.
                       </DialogDescription>
                     </DialogHeader>
 
@@ -659,7 +659,7 @@ export function ProfilePage() {
                 </Button>
               </div>
 
-              {/* 4. Tarjeta de Enrolamiento Biométrico Facial (HU-13 / RF-FRA-10 ★) */}
+              {/* 4. Tarjeta de Enrolamiento Biométrico Facial */}
               <div className="rounded-xl border bg-card p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -889,7 +889,7 @@ export function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* 2. Habilidades Ofrecidas y Generación de QR + Habilidades que deseo aprender (HU-14, HU-15, HU-16) */}
+          {/* 2. Habilidades Ofrecidas y Generación de QR + Habilidades que deseo aprender */}
           <Card className="border-border/80 shadow-2xs">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-bold tracking-wide uppercase text-foreground">
@@ -948,7 +948,7 @@ export function ProfilePage() {
                 </div>
               </div>
 
-              {/* Secciones interactivas reales de HU-14/16 y HU-15 */}
+              {/* Secciones interactivas de Habilidades y Demandas de Aprendizaje */}
               <TeachingSkillsSection />
               <LearningSkillsSection />
             </CardContent>

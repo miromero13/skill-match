@@ -1,4 +1,4 @@
-"""Add profile, modality and biometric columns to users and create user_availabilities table (HU-13).
+"""Add profile, modality and biometric columns to users and create user_availabilities table.
 
 Revision ID: b27f1c8d9e53
 Revises: a16e0b7c9d42

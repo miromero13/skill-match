@@ -14,7 +14,7 @@ from app.services.user_availability_service import UserAvailabilityService
 
 router = APIRouter(
     prefix="/users/me/availability",
-    tags=["Disponibilidad Semanal (HU-13)"],
+    tags=["Disponibilidad Semanal"],
 )
 
 

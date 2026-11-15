@@ -15,7 +15,7 @@ from app.services.user_profile_service import UserProfileService
 
 router = APIRouter(
     prefix="/users/me",
-    tags=["Perfil y Biometría (HU-13)"],
+    tags=["Perfil y Biometría"],
 )
 
 
