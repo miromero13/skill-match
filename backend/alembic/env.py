@@ -63,7 +63,12 @@ async def run_async_migrations() -> None:
 
 def run_migrations_online() -> None:
     """Ejecución de migraciones en modo online."""
-    asyncio.run(run_async_migrations())
+    connection = config.attributes.get("connection")
+    if connection is not None:
+        # Permite probar Alembic con una conexión aislada y search_path controlado.
+        do_run_migrations(connection)
+    else:
+        asyncio.run(run_async_migrations())
 
 
 if context.is_offline_mode():

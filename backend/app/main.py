@@ -22,6 +22,9 @@ from app.api.skills.router import router as public_skills_router
 from app.api.users.learning_skills import router as user_learning_skills_router
 from app.db.session import AsyncSessionLocal
 from app.db.seed import ensure_initial_admin, ensure_initial_catalog
+from app.api.users.teaching_skills import router as teaching_skills_router
+from app.schemas.response import APIResponse
+from app.api.users.skill_evidences import router as skill_evidences_router
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -56,6 +59,12 @@ def create_application() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan,
+        responses={
+            422: {
+                "model": APIResponse[None],
+                "description": "Datos inválidos: message descriptivo, data null y sin count",
+            },
+        },
     )
 
     # 1. Configuración de Middlewares (CORS, GZip, Security Headers)
@@ -75,6 +84,8 @@ def create_application() -> FastAPI:
     app.include_router(auth_router, prefix="/api")
     app.include_router(public_skills_router, prefix="/api")
     app.include_router(user_learning_skills_router, prefix="/api")
+    app.include_router(teaching_skills_router, prefix="/api")
+    app.include_router(skill_evidences_router, prefix="/api")
 
     return app
 

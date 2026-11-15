@@ -6,6 +6,7 @@ import {
   Wallet,
   Calendar,
   Award,
+  BookOpen,
   Star,
   AlertTriangle,
   ShieldCheck,
@@ -20,6 +21,7 @@ export function PlatformSidebar() {
 
   const menuItems = [
     { label: "Mi Perfil", icon: User, to: "/app/profile", active: path === "/app/profile" || path === "/app" },
+    { label: "Habilidades que enseño", icon: BookOpen, to: "/app/teaching-skills", active: path === "/app/teaching-skills" },
     { label: "Quiero Aprender", icon: BookOpen, to: "/app/learning-skills", active: path === "/app/learning-skills" },
     { label: "Intercambios Activos", icon: ArrowLeftRight, to: "/app/swaps", active: path === "/app/swaps", badge: "2" },
     { label: "Billetera & Cashout", icon: Wallet, to: "/app/wallet", active: path === "/app/wallet", value: "150 pts" },
