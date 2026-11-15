@@ -4,9 +4,10 @@ from app.models.catalog import Category, ChallengeType, Skill, SkillLevel, Rubri
 from app.models.user_learning_skill import UserLearningSkill, UrgencyLevel
 from app.models.teaching_skill import TeachingSkill
 from app.models.skill_evidence import EvidenceType, SkillEvidence
+from app.models.dataset_sample import DatasetSample
 
 __all__ = [
     "Base", "TimestampMixin", "User", "UserRole", "Category", "ChallengeType",
     "Skill", "SkillLevel", "Rubric", "UserLearningSkill", "UrgencyLevel", "TeachingSkill", 
-    "EvidenceType", "SkillEvidence",
+    "EvidenceType", "SkillEvidence", "DatasetSample",
 ]
