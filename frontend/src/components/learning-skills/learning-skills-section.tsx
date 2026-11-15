@@ -4,9 +4,9 @@ import { LearningSkillCard } from "@/components/learning-skills/learning-skill-c
 import { AddLearningSkillDialog } from "@/components/learning-skills/add-learning-skill-dialog"
 import { EditLearningSkillDialog } from "@/components/learning-skills/edit-learning-skill-dialog"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { BookOpen, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
 import type { UserLearningSkill } from "@/types/learning-skill"
 
 export function LearningSkillsSection() {

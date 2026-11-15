@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   ShieldCheck,
   Shield,
-  BookOpen,
 } from "lucide-react"
 
 export function PlatformSidebar() {

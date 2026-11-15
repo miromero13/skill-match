@@ -17,6 +17,7 @@ import { AdminRouteGuard } from "@/components/admin-route-guard"
 import { MemberRouteGuard } from "@/components/member-route-guard"
 import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { ProfilePage } from "@/pages/profile-page"
+import { AdminDatasetCapturePage } from "@/pages/admin-dataset-capture-page"
 
 export const router = createBrowserRouter([
   // 1. Public Layout (Landing Page, Institucional)
@@ -167,6 +168,26 @@ export const router = createBrowserRouter([
   {
     path: "/admin/skills",
     element: <Navigate to="/admin/catalog" replace />,
+  },
+
+  // 6.3 Admin Backoffice - Captura de Datasets de IA (HU-17 / RF-IA-18)
+  {
+    path: "/admin/capture",
+    element: (
+      <AdminRouteGuard>
+        <AdminLayout />
+      </AdminRouteGuard>
+    ),
+    children: [
+      {
+        index: true,
+        element: <AdminDatasetCapturePage />,
+      },
+    ],
+  },
+  {
+    path: "/admin/ai-datasets",
+    element: <Navigate to="/admin/capture" replace />,
   },
 
   // 6. Admin Direct Redirection (Protección preventiva)

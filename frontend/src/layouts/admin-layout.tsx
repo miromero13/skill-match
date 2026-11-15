@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   Scale,
   Brain,
+  Video,
   Menu,
   X,
   LogOut,
@@ -72,6 +73,12 @@ export function AdminLayout() {
       visible: true,
     },
     {
+      label: "Captura de Datasets",
+      to: "/admin/capture",
+      icon: Video,
+      visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-17 / RF-IA-18)
+    },
+    {
       label: "IA & Datasets",
       to: "/admin/ai-datasets",
       icon: Brain,
@@ -96,6 +103,9 @@ export function AdminLayout() {
     }
     if (location.pathname.includes("/admin/catalog") || location.pathname.includes("/admin/skills")) {
       return "Catálogo Maestro de Habilidades"
+    }
+    if (location.pathname.includes("/admin/capture") || location.pathname.includes("/admin/ai-datasets")) {
+      return "Ingesta y Captura de Muestras Multimedia"
     }
     return "Panel Central de Control"
   }
