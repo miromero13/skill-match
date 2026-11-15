@@ -21,7 +21,7 @@ const offer: TeachingSkill = {
   skill_id: "catalog",
   skill_name: "Python",
   declared_level: "BEGINNER",
-  years_of_experence: 1,
+  years_of_experience: 1,
   description: null,
   accepts_points: false,
   hourly_points_rate: null,

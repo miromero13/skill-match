@@ -9,29 +9,29 @@ from app.models.catalog import Category, Skill
 from app.models.teaching_skill import TeachingSkill
 from app.schemas.teaching_skill import TeachingSkillResponse, TeachingSkillWrite
 
-def serialize(item : TeachingSkill , skill_name :str) -> TeachingSkillResponse: 
+def serialize(item: TeachingSkill, skill_name: str) -> TeachingSkillResponse: 
     return TeachingSkillResponse(
-        id = item.id,
+        id=item.id,
         skill_id=item.skill_id,
-        skill_name= skill_name,
-        declared_level= item.declared_level,
-        years_of_experence=item.years_of_experence,
-        description= item.description,
-        accepts_points=  item.accepts_points,
-        hourly_points_rate=  item.hourly_points_rate,
-        status=  item.status,
+        skill_name=skill_name,
+        declared_level=item.declared_level,
+        years_of_experience=item.years_of_experience,
+        description=item.description,
+        accepts_points=item.accepts_points,
+        hourly_points_rate=item.hourly_points_rate,
+        status=item.status,
     )
 
-class TeachingSkillService : 
+class TeachingSkillService: 
     @staticmethod
-    async def available_skills(db : AsyncSession) -> list[Skill]:
+    async def available_skills(db: AsyncSession) -> list[Skill]:
         result = await db.scalars(
             select(Skill) 
-            .join (Category, Category.id == Skill.category_id)
+            .join(Category, Category.id == Skill.category_id)
             .where(Skill.is_active.is_(True), Category.is_active.is_(True))
             .order_by(Skill.name, Skill.id)
         )
-        return list(result   )
+        return list(result)
 
     @staticmethod
     async def list_owned(

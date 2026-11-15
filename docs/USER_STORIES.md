@@ -97,10 +97,10 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 | Sprint | Enfoque Principal | Total HUs | Puntos de Historia (SP) |
 |:---:|---|:---:|:---:|
-| **Sprint 0** | Documentación, backlog, prototipo, inicialización backend/frontend, Landing Page y autenticación social/admin. | 11 | 55 SP |
+| **Sprint 0** | Documentación, backlog, prototipo, inicialización backend/frontend, Landing Page y autenticación social/admin. | 10 | 52 SP |
 | **Sprint 1** | Catálogo de habilidades, gestión de oferta/demanda, perfiles y captura/anotación de datasets por Admin. | 8 | 39 SP |
 | **Sprint 2** | Motor de búsqueda, matching bilateral, cálculo de score y notificaciones en tiempo real vía WebSockets. | 7 | 34 SP |
-| **Sprint 3** | Consentimiento biométrico, evaluador de código (sandbox + AST), prueba teórica y anti-fraude. | 8 | 39 SP |
+| **Sprint 3** | Consentimiento biométrico, evaluador de código (sandbox + AST), prueba teórica y anti-fraude. | 9 | 42 SP |
 | **Sprint 4** | Modelos de IA (música/fútbol), sesiones, valoraciones con propinas, Pasaporte QR, Billetera y Quejas. | 9 | 52 SP |
 | **Total** | | **43 HUs** | **219 SP** |
 
@@ -429,39 +429,6 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ---
 
-#### HU-11: Consentimiento informado de biometría y periféricos al solicitar validación de habilidad
-- **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
-- **Actor Principal:** Miembro de la Comunidad
-- **Roles Permitidos:** `UserRole.MEMBER`
-- **Sprint:** Sprint 0
-- **Estado:** Por hacer
-- **Puntos de Historia:** 3
-- **Prioridad:** Alta
-- **Trazabilidad:** `RF-USR-14`, `RF-FRA-19`
-- **Descripción:**
-  > **Como** miembro que desea validar una habilidad,  
-  > **quiero** revisar y aceptar los términos de uso de cámara, micrófono y procesamiento de biometría justo antes de comenzar mi evaluación,  
-  > **para** dar mi consentimiento informado únicamente cuando decido someterme a una prueba supervisada por IA.
-- **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** `04B - Pre-embarque: Paso 2 (Normas de Integridad)`
-  - **Mobile Responsive:** `06B - Mobile Pre-embarque: Paso 2 (Normas)`
-  - **Alcance Visual:** Vista Completa — Paso 2 del stepper: términos legales, advertencia de periféricos (cámara/micrófono), aviso de 3 pruebas gratis y checkboxes de consentimiento obligatorio
-- **Criterios de Aceptación:**
-  - **Backend:**
-    - [ ] Endpoint documentado en Swagger UI (`/docs`):
-      - `POST /api/evaluations/consent`: Registra la aceptación explícita de biometría y periféricos con timestamp inmutable (`biometric_consent_at`) y versión de política aceptada.
-    - [ ] Bloqueo estricto del inicio de cualquier evaluación práctica si no existe consentimiento registrado previamente para el miembro.
-    - [ ] Verificación de la regla de evaluación gratuita: valida que el miembro no haya superado el límite de 3 habilidades validadas gratis y que mantenga disponible su único intento gratuito por habilidad.
-  - **Frontend:**
-    - [ ] Modal informativo previo al examen detallando qué periféricos se utilizarán (cámara, micrófono) y para qué fines (anti-fraude y evaluación).
-    - [ ] Indicador visual: *"Validación gratuita restante: X/3 habilidades (Intento 1/1)"*.
-    - [ ] Checkboxes explícitos de consentimiento antes de habilitar el botón "Comenzar Evaluación".
-    - [ ] Gestión del estado del consentimiento en store de **Zustand**.
-    - [ ] Notificaciones con el `message` del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
-
----
-
 ### SPRINT 1: Catálogo de Habilidades, Perfiles e Ingesta de Datasets de IA
 
 #### HU-12: Catálogo maestro de habilidades y taxonomía
@@ -504,7 +471,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ---
 
-#### HU-13: Edición de perfil, disponibilidad semanal y modalidad
+#### HU-13: Edición de perfil, disponibilidad semanal, modalidad y enrolamiento biométrico facial
 - **Épica:** `EPIC-03: Miembros, Proveedores de Autenticación y Administración`
 - **Actor Principal:** Miembro Autenticado
 - **Roles Permitidos:** `UserRole.MEMBER`, `UserRole.ADMIN`
@@ -512,29 +479,31 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Estado:** Por hacer
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
-- **Trazabilidad:** `RF-USR-07`, `RF-USR-08`, `RF-USR-09`
+- **Trazabilidad:** `RF-USR-07`, `RF-USR-08`, `RF-USR-09`, `RF-FRA-10 ★`
 - **Descripción:**
   > **Como** miembro activo,  
-  > **quiero** configurar mi biografía, avatar, matriz de disponibilidad semanal y modalidad de intercambio (presencial/virtual),  
-  > **para** establecer las condiciones en las que puedo realizar intercambios formativos.
+  > **quiero** configurar mi biografía, avatar, matriz de disponibilidad semanal, modalidad de intercambio y realizar mi enrolamiento biométrico facial obligatorio,  
+  > **para** establecer las condiciones de mis clases y registrar mi rostro testigo oficial con el que seré verificado en las evaluaciones de habilidades prácticas.
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `09 - Perfil de Usuario & Matriz de Disponibilidad Semanal` y `21 - Disponibilidad, Agenda y Horarios Semanales`
   - **Mobile Responsive:** `11 - Mobile Perfil de Usuario & Matriz Semanal` y `23 - Mobile Disponibilidad y Agenda`
-  - **Alcance Visual:** Vista Completa — En 09/11 edición de biografía, avatar y modalidad; en 21/23 editor completo de franjas de 30 min, toggles por día, sincronización GCal y buffer de descanso
+  - **Alcance Visual:** Vista Completa — En 09/11 edición de biografía, avatar, modalidad y tarjeta de enrolamiento biométrico con cámara web asistida; en 21/23 editor completo de franjas de 30 min, toggles por día, sincronización GCal y buffer de descanso
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Tablas relacionales `user_profiles` y `user_availabilities` (día de la semana, hora inicio, hora fin).
+    - [ ] Tablas relacionales `user_profiles`, `user_availabilities` y campos de biometría en `user_profiles` (`biometric_embedding`, `biometric_enrolled_at`, `biometric_face_hash`).
     - [ ] Endpoints documentados en Swagger UI (`/docs`):
-      - `GET /api/users/me/profile`: Perfil personal y preferencias.
+      - `GET /api/users/me/profile`: Perfil personal, preferencias y flag `has_biometric_enrollment` (booleano).
       - `PUT /api/users/me/profile`: Actualización total.
       - `PATCH /api/users/me/profile`: Actualización parcial (avatar o biografía).
+      - `POST /api/users/me/biometrics/enroll`: Captura y enrolamiento biométrico oficial. Recibe ráfaga de frames o imagen en alta resolución, detecta rostro único centrado mediante OpenCV, extrae el embedding facial numérico (vector de 128 o 512 dimensiones en PyTorch con modelo local open-source) y guarda el embedding cifrado junto a su hash SHA-256. Prohibido guardar fotos crudas o enviar datos biométricos a APIs externas de terceros.
       - `GET /api/users/me/availability`: Grilla horaria del miembro.
       - `PUT /api/users/me/availability`: Reemplazo de matriz semanal completa.
       - `DELETE /api/users/me/availability/{id}`: Elimina franja horaria específica.
     - [ ] Validación de que el miembro autenticado solo puede modificar sus propios recursos (`/me`).
   - **Frontend:**
     - [ ] Store de perfil y agenda en **Zustand**.
-    - [ ] Pantalla de edición de perfil con pestañas (Datos personales, Horarios, Preferencias).
+    - [ ] Pantalla de edición de perfil con pestañas (Datos personales, Verificación Biométrica, Horarios, Preferencias).
+    - [ ] Componente guiado de enrolamiento biométrico: activación de cámara con guía oval de encuadre, chequeo de iluminación en vivo, detección de rostro centrado y confirmación de enrolamiento con badge "Rostro Testigo Vinculado".
     - [ ] Selector interactivo de bloques horarios semanales (grilla de lunes a domingo).
     - [ ] Selector de modalidad (Virtual, Presencial con radio en kilómetros, o Ambas).
     - [ ] Enlace "Mi Perfil y Horarios" accesible en el Sidebar para miembros y administradores.
@@ -995,6 +964,53 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ### SPRINT 3: Evaluación de Programación, Sandbox y Anti-Fraude
 
+#### HU-11: Pre-embarque de evaluación, instrucciones generales y consentimiento biométrico (Jira: SM-23)
+- **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
+- **Actor Principal:** Miembro de la Comunidad
+- **Roles Permitidos:** `UserRole.MEMBER`
+- **Sprint:** Sprint 3
+- **Estado:** Por hacer
+- **Puntos de Historia:** 3
+- **Prioridad:** Alta
+- **Trazabilidad:** `RF-USR-14`, `RF-FRA-19`
+- **Dependencias y Bloqueos:**
+  - **Bloqueada por (Is blocked by):**
+    - `HU-09` (`SM-21`): Sesión activa y autenticación JWT requerida como `UserRole.MEMBER`.
+    - `HU-12` (`SM-24`): Existencia previa del catálogo maestro de habilidades.
+    - `HU-14` (`SM-26`): La habilidad solicitada debe haber sido registrada previamente en el perfil como ofrecida para enseñar (`user_teaching_skills`).
+    - `HU-13` (`SM-25`): **Prerrequisito mandatorio de enrolamiento biométrico**. El usuario debe tener `has_biometric_enrollment == true` (rostro testigo registrado en perfil) antes de poder otorgar consentimiento para una prueba supervisada.
+  - **Bloquea a (Blocks):**
+    - `HU-32` (`SM-44`): Pre-embarque Paso 3 (calibración de cámara/micrófono, liveness y cotejo 1:1). Los periféricos no se pueden activar sin consentimiento inmutable firmado.
+    - `HU-27` (`SM-39`): Inicialización del examen teórico (`POST /api/evaluations/start`).
+    - `HU-28` (`SM-40`): Asignación y ejecución en Sandbox Docker de programación.
+- **Descripción:**
+  > **Como** miembro que desea certificar una habilidad práctica que enseña,  
+  > **quiero** acceder al asistente de pre-embarque para revisar las instrucciones generales del examen (Paso 1) y aceptar los términos de uso de cámara, micrófono y procesamiento biométrico local para cotejo de identidad (Paso 2),  
+  > **para** conocer las condiciones de la prueba, verificar mis cupos gratuitos restantes y formalizar mi consentimiento informado obligatorio que habilita las fases de evaluación práctica.
+- **Vistas Usadas o a Realizar:**
+  - **Web Desktop:** `04A - Pre-embarque: Paso 1 (Instrucciones Generales)` y `04B - Pre-embarque: Paso 2 (Normas de Integridad)`
+  - **Mobile Responsive:** `06A - Mobile Pre-embarque: Paso 1 (Instrucciones)` y `06B - Mobile Pre-embarque: Paso 2 (Normas)`
+  - **Alcance Visual:** Vista Completa — Pasos 1 y 2 del stepper: temario, duración y requisitos en Paso 1; términos legales, advertencia de periféricos (cámara/micrófono), aviso de 3 pruebas gratis y checkboxes de consentimiento obligatorio en Paso 2
+- **Criterios de Aceptación:**
+  - **Backend:**
+    - [ ] Endpoints documentados en Swagger UI (`/docs`):
+      - `GET /api/evaluations/skills/{teaching_skill_id}/preflight`: Retorna información previa de la prueba (temario, requisitos técnicos de hardware, duración estimada, intentos previos del usuario y cupos gratuitos restantes: `free_evaluations_left`).
+      - `POST /api/evaluations/skills/{teaching_skill_id}/consent`: Registra la aceptación explícita de biometría y supervisión para la habilidad indicada. Crea o inicializa la entidad `Evaluation` en estado `PENDING_CALIBRATION`. Almacena en base de datos: `biometric_consent_at` (timestamp inmutable), `policy_version` (ej. `"v1.0"`), `ip_address` y `user_agent`.
+    - [ ] **Validación de Enrolamiento Previo:** Si el miembro no completó su enrolamiento biométrico oficial en el perfil (`has_biometric_enrollment == false`), el preflight/consent rechaza la petición con `statuscode: 400` (*"Debe registrar su rostro testigo en su perfil antes de solicitar una certificación"*).
+    - [ ] **Control de Intentos y Cupos Gratuitos:** Valida que el miembro no supere el tope de 3 habilidades validadas gratis en la plataforma y que mantenga disponible su único intento gratuito por habilidad. Si ya agotó sus cupos, bloquea la solicitud con `statuscode: 403` (*"Límite de evaluaciones gratuitas alcanzado para esta habilidad"*), dejando la recarga por billetera para integración con `HU-42`.
+    - [ ] **Bloqueo Estricto:** Prohibición absoluta de crear sesión de examen (`/start`) o habilitar la calibración (`/liveness`) si no existe el registro inmutable de consentimiento previo para la postulación.
+  - **Frontend:**
+    - [ ] Stepper de pre-embarque interactivo en ruta `/evaluation/:skillId/setup`:
+      - **Paso 1 (Instrucciones):** Tarjetas con temario de la prueba, duración estimada, requerimientos de periféricos y botón "Siguiente: Normas de Integridad".
+      - **Paso 2 (Normas y Consentimiento):** Explicación del uso de cámara y micrófono para fines anti-fraude, indicador visual (*"Validación gratuita restante: X/3 habilidades (Intento 1/1)"*) y checkboxes obligatorios de consentimiento.
+    - [ ] Botón "Comenzar Calibración" deshabilitado hasta que todos los checkboxes obligatorios estén marcados y confirmados por el backend.
+    - [ ] Redirección asistida al perfil (`/profile`) con banner de aviso si el miembro aún no enroló su rostro testigo.
+    - [ ] Gestión del estado del asistente en store de **Zustand**.
+    - [ ] Mensajes de feedback consumiendo el `message` del backend.
+    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+
+---
+
 #### HU-27: Banco de reactivos teóricos y examen aleatorio
 - **Épica:** `EPIC-08: Evaluación de Código y Sandbox`
 - **Actor Principal:** Miembro Aspirante a Certificación
@@ -1165,7 +1181,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ---
 
-#### HU-32: Verificación de entorno y prueba de vida (*Liveness*) con cámara
+#### HU-32: Verificación de entorno, liveness y cotejo biométrico 1:1 con cámara
 - **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
 - **Actor Principal:** Miembro Aspirante a Certificación
 - **Roles Permitidos:** `UserRole.MEMBER`
@@ -1173,25 +1189,30 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Estado:** Por hacer
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
-- **Trazabilidad:** `RF-FRA-07`, `RF-FRA-08`
+- **Trazabilidad:** `RF-FRA-07`, `RF-FRA-08`, `RF-FRA-10 ★`, `RF-FRA-13`
 - **Descripción:**
   > **Como** plataforma que certifica habilidades auténticas,  
-  > **quiero** verificar periféricos y solicitar un gesto motor aleatorio antes de iniciar la evaluación,  
-  > **para** confirmar que la prueba la rinde una persona viva en tiempo real y no una fotografía estática.
+  > **quiero** verificar periféricos, validar hardware físico contra webcams virtuales, exigir un reto motor de prueba de vida (*liveness*) y comparar el rostro de la cámara contra el enrolamiento biométrico del perfil,  
+  > **para** confirmar que quien rinde la evaluación es una persona viva presente en tiempo real y exactamente el usuario dueño de la cuenta, mitigando deepfakes, suplantaciones y grabaciones.
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `04C - Pre-embarque: Paso 3 (Calibración y Validación)`
   - **Mobile Responsive:** `06C - Mobile Pre-embarque: Paso 3 (Calibración)`
-  - **Alcance Visual:** Vista Completa — Paso 3 del stepper: comprobación de webcam, micrófono, iluminación y reto motor aleatorio de prueba de vida con OpenCV
+  - **Alcance Visual:** Vista Completa — Paso 3 del stepper: comprobación de webcam física nativa, micrófono, iluminación, reto motor aleatorio de liveness y verificación biométrica facial 1:1 con OpenCV/PyTorch
 - **Criterios de Aceptación:**
-  - **Backend (OpenCV Service):**
-    - [ ] Verificación de flujo óptico y coherencia de movimiento en video corto antes de autorizar el examen.
+  - **Backend (OpenCV & PyTorch Service):**
+    - [ ] Validación de prerrequisito: bloqueo automático de la prueba si el usuario no completó su enrolamiento biométrico en el perfil (`has_biometric_enrollment == false`).
+    - [ ] Algoritmo Anti-Spoofing pasivo con OpenCV: análisis de texturas (LBP / Fourier) para detectar pantallas (celulares, monitores), bordes de fotos impresas o anomalías de color en piel.
+    - [ ] Verificación de flujo óptico y prueba de vida (*liveness*): generación de reto motor aleatorio con expiración corta (3 a 5 segundos) y validación de coherencia cinemática (parpadeo coordinado, giro angular de cabeza).
+    - [ ] **Cotejo Biométrico Facial 1:1:** Extracción del embedding facial en los frames de la prueba y cálculo de similitud (distancia coseno / euclidiana) contra el embedding guardado en `user_profiles`. Si la similitud es menor al umbral de confianza (ej. < 0.80), la evaluación no se autoriza por discrepancia de identidad.
     - [ ] Endpoints documentados en Swagger UI (`/docs`):
-      - `POST /api/evaluations/{id}/liveness/check`: Valida ráfaga de frames de movimiento gestual.
-      - `GET /api/evaluations/{id}/environment/verify`: Confirma condiciones mínimas de cámara y luz.
+      - `POST /api/evaluations/{id}/liveness/challenge`: Emite semilla y tipo de reto gestual aleatorio con timestamp de expiración.
+      - `POST /api/evaluations/{id}/liveness/verify-identity`: Valida ráfaga de frames del reto motor, ejecuta anti-spoofing y realiza el cotejo biométrico 1:1 contra el perfil.
+      - `GET /api/evaluations/{id}/environment/verify`: Confirma condiciones mínimas de cámara, resolución y luz.
   - **Frontend:**
     - [ ] Asistente interactivo guiado por store de **Zustand** en ruta `/evaluation/:id/setup`.
+    - [ ] **Detección y bloqueo de cámaras virtuales:** Auditoría de etiquetas de dispositivos con `MediaStreamTrack` y `navigator.mediaDevices.enumerateDevices()` para bloquear drivers conocidos de inyección de video (OBS Virtual Camera, ManyCam, v4l2loopback).
     - [ ] Verificación de periféricos: cámara web, micrófono, iluminación y encuadre del rostro.
-    - [ ] Reto interactivo guiado solicitando un movimiento aleatorio (ej. parpadear dos veces, girar levemente el rostro a la derecha).
+    - [ ] Reto interactivo guiado solicitando un movimiento aleatorio en tiempo real con barra de cuenta regresiva (ej. parpadear dos veces, girar levemente el rostro a la derecha).
     - [ ] Indicaciones y mensajes en pantalla utilizando el `message` del backend.
     - [ ] Diseño 100% responsive en mobile, tablet y desktop.
 
@@ -1340,7 +1361,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ---
 
-#### HU-37: Detección de múltiples rostros y voces accesorias durante evaluaciones
+#### HU-37: Detección de múltiples rostros, voces accesorias y verificación continua de identidad durante evaluaciones
 - **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
 - **Actor Principal:** Sistema Supervisor / Anti-Fraude
 - **Roles Permitidos:** `UserRole.MEMBER`
@@ -1348,24 +1369,25 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Estado:** Por hacer
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
-- **Trazabilidad:** `RF-FRA-05`, `RF-FRA-06`
+- **Trazabilidad:** `RF-FRA-05`, `RF-FRA-06`, `RF-FRA-10 ★`
 - **Descripción:**
   > **Como** sistema supervisor durante pruebas con cámara y micrófono,  
-  > **quiero** alertar si aparece más de una persona en pantalla o se escuchan voces accesorias,  
-  > **para** evitar asistencia externa ilícita.
+  > **quiero** alertar si aparece más de una persona en pantalla, si se escuchan voces accesorias o si quien está frente a la cámara deja de coincidir con el rostro del miembro verificado inicialmente,  
+  > **para** evitar asistencia externa ilícita y suplantación de identidad a mitad de la prueba.
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `06 - Preguntas Orales Técnicas con Cámara` y `08 - Detección de Trampa e Infracción Anti-Fraude`
   - **Mobile Responsive:** `08 - Mobile Preguntas con Cámara` y `10 - Mobile Alerta Detección de Trampa`
-  - **Alcance Visual:** Solo una parte de esa vista — Caja de video con algoritmo de detección facial múltiple y medidor VU de actividad vocal en 06/08, y modal de sanción si se confirma intrusión en 08/10
+  - **Alcance Visual:** Solo una parte de esa vista — Caja de video con algoritmo de detección facial múltiple, medidor VU de actividad vocal en 06/08 y modal de sanción o advertencia si se confirma intrusión o suplantación en 08/10
 - **Criterios de Aceptación:**
   - **Backend:**
     - [ ] Detección facial continua en frames seleccionados con alerta ante `count(faces) > 1` o `count(faces) == 0`.
     - [ ] Detección de actividad vocal (VAD) en segundo plano para identificar susurros o voces extrañas durante la ejecución.
+    - [ ] **Verificación Continua de Identidad (`RF-FRA-10 ★`):** Muestreo periódico silencioso de frames (cada 30 a 60 segundos) comparando el embedding facial actual contra el embedding del perfil. Si el rostro cambia abruptamente a otra persona, se dispara alerta de suplantación y se pausa preventivamente el examen.
     - [ ] Endpoints documentados en Swagger UI (`/docs`):
-      - `POST /api/evaluations/{id}/stream/detect-anomalies`: Analiza frames y fragmentos de audio en busca de anomalías.
+      - `POST /api/evaluations/{id}/stream/detect-anomalies`: Analiza frames y fragmentos de audio en busca de anomalías (múltiples rostros, voces no autorizadas o discrepancia con el rostro enrolado).
   - **Frontend:**
     - [ ] Monitoreo en vivo conectado a store de **Zustand**.
-    - [ ] Notificaciones de advertencia en vivo en la pantalla si se pierde el rostro o se detecta intrusión.
+    - [ ] Notificaciones de advertencia en vivo en la pantalla si se pierde el rostro, si se detecta un tercero o si el sistema no reconoce la identidad del postulante.
     - [ ] Alertas dinámicas reflejando el `message` del backend.
     - [ ] Diseño 100% responsive en mobile, tablet y desktop.
 
