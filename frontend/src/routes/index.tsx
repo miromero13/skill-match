@@ -15,6 +15,7 @@ import { LearningSkillsPage } from "@/pages/learning-skills-page"
 import { AdminLayout } from "@/layouts/admin-layout"
 import { AdminRouteGuard } from "@/components/admin-route-guard"
 import { MemberRouteGuard } from "@/components/member-route-guard"
+import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 
 export const router = createBrowserRouter([
   // 1. Public Layout (Landing Page, Institucional)
@@ -68,6 +69,10 @@ export const router = createBrowserRouter([
       {
         path: "learning-skills",
         element: <LearningSkillsPage />, // HU-15 / Vista 09: Habilidades que deseo aprender
+      },
+      {
+        path: "teaching-skills",
+        element: <TeachingSkillsPage />,
       },
       {
         path: "wallet",

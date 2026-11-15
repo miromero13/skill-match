@@ -1,9 +1,9 @@
 from app.db.base import Base, TimestampMixin
 from app.models.user import User, UserRole
 from app.models.catalog import Category, ChallengeType, Skill, SkillLevel, Rubric
-from app.models.user_learning_skill import UserLearningSkill, UrgencyLevel
+from app.models.user_learning_skill import UserLearningSkill, UrgencyLevel, TeachingSkill
 
 __all__ = [
     "Base", "TimestampMixin", "User", "UserRole", "Category", "ChallengeType",
-    "Skill", "SkillLevel", "Rubric", "UserLearningSkill", "UrgencyLevel",
+    "Skill", "SkillLevel", "Rubric", "UserLearningSkill", "UrgencyLevel", "TeachingSkill"
 ]
