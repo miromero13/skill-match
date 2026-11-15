@@ -18,6 +18,14 @@ export interface CreateAdminPayload {
   password: string
 }
 
+export interface UpdateAdminPayload {
+  full_name: string
+}
+
+export interface UpdateAdminPasswordPayload {
+  password: string
+}
+
 export interface UpdateAdminStatusPayload {
   is_active: boolean
   reason?: string
@@ -48,6 +56,38 @@ export async function createAdministrator(payload: CreateAdminPayload): Promise<
     showToastOnSuccess: true,
   })
 
+  return response.data
+}
+
+/** Obtiene el detalle de una cuenta administrativa. */
+export async function getAdministrator(adminId: string): Promise<AdminUser> {
+  const response = await apiClient.get<AdminUser>(`/admin/${adminId}`, {
+    showToastOnError: true,
+  })
+  return response.data
+}
+
+/** Edita los datos de una cuenta administrativa. */
+export async function updateAdministrator(
+  adminId: string,
+  payload: UpdateAdminPayload
+): Promise<AdminUser> {
+  const response = await apiClient.patch<AdminUser>(`/admin/${adminId}`, payload, {
+    showToastOnError: true,
+    showToastOnSuccess: true,
+  })
+  return response.data
+}
+
+/** Cambia la contraseña sin invalidar sesiones existentes. */
+export async function updateAdministratorPassword(
+  adminId: string,
+  payload: UpdateAdminPasswordPayload
+): Promise<AdminUser> {
+  const response = await apiClient.patch<AdminUser>(`/admin/${adminId}/password`, payload, {
+    showToastOnError: true,
+    showToastOnSuccess: true,
+  })
   return response.data
 }
 

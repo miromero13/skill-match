@@ -8,7 +8,12 @@ from fastapi import status
 from app.core.exceptions import SkillMatchException
 from app.core.security import get_password_hash
 from app.models.user import User, UserRole
-from app.schemas.admin import AdminCreateRequest, AdminStatusUpdateRequest
+from app.schemas.admin import (
+    AdminCreateRequest,
+    AdminPasswordUpdateRequest,
+    AdminStatusUpdateRequest,
+    AdminUpdateRequest,
+)
 
 logger = logging.getLogger("skillmatch.admin_service")
 
@@ -86,6 +91,51 @@ class AdminService:
         )
 
         return new_admin
+
+    @staticmethod
+    async def get_administrator(db: AsyncSession, admin_id: uuid.UUID) -> User:
+        result = await db.execute(select(User).where(User.id == admin_id))
+        admin = result.scalar_one_or_none()
+        if not admin or admin.role != UserRole.ADMIN:
+            raise SkillMatchException(
+                statuscode=status.HTTP_404_NOT_FOUND,
+                message="Administrador no encontrado."
+            )
+        return admin
+
+    @staticmethod
+    async def update_administrator(
+        db: AsyncSession,
+        admin_id: uuid.UUID,
+        request: AdminUpdateRequest,
+        current_admin: User,
+    ) -> User:
+        admin = await AdminService.get_administrator(db, admin_id)
+        admin.full_name = request.full_name.strip()
+        await db.commit()
+        await db.refresh(admin)
+        logger.info(
+            f"[AUDITORÍA RF-USR-15] Cuenta administrativa '{admin.email}' editada "
+            f"por '{current_admin.email}'."
+        )
+        return admin
+
+    @staticmethod
+    async def update_administrator_password(
+        db: AsyncSession,
+        admin_id: uuid.UUID,
+        request: AdminPasswordUpdateRequest,
+        current_admin: User,
+    ) -> User:
+        admin = await AdminService.get_administrator(db, admin_id)
+        admin.hashed_password = get_password_hash(request.password)
+        await db.commit()
+        await db.refresh(admin)
+        logger.info(
+            f"[AUDITORÍA RF-USR-15] Contraseña de administrador '{admin.email}' actualizada "
+            f"por '{current_admin.email}'. Las sesiones existentes se mantienen activas."
+        )
+        return admin
 
     @staticmethod
     async def update_administrator_status(

@@ -41,6 +41,22 @@ class AdminCreateRequest(BaseModel):
             raise ValueError("La contraseña debe contener al esté al menos un carácter especial.")
         return value
 
+class AdminUpdateRequest(BaseModel):
+    """Editable account details for an administrator."""
+    full_name: str = Field(..., min_length=2, max_length=150)
+
+
+class AdminPasswordUpdateRequest(BaseModel):
+    """Password replacement request for an administrator account."""
+    password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        AdminCreateRequest.validate_password_strength(value)
+        return value
+
+
 class AdminStatusUpdateRequest(BaseModel):
     """Contrato para suspender o reactivar una cuenta administrativa (RF-USR-15)."""
     is_active: bool = Field(

@@ -10,6 +10,8 @@ import { MemberLoginPage } from "@/pages/member-login-page"
 import { AdminLoginPage } from "@/pages/admin-login-page"
 import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
 import { AdminUsersPage } from "@/pages/admin-users-page"
+import { AdminCatalogPage } from "@/pages/admin-catalog-page"
+import { LearningSkillsPage } from "@/pages/learning-skills-page"
 import { AdminLayout } from "@/layouts/admin-layout"
 import { AdminRouteGuard } from "@/components/admin-route-guard"
 import { MemberRouteGuard } from "@/components/member-route-guard"
@@ -62,6 +64,10 @@ export const router = createBrowserRouter([
       {
         path: "profile",
         element: <FeedPage />, // Placeholder para Vista 09 / 10
+      },
+      {
+        path: "learning-skills",
+        element: <LearningSkillsPage />, // HU-15 / Vista 09: Habilidades que deseo aprender
       },
       {
         path: "wallet",
@@ -128,6 +134,28 @@ export const router = createBrowserRouter([
         element: <AdminUsersPage />,
       },
     ],
+  },
+
+  // 6.1 Admin Backoffice - Catálogo de Habilidades (HU-12)
+  {
+    path: "/admin/catalog",
+    element: (
+      <AdminRouteGuard>
+        <AdminLayout />
+      </AdminRouteGuard>
+    ),
+    children: [
+      {
+        index: true,
+        element: <AdminCatalogPage />,
+      },
+    ],
+  },
+
+  // 6.2 Alias /admin/skills -> /admin/catalog
+  {
+    path: "/admin/skills",
+    element: <Navigate to="/admin/catalog" replace />,
   },
 
   // 6. Admin Direct Redirection (Protección preventiva)
