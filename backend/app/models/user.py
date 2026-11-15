@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Boolean, Integer, DateTime
+from sqlalchemy import String, Boolean, Integer, DateTime, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -10,6 +10,8 @@ from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.user_learning_skill import UserLearningSkill
+    from app.models.user_availability import UserAvailability
+
 
 class UserRole(str, Enum):
     """
@@ -20,10 +22,19 @@ class UserRole(str, Enum):
     MEMBER = "MEMBER"
     ADMIN = "ADMIN"
 
+
+class ExchangeModality(str, Enum):
+    """Modalidad de intercambio preferida por el miembro (RF-USR-09)."""
+    VIRTUAL = "VIRTUAL"
+    PRESENCIAL = "PRESENCIAL"
+    BOTH = "BOTH"
+
+
 class User(Base, TimestampMixin):
     """
     Entidad de persistencia de Usuarios.
-    Soporta cuentas de Miembros y de Administradores con control de bloqueo de seguridad.
+    Soporta cuentas de Miembros y de Administradores con control de bloqueo de seguridad,
+    datos de perfil extendido, preferencias de modalidad y biometría facial.
     """
     __tablename__ = "users"
 
@@ -106,11 +117,95 @@ class User(Base, TimestampMixin):
         default=None
     )
 
+    # Campos de Perfil Personal, Preferencias y Modalidad
+    bio: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        default=None,
+        comment="Biografía y presentación del miembro",
+    )
+    languages: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=lambda: ["Español"],
+        comment="Lista de idiomas hablados por el miembro",
+    )
+    timezone: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default="America/La_Paz",
+    )
+    links: Mapped[dict[str, str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        comment="Enlaces externos del perfil (github, linkedin, portfolio, website)",
+    )
+    exchange_modality: Mapped[ExchangeModality] = mapped_column(
+        String(20),
+        nullable=False,
+        default=ExchangeModality.VIRTUAL,
+    )
+    presencial_radius_km: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=10,
+        comment="Radio geográfico en km para encuentros presenciales (0 a 500)",
+    )
+    location_label: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        default=None,
+        comment="Ciudad o zona de referencia para clases presenciales",
+    )
+    buffer_minutes: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=15,
+        comment="Buffer de descanso en minutos entre sesiones agendadas",
+    )
+    gcal_synced: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    gcal_calendar_email: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        default=None,
+    )
+
+    # Campos de biometría facial oficial
+    biometric_embedding: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        default=None,
+        comment="Vector numérico de características faciales (128-d) serializado localmente",
+    )
+    biometric_enrolled_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
+    )
+    biometric_face_hash: Mapped[Optional[str]] = mapped_column(
+        String(64),
+        nullable=True,
+        default=None,
+        comment="Hash SHA-256 determinístico del vector biométrico registrado",
+    )
+
     # Relación con demandas de aprendizaje (HU-15)
     learning_skills: Mapped[list["UserLearningSkill"]] = relationship(
         "UserLearningSkill",
         back_populates="user",
         cascade="all, delete-orphan"
+    )
+
+    # Relación con disponibilidad semanal
+    availabilities: Mapped[list["UserAvailability"]] = relationship(
+        "UserAvailability",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

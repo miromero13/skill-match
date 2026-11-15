@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   ShieldCheck,
   Shield,
-  BookOpen,
 } from "lucide-react"
 
 export function PlatformSidebar() {
@@ -20,12 +19,12 @@ export function PlatformSidebar() {
   const { user } = useAuthStore()
 
   const menuItems = [
-    { label: "Mi Perfil", icon: User, to: "/app/profile", active: path === "/app/profile" || path === "/app" },
+    { label: "Mi Perfil y Horarios", icon: User, to: "/app/profile", active: path === "/app/profile" || path === "/app" },
     { label: "Habilidades que enseño", icon: BookOpen, to: "/app/teaching-skills", active: path === "/app/teaching-skills" },
     { label: "Quiero Aprender", icon: BookOpen, to: "/app/learning-skills", active: path === "/app/learning-skills" },
     { label: "Intercambios Activos", icon: ArrowLeftRight, to: "/app/swaps", active: path === "/app/swaps", badge: "2" },
     { label: "Billetera & Cashout", icon: Wallet, to: "/app/wallet", active: path === "/app/wallet", value: "150 pts" },
-    { label: "Disponibilidad y Horarios", icon: Calendar, to: "/app/availability", active: path === "/app/availability" },
+    { label: "Disponibilidad y Agenda", icon: Calendar, to: "/app/availability", active: path === "/app/availability" },
     { label: "Certificados de IA", icon: Award, to: "/app/certificates", active: path === "/app/certificates" },
     { label: "Reputación y Reseñas", icon: Star, to: "/app/reputation", active: path === "/app/reputation", value: "4.9 ★" },
     { label: "Centro de Quejas", icon: AlertTriangle, to: "/app/complaints", active: path === "/app/complaints" },
