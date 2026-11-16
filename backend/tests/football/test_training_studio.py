@@ -158,6 +158,9 @@ async def test_train_model_list_and_activate_lifecycle(
     assert "confusion_matrix" in metrics
     assert len(metrics["confusion_matrix"]) == 4
     assert "loss_history" in metrics
+    assert metrics["dataset_source"] == "all"
+    assert metrics["latency_ms_per_inference"] > 0
+    assert metrics["total_samples_count"] > 0
 
     model_id = model_data["id"]
 
@@ -170,15 +173,21 @@ async def test_train_model_list_and_activate_lifecycle(
     models_list = list_res.json()["data"]
     assert any(m["id"] == model_id and m["activa"] is True for m in models_list)
 
-    # 3. Train second inactive model
+    # 3. Train second inactive model with dataset_source='synthetic_only'
     train2_res = await client.post(
         "/api/football/training/train",
         headers=admin_headers,
-        json={"version_tag": "2.1.0-inactive", "activate": False},
+        json={
+            "version_tag": "2.1.0-inactive",
+            "activate": False,
+            "dataset_source": "synthetic_only",
+        },
     )
     assert train2_res.status_code == 200
-    model2_id = train2_res.json()["data"]["id"]
-    assert train2_res.json()["data"]["activa"] is False
+    model2_data = train2_res.json()["data"]
+    model2_id = model2_data["id"]
+    assert model2_data["activa"] is False
+    assert model2_data["metricas"]["dataset_source"] == "synthetic_only"
 
     # 4. Activate second model
     activate_res = await client.post(

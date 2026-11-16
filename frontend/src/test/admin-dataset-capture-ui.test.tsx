@@ -41,6 +41,24 @@ vi.mock("@/services/dataset-sample-service", () => ({
   }),
 }))
 
+vi.mock("@/services/admin-catalog-service", () => ({
+  getSkills: vi.fn().mockResolvedValue({
+    items: [
+      {
+        id: "skill-fb-1",
+        category_id: "cat-1",
+        name: "Dominadas y Control de Balón",
+        slug: "dominadas-y-control-de-balon",
+        min_approval_threshold: 80,
+        is_ready_to_publish: true,
+        is_active: true,
+        levels: [],
+      },
+    ],
+    count: 1,
+  }),
+}))
+
 describe("AdminDatasetCapturePage", () => {
   beforeEach(() => {
     vi.clearAllMocks()

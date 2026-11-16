@@ -57,6 +57,18 @@ class TrainModelRequest(BaseModel):
         default=True,
         description="Activar inmediatamente como modelo en producción",
     )
+    dataset_source: str = Field(
+        default="all",
+        description="Fuente de datos: 'all', 'real_only', 'synthetic_only', o 'custom_ids'",
+    )
+    sample_ids: Optional[list[UUID]] = Field(
+        default=None,
+        description="Lista opcional de UUIDs de muestras específicas a incluir",
+    )
+    skill_id: Optional[UUID] = Field(
+        default=None,
+        description="ID opcional de la habilidad vinculada en el catálogo",
+    )
 
 
 @training_router.post(
@@ -100,6 +112,9 @@ async def train_model(
         db=db,
         version_tag=payload.version_tag,
         activate=payload.activate,
+        dataset_source=payload.dataset_source,
+        sample_ids=payload.sample_ids,
+        skill_id=payload.skill_id,
     )
     return APIResponse(
         statuscode=status.HTTP_200_OK,

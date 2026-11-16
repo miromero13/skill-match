@@ -52,7 +52,13 @@ type WizardStep =
   | "processing"
   | "result"
 
-export function FootballValidationWizard() {
+interface FootballValidationWizardProps {
+  skillId?: string
+}
+
+export function FootballValidationWizard({
+  skillId,
+}: FootballValidationWizardProps = {}) {
   const [machine, dispatch] = useReducer(
     footballValidationReducer,
     initialFootballValidationState
@@ -213,7 +219,7 @@ export function FootballValidationWizard() {
     setIsBusy(true)
     dispatch({ type: "SET_ERROR", payload: null })
     try {
-      const created = await footballValidationApi.createSession()
+      const created = await footballValidationApi.createSession(skillId)
       dispatch({ type: "SESSION_CREATED", payload: created.data })
       const statusRes = await footballValidationApi.getSessionStatus(
         created.data.session_id

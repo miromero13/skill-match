@@ -51,6 +51,8 @@ import {
   FootballValidationWizard,
   FootballTrainingStudio,
 } from "@/features/football-validation"
+import { getSkills } from "@/services/admin-catalog-service"
+import type { Skill } from "@/types/catalog"
 
 export function AdminDatasetCapturePage() {
   const {
@@ -107,6 +109,51 @@ export function AdminDatasetCapturePage() {
   const chunksRef = useRef<Blob[]>([])
 
   const [filterDiscipline, setFilterDiscipline] = useState<string>("all")
+  const [catalogSkills, setCatalogSkills] = useState<Skill[]>([])
+  const [selectedSkillId, setSelectedSkillId] = useState<string>("")
+  const [selectedSkillName, setSelectedSkillName] = useState<string>("Dominadas y Control de Balón")
+
+  useEffect(() => {
+    let isMounted = true
+    const timer = setTimeout(() => {
+      void getSkills().then((res) => {
+        if (!isMounted) return
+        setCatalogSkills(res.items)
+        if (res.items.length > 0) {
+          const defaultSkill =
+            res.items.find(
+              (s) =>
+                s.name.toLowerCase().includes("dominada") ||
+                s.name.toLowerCase().includes("fútbol")
+            ) || res.items[0]
+          setSelectedSkillId(defaultSkill.id)
+          setSelectedSkillName(defaultSkill.name)
+          setDiscipline("fútbol")
+          setChallenge(defaultSkill.name)
+        }
+      }).catch(() => {
+        // Ignorar errores al desmontar o sesión reseteada en tests
+      })
+    }, 0)
+    return () => {
+      isMounted = false
+      clearTimeout(timer)
+    }
+  }, [setDiscipline, setChallenge])
+
+  const handleSelectSkill = (skillId: string) => {
+    setSelectedSkillId(skillId)
+    const found = catalogSkills.find((s) => s.id === skillId)
+    if (found) {
+      setSelectedSkillName(found.name)
+      const isFb =
+        found.name.toLowerCase().includes("fútbol") ||
+        found.name.toLowerCase().includes("dominada") ||
+        found.name.toLowerCase().includes("balón")
+      setDiscipline(isFb ? "fútbol" : "general")
+      setChallenge(found.name)
+    }
+  }
 
   useEffect(() => {
     fetchSamples()
@@ -297,6 +344,39 @@ export function AdminDatasetCapturePage() {
         </Alert>
       )}
 
+      {/* Selector Obligatorio de Habilidad del Catálogo */}
+      <Card className="border-emerald-500/30 bg-emerald-500/5 shadow-sm">
+        <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-emerald-600 text-white text-xs">Paso 0 — Habilidad del Catálogo</Badge>
+              <span className="font-semibold text-sm">Habilidad Seleccionada:</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Define el contexto operativo para la ingesta de datasets, exploración de muestras y entrenamiento de modelos de IA.
+            </p>
+          </div>
+
+          <div className="w-full md:w-80">
+            <Select
+              value={selectedSkillId}
+              onValueChange={handleSelectSkill}
+            >
+              <SelectTrigger className="bg-background text-xs sm:text-sm">
+                <SelectValue placeholder="Seleccioná una habilidad del catálogo..." />
+              </SelectTrigger>
+              <SelectContent>
+                {catalogSkills.map((sk) => (
+                  <SelectItem key={sk.id} value={sk.id}>
+                    {sk.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Selector de Módulo: Ingesta de Datasets vs Estudio de Entrenamiento vs Validador en Vivo */}
       <Tabs defaultValue="dataset-ingest" className="w-full space-y-6">
         <TabsList className="grid w-full max-w-3xl grid-cols-3">
@@ -320,11 +400,14 @@ export function AdminDatasetCapturePage() {
         </TabsList>
 
         <TabsContent value="football-training" className="space-y-6">
-          <FootballTrainingStudio />
+          <FootballTrainingStudio
+            skillId={selectedSkillId}
+            skillName={selectedSkillName}
+          />
         </TabsContent>
 
         <TabsContent value="football-live-validation" className="space-y-6">
-          <FootballValidationWizard />
+          <FootballValidationWizard skillId={selectedSkillId} />
         </TabsContent>
 
         <TabsContent value="dataset-ingest" className="space-y-6">

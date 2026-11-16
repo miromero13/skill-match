@@ -74,7 +74,7 @@ describe("FootballTrainingStudio UI Component", () => {
     render(<FootballTrainingStudio />)
 
     expect(
-      screen.getByText(/Estudio de Entrenamiento de IA — Fútbol/i)
+      screen.getByText(/Estudio de Entrenamiento de IA/i)
     ).toBeInTheDocument()
     expect(screen.getByText("Garage S3 + ONNX")).toBeInTheDocument()
 
@@ -152,7 +152,7 @@ describe("FootballTrainingStudio UI Component", () => {
     render(<FootballTrainingStudio />)
 
     const trainBtn = screen.getByRole("button", {
-      name: /Entrenar y Exportar ONNX/i,
+      name: /Entrenar y Evaluar Modelo/i,
     })
     await user.click(trainBtn)
 
@@ -186,7 +186,7 @@ describe("FootballTrainingStudio UI Component", () => {
       expect(screen.getByText("1.1.0-onnx")).toBeInTheDocument()
     })
 
-    const activateBtn = screen.getByRole("button", { name: "Activar" })
+    const activateBtn = screen.getByRole("button", { name: /Activar como Único/i })
     await user.click(activateBtn)
 
     await waitFor(() => {

@@ -146,6 +146,9 @@ export const footballValidationApi = {
   async trainLevelModel(payload: {
     version_tag?: string
     activate?: boolean
+    dataset_source?: "all" | "real_only" | "synthetic_only" | "custom_ids"
+    sample_ids?: string[]
+    skill_id?: string
   }): Promise<
     APIResponse<{
       id: string
@@ -163,6 +166,13 @@ export const footballValidationApi = {
         beats_rule_baseline: boolean
         confusion_matrix: number[][]
         loss_history: Array<{ epoch: number; loss: number }>
+        dataset_source?: string
+        real_samples_count?: number
+        synthetic_samples_count?: number
+        total_samples_count?: number
+        latency_ms_per_inference?: number
+        touch_mae?: number
+        skill_id?: string | null
       }
       created_at: string
     }>
@@ -188,6 +198,13 @@ export const footballValidationApi = {
           beats_rule_baseline: boolean
           confusion_matrix: number[][]
           loss_history: Array<{ epoch: number; loss: number }>
+          dataset_source?: string
+          real_samples_count?: number
+          synthetic_samples_count?: number
+          total_samples_count?: number
+          latency_ms_per_inference?: number
+          touch_mae?: number
+          skill_id?: string | null
         }
         created_at: string
       }>
