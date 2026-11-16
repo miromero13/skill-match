@@ -17,6 +17,12 @@ class DatasetSampleCreate(BaseModel):
     hardware_info: str = Field(min_length=1, max_length=255, description="Hardware y periféricos utilizados para la captura")
     signed_consent: bool = Field(default=True, description="Consentimiento explícito firmado")
     file_hash_sha256: Optional[str] = Field(default=None, description="Hash SHA-256 opcional precalculado por el cliente")
+    participant_id: Optional[str] = Field(default=None, max_length=100, description="Identificador anónimo del participante para partición sin fuga de datos")
+    level_label: Optional[str] = Field(default=None, max_length=50, description="Nivel etiquetado provisional (Principiante, Intermedio, Avanzado, Experto)")
+    manual_touch_count: Optional[int] = Field(default=None, ge=0, description="Conteo manual de toques del clip")
+    noise_level: Optional[str] = Field(default=None, max_length=50, description="Nivel de ruido ambiental (bajo, medio, alto)")
+    surface: Optional[str] = Field(default=None, max_length=100, description="Superficie de juego (césped, cemento, interior, etc.)")
+    split: Optional[str] = Field(default=None, max_length=20, description="Partición del dataset (train, val, test)")
 
     @field_validator("discipline", "challenge", "hardware_info", mode="before")
     @classmethod
@@ -57,5 +63,11 @@ class DatasetSampleResponse(BaseModel):
     file_hash_sha256: str
     storage_path: str
     uploaded_by_id: Optional[UUID] = None
+    participant_id: Optional[str] = None
+    level_label: Optional[str] = None
+    manual_touch_count: Optional[int] = None
+    noise_level: Optional[str] = None
+    surface: Optional[str] = None
+    split: Optional[str] = None
     created_at: AwareDatetime
     updated_at: AwareDatetime

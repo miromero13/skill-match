@@ -48,6 +48,71 @@ class ValidationSessionStatusResponse(BaseModel):
     version_modelo: str
     version_config: str
     segments: list[ChallengeSegmentRead] = Field(default_factory=list)
+    confirmed_chunks: list[int] = Field(default_factory=list)
+
+
+class EnvCheckRequest(BaseModel):
+    brightness: float = Field(..., ge=0.0, le=255.0)
+    noise_db: float = Field(..., ge=0.0, le=140.0)
+    face_detected: bool
+    ball_detected: bool
+    latency_ms: float = Field(default=50.0, ge=0.0)
+
+
+class EnvCheckResponse(BaseModel):
+    session_id: UUID
+    passed: bool
+    estado: str
+    failures: list[str] = Field(default_factory=list)
+
+
+class LivenessRequest(BaseModel):
+    challenge_passed: bool
+    gesture_code: str = Field(default="head_nod", min_length=1, max_length=50)
+    confidence: float = Field(default=0.95, ge=0.0, le=1.0)
+
+
+class LivenessResponse(BaseModel):
+    session_id: UUID
+    passed: bool
+    estado: str
+
+
+class CalibrationRequest(BaseModel):
+    client_touch_timestamp_ms: int = Field(..., ge=0)
+    estimated_ball_radius_px: float | None = Field(default=None, gt=0.0)
+
+
+class CalibrationResponse(BaseModel):
+    session_id: UUID
+    client_touch_timestamp_ms: int
+    estado: str
+
+
+class ChunkUploadResponse(BaseModel):
+    session_id: UUID
+    chunk_index: int
+    sha256: str
+    size_bytes: int
+    storage_uri: str
+    idempotent_replay: bool
+    estado: str
+
+
+class FinalizeSessionRequest(BaseModel):
+    expected_chunks: int | None = Field(default=None, ge=1)
+    duration_seconds: float | None = Field(default=None, gt=0.0)
+    fps: float | None = Field(default=30.0, gt=0.0)
+
+
+class FinalizeSessionResponse(BaseModel):
+    session_id: UUID
+    estado: str
+    assembled_uri: str
+    assembled_sha256: str
+    assembled_size_bytes: int
+    total_chunks: int
+    task_id: str | None = None
 
 
 class WSClientMessage(BaseModel):

@@ -111,6 +111,108 @@ class GarageS3StorageService:
         target_path.write_bytes(payload)
         return f"s3://{self.bucket_name}/{normalized_key}", sha256_hex
 
+    def get_object_bytes(
+        self,
+        object_key: str,
+        prefer_local: bool = False,
+    ) -> bytes:
+        """Read `object_key` bytes from Garage S3 (or local fallback)."""
+        normalized_key = object_key.lstrip("/")
+        local_path = self.local_fallback_dir / self.bucket_name / normalized_key
+        if prefer_local and local_path.exists():
+            return local_path.read_bytes()
+
+        if not prefer_local and self.access_key_id and self.secret_access_key:
+            try:
+                client = self._build_s3_client()
+                response = client.get_object(Bucket=self.bucket_name, Key=normalized_key)
+                return bytes(response["Body"].read())
+            except (BotoCoreError, ClientError, OSError) as exc:
+                logger.warning(
+                    "Falling back to local storage for get_object(%s): %s",
+                    normalized_key,
+                    exc,
+                )
+
+        if local_path.exists():
+            return local_path.read_bytes()
+        raise FileNotFoundError(f"Object not found in storage: {normalized_key}")
+
+    def list_chunk_indices(
+        self,
+        session_id: str,
+        prefer_local: bool = False,
+    ) -> list[tuple[int, str]]:
+        """
+        Return sorted list of `(chunk_index, object_key)` uploaded for `session_id`.
+        """
+        prefix = f"sessions/{session_id}/chunks/"
+        found: dict[int, str] = {}
+
+        if not prefer_local and self.access_key_id and self.secret_access_key:
+            try:
+                client = self._build_s3_client()
+                paginator = client.get_paginator("list_objects_v2")
+                for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
+                    for item in page.get("Contents", []):
+                        key = str(item["Key"])
+                        filename = key.rsplit("/", 1)[-1]
+                        idx_str = filename.split(".", 1)[0]
+                        if idx_str.isdigit():
+                            found[int(idx_str)] = key
+                if found:
+                    return sorted(found.items(), key=lambda pair: pair[0])
+            except (BotoCoreError, ClientError, OSError) as exc:
+                logger.warning("Falling back to local storage for list_chunk_indices: %s", exc)
+
+        local_dir = self.local_fallback_dir / self.bucket_name / "sessions" / session_id / "chunks"
+        if local_dir.exists():
+            for child in local_dir.iterdir():
+                if child.is_file():
+                    idx_str = child.name.split(".", 1)[0]
+                    if idx_str.isdigit():
+                        found[int(idx_str)] = f"{prefix}{child.name}"
+
+        return sorted(found.items(), key=lambda pair: pair[0])
+
+    def assemble_session_chunks(
+        self,
+        session_id: str,
+        extension: str = "mp4",
+        content_type: str = "video/mp4",
+        prefer_local: bool = False,
+    ) -> tuple[str, str, int, list[int]]:
+        """
+        Verify contiguous chunks `0..N-1` for `session_id`, concatenate them into
+        `sessions/{session_id}/assembled/recording.{extension}`, upload to Garage S3,
+        and return `(storage_uri, sha256_hex, total_bytes, chunk_indices)`.
+        """
+        chunk_entries = self.list_chunk_indices(session_id=session_id, prefer_local=prefer_local)
+        if not chunk_entries:
+            raise ValueError("No se encontraron fragmentos subidos para esta sesión.")
+
+        indices = [idx for idx, _ in chunk_entries]
+        expected_indices = list(range(len(indices)))
+        if indices != expected_indices:
+            missing = sorted(set(range(max(indices) + 1)) - set(indices))
+            raise ValueError(
+                f"Faltan fragmentos por subir antes de finalizar la sesión: {missing}"
+            )
+
+        assembled_parts: list[bytes] = []
+        for _, key in chunk_entries:
+            assembled_parts.append(self.get_object_bytes(key, prefer_local=prefer_local))
+
+        assembled_bytes = b"".join(assembled_parts)
+        assembled_key = f"sessions/{session_id}/assembled/recording.{extension.lstrip('.')}"
+        storage_uri, sha256_hex = self.put_object_bytes(
+            object_key=assembled_key,
+            payload=assembled_bytes,
+            content_type=content_type,
+            prefer_local=prefer_local,
+        )
+        return storage_uri, sha256_hex, len(assembled_bytes), indices
+
     def generate_signed_url(
         self,
         object_key: str,

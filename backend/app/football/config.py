@@ -23,6 +23,15 @@ class SessionThresholdConfig(BaseModel):
     presigned_url_ttl_seconds: int = 900
 
 
+class EnvCheckThresholdConfig(BaseModel):
+    min_brightness: float = 40.0
+    max_brightness: float = 245.0
+    max_noise_db: float = 75.0
+    max_latency_ms: float = 800.0
+    require_face_detected: bool = True
+    require_ball_detected: bool = True
+
+
 class BallTrackerConfig(BaseModel):
     max_gap_frames: int = 5
     min_radius_px: int = 8
@@ -76,6 +85,7 @@ class FraudConfig(BaseModel):
 class FootballPipelineConfig(BaseModel):
     version: str
     session: SessionThresholdConfig
+    env_check: EnvCheckThresholdConfig = EnvCheckThresholdConfig()
     ball_tracker: BallTrackerConfig
     touch_events: TouchEventsConfig
     audio_events: AudioEventsConfig

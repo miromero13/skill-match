@@ -92,6 +92,12 @@ class DatasetSampleService:
             file_hash_sha256=calculated_hash,
             storage_path=storage_path,
             uploaded_by_id=uploaded_by_id,
+            participant_id=metadata.participant_id,
+            level_label=metadata.level_label,
+            manual_touch_count=metadata.manual_touch_count,
+            noise_level=metadata.noise_level,
+            surface=metadata.surface,
+            split=metadata.split,
         )
 
         try:

@@ -8,6 +8,13 @@ default:
     max_chunk_size_mb: 25
     retention_days: 30
     presigned_url_ttl_seconds: 900
+  env_check:
+    min_brightness: 40.0
+    max_brightness: 245.0
+    max_noise_db: 75.0
+    max_latency_ms: 800.0
+    require_face_detected: true
+    require_ball_detected: true
   ball_tracker:
     max_gap_frames: 5
     min_radius_px: 8

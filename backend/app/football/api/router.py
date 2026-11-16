@@ -9,8 +9,11 @@ from uuid import UUID
 from fastapi import (
     APIRouter,
     Depends,
+    File,
+    Header,
     Query,
     Request,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
     status,
@@ -25,16 +28,31 @@ from app.core.exceptions import SkillMatchException
 from app.core.security import decode_jwt_payload
 from app.db.session import AsyncSessionLocal, get_db
 from app.football.schemas import (
+    CalibrationRequest,
+    CalibrationResponse,
     ChallengeSegmentRead,
+    ChunkUploadResponse,
     CreateValidationSessionRequest,
     CreateValidationSessionResponse,
+    EnvCheckRequest,
+    EnvCheckResponse,
+    FinalizeSessionRequest,
+    FinalizeSessionResponse,
+    LivenessRequest,
+    LivenessResponse,
     ValidationSessionStatusResponse,
     WSClientMessage,
 )
 from app.football.services.session_service import (
     create_validation_session,
+    evaluate_env_check,
+    extract_confirmed_chunk_indices,
+    finalize_validation_session,
     get_Owned_validation_session,
+    record_calibration_touch,
     record_client_event_incident,
+    record_liveness_check,
+    upload_session_chunk,
 )
 from app.models.user import User
 from app.schemas.response import APIResponse
@@ -141,6 +159,7 @@ async def get_session_status_endpoint(
         )
         for s in session_obj.segments
     ]
+    confirmed_chunks = extract_confirmed_chunk_indices(session_obj)
     data = ValidationSessionStatusResponse(
         id=session_obj.id,
         user_id=session_obj.user_id,
@@ -152,11 +171,210 @@ async def get_session_status_endpoint(
         version_modelo=session_obj.version_modelo,
         version_config=session_obj.version_config,
         segments=segments,
+        confirmed_chunks=confirmed_chunks,
     )
     return APIResponse(
         statuscode=status.HTTP_200_OK,
         message="Estado de la sesión obtenido exitosamente.",
         data=data,
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/env-check",
+    response_model=APIResponse[EnvCheckResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Registrar y validar chequeo de ambiente (luz, ruido, rostro, balón, conexión)",
+)
+async def env_check_endpoint(
+    session_id: UUID,
+    payload: EnvCheckRequest,
+    current_user: CurrentUserDep,
+    db: DbSessionDep,
+) -> APIResponse[EnvCheckResponse]:
+    session_obj = await get_Owned_validation_session(
+        db=db,
+        session_id=session_id,
+        user_id=current_user.id,
+    )
+    passed, failures = await evaluate_env_check(
+        db=db,
+        session_obj=session_obj,
+        payload=payload,
+    )
+    msg = (
+        "Verificación de ambiente superada exitosamente."
+        if passed
+        else "El ambiente no cumple todas las condiciones requeridas."
+    )
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message=msg,
+        data=EnvCheckResponse(
+            session_id=session_obj.id,
+            passed=passed,
+            estado=session_obj.estado,
+            failures=failures,
+        ),
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/liveness",
+    response_model=APIResponse[LivenessResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Registrar resultado de prueba de vida",
+)
+async def liveness_endpoint(
+    session_id: UUID,
+    payload: LivenessRequest,
+    current_user: CurrentUserDep,
+    db: DbSessionDep,
+) -> APIResponse[LivenessResponse]:
+    session_obj = await get_Owned_validation_session(
+        db=db,
+        session_id=session_id,
+        user_id=current_user.id,
+    )
+    await record_liveness_check(
+        db=db,
+        session_obj=session_obj,
+        payload=payload,
+    )
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message="Prueba de vida validada exitosamente.",
+        data=LivenessResponse(
+            session_id=session_obj.id,
+            passed=True,
+            estado=session_obj.estado,
+        ),
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/calibration",
+    response_model=APIResponse[CalibrationResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Registrar marca de tiempo del toque de calibración",
+)
+async def calibration_endpoint(
+    session_id: UUID,
+    payload: CalibrationRequest,
+    current_user: CurrentUserDep,
+    db: DbSessionDep,
+) -> APIResponse[CalibrationResponse]:
+    session_obj = await get_Owned_validation_session(
+        db=db,
+        session_id=session_id,
+        user_id=current_user.id,
+    )
+    await record_calibration_touch(
+        db=db,
+        session_obj=session_obj,
+        payload=payload,
+    )
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message="Toque de calibración registrado exitosamente.",
+        data=CalibrationResponse(
+            session_id=session_obj.id,
+            client_touch_timestamp_ms=payload.client_touch_timestamp_ms,
+            estado=session_obj.estado,
+        ),
+    )
+
+
+@router.put(
+    "/sessions/{session_id}/chunks/{chunk_index}",
+    response_model=APIResponse[ChunkUploadResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Subir fragmento n del video (idempotente)",
+)
+async def upload_chunk_endpoint(
+    session_id: UUID,
+    chunk_index: int,
+    request: Request,
+    current_user: CurrentUserDep,
+    db: DbSessionDep,
+    file: Annotated[UploadFile | None, File()] = None,
+    x_chunk_sha256: Annotated[str | None, Header()] = None,
+) -> APIResponse[ChunkUploadResponse]:
+    session_obj = await get_Owned_validation_session(
+        db=db,
+        session_id=session_id,
+        user_id=current_user.id,
+    )
+
+    if file is not None:
+        payload_bytes = await file.read()
+        content_type = file.content_type or "video/mp4"
+    else:
+        payload_bytes = await request.body()
+        content_type = request.headers.get("content-type", "video/mp4")
+
+    evidence, is_replay = await upload_session_chunk(
+        db=db,
+        session_obj=session_obj,
+        chunk_index=chunk_index,
+        payload_bytes=payload_bytes,
+        content_type=content_type,
+        expected_sha256=x_chunk_sha256,
+    )
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message=(
+            f"Fragmento {chunk_index} ya estaba confirmado (idempotente)."
+            if is_replay
+            else f"Fragmento {chunk_index} almacenado exitosamente."
+        ),
+        data=ChunkUploadResponse(
+            session_id=session_obj.id,
+            chunk_index=chunk_index,
+            sha256=evidence.sha256,
+            size_bytes=len(payload_bytes),
+            storage_uri=evidence.ruta_minio,
+            idempotent_replay=is_replay,
+            estado=session_obj.estado,
+        ),
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/finalize",
+    response_model=APIResponse[FinalizeSessionResponse],
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Cerrar grabación, ensamblar fragmentos en Garage S3 y encolar procesamiento",
+)
+async def finalize_session_endpoint(
+    session_id: UUID,
+    current_user: CurrentUserDep,
+    db: DbSessionDep,
+    payload: FinalizeSessionRequest | None = None,
+) -> APIResponse[FinalizeSessionResponse]:
+    session_obj = await get_Owned_validation_session(
+        db=db,
+        session_id=session_id,
+        user_id=current_user.id,
+    )
+    confirmed_chunks = extract_confirmed_chunk_indices(session_obj)
+    video_evidence, assembled_size, task_id = await finalize_validation_session(
+        db=db,
+        session_obj=session_obj,
+        payload=payload,
+    )
+    return APIResponse(
+        statuscode=status.HTTP_202_ACCEPTED,
+        message="Grabación ensamblada exitosamente y encolada para procesamiento.",
+        data=FinalizeSessionResponse(
+            session_id=session_obj.id,
+            estado=session_obj.estado,
+            assembled_uri=video_evidence.ruta_minio,
+            assembled_sha256=video_evidence.sha256,
+            assembled_size_bytes=assembled_size,
+            total_chunks=len(confirmed_chunks),
+            task_id=task_id,
+        ),
     )
 
 

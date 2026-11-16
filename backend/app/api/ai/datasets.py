@@ -61,6 +61,12 @@ async def upload_dataset_sample(
     hardware_info: str = Form(..., description="Hardware y periféricos utilizados para la captura"),
     signed_consent: bool = Form(..., description="Consentimiento explícito firmado (debe ser true)"),
     file_hash_sha256: Optional[str] = Form(None, description="Hash SHA-256 precalculado en cliente (opcional)"),
+    participant_id: Optional[str] = Form(None, description="ID del participante (fútbol)"),
+    level_label: Optional[str] = Form(None, description="Nivel etiquetado (fútbol)"),
+    manual_touch_count: Optional[int] = Form(None, description="Conteo manual de toques (fútbol)"),
+    noise_level: Optional[str] = Form(None, description="Nivel de ruido (fútbol)"),
+    surface: Optional[str] = Form(None, description="Superficie (fútbol)"),
+    split: Optional[str] = Form(None, description="Partición train/val/test (fútbol)"),
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin_user),
 ):
@@ -71,6 +77,12 @@ async def upload_dataset_sample(
             hardware_info=hardware_info,
             signed_consent=signed_consent,
             file_hash_sha256=file_hash_sha256,
+            participant_id=participant_id,
+            level_label=level_label,
+            manual_touch_count=manual_touch_count,
+            noise_level=noise_level,
+            surface=surface,
+            split=split,
         )
     except ValidationError as exc:
         first_err = exc.errors()[0]
