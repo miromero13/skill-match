@@ -71,7 +71,7 @@ describe("FootballTrainingStudio UI Component", () => {
   })
 
   it("renders studio header, metrics cards, and confusion matrix for active model", async () => {
-    render(<FootballTrainingStudio />)
+    render(<FootballTrainingStudio skillId="skill-fb-1" skillName="Dominadas y Control de Balón" />)
 
     expect(
       screen.getByText(/Estudio de Entrenamiento de IA/i)
@@ -86,6 +86,22 @@ describe("FootballTrainingStudio UI Component", () => {
     expect(screen.getByText("Línea Base (Reglas)")).toBeInTheDocument()
     expect(screen.getByText("Matriz de Confusión (Filas: Real / Columnas: Predicción)")).toBeInTheDocument()
     expect(screen.getByText("1.0.0-onnx")).toBeInTheDocument()
+  })
+
+  it("disables training and synthetic generation when no skill is selected", async () => {
+    render(<FootballTrainingStudio />)
+
+    expect(screen.getByText("Habilidad no seleccionada")).toBeInTheDocument()
+
+    const genBtn = screen.getByRole("button", {
+      name: /Generar Muestras y Guardar en S3/i,
+    })
+    expect(genBtn).toBeDisabled()
+
+    const trainBtn = screen.getByRole("button", {
+      name: /Entrenar y Evaluar Modelo/i,
+    })
+    expect(trainBtn).toBeDisabled()
   })
 
   it("triggers synthetic dataset generation when user clicks button", async () => {
@@ -103,7 +119,7 @@ describe("FootballTrainingStudio UI Component", () => {
         },
       })
 
-    render(<FootballTrainingStudio />)
+    render(<FootballTrainingStudio skillId="skill-fb-1" />)
 
     const genBtn = screen.getByRole("button", {
       name: /Generar Muestras y Guardar en S3/i,
@@ -149,7 +165,7 @@ describe("FootballTrainingStudio UI Component", () => {
         },
       })
 
-    render(<FootballTrainingStudio />)
+    render(<FootballTrainingStudio skillId="skill-fb-1" />)
 
     const trainBtn = screen.getByRole("button", {
       name: /Entrenar y Evaluar Modelo/i,
@@ -180,7 +196,7 @@ describe("FootballTrainingStudio UI Component", () => {
         },
       })
 
-    render(<FootballTrainingStudio />)
+    render(<FootballTrainingStudio skillId="skill-fb-1" />)
 
     await waitFor(() => {
       expect(screen.getByText("1.1.0-onnx")).toBeInTheDocument()

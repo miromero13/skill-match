@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Card,
   CardContent,
@@ -51,8 +51,14 @@ import {
   FootballValidationWizard,
   FootballTrainingStudio,
 } from "@/features/football-validation"
-import { getSkills } from "@/services/admin-catalog-service"
-import type { Skill } from "@/types/catalog"
+import { getSkills, getCategories } from "@/services/admin-catalog-service"
+import type { Skill, Category } from "@/types/catalog"
+
+const CANONICAL_CATEGORIES = [
+  { slug: "musica", name: "Música", icon: "🎵", description: "Audio espectral y técnica armónica" },
+  { slug: "deporte", name: "Deporte", icon: "⚽", description: "Visión artificial y control de balón" },
+  { slug: "programacion", name: "Programación", icon: "💻", description: "AST y patrones algorítmicos" },
+]
 
 export function AdminDatasetCapturePage() {
   const {
@@ -109,6 +115,8 @@ export function AdminDatasetCapturePage() {
   const chunksRef = useRef<Blob[]>([])
 
   const [filterDiscipline, setFilterDiscipline] = useState<string>("all")
+  const [categories, setCategories] = useState<Category[]>([])
+  const [activeCategorySlug, setActiveCategorySlug] = useState<string>("deporte")
   const [catalogSkills, setCatalogSkills] = useState<Skill[]>([])
   const [selectedSkillId, setSelectedSkillId] = useState<string>("")
   const [selectedSkillName, setSelectedSkillName] = useState<string>("Dominadas y Control de Balón")
@@ -116,20 +124,32 @@ export function AdminDatasetCapturePage() {
   useEffect(() => {
     let isMounted = true
     const timer = setTimeout(() => {
-      void getSkills().then((res) => {
+      void Promise.all([
+        getCategories().catch(() => [] as Category[]),
+        getSkills().catch(() => ({ items: [] as Skill[], count: 0 })),
+      ]).then(([cats, skillsRes]) => {
         if (!isMounted) return
-        setCatalogSkills(res.items)
-        if (res.items.length > 0) {
-          const defaultSkill =
-            res.items.find(
-              (s) =>
+        setCategories(cats)
+        const items = skillsRes.items || []
+        setCatalogSkills(items)
+        if (items.length > 0) {
+          const sportSkill =
+            items.find((s) => {
+              const cat = cats.find((c) => c.id === s.category_id)
+              const cSlug = cat ? cat.slug.toLowerCase() : ""
+              return (
+                cSlug === "deporte" ||
+                cSlug.includes("deport") ||
+                cSlug.includes("futbol") ||
                 s.name.toLowerCase().includes("dominada") ||
                 s.name.toLowerCase().includes("fútbol")
-            ) || res.items[0]
-          setSelectedSkillId(defaultSkill.id)
-          setSelectedSkillName(defaultSkill.name)
+              )
+            }) || items[0]
+
+          setSelectedSkillId(sportSkill.id)
+          setSelectedSkillName(sportSkill.name)
           setDiscipline("fútbol")
-          setChallenge(defaultSkill.name)
+          setChallenge(sportSkill.name)
         }
       }).catch(() => {
         // Ignorar errores al desmontar o sesión reseteada en tests
@@ -141,6 +161,57 @@ export function AdminDatasetCapturePage() {
     }
   }, [setDiscipline, setChallenge])
 
+  const categorySkills = useMemo(() => {
+    return catalogSkills.filter((sk) => {
+      const cat = categories.find((c) => c.id === sk.category_id)
+      const cSlug = cat ? cat.slug.toLowerCase() : ""
+      if (cSlug) {
+        if (activeCategorySlug === "musica") return cSlug === "musica" || cSlug.includes("music")
+        if (activeCategorySlug === "deporte") return cSlug === "deporte" || cSlug.includes("deport") || cSlug.includes("futbol")
+        if (activeCategorySlug === "programacion") return cSlug === "programacion" || cSlug.includes("prog")
+      }
+      const name = sk.name.toLowerCase()
+      if (activeCategorySlug === "musica") return name.includes("guitarra") || name.includes("piano") || name.includes("audio")
+      if (activeCategorySlug === "deporte") return name.includes("dominada") || name.includes("fútbol") || name.includes("balón")
+      if (activeCategorySlug === "programacion") return name.includes("python") || name.includes("react") || name.includes("código")
+      return true
+    })
+  }, [catalogSkills, categories, activeCategorySlug])
+
+  const handleSelectCategory = (slug: string) => {
+    setActiveCategorySlug(slug)
+    const skillsInCat = catalogSkills.filter((sk) => {
+      const cat = categories.find((c) => c.id === sk.category_id)
+      const cSlug = cat ? cat.slug.toLowerCase() : ""
+      if (cSlug) {
+        if (slug === "musica") return cSlug === "musica" || cSlug.includes("music")
+        if (slug === "deporte") return cSlug === "deporte" || cSlug.includes("deport") || cSlug.includes("futbol")
+        if (slug === "programacion") return cSlug === "programacion" || cSlug.includes("prog")
+      }
+      const name = sk.name.toLowerCase()
+      if (slug === "musica") return name.includes("guitarra") || name.includes("piano") || name.includes("audio")
+      if (slug === "deporte") return name.includes("dominada") || name.includes("fútbol") || name.includes("balón")
+      if (slug === "programacion") return name.includes("python") || name.includes("react") || name.includes("código")
+      return true
+    })
+
+    if (skillsInCat.length > 0) {
+      const first = skillsInCat[0]
+      setSelectedSkillId(first.id)
+      setSelectedSkillName(first.name)
+      const isFb =
+        first.name.toLowerCase().includes("fútbol") ||
+        first.name.toLowerCase().includes("dominada") ||
+        first.name.toLowerCase().includes("balón")
+      setDiscipline(isFb ? "fútbol" : slug)
+      setChallenge(first.name)
+    } else {
+      setSelectedSkillId("")
+      setSelectedSkillName("")
+      setChallenge("")
+    }
+  }
+
   const handleSelectSkill = (skillId: string) => {
     setSelectedSkillId(skillId)
     const found = catalogSkills.find((s) => s.id === skillId)
@@ -150,10 +221,15 @@ export function AdminDatasetCapturePage() {
         found.name.toLowerCase().includes("fútbol") ||
         found.name.toLowerCase().includes("dominada") ||
         found.name.toLowerCase().includes("balón")
-      setDiscipline(isFb ? "fútbol" : "general")
+      setDiscipline(isFb ? "fútbol" : activeCategorySlug)
       setChallenge(found.name)
+    } else {
+      setSelectedSkillName("")
+      setChallenge("")
     }
   }
+
+  const selectedSkill = catalogSkills.find((s) => s.id === selectedSkillId)
 
   useEffect(() => {
     fetchSamples()
@@ -344,35 +420,115 @@ export function AdminDatasetCapturePage() {
         </Alert>
       )}
 
-      {/* Selector Obligatorio de Habilidad del Catálogo */}
-      <Card className="border-emerald-500/30 bg-emerald-500/5 shadow-sm">
-        <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Badge className="bg-emerald-600 text-white text-xs">Paso 0 — Habilidad del Catálogo</Badge>
-              <span className="font-semibold text-sm">Habilidad Seleccionada:</span>
+      {/* Selector de 3 Categorías Canónicas y Selección de Habilidad */}
+      <Card className="border-border/60 bg-card/60 backdrop-blur-sm shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 bg-emerald-500/10 text-xs">
+                  Gobernanza Canónica
+                </Badge>
+                <CardTitle className="text-base font-semibold text-foreground">
+                  1. Selección de Categoría y Habilidad
+                </CardTitle>
+              </div>
+              <CardDescription className="mt-1">
+                El sistema opera estrictamente con 3 categorías fijas. Seleccioná una categoría para filtrar las habilidades del catálogo y desbloquear el entrenamiento.
+              </CardDescription>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Define el contexto operativo para la ingesta de datasets, exploración de muestras y entrenamiento de modelos de IA.
-            </p>
+            <div className="flex items-center gap-1.5 self-start sm:self-auto text-xs text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-lg border border-border/40">
+              <span>Categorías fijas:</span>
+              <strong className="text-foreground">3 canónicas</strong>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Pills de las 3 Categorías */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {CANONICAL_CATEGORIES.map((cat) => {
+              const isSelected = activeCategorySlug === cat.slug
+              return (
+                <Button
+                  key={cat.slug}
+                  type="button"
+                  variant={isSelected ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleSelectCategory(cat.slug)}
+                  className={
+                    isSelected
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                      : "border-border/60 bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  }
+                >
+                  <span className="mr-1.5 text-base">{cat.icon}</span>
+                  <span>{cat.name}</span>
+                </Button>
+              )
+            })}
           </div>
 
-          <div className="w-full md:w-80">
-            <Select
-              value={selectedSkillId}
-              onValueChange={handleSelectSkill}
-            >
-              <SelectTrigger className="bg-background text-xs sm:text-sm">
-                <SelectValue placeholder="Seleccioná una habilidad del catálogo..." />
-              </SelectTrigger>
-              <SelectContent>
-                {catalogSkills.map((sk) => (
-                  <SelectItem key={sk.id} value={sk.id}>
-                    {sk.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Selector de Habilidad filtrado y Resumen */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pt-2 border-t border-border/40">
+            <div className="md:col-span-5 space-y-1">
+              <Label htmlFor="skill-selector" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Habilidad del Catálogo *
+              </Label>
+              <Select
+                value={selectedSkillId}
+                onValueChange={handleSelectSkill}
+              >
+                <SelectTrigger id="skill-selector" className="w-full bg-background text-xs sm:text-sm">
+                  <SelectValue placeholder="Seleccioná una habilidad del catálogo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {categorySkills.length === 0 ? (
+                    <SelectItem value="__none__" disabled>
+                      Sin habilidades en esta categoría
+                    </SelectItem>
+                  ) : (
+                    categorySkills.map((sk) => (
+                      <SelectItem key={sk.id} value={sk.id}>
+                        {sk.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Tarjeta de Resumen de Habilidad Activa */}
+            <div className="md:col-span-7">
+              {selectedSkill ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="font-bold text-sm text-foreground">{selectedSkill.name}</span>
+                      <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-600 capitalize">
+                        {activeCategorySlug}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-1">
+                      {selectedSkill.description || "Habilidad validada por modelos locales de IA."}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Badge variant="secondary" className="text-[11px]">
+                      Umbral: {selectedSkill.min_approval_threshold}%
+                    </Badge>
+                    <Badge className={selectedSkill.is_ready_to_publish ? "bg-emerald-600 text-white text-[11px]" : "bg-muted text-muted-foreground text-[11px]"}>
+                      {selectedSkill.is_ready_to_publish ? "Producción" : "Borrador"}
+                    </Badge>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Ninguna habilidad seleccionada. Seleccioná una para habilitar el generador y entrenamiento.</span>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

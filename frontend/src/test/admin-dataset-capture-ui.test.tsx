@@ -42,6 +42,11 @@ vi.mock("@/services/dataset-sample-service", () => ({
 }))
 
 vi.mock("@/services/admin-catalog-service", () => ({
+  getCategories: vi.fn().mockResolvedValue([
+    { id: "cat-1", name: "Deporte", slug: "deporte", is_active: true },
+    { id: "cat-2", name: "Música", slug: "musica", is_active: true },
+    { id: "cat-3", name: "Programación", slug: "programacion", is_active: true },
+  ]),
   getSkills: vi.fn().mockResolvedValue({
     items: [
       {

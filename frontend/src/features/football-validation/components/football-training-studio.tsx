@@ -132,6 +132,10 @@ export function FootballTrainingStudio({
   }, [])
 
   const handleGenerateSynthetic = async () => {
+    if (!skillId) {
+      setErrorMessage("Debes seleccionar una habilidad del catálogo para generar muestras sintéticas.")
+      return
+    }
     setIsGenerating(true)
     setErrorMessage(null)
     setGenerationSummary(null)
@@ -157,6 +161,10 @@ export function FootballTrainingStudio({
   }
 
   const handleTrainModel = async () => {
+    if (!skillId) {
+      setErrorMessage("Debes seleccionar una habilidad del catálogo antes de iniciar el entrenamiento.")
+      return
+    }
     setIsTraining(true)
     setErrorMessage(null)
     setTrainingMessage(null)
@@ -254,16 +262,35 @@ export function FootballTrainingStudio({
         </Alert>
       )}
 
+      {!skillId && (
+        <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div>
+            <AlertTitle className="font-semibold text-sm">Habilidad no seleccionada</AlertTitle>
+            <AlertDescription className="text-xs mt-0.5">
+              Debes seleccionar una habilidad del catálogo en la barra superior para habilitar el generador de muestras sintéticas y el entrenamiento de modelos de IA.
+            </AlertDescription>
+          </div>
+        </Alert>
+      )}
+
       {/* Main Grid: Generador de Dataset & Lanzador de Entrenamiento */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Columna Izquierda: Generador de Muestras & Configuración de Entrenamiento */}
         <div className="lg:col-span-5 space-y-6">
           <Card className="border-border/60 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                1. Generador de Muestras Sintéticas
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  1. Generador de Muestras Sintéticas
+                </CardTitle>
+                {!skillId && (
+                  <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600">
+                    Requiere Habilidad
+                  </Badge>
+                )}
+              </div>
               <CardDescription>
                 Simula clips reales de {skillName} con física parabólica, impactos sonoros y variabilidad de niveles para entrenar sin esperar grabaciones de campo.
               </CardDescription>
@@ -290,8 +317,8 @@ export function FootballTrainingStudio({
 
               <Button
                 onClick={handleGenerateSynthetic}
-                disabled={isGenerating}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 shadow-sm"
+                disabled={!skillId || isGenerating}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isGenerating ? (
                   <>
@@ -336,10 +363,17 @@ export function FootballTrainingStudio({
           {/* Card Lanzador de Entrenamiento con Preselección */}
           <Card className="border-border/60 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Play className="w-4 h-4 text-emerald-500" />
-                2. Preselección y Lanzador de Entrenamiento
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Play className="w-4 h-4 text-emerald-500" />
+                  2. Preselección y Lanzador de Entrenamiento
+                </CardTitle>
+                {!skillId && (
+                  <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600">
+                    Requiere Habilidad
+                  </Badge>
+                )}
+              </div>
               <CardDescription>
                 Elegí con qué datos entrenar el modelo y activá la versión deseada para producción.
               </CardDescription>
@@ -412,8 +446,8 @@ export function FootballTrainingStudio({
 
               <Button
                 onClick={handleTrainModel}
-                disabled={isTraining}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2"
+                disabled={!skillId || isTraining}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
                 {isTraining ? (
                   <>

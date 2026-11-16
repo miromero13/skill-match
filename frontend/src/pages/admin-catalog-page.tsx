@@ -78,7 +78,6 @@ export function AdminCatalogPage() {
     openChallengeTypeModal,
     closeChallengeTypeModal,
     fetchInitialData,
-    createCategory,
     createChallengeType,
     saveSkill,
     toggleReady,
@@ -95,10 +94,6 @@ export function AdminCatalogPage() {
   const [skillFormIsReady, setSkillFormIsReady] = useState(false)
   const [skillFormLevels, setSkillFormLevels] = useState<SkillLevel[]>([])
   const [activeLevelTab, setActiveLevelTab] = useState("1")
-
-  // Category in-place form
-  const [catName, setCatName] = useState("")
-  const [catDescription, setCatDescription] = useState("")
 
   // Challenge Type in-place form
   const [challengeName, setChallengeName] = useState("")
@@ -230,20 +225,6 @@ export function AdminCatalogPage() {
     await saveSkill(payload, editingSkill ? editingSkill.id : undefined)
   }
 
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!catName.trim()) return
-    const created = await createCategory({
-      name: catName.trim(),
-      description: catDescription.trim() || undefined,
-    })
-    if (created) {
-      setCatName("")
-      setCatDescription("")
-      setSkillFormCategoryId(created.id)
-    }
-  }
-
   const handleCreateChallengeType = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!challengeName.trim() || !challengeCode.trim()) return
@@ -357,10 +338,10 @@ export function AdminCatalogPage() {
             variant="outline"
             size="sm"
             onClick={openCategoryModal}
-            className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="border-[#00786F]/40 bg-[#00786F]/10 text-[#2DD4BF] hover:bg-[#00786F]/20 text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
-            <FolderPlus className="h-4 w-4 text-[#8B9D9F]" />
-            <span>+ Categoría</span>
+            <FolderPlus className="h-4 w-4" />
+            <span>3 Categorías Fijas (Música, Deporte, Programación)</span>
           </Button>
           <Button
             variant="outline"
@@ -670,17 +651,9 @@ export function AdminCatalogPage() {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="modal-category" className="text-xs font-semibold text-[#8B9D9F] uppercase tracking-wider">
-                          Categoría *
+                          Categoría (Fija) *
                         </Label>
-                        <Button
-                          type="button"
-                          variant="link"
-                          size="sm"
-                          onClick={openCategoryModal}
-                          className="h-auto p-0 text-xs font-semibold text-[#2DD4BF] hover:text-[#2DD4BF]/80"
-                        >
-                          + Nueva
-                        </Button>
+                        <span className="text-[11px] text-[#2DD4BF]/80">3 categorías fijas</span>
                       </div>
                       <Select
                         value={skillFormCategoryId}
@@ -993,57 +966,44 @@ export function AdminCatalogPage() {
         </DialogContent>
       </Dialog>
 
-      {/* CATEGORY IN-PLACE CREATION DIALOG */}
+      {/* CATEGORY INFORMATION DIALOG */}
       <Dialog open={isCategoryModalOpen} onOpenChange={(open) => !open && closeCategoryModal()}>
         <DialogContent className="max-w-md bg-[#141C1E] border border-[#1E2629] text-[#F0FDFA]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[#F0FDFA]">
               <FolderPlus className="h-5 w-5 text-[#2DD4BF]" />
-              Nueva Categoría
+              Categorías Canónicas del Sistema
             </DialogTitle>
             <DialogDescription className="text-[#8B9D9F]">
-              Crea una categoría superior para agrupar habilidades (ej. Música, Programación, Idiomas).
+              La plataforma opera exclusivamente con 3 categorías fijas creadas por el seeder oficial.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateCategory} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="cat-name" className="text-xs font-semibold text-[#8B9D9F]">
-                Nombre de Categoría *
-              </Label>
-              <Input
-                id="cat-name"
-                placeholder="Ej: Música, Deportes, Programación..."
-                value={catName}
-                onChange={(e) => setCatName(e.target.value)}
-                required
-                className="bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C]"
-              />
+          <div className="space-y-3 pt-2 text-sm">
+            <div className="p-3 bg-[#0F1416] border border-[#1E2629] rounded-lg space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#F0FDFA]">🎵 Música</span>
+                <Badge variant="outline" className="border-[#00786F]/40 text-[#2DD4BF]">Fija (Seeder)</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#F0FDFA]">⚽ Deporte</span>
+                <Badge variant="outline" className="border-[#00786F]/40 text-[#2DD4BF]">Fija (Seeder)</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#F0FDFA]">💻 Programación</span>
+                <Badge variant="outline" className="border-[#00786F]/40 text-[#2DD4BF]">Fija (Seeder)</Badge>
+              </div>
             </div>
+            <p className="text-xs text-[#8B9D9F]">
+              Por gobernanza y arquitectura del sistema, estas categorías están protegidas contra edición, eliminación o creación de nuevas categorías.
+            </p>
+          </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="cat-desc" className="text-xs font-semibold text-[#8B9D9F]">
-                Descripción (opcional)
-              </Label>
-              <Textarea
-                id="cat-desc"
-                placeholder="Breve reseña de la categoría..."
-                rows={2}
-                value={catDescription}
-                onChange={(e) => setCatDescription(e.target.value)}
-                className="bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C]"
-              />
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={closeCategoryModal} className="border-[#1E2629] bg-[#0F1416] text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer">
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-[#00786F] hover:bg-[#00665E] text-white font-bold cursor-pointer">
-                Crear Categoría
-              </Button>
-            </DialogFooter>
-          </form>
+          <DialogFooter className="pt-2">
+            <Button type="button" onClick={closeCategoryModal} className="w-full bg-[#00786F] hover:bg-[#00665E] text-white font-bold cursor-pointer">
+              Entendido
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

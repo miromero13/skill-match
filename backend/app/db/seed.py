@@ -18,11 +18,11 @@ async def ensure_initial_catalog(db: AsyncSession) -> None:
     para las tres áreas de validación con IA propia (Programación, Música, Fútbol).
     Es 100% idempotente.
     """
-    # 1. Categorías canónicas
+    # 1. Categorías canónicas fijas del sistema (estrictamente 3)
     canonical_categories = [
-        {"name": "Programación y Software", "slug": "programacion-y-software", "description": "Desarrollo de software, algoritmos, frontend y backend."},
-        {"name": "Música e Instrumentos", "slug": "musica-e-instrumentos", "description": "Ejecución instrumental, técnica armónica y rítmica."},
-        {"name": "Deportes y Fútbol", "slug": "deportes-y-futbol", "description": "Técnica individual, control de balón y destreza deportiva."},
+        {"name": "Música", "slug": "musica", "description": "Ejecución instrumental, técnica armónica y rítmica."},
+        {"name": "Deporte", "slug": "deporte", "description": "Técnica individual, control de balón y destreza deportiva."},
+        {"name": "Programación", "slug": "programacion", "description": "Desarrollo de software, algoritmos, frontend y backend."},
     ]
 
     cat_map = {}
@@ -69,35 +69,35 @@ async def ensure_initial_catalog(db: AsyncSession) -> None:
         {
             "name": "Python y FastAPI",
             "slug": "python-y-fastapi",
-            "cat_slug": "programacion-y-software",
+            "cat_slug": "programacion",
             "ct_code": "CODE_AST",
             "desc": "Construcción de APIs REST asíncronas de alto rendimiento y arquitectura limpia.",
         },
         {
             "name": "React y TypeScript",
             "slug": "react-y-typescript",
-            "cat_slug": "programacion-y-software",
+            "cat_slug": "programacion",
             "ct_code": "CODE_AST",
             "desc": "Desarrollo de interfaces reactivas con tipado estricto y gestión de estado.",
         },
         {
             "name": "Guitarra Acústica",
             "slug": "guitarra-acustica",
-            "cat_slug": "musica-e-instrumentos",
+            "cat_slug": "musica",
             "ct_code": "AUDIO_SPECTRAL",
             "desc": "Técnica de digitación, acordes, ritmo y afinación de guitarra.",
         },
         {
             "name": "Piano y Teclado",
             "slug": "piano-y-teclado",
-            "cat_slug": "musica-e-instrumentos",
+            "cat_slug": "musica",
             "ct_code": "AUDIO_SPECTRAL",
             "desc": "Lectura musical, armonía y ejecución en teclado.",
         },
         {
             "name": "Dominadas y Control de Balón",
             "slug": "dominadas-y-control-de-balon",
-            "cat_slug": "deportes-y-futbol",
+            "cat_slug": "deporte",
             "ct_code": "VISION_POSE",
             "desc": "Destreza motriz, repeticiones de dominadas y control orientado.",
         },

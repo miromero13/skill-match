@@ -39,6 +39,9 @@ async def _persist(db, item):
     return item
 
 
+CANONICAL_CATEGORY_SLUGS = {"musica", "deporte", "programacion"}
+
+
 class CatalogService:
     @staticmethod
     async def list_categories(db):
@@ -47,29 +50,38 @@ class CatalogService:
 
     @staticmethod
     async def create_category(db, request):
-        item = Category(name=request.name.strip(), slug=await _unique_slug(db, Category, request.name), description=request.description, is_active=request.is_active)
+        slug = _slug(request.name)
+        if slug not in CANONICAL_CATEGORY_SLUGS:
+            raise SkillMatchException(
+                statuscode=status.HTTP_400_BAD_REQUEST,
+                message="Las categorías del sistema son fijas (Música, Deporte, Programación) y no se pueden crear nuevas.",
+            )
+        stmt = select(Category).where(Category.slug == slug)
+        existing = (await db.execute(stmt)).scalar_one_or_none()
+        if existing is not None:
+            return existing
+
+        item = Category(
+            name=request.name.strip(),
+            slug=slug,
+            description=request.description,
+            is_active=request.is_active,
+        )
         return await _persist(db, item)
 
     @staticmethod
     async def update_category(db, category_id, request):
-        item = await db.get(Category, category_id)
-        if item is None:
-            raise _not_found("Categoría no encontrada")
-        values = request.model_dump(exclude_unset=True)
-        if "name" in values:
-            values["name"] = values["name"].strip()
-            item.slug = await _unique_slug(db, Category, values["name"], item.id)
-        for key, value in values.items():
-            setattr(item, key, value)
-        return await _persist(db, item)
+        raise SkillMatchException(
+            statuscode=status.HTTP_400_BAD_REQUEST,
+            message="Las categorías del sistema son fijas (Música, Deporte, Programación) y no se pueden editar.",
+        )
 
     @staticmethod
     async def delete_category(db, category_id):
-        item = await db.get(Category, category_id)
-        if item is None:
-            raise _not_found("Categoría no encontrada")
-        await db.delete(item)
-        await db.commit()
+        raise SkillMatchException(
+            statuscode=status.HTTP_400_BAD_REQUEST,
+            message="Las categorías del sistema son fijas (Música, Deporte, Programación) y no se pueden eliminar.",
+        )
 
     @staticmethod
     async def list_challenge_types(db):
