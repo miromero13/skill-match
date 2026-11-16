@@ -145,12 +145,17 @@ def train_and_evaluate_level_classifier(
     y_onehot = np.eye(num_classes, dtype=np.float64)[y_train]
     lr = 0.25
     reg_lambda = 1e-3
+    loss_history: list[dict[str, float]] = []
 
-    for _ in range(700):
+    for epoch in range(700):
         logits = x_train_norm @ weights.T + biases
         logits -= np.max(logits, axis=1, keepdims=True)
         exp_l = np.exp(logits)
         probs = exp_l / np.sum(exp_l, axis=1, keepdims=True)
+
+        if epoch % 100 == 0 or epoch == 699:
+            ce_loss = float(-np.mean(np.sum(y_onehot * np.log(probs + 1e-12), axis=1)))
+            loss_history.append({"epoch": epoch, "loss": round(ce_loss, 4)})
 
         diff = (probs - y_onehot) / float(len(train_rows))
         grad_w = diff.T @ x_train_norm + reg_lambda * weights
@@ -163,6 +168,7 @@ def train_and_evaluate_level_classifier(
     rule_correct = 0
     trained_correct = 0
     trained_within_one = 0
+    confusion_matrix = [[0 for _ in range(num_classes)] for _ in range(num_classes)]
 
     for row in test_rows:
         feats = row["features"]
@@ -179,6 +185,7 @@ def train_and_evaluate_level_classifier(
         ) / scaler_scale
         t_logits = weights @ x_vec + biases
         pred_idx = int(np.argmax(t_logits))
+        confusion_matrix[true_idx][pred_idx] += 1
         if pred_idx == true_idx:
             trained_correct += 1
         if abs(pred_idx - true_idx) <= 1:
@@ -193,6 +200,7 @@ def train_and_evaluate_level_classifier(
         "model_name": "level_classifier",
         "version": "1.0.0-onnx",
         "feature_names": FEATURE_NAMES,
+        "classes": LEVELS,
         "scaler_mean": [round(float(v), 6) for v in scaler_mean],
         "scaler_scale": [round(float(v), 6) for v in scaler_scale],
         "weights": [
@@ -207,6 +215,8 @@ def train_and_evaluate_level_classifier(
             "trained_exact_accuracy": trained_acc,
             "trained_within_one_level_accuracy": within_one_acc,
             "beats_rule_baseline": trained_acc > rule_acc,
+            "confusion_matrix": confusion_matrix,
+            "loss_history": loss_history,
         },
     }
 

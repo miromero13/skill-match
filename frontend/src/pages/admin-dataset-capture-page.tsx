@@ -47,7 +47,10 @@ import {
   FileCode,
 } from "lucide-react"
 import { useDatasetCaptureStore } from "@/stores/dataset-capture-store"
-import { FootballValidationWizard } from "@/features/football-validation"
+import {
+  FootballValidationWizard,
+  FootballTrainingStudio,
+} from "@/features/football-validation"
 
 export function AdminDatasetCapturePage() {
   const {
@@ -294,20 +297,31 @@ export function AdminDatasetCapturePage() {
         </Alert>
       )}
 
-      {/* Selector de Módulo: Ingesta de Datasets vs Laboratorio de Validación de Fútbol IA en Vivo */}
+      {/* Selector de Módulo: Ingesta de Datasets vs Estudio de Entrenamiento vs Validador en Vivo */}
       <Tabs defaultValue="dataset-ingest" className="w-full space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-2">
+        <TabsList className="grid w-full max-w-3xl grid-cols-3">
           <TabsTrigger value="dataset-ingest" className="text-xs sm:text-sm">
-            Ingesta de Muestras de Dataset (Garage S3)
+            1. Ingesta de Datasets
+          </TabsTrigger>
+          <TabsTrigger
+            value="football-training"
+            className="text-xs sm:text-sm"
+            data-testid="tab-football-training"
+          >
+            2. Estudio de Entrenamiento (IA)
           </TabsTrigger>
           <TabsTrigger
             value="football-live-validation"
             className="text-xs sm:text-sm"
             data-testid="tab-football-live-validation"
           >
-            Validador de Fútbol con IA en Vivo (Fases 0–8)
+            3. Validador en Vivo
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="football-training" className="space-y-6">
+          <FootballTrainingStudio />
+        </TabsContent>
 
         <TabsContent value="football-live-validation" className="space-y-6">
           <FootballValidationWizard />

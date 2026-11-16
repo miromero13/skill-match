@@ -117,4 +117,95 @@ export const footballValidationApi = {
       `/football/sessions/${sessionId}/result`
     )
   },
+
+  async generateSyntheticDataset(payload: {
+    count: number
+    train_ratio?: number
+    val_ratio?: number
+  }): Promise<
+    APIResponse<{
+      generated_count: number
+      splits_summary: Record<string, number>
+      levels_summary: Record<string, number>
+      samples: Array<{
+        id: string
+        sample_id: string
+        participant_id: string
+        level_label: string
+        manual_touch_count: number
+        split: string
+        storage_path: string
+        file_size_bytes: number
+        duration_s: number
+      }>
+    }>
+  > {
+    return apiClient.post("/football/training/generate-synthetic", payload)
+  },
+
+  async trainLevelModel(payload: {
+    version_tag?: string
+    activate?: boolean
+  }): Promise<
+    APIResponse<{
+      id: string
+      nombre: string
+      version: string
+      ruta_onnx: string
+      activa: boolean
+      metricas: {
+        test_samples: number
+        train_participants: number
+        test_participants: number
+        rule_baseline_accuracy: number
+        trained_exact_accuracy: number
+        trained_within_one_level_accuracy: number
+        beats_rule_baseline: boolean
+        confusion_matrix: number[][]
+        loss_history: Array<{ epoch: number; loss: number }>
+      }
+      created_at: string
+    }>
+  > {
+    return apiClient.post("/football/training/train", payload)
+  },
+
+  async listModelVersions(): Promise<
+    APIResponse<
+      Array<{
+        id: string
+        nombre: string
+        version: string
+        ruta_onnx: string
+        activa: boolean
+        metricas: {
+          test_samples: number
+          train_participants: number
+          test_participants: number
+          rule_baseline_accuracy: number
+          trained_exact_accuracy: number
+          trained_within_one_level_accuracy: number
+          beats_rule_baseline: boolean
+          confusion_matrix: number[][]
+          loss_history: Array<{ epoch: number; loss: number }>
+        }
+        created_at: string
+      }>
+    >
+  > {
+    return apiClient.get("/football/training/models")
+  },
+
+  async activateModelVersion(
+    modelId: string
+  ): Promise<
+    APIResponse<{
+      id: string
+      nombre: string
+      version: string
+      activa: boolean
+    }>
+  > {
+    return apiClient.post(`/football/training/models/${modelId}/activate`, {})
+  },
 }

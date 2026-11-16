@@ -27,6 +27,7 @@ from app.core.deps import get_current_user
 from app.core.exceptions import SkillMatchException
 from app.core.security import decode_jwt_payload
 from app.db.session import AsyncSessionLocal, get_db
+from app.football.api.training_router import training_router
 from app.football.schemas import (
     CalibrationRequest,
     CalibrationResponse,
@@ -62,6 +63,7 @@ from app.schemas.response import APIResponse
 logger = logging.getLogger("skillmatch.football.api")
 
 router = APIRouter(tags=["Football Validation"])
+router.include_router(training_router)
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 DbSessionDep = Annotated[AsyncSession, Depends(get_db)]
