@@ -9,7 +9,7 @@ export function MobileBottomBar() {
     { label: "Inicio", icon: Home, to: "/app", active: path === "/app" },
     { label: "Buscar", icon: Compass, to: "/app/search", active: path.startsWith("/app/search") },
     { label: "Swaps", icon: ArrowLeftRight, to: "/app/swaps", active: path.startsWith("/app/swaps") },
-    { label: "Avisos", icon: Bell, to: "/app/notifications", active: path.startsWith("/app/notifications") },
+    { label: "Avisos", icon: Bell, to: "/notifications", active: path.startsWith("/notifications") },
     { label: "Perfil", icon: User, to: "/app/profile", active: path.startsWith("/app/profile") },
   ]
 

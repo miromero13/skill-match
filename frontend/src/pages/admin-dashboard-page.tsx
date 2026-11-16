@@ -1,3 +1,4 @@
+import { NotificationBell } from "@/components/notifications/notification-bell"
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuthStore } from "@/stores/auth-store"
@@ -29,7 +30,7 @@ export function AdminDashboardPage() {
   return (
     <div className="min-h-screen w-full bg-[#0F1416] text-[#F0FDFA] flex flex-col">
       {/* Header Administrativo */}
-      <header className="h-16 border-b border-[#1E2629] bg-[#141C1E] px-6 flex items-center justify-between">
+      <header className="min-h-16 border-b border-[#1E2629] bg-[#141C1E] px-4 py-3 flex flex-wrap gap-3 items-center justify-between sm:px-6">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-md bg-[#00786F33] text-[#2DD4BF]">
             <Shield className="w-5 h-5" />
@@ -43,6 +44,7 @@ export function AdminDashboardPage() {
         </div>
 
         <div className="flex items-center gap-4">
+          <NotificationBell />
           <div className="text-right hidden sm:block">
             <p className="text-xs font-semibold text-[#F0FDFA]">{user?.fullName || "Administrador"}</p>
             <p className="text-[10px] text-[#8B9D9F]">{user?.email}</p>

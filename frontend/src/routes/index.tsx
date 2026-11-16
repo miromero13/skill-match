@@ -18,6 +18,10 @@ import { MemberRouteGuard } from "@/components/member-route-guard"
 import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { ProfilePage } from "@/pages/profile-page"
 
+import { NotificationLayout } from "@/components/notifications/notification-layout"
+import { NotificationInboxPage } from "@/pages/notifications/notification-inbox-page"
+import { NotificationSettingsPage } from "@/pages/notifications/notification-settings-page"
+
 export const router = createBrowserRouter([
   // 1. Public Layout (Landing Page, Institucional)
   {
@@ -30,6 +34,17 @@ export const router = createBrowserRouter([
       },
     ],
   },
+
+  {
+    path: "/notifications",
+    element: <NotificationLayout />,
+    children: [
+      { index: true, element: <NotificationInboxPage /> },
+      { path: "settings", element: <NotificationSettingsPage /> },
+    ],
+  },
+  { path: "/app/notifications", element: <Navigate to="/notifications" replace /> },
+  { path: "/app/notifications/settings", element: <Navigate to="/notifications/settings" replace /> },
 
   // 2. Member Authentication (HU-07 / Vista 28 Web / Vista 30 Mobile)
   {
@@ -58,10 +73,6 @@ export const router = createBrowserRouter([
       {
         path: "swaps",
         element: <FeedPage />, // Placeholder para Vista 20
-      },
-      {
-        path: "notifications",
-        element: <FeedPage />, // Placeholder para Vista 25
       },
       {
         path: "profile",

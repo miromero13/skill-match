@@ -1,5 +1,6 @@
+import { NotificationBell } from "@/components/notifications/notification-bell"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { Home, Users, Calendar, Award, ShieldCheck, Bell, Plus, Search, CreditCard, LogOut } from "lucide-react"
+import { Home, Users, Calendar, Award, ShieldCheck, Plus, Search, CreditCard, LogOut } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -119,14 +120,7 @@ export function PlatformHeader() {
             </TooltipContent>
           </Tooltip>
 
-          {/* Bell Icon with dot */}
-          <Link
-            to="/app/notifications"
-            className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-[#E7000B]" />
-          </Link>
+          <NotificationBell />
 
           <ModeToggle />
 
