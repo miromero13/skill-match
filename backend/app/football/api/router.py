@@ -40,6 +40,7 @@ from app.football.schemas import (
     FinalizeSessionResponse,
     LivenessRequest,
     LivenessResponse,
+    ValidationResultResponse,
     ValidationSessionStatusResponse,
     WSClientMessage,
 )
@@ -49,6 +50,7 @@ from app.football.services.session_service import (
     extract_confirmed_chunk_indices,
     finalize_validation_session,
     get_Owned_validation_session,
+    get_validation_result_payload,
     record_calibration_touch,
     record_client_event_incident,
     record_liveness_check,
@@ -375,6 +377,33 @@ async def finalize_session_endpoint(
             total_chunks=len(confirmed_chunks),
             task_id=task_id,
         ),
+    )
+
+
+@router.get(
+    "/sessions/{session_id}/result",
+    response_model=APIResponse[ValidationResultResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Obtener el resultado final de validación de fútbol (nivel, confianza, métricas, retroalimentación y riesgo)",
+)
+async def get_session_result_endpoint(
+    session_id: UUID,
+    current_user: CurrentUserDep,
+    db: DbSessionDep,
+) -> APIResponse[ValidationResultResponse]:
+    session_obj = await get_Owned_validation_session(
+        db=db,
+        session_id=session_id,
+        user_id=current_user.id,
+    )
+    result_data = await get_validation_result_payload(
+        db=db,
+        session_obj=session_obj,
+    )
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message="Resultado de validación de fútbol obtenido exitosamente.",
+        data=result_data,
     )
 
 

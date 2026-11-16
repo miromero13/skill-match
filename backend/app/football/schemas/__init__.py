@@ -115,6 +115,40 @@ class FinalizeSessionResponse(BaseModel):
     task_id: str | None = None
 
 
+class FraudIncidentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    tipo: str
+    severidad: str
+    t_ms: int
+    detalle: str | None = None
+
+
+class ValidationMetricsRead(BaseModel):
+    toques: int
+    racha: int
+    toques_por_minuto: float
+    altura_media: float
+    regularidad: float
+    cumplimiento_por_tramo: list[ChallengeSegmentRead] = Field(default_factory=list)
+
+
+class ValidationResultResponse(BaseModel):
+    session_id: UUID
+    estado: str
+    nivel: str
+    probabilidades: dict[str, float]
+    confianza: float
+    metricas: ValidationMetricsRead
+    coherencia_audio_video: float
+    puntaje_riesgo: float
+    incidencias: list[FraudIncidentRead] = Field(default_factory=list)
+    retroalimentacion: dict[str, list[str]]
+    requiere_revision: bool
+    version_modelo: str
+    version_config: str
+
+
 class WSClientMessage(BaseModel):
     type: Literal["client_event", "ping", "next_command"]
     event: Literal["tab_hidden", "focus_lost", "fullscreen_exit"] | None = None

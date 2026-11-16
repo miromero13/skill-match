@@ -14,18 +14,40 @@ from app.core.exceptions import SkillMatchException
 from app.football.config import load_football_config
 from app.football.models import (
     ChallengeSegment,
+    DetectedEvent,
     EvidenceFile,
     FraudIncident,
+    ModelVersion,
     SessionFeature,
+    ValidationResult,
     ValidationSession,
     ValidationSessionState,
 )
-from app.football.pipeline.challenge_engine import generate_plan
+from app.football.pipeline.audio_events import detect_audio_impact_events
+from app.football.pipeline.ball_tracker import BallTrack, track_ball_in_video
+from app.football.pipeline.challenge_engine import (
+    ChallengeEvaluationSummary,
+    evaluate_challenge_plan,
+    generate_plan,
+)
+from app.football.pipeline.features import extract_session_features
+from app.football.pipeline.fraud import evaluate_fraud_signals, inspect_video_integrity
+from app.football.pipeline.fusion import FusionSummary, fuse_audio_video_events
+from app.football.pipeline.scoring import (
+    LevelClassifierProtocol,
+    TrainedArtifactLevelClassifier,
+    score_session_features,
+)
+from app.football.pipeline.touch_events import detect_video_touch_events
 from app.football.schemas import (
     CalibrationRequest,
+    ChallengeSegmentRead,
     EnvCheckRequest,
     FinalizeSessionRequest,
+    FraudIncidentRead,
     LivenessRequest,
+    ValidationMetricsRead,
+    ValidationResultResponse,
 )
 from app.football.services.storage import GarageS3StorageService, garage_s3_storage
 from app.football.tasks import process_session
@@ -125,6 +147,9 @@ async def get_Owned_validation_session(
             selectinload(ValidationSession.segments),
             selectinload(ValidationSession.evidence_files),
             selectinload(ValidationSession.features),
+            selectinload(ValidationSession.result),
+            selectinload(ValidationSession.fraud_incidents),
+            selectinload(ValidationSession.detected_events),
         )
         .where(ValidationSession.id == session_id)
     )
@@ -485,3 +510,263 @@ async def record_client_event_incident(
     await db.commit()
     await db.refresh(incident)
     return incident
+
+
+async def _load_active_level_classifier(
+    db: AsyncSession,
+) -> LevelClassifierProtocol | None:
+    """
+    Check `model_versions` for an active `level_classifier` entry (`activa = True`).
+    If present and its artifact exists on disk, load `TrainedArtifactLevelClassifier`
+    without requiring any code changes.
+    """
+    stmt = (
+        select(ModelVersion)
+        .where(
+            ModelVersion.nombre == "level_classifier",
+            ModelVersion.activa.is_(True),
+        )
+        .order_by(ModelVersion.created_at.desc())
+        .limit(1)
+    )
+    res = await db.execute(stmt)
+    active_model = res.scalar_one_or_none()
+    if active_model is None:
+        return None
+
+    try:
+        return TrainedArtifactLevelClassifier(
+            artifact_path=active_model.ruta_onnx,
+            version_tag=f"{active_model.nombre}:{active_model.version}",
+        )
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+async def evaluate_and_persist_session_result(
+    db: AsyncSession,
+    session_obj: ValidationSession,
+    video_path: str | None = None,
+    audio_path: str | None = None,
+    detected_faces_count: int = 1,
+) -> ValidationResult:
+    """
+    Execute the complete football validation pipeline for `session_obj`, persist
+    `DetectedEvent`, `ChallengeSegment` compliance, `SessionFeature`, `FraudIncident`,
+    and `ValidationResult`, and update `session_obj.estado` (`scored` or `needs_review`).
+    """
+    track: BallTrack | None = None
+    candidates = []
+    video_integrity: dict[str, Any] | None = None
+    actual_duration_s: float | None = None
+
+    if video_path:
+        try:
+            track = track_ball_in_video(video_path)
+            if track.points and track.fps > 0:
+                actual_duration_s = len(track.points) / float(track.fps)
+            candidates = detect_video_touch_events(track)
+            video_integrity = inspect_video_integrity(video_path)
+        except ValueError:
+            track = None
+
+    audio_events = []
+    if audio_path:
+        try:
+            audio_events = detect_audio_impact_events(audio_path)
+        except Exception:  # noqa: BLE001
+            audio_events = []
+
+    cal_ms: int | None = None
+    expected_duration_s: float | None = None
+    if session_obj.features and isinstance(session_obj.features.features_json, dict):
+        cal_dict = session_obj.features.features_json.get("calibration")
+        if isinstance(cal_dict, dict) and "client_touch_timestamp_ms" in cal_dict:
+            cal_ms = int(cal_dict["client_touch_timestamp_ms"])
+        asm_dict = session_obj.features.features_json.get("assembly")
+        if isinstance(asm_dict, dict) and "duration_seconds" in asm_dict:
+            expected_duration_s = float(asm_dict["duration_seconds"])
+
+    fused: FusionSummary = fuse_audio_video_events(
+        video_events=candidates,
+        audio_events=audio_events,
+        calibration_touch_ms=cal_ms,
+    )
+
+    for ev in fused.events:
+        db.add(
+            DetectedEvent(
+                session_id=session_obj.id,
+                tipo="touch_fused",
+                t_ms=ev.t_ms,
+                estado=ev.estado,
+                confianza=ev.confianza,
+            )
+        )
+
+    plan_dicts = [
+        {
+            "indice": s.indice,
+            "tipo": s.tipo,
+            "inicio_servidor_ms": s.inicio_servidor_ms,
+            "duracion_ms": s.duracion_ms,
+        }
+        for s in session_obj.segments
+    ]
+    challenge_eval: ChallengeEvaluationSummary | None = None
+    if plan_dicts:
+        challenge_eval = evaluate_challenge_plan(
+            segments_plan=plan_dicts,
+            fused_events=fused.events,
+            track=track,
+        )
+        eval_by_idx = {sr.indice: sr for sr in challenge_eval.segments}
+        for seg_model in session_obj.segments:
+            if seg_model.indice in eval_by_idx:
+                sr = eval_by_idx[seg_model.indice]
+                seg_model.cumplimiento = sr.cumplimiento
+                seg_model.latencia_reaccion_ms = sr.latencia_reaccion_ms
+
+    features_dict = extract_session_features(
+        track=track,
+        fusion=fused,
+        challenge_eval=challenge_eval,
+        session_duration_s=actual_duration_s or expected_duration_s,
+    )
+    await _upsert_session_metadata(db=db, session_obj=session_obj, updates=features_dict)
+
+    active_clf = await _load_active_level_classifier(db)
+    scoring_out = score_session_features(
+        features=features_dict,
+        classifier=active_clf,
+    )
+
+    existing_client_incidents = [
+        {"tipo": inc.tipo, "t_ms": inc.t_ms}
+        for inc in session_obj.fraud_incidents
+    ]
+    fraud_out = evaluate_fraud_signals(
+        fusion=fused,
+        challenge_eval=challenge_eval,
+        track=track,
+        client_events=existing_client_incidents,
+        video_integrity=video_integrity,
+        expected_duration_s=expected_duration_s,
+        actual_video_duration_s=actual_duration_s,
+        detected_faces_count=detected_faces_count,
+    )
+
+    existing_types = {inc.tipo for inc in session_obj.fraud_incidents}
+    for sig in fraud_out.incidencias:
+        if sig.tipo not in existing_types:
+            db.add(
+                FraudIncident(
+                    session_id=session_obj.id,
+                    tipo=sig.tipo,
+                    severidad=sig.severidad,
+                    t_ms=sig.t_ms,
+                    detalle=sig.detalle,
+                )
+            )
+
+    requires_review = scoring_out.requiere_revision or fraud_out.requiere_revision
+    session_obj.version_modelo = scoring_out.version_modelo
+    session_obj.version_config = scoring_out.version_config
+    session_obj.estado = (
+        ValidationSessionState.NEEDS_REVIEW.value
+        if requires_review
+        else ValidationSessionState.SCORED.value
+    )
+
+    if session_obj.result is not None:
+        result_row = session_obj.result
+        result_row.nivel = scoring_out.nivel
+        result_row.probabilidades = scoring_out.probabilidades
+        result_row.confianza = scoring_out.confianza
+        result_row.puntaje_riesgo = fraud_out.puntaje_riesgo
+        result_row.requiere_revision = requires_review
+        result_row.retroalimentacion = scoring_out.retroalimentacion
+    else:
+        result_row = ValidationResult(
+            session_id=session_obj.id,
+            nivel=scoring_out.nivel,
+            probabilidades=scoring_out.probabilidades,
+            confianza=scoring_out.confianza,
+            puntaje_riesgo=fraud_out.puntaje_riesgo,
+            requiere_revision=requires_review,
+            retroalimentacion=scoring_out.retroalimentacion,
+        )
+        db.add(result_row)
+
+    await db.commit()
+    await db.refresh(result_row)
+    await db.refresh(session_obj)
+    return result_row
+
+
+async def get_validation_result_payload(
+    db: AsyncSession,
+    session_obj: ValidationSession,
+) -> ValidationResultResponse:
+    """
+    Build `ValidationResultResponse` for `GET /sessions/{id}/result`.
+    If the session has not yet been scored, evaluates on-the-fly from stored metadata.
+    """
+    if session_obj.result is None:
+        await evaluate_and_persist_session_result(db=db, session_obj=session_obj)
+        session_obj = await get_Owned_validation_session(
+            db=db, session_id=session_obj.id, user_id=session_obj.user_id
+        )
+
+    assert session_obj.result is not None
+    res = session_obj.result
+    f_json = (
+        session_obj.features.features_json
+        if session_obj.features and isinstance(session_obj.features.features_json, dict)
+        else {}
+    )
+
+    segments_read = [
+        ChallengeSegmentRead(
+            indice=s.indice,
+            tipo=s.tipo,  # type: ignore[arg-type]
+            inicio_servidor_ms=s.inicio_servidor_ms,
+            duracion_ms=s.duracion_ms,
+            cumplimiento=s.cumplimiento,
+            latencia_reaccion_ms=s.latencia_reaccion_ms,
+        )
+        for s in session_obj.segments
+    ]
+    metrics = ValidationMetricsRead(
+        toques=int(f_json.get("total_touches", 0)),
+        racha=int(f_json.get("max_streak", 0)),
+        toques_por_minuto=float(f_json.get("touches_per_minute", 0.0)),
+        altura_media=float(f_json.get("mean_height_diameters", 0.0)),
+        regularidad=float(f_json.get("regularity_score", 0.0)),
+        cumplimiento_por_tramo=segments_read,
+    )
+    incidents_read = [
+        FraudIncidentRead(
+            tipo=inc.tipo,
+            severidad=inc.severidad,
+            t_ms=inc.t_ms,
+            detalle=inc.detalle,
+        )
+        for inc in session_obj.fraud_incidents
+    ]
+
+    return ValidationResultResponse(
+        session_id=session_obj.id,
+        estado=session_obj.estado,
+        nivel=res.nivel,
+        probabilidades=res.probabilidades,
+        confianza=res.confianza,
+        metricas=metrics,
+        coherencia_audio_video=float(f_json.get("av_coherence", 0.0)),
+        puntaje_riesgo=res.puntaje_riesgo,
+        incidencias=incidents_read,
+        retroalimentacion=res.retroalimentacion,
+        requiere_revision=res.requiere_revision,
+        version_modelo=session_obj.version_modelo,
+        version_config=session_obj.version_config,
+    )

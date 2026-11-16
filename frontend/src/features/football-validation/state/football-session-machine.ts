@@ -109,6 +109,41 @@ export interface FinalizeSessionResponse {
   task_id?: string | null
 }
 
+export interface FraudIncidentItem {
+  tipo: string
+  severidad: string
+  t_ms: number
+  detalle?: string | null
+}
+
+export interface ValidationMetricsPayload {
+  toques: number
+  racha: number
+  toques_por_minuto: number
+  altura_media: number
+  regularidad: number
+  cumplimiento_por_tramo: ChallengeSegment[]
+}
+
+export interface ValidationResultPayload {
+  session_id: string
+  estado: FootballSessionState
+  nivel: "Principiante" | "Intermedio" | "Avanzado" | "Experto" | string
+  probabilidades: Record<string, number>
+  confianza: number
+  metricas: ValidationMetricsPayload
+  coherencia_audio_video: number
+  puntaje_riesgo: number
+  incidencias: FraudIncidentItem[]
+  retroalimentacion: {
+    fortalezas: string[]
+    mejoras: string[]
+  }
+  requiere_revision: boolean
+  version_modelo: string
+  version_config: string
+}
+
 export interface FootballValidationMachineState {
   sessionId: string | null
   wsUrl: string | null

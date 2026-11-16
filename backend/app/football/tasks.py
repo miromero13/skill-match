@@ -12,10 +12,17 @@ from app.football.config import load_football_config
 from app.football.pipeline.audio_events import detect_audio_impact_events
 from app.football.pipeline.ball_tracker import BallTrack, track_ball_in_video
 from app.football.pipeline.challenge_engine import (
+    ChallengeEvaluationSummary,
     evaluate_challenge_plan,
     generate_plan,
 )
-from app.football.pipeline.fusion import FusedTouchEvent, fuse_audio_video_events
+from app.football.pipeline.features import extract_session_features
+from app.football.pipeline.fraud import evaluate_fraud_signals, inspect_video_integrity
+from app.football.pipeline.fusion import (
+    FusionSummary,
+    fuse_audio_video_events,
+)
+from app.football.pipeline.scoring import score_session_features
 from app.football.pipeline.touch_events import detect_video_touch_events
 
 logger = logging.getLogger("skillmatch.football.tasks")
@@ -46,12 +53,14 @@ def process_session(
     calibration_touch_ms: int | None = None,
     seed: int | None = None,
     segments_plan: list[dict[str, Any]] | None = None,
+    client_events: list[dict[str, Any]] | None = None,
+    expected_duration_s: float | None = None,
+    detected_faces_count: int = 1,
 ) -> dict[str, Any]:
     """
     Celery pipeline entrypoint task for football skill validation.
-    Executes `ball_tracker`, `touch_events`, `audio_events`, `fusion`, and
-    `challenge_engine` when media/plan inputs are provided.
-    Subsequent phases plug in `features`, `scoring`, and `fraud`.
+    Executes the full pure pipeline in order:
+    `ball_tracker -> touch_events -> audio_events -> fusion -> challenge_engine -> features -> scoring -> fraud`.
     """
     cfg = load_football_config()
     logger.info(
@@ -64,14 +73,23 @@ def process_session(
     audio_impacts: list[dict[str, Any]] = []
     fusion_payload: dict[str, Any] | None = None
     challenge_payload: dict[str, Any] | None = None
+    features_payload: dict[str, Any] | None = None
+    scoring_payload: dict[str, Any] | None = None
+    fraud_payload: dict[str, Any] | None = None
     tracked_frames = 0
 
     track: BallTrack | None = None
     candidates = []
+    video_integrity: dict[str, Any] | None = None
+    actual_video_duration_s: float | None = None
+
     if video_path and Path(video_path).exists():
         track = track_ball_in_video(video_path)
         tracked_frames = len(track.points)
+        if track.fps > 0 and tracked_frames > 0:
+            actual_video_duration_s = tracked_frames / float(track.fps)
         candidates = detect_video_touch_events(track)
+        video_integrity = inspect_video_integrity(video_path)
         video_touches = [
             {
                 "t_ms": c.t_ms,
@@ -94,29 +112,28 @@ def process_session(
             for a in audio_events
         ]
 
-    fused_events: list[FusedTouchEvent] = []
+    fused_summary = FusionSummary()
     if candidates or audio_events:
-        fused = fuse_audio_video_events(
+        fused_summary = fuse_audio_video_events(
             video_events=candidates,
             audio_events=audio_events,
             calibration_touch_ms=calibration_touch_ms,
         )
-        fused_events = fused.events
         fusion_payload = {
-            "confirmed_count": fused.confirmed_count,
-            "video_only_count": fused.video_only_count,
-            "audio_only_count": fused.audio_only_count,
-            "effective_touch_count": fused.effective_touch_count,
-            "coherence": fused.coherence,
-            "drift_ms_per_min": fused.drift_ms_per_min,
-            "estimated_calibration_offset_ms": fused.estimated_calibration_offset_ms,
+            "confirmed_count": fused_summary.confirmed_count,
+            "video_only_count": fused_summary.video_only_count,
+            "audio_only_count": fused_summary.audio_only_count,
+            "effective_touch_count": fused_summary.effective_touch_count,
+            "coherence": fused_summary.coherence,
+            "drift_ms_per_min": fused_summary.drift_ms_per_min,
+            "estimated_calibration_offset_ms": fused_summary.estimated_calibration_offset_ms,
             "events": [
                 {
                     "t_ms": ev.t_ms,
                     "estado": ev.estado,
                     "confianza": ev.confianza,
                 }
-                for ev in fused.events
+                for ev in fused_summary.events
             ],
         }
 
@@ -124,10 +141,11 @@ def process_session(
     if active_plan is None and seed is not None:
         active_plan, _ = generate_plan(seed)
 
-    if active_plan and fused_events:
+    challenge_eval: ChallengeEvaluationSummary | None = None
+    if active_plan and fused_summary.events:
         challenge_eval = evaluate_challenge_plan(
             segments_plan=active_plan,
-            fused_events=fused_events,
+            fused_events=fused_summary.events,
             track=track,
         )
         challenge_payload = {
@@ -151,6 +169,52 @@ def process_session(
             ],
         }
 
+    if candidates or audio_events:
+        features_payload = extract_session_features(
+            track=track,
+            fusion=fused_summary,
+            challenge_eval=challenge_eval,
+            session_duration_s=actual_video_duration_s or expected_duration_s,
+        )
+        scoring_out = score_session_features(features_payload)
+        fraud_out = evaluate_fraud_signals(
+            fusion=fused_summary,
+            challenge_eval=challenge_eval,
+            track=track,
+            client_events=client_events,
+            video_integrity=video_integrity,
+            expected_duration_s=expected_duration_s,
+            actual_video_duration_s=actual_video_duration_s,
+            detected_faces_count=detected_faces_count,
+        )
+
+        final_needs_review = (
+            scoring_out.requiere_revision or fraud_out.requiere_revision
+        )
+        scoring_payload = {
+            "nivel": scoring_out.nivel,
+            "probabilidades": scoring_out.probabilidades,
+            "confianza": scoring_out.confianza,
+            "requiere_revision": final_needs_review,
+            "retroalimentacion": scoring_out.retroalimentacion,
+            "version_modelo": scoring_out.version_modelo,
+            "version_config": scoring_out.version_config,
+        }
+        fraud_payload = {
+            "puntaje_riesgo": fraud_out.puntaje_riesgo,
+            "requiere_revision": fraud_out.requiere_revision,
+            "invalidada": fraud_out.invalidada,
+            "incidencias": [
+                {
+                    "tipo": inc.tipo,
+                    "severidad": inc.severidad,
+                    "t_ms": inc.t_ms,
+                    "detalle": inc.detalle,
+                }
+                for inc in fraud_out.incidencias
+            ],
+        }
+
     status_label = "processed_phase0_stub"
     if challenge_payload is not None:
         status_label = "processed_phase4"
@@ -170,5 +234,8 @@ def process_session(
         "audio_impact_count": len(audio_impacts),
         "fusion": fusion_payload,
         "challenges": challenge_payload,
+        "features": features_payload,
+        "scoring": scoring_payload,
+        "fraud": fraud_payload,
         "processed_at": datetime.now(UTC).isoformat(),
     }

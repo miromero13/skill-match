@@ -11,6 +11,7 @@ import type {
   FinalizeSessionResponse,
   LivenessPayload,
   LivenessResponse,
+  ValidationResultPayload,
   ValidationSessionStatusResponse,
 } from "../state/football-session-machine"
 
@@ -106,6 +107,14 @@ export const footballValidationApi = {
       `/football/sessions/${sessionId}/finalize`,
       payload ?? {},
       { showToastOnSuccess: true }
+    )
+  },
+
+  async getSessionResult(
+    sessionId: string
+  ): Promise<APIResponse<ValidationResultPayload>> {
+    return apiClient.get<ValidationResultPayload>(
+      `/football/sessions/${sessionId}/result`
     )
   },
 }
