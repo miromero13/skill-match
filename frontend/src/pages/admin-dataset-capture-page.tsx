@@ -47,6 +47,7 @@ import {
   FileCode,
 } from "lucide-react"
 import { useDatasetCaptureStore } from "@/stores/dataset-capture-store"
+import { FootballValidationWizard } from "@/features/football-validation"
 
 export function AdminDatasetCapturePage() {
   const {
@@ -293,8 +294,28 @@ export function AdminDatasetCapturePage() {
         </Alert>
       )}
 
-      {/* Grid Central Responsive */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Selector de Módulo: Ingesta de Datasets vs Laboratorio de Validación de Fútbol IA en Vivo */}
+      <Tabs defaultValue="dataset-ingest" className="w-full space-y-6">
+        <TabsList className="grid w-full max-w-2xl grid-cols-2">
+          <TabsTrigger value="dataset-ingest" className="text-xs sm:text-sm">
+            Ingesta de Muestras de Dataset (Garage S3)
+          </TabsTrigger>
+          <TabsTrigger
+            value="football-live-validation"
+            className="text-xs sm:text-sm"
+            data-testid="tab-football-live-validation"
+          >
+            Validador de Fútbol con IA en Vivo (Fases 0–8)
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="football-live-validation" className="space-y-6">
+          <FootballValidationWizard />
+        </TabsContent>
+
+        <TabsContent value="dataset-ingest" className="space-y-6">
+          {/* Grid Central Responsive */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Columna Izquierda: Panel de Grabación & Ingesta */}
         <div className="lg:col-span-7 space-y-6">
           <Card className="border-border/60 shadow-sm">
@@ -747,6 +768,8 @@ export function AdminDatasetCapturePage() {
           </Card>
         </div>
       </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

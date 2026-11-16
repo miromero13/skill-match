@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import secrets
+import shutil
+import subprocess
+import tempfile
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -416,12 +420,16 @@ async def finalize_validation_session(
             message=f"Fragmentos incompletos. Faltan los fragmentos: {missing}.",
         )
 
+    first_chunk_uri = chunk_evidences[0].ruta_minio
+    assembled_ext = "webm" if first_chunk_uri.lower().endswith(".webm") else "mp4"
+    assembled_ct = "video/webm" if assembled_ext == "webm" else "video/mp4"
+
     try:
         assembled_uri, assembled_sha256, assembled_size, indices = (
             storage_svc.assemble_session_chunks(
                 session_id=str(session_obj.id),
-                extension="mp4",
-                content_type="video/mp4",
+                extension=assembled_ext,
+                content_type=assembled_ct,
             )
         )
     except (ValueError, FileNotFoundError) as exc:
@@ -543,6 +551,76 @@ async def _load_active_level_classifier(
         return None
 
 
+def _resolve_assembled_media_files(
+    session_obj: ValidationSession,
+    tmp_dir: Path,
+    storage: GarageS3StorageService | None = None,
+) -> tuple[str | None, str | None]:
+    """
+    If `session_obj` has an assembled video in Garage S3 (`evidence_files` with `tipo == "video"`),
+    download it into `tmp_dir` and extract a 48 kHz mono `.wav` audio track via `ffmpeg` if available.
+    """
+    video_ev = next(
+        (ev for ev in session_obj.evidence_files if ev.tipo == "video"),
+        None,
+    )
+    if video_ev is None or not video_ev.ruta_minio:
+        return None, None
+
+    uri = video_ev.ruta_minio
+    object_key = uri
+    if uri.startswith("s3://"):
+        parts = uri.replace("s3://", "", 1).split("/", 1)
+        object_key = parts[1] if len(parts) > 1 else ""
+
+    if not object_key:
+        return None, None
+
+    storage_svc = storage or garage_s3_storage
+    try:
+        raw_bytes = storage_svc.get_object_bytes(object_key)
+    except Exception:  # noqa: BLE001
+        return None, None
+
+    ext = object_key.rsplit(".", 1)[-1].lower() if "." in object_key else "mp4"
+    local_video = tmp_dir / f"assembled_session.{ext}"
+    local_video.write_bytes(raw_bytes)
+
+    local_wav = tmp_dir / "extracted_audio.wav"
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if ffmpeg_bin:
+        try:
+            subprocess.run(
+                [
+                    ffmpeg_bin,
+                    "-y",
+                    "-i",
+                    str(local_video),
+                    "-vn",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "48000",
+                    "-f",
+                    "wav",
+                    str(local_wav),
+                ],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=15,
+            )
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    audio_str = (
+        str(local_wav)
+        if local_wav.exists() and local_wav.stat().st_size > 1024
+        else None
+    )
+    return str(local_video), audio_str
+
+
 async def evaluate_and_persist_session_result(
     db: AsyncSession,
     session_obj: ValidationSession,
@@ -555,27 +633,38 @@ async def evaluate_and_persist_session_result(
     `DetectedEvent`, `ChallengeSegment` compliance, `SessionFeature`, `FraudIncident`,
     and `ValidationResult`, and update `session_obj.estado` (`scored` or `needs_review`).
     """
-    track: BallTrack | None = None
-    candidates = []
-    video_integrity: dict[str, Any] | None = None
-    actual_duration_s: float | None = None
+    with tempfile.TemporaryDirectory() as tmp_str:
+        tmp_dir = Path(tmp_str)
+        if video_path is None:
+            resolved_v, resolved_a = _resolve_assembled_media_files(
+                session_obj=session_obj,
+                tmp_dir=tmp_dir,
+            )
+            video_path = resolved_v
+            if audio_path is None:
+                audio_path = resolved_a
 
-    if video_path:
-        try:
-            track = track_ball_in_video(video_path)
-            if track.points and track.fps > 0:
-                actual_duration_s = len(track.points) / float(track.fps)
-            candidates = detect_video_touch_events(track)
-            video_integrity = inspect_video_integrity(video_path)
-        except ValueError:
-            track = None
+        track: BallTrack | None = None
+        candidates = []
+        video_integrity: dict[str, Any] | None = None
+        actual_duration_s: float | None = None
 
-    audio_events = []
-    if audio_path:
-        try:
-            audio_events = detect_audio_impact_events(audio_path)
-        except Exception:  # noqa: BLE001
-            audio_events = []
+        if video_path:
+            try:
+                track = track_ball_in_video(video_path)
+                if track.points and track.fps > 0:
+                    actual_duration_s = len(track.points) / float(track.fps)
+                candidates = detect_video_touch_events(track)
+                video_integrity = inspect_video_integrity(video_path)
+            except ValueError:
+                track = None
+
+        audio_events = []
+        if audio_path:
+            try:
+                audio_events = detect_audio_impact_events(audio_path)
+            except Exception:  # noqa: BLE001
+                audio_events = []
 
     cal_ms: int | None = None
     expected_duration_s: float | None = None

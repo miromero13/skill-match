@@ -74,11 +74,7 @@ Este documento registra las decisiones de diseño e integración tomadas durante
 - **Contexto:** La Fase 5 requiere un clasificador inicial basado en reglas sobre los umbrales de `config.yaml` con probabilidades calibradas y retroalimentación determinística por plantillas, mientras que la Fase 7 exige entrenar un modelo sobre participantes agrupados sin fuga (`participant_id`), exportarlo a ONNX y activarlo desde `model_versions` sin cambiar el código.
 - **Decisión:** Implementar `RuleBasedLevelClassifier` como línea base y `TrainedArtifactLevelClassifier` como cargador de artefactos `.onnx` registrados en la tabla `model_versions` (`activa = True`). Cuando existe una fila activa en `model_versions`, `evaluate_and_persist_session_result` la utiliza automáticamente y registra su `version_modelo` (`level_classifier:1.0.0-onnx`).
 
-### D-13: Motor de señales antifraude ponderadas (`fraud`)
-- **Contexto:** La Fase 6 requiere combinar las 10 señales antifraude (baja coherencia A/V, deriva de reloj, pérdida de foco/pestaña, cortes/fotogramas repetidos, cámara inestable, balón/persona fuera de cuadro, múltiples rostros, latencia de reacción irreal `< 150 ms` o ausente, secuencia de plan incoherente e inconsistencia de duración) en un puntaje de `0` a `100` sin descartar sesiones en silencio.
-- **Decisión:** `evaluate_fraud_signals` evalúa cada señal contra los pesos configurables de `config.yaml`, persiste cada incidencia en `fraud_incidents` y marca `requiere_revision = True` (`estado = "needs_review"`) cuando el puntaje supera `review_risk_threshold` (`50.0`) o la confianza del clasificador es menor a `0.55`.
-
-
-
-
+### D-14: Asistente Interactivo de Validación en Vivo y Streaming Directo a Garage S3 (`FootballValidationWizard` y `DatasetStorageService`)
+- **Contexto:** Para la validación práctica real en `/admin/capture` y `/app/football-validation`, los usuarios necesitan interactuar con una interfaz visual completa de 7 pasos (consentimiento, chequeo ambiental con Web Audio AnalyserNode y Canvas de luminancia, liveness, calibración A/V con tono sonoro, grabación de 40 s con el HUD del entrenador dinámico o carga directa de video desde disco, ensamblado en vivo en Garage S3 y reporte de resultados).
+- **Decisión:** Desarrollar `FootballValidationWizard` reutilizando estrictamente componentes Shadcn (`Button`, `Card`, `Badge`, `Alert`, `Progress`, `Tabs`, `Table`), integrando un selector de modo (grabación en vivo con WebRTC o carga de archivo local para experimentación de videos pregrabados), y actualizando `DatasetStorageService` para transmitir datasets y fragmentos de sesión directamente a Garage S3 en la nube (`https://s3.devhooh.com`), permitiendo la validación completa sin requerir almacenamiento local temporal en el servidor.
 

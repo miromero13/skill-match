@@ -18,6 +18,7 @@ import { MemberRouteGuard } from "@/components/member-route-guard"
 import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { ProfilePage } from "@/pages/profile-page"
 import { AdminDatasetCapturePage } from "@/pages/admin-dataset-capture-page"
+import { FootballValidationWizard } from "@/features/football-validation"
 
 export const router = createBrowserRouter([
   // 1. Public Layout (Landing Page, Institucional)
@@ -75,6 +76,14 @@ export const router = createBrowserRouter([
       {
         path: "teaching-skills",
         element: <TeachingSkillsPage />,
+      },
+      {
+        path: "football-validation",
+        element: (
+          <div className="p-4 sm:p-6 max-w-6xl mx-auto">
+            <FootballValidationWizard />
+          </div>
+        ),
       },
       {
         path: "wallet",
