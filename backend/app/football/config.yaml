@@ -1,0 +1,71 @@
+# SkillMatch Football Validation — Configuration (initial values per section 13)
+default:
+  version: "0.1.0-phase0"
+  session:
+    max_attempts_per_window: 3
+    cooldown_minutes: 30
+    chunk_duration_seconds: 5
+    max_chunk_size_mb: 25
+    retention_days: 30
+    presigned_url_ttl_seconds: 900
+  ball_tracker:
+    max_gap_frames: 5
+    min_radius_px: 8
+    max_radius_px: 160
+  touch_events:
+    savgol_window_length: 7
+    savgol_polyorder: 2
+    min_velocity_delta: 0.35
+  audio_events:
+    sample_rate_hz: 48000
+    band_low_hz: 200.0
+    band_high_hz: 4000.0
+    mad_k: 3.5
+  fusion:
+    tolerance_ms: 70
+    min_coherence: 0.65
+    max_drift_ms_per_min: 120.0
+  challenges:
+    min_segments: 4
+    max_segments: 6
+    segment_min_duration_ms: 8000
+    segment_max_duration_ms: 10000
+    low_max_height_diameters: 1.5
+    high_min_height_diameters: 3.0
+    slow_min_interval_s: 1.0
+    fast_max_interval_s: 0.6
+    min_reaction_latency_s: 0.15
+  scoring:
+    min_confidence_for_auto_approval: 0.55
+    beginner_max_streak: 7
+    intermediate_max_streak: 25
+    advanced_max_streak: 60
+  fraud:
+    review_risk_threshold: 50.0
+    invalid_risk_threshold: 80.0
+    weights:
+      low_av_coherence: 25.0
+      high_av_drift: 15.0
+      tab_or_focus_loss: 20.0
+      frame_cut_or_repeat: 25.0
+      camera_unstable: 15.0
+      out_of_frame: 15.0
+      multiple_faces: 30.0
+      unrealistic_reaction_latency: 20.0
+      plan_sequence_mismatch: 35.0
+      duration_mismatch: 20.0
+
+development:
+  session:
+    max_attempts_per_window: 5
+    cooldown_minutes: 10
+
+staging:
+  session:
+    max_attempts_per_window: 3
+    cooldown_minutes: 30
+
+production:
+  session:
+    max_attempts_per_window: 3
+    cooldown_minutes: 30
