@@ -116,8 +116,9 @@ class FinalizeSessionResponse(BaseModel):
 
 
 class WSClientMessage(BaseModel):
-    type: Literal["client_event", "ping"]
+    type: Literal["client_event", "ping", "next_command"]
     event: Literal["tab_hidden", "focus_lost", "fullscreen_exit"] | None = None
+    segment_index: int | None = None
     timestamp_ms: int | None = None
     payload: dict[str, Any] | None = None
 

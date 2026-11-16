@@ -58,5 +58,14 @@ Este documento registra las decisiones de diseño e integración tomadas durante
 - **Contexto:** La fusión debe estimar el desfase con el toque de calibración, emparejar eventos de video y audio con tolerancia de ±70 ms (`confirmed`, `video_only`, `audio_only`), calcular la coherencia (`confirmados / total`) y la deriva (pendiente de regresión lineal en `ms/min`), además de mejorar la precisión del conteo frente a solo video cuando hay oclusiones visuales breves.
 - **Decisión:** `fuse_audio_video_events` compensa primero el offset de calibración, realiza emparejamiento bipartito voraz por menor residuo dentro de ±70 ms, calcula la deriva con `np.polyfit` escalada a `ms/min` y, cuando la coherencia de la sesión es legítima (`>= 0.50`), rescata eventos de una sola modalidad con confianza alta para recuperar toques ocultos en video.
 
+---
+
+## Fase 4 — Retos Dinámicos («El Entrenador Dice»)
+
+### D-11: Evaluación de cumplimiento por tramo (`0..1` con tolerancia lineal) y detección de incoherencia de plan (`challenge_engine`)
+- **Contexto:** Cada tramo (`LOW`, `HIGH`, `SLOW`, `FAST`) requiere evaluar la mediana de alturas de pico (en diámetros de balón) o la mediana de intervalos entre toques (en segundos) con un puntaje continuo de `0` a `1` con tolerancia, medir la latencia de reacción desde la orden hasta el primer cambio de comportamiento y detectar si el video fue pregrabado con otro plan.
+- **Decisión:** `evaluate_challenge_plan` extrae la altura máxima alcanzada por el balón en el arco posterior a cada toque y el intervalo entre toques consecutivos dentro del tramo, aplica una rampa de tolerancia lineal alrededor de los umbrales de `config.yaml` (`1.5` y `3.0` diámetros; `1.0` y `0.6` s), mide la latencia hasta el primer toque que cumple la consigna del tramo y marca `plan_coherent = False` si el cumplimiento medio cae por debajo de `0.55` o más de un tercio de los tramos son incoherentes (`< 0.35`).
+
+
 
 

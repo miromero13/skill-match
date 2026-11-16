@@ -468,6 +468,28 @@ async def session_websocket_endpoint(
                             "data": {"timestamp_ms": msg.timestamp_ms or 0},
                         }
                     )
+                elif msg.type == "next_command":
+                    target_idx = msg.segment_index or 0
+                    matching_seg = next(
+                        (s for s in session_obj.segments if s.indice == target_idx),
+                        None,
+                    )
+                    if matching_seg is not None:
+                        if msg.timestamp_ms is not None and msg.timestamp_ms >= 0:
+                            matching_seg.inicio_servidor_ms = msg.timestamp_ms
+                            await db.commit()
+                        await websocket.send_json(
+                            {
+                                "type": "command",
+                                "session_id": str(session_obj.id),
+                                "data": {
+                                    "indice": matching_seg.indice,
+                                    "tipo": matching_seg.tipo,
+                                    "inicio_servidor_ms": matching_seg.inicio_servidor_ms,
+                                    "duracion_ms": matching_seg.duracion_ms,
+                                },
+                            }
+                        )
                 elif msg.type == "client_event" and msg.event is not None:
                     incident = await record_client_event_incident(
                         db=db,

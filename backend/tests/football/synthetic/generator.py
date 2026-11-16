@@ -21,6 +21,7 @@ class SyntheticJugglingSpec:
     touch_times_ms: list[int] = field(
         default_factory=lambda: [1000, 1800, 2600, 3400, 4200, 5000, 5800, 6600]
     )
+    touch_peak_heights_diameters: list[float] | None = None
     touch_y_px: float = 280.0
     peak_height_diameters: float = 2.2
     background_noise_std: float = 2.0
@@ -79,7 +80,15 @@ def _compute_ball_position(
             span = max(1.0, t1 - t0)
             phase = (t_ms - t0) / span  # 0 at touch k, 0.5 at apex, 1 at touch k+1
             arch = 4.0 * phase * (1.0 - phase)  # 0 -> 1 -> 0
-            height_above_touch = amplitude_px * arch
+            arc_diameters = (
+                spec.touch_peak_heights_diameters[idx]
+                if (
+                    spec.touch_peak_heights_diameters is not None
+                    and idx < len(spec.touch_peak_heights_diameters)
+                )
+                else spec.peak_height_diameters
+            )
+            height_above_touch = (arc_diameters * diameter_px) * arch
             return center_x, spec.touch_y_px - height_above_touch
 
     # After last touch: ball rebounds up to apex and stays held/caught at apex
@@ -236,4 +245,55 @@ def generate_synthetic_juggling_clip(
         ball_radius_px=active_spec.ball_radius_px,
         fps=active_spec.fps,
         total_frames=total_frames,
+    )
+
+
+def build_synthetic_spec_for_plan(
+    segments_plan: list[dict[str, int | str]],
+    seed: int = 777,
+) -> SyntheticJugglingSpec:
+    """
+    Build a `SyntheticJugglingSpec` whose touch intervals and heights obey
+    every segment in `segments_plan`:
+    - LOW: height = 1.0 diameters (< 1.5), interval = 750 ms
+    - HIGH: height = 3.5 diameters (> 3.0), interval = 900 ms
+    - SLOW: height = 2.0 diameters, interval = 1250 ms (> 1.0 s)
+    - FAST: height = 1.6 diameters, interval = 450 ms (< 0.6 s)
+    """
+    touch_times: list[int] = []
+    peak_heights: list[float] = []
+    total_duration_ms = 0
+
+    for seg in sorted(segments_plan, key=lambda s: int(s["indice"])):
+        tipo = str(seg["tipo"]).upper()
+        start_ms = int(seg["inicio_servidor_ms"])
+        dur_ms = int(seg["duracion_ms"])
+        end_ms = start_ms + dur_ms
+        total_duration_ms = max(total_duration_ms, end_ms)
+
+        if tipo == "LOW":
+            interval_ms = 750
+            height_diam = 1.0
+        elif tipo == "HIGH":
+            interval_ms = 900
+            height_diam = 3.5
+        elif tipo == "SLOW":
+            interval_ms = 1250
+            height_diam = 2.0
+        else:  # FAST
+            interval_ms = 450
+            height_diam = 1.6
+
+        # First touch inside segment occurs ~280 ms after command (realistic human reaction)
+        t_cur = max(start_ms + 280, (touch_times[-1] + interval_ms) if touch_times else start_ms + 280)
+        while t_cur <= end_ms - 150:
+            touch_times.append(t_cur)
+            peak_heights.append(height_diam)
+            t_cur += interval_ms
+
+    return SyntheticJugglingSpec(
+        duration_s=(total_duration_ms + 900) / 1000.0,
+        touch_times_ms=touch_times,
+        touch_peak_heights_diameters=peak_heights,
+        seed=seed,
     )
