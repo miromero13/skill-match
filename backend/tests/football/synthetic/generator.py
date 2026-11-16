@@ -157,7 +157,7 @@ def generate_synthetic_juggling_clip(
         (active_spec.width, active_spec.height),
     )
 
-    total_frames = int(round(active_spec.duration_s * active_spec.fps))
+    total_frames = round(active_spec.duration_s * active_spec.fps)
     base_bg = np.full(
         (active_spec.height, active_spec.width, 3),
         (36, 52, 38),
@@ -192,7 +192,7 @@ def generate_synthetic_juggling_clip(
 
         if not is_occluded:
             bx, by = _compute_ball_position(t_ms, active_spec)
-            center = (int(round(bx)), int(round(by)))
+            center = (round(bx), round(by))
             # Draw high-contrast soccer ball (bright white/orange circle with dark border)
             cv2.circle(
                 frame,

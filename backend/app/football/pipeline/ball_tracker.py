@@ -209,7 +209,7 @@ def _fill_short_gaps(
             for step in range(1, gap_len + 1):
                 alpha = step / float(gap_len + 1)
                 frame_i = gap_start + step - 1
-                t_ms = int(round((frame_i * 1000.0) / fps))
+                t_ms = round((frame_i * 1000.0) / fps)
                 interp_x = prev_pt.x + alpha * (next_pt.x - prev_pt.x)
                 interp_y = prev_pt.y + alpha * (next_pt.y - prev_pt.y)
                 interp_r = prev_pt.radius + alpha * (next_pt.radius - prev_pt.radius)
@@ -263,7 +263,7 @@ def track_ball_in_video(
 
         kalman.predict()
         detection = active_detector.detect(frame, frame_idx)
-        t_ms = int(round((frame_idx * 1000.0) / fps))
+        t_ms = round((frame_idx * 1000.0) / fps)
 
         if detection is not None:
             dx, dy, dr, dconf = detection

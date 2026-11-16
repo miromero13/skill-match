@@ -52,7 +52,7 @@ def detect_video_touch_events(
     dt_s = 1.0 / max(1.0, track.fps)
     # Forward/backward finite differences around each frame i to capture sharp rebound
     raw_candidates: list[TouchCandidate] = []
-    half_span = max(1, min(3, int(round(track.fps * 0.08))))
+    half_span = max(1, min(3, round(track.fps * 0.08)))
 
     for i in range(half_span, len(pts) - half_span):
         h_curr = float(smoothed_h[i])

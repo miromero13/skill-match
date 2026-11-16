@@ -13,9 +13,9 @@ BACKEND_DIR = REPO_ROOT / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.football.pipeline.ball_tracker import track_ball_in_video  # noqa: E402
-from app.football.pipeline.touch_events import detect_video_touch_events  # noqa: E402
-from tests.football.synthetic import (  # noqa: E402
+from app.football.pipeline.ball_tracker import track_ball_in_video
+from app.football.pipeline.touch_events import detect_video_touch_events
+from tests.football.synthetic import (
     SyntheticJugglingSpec,
     generate_synthetic_juggling_clip,
 )

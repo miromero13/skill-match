@@ -38,3 +38,12 @@ Este documento registra las decisiones de diseño e integración tomadas durante
 - **Contexto:** Al finalizar una grabación de ~40 s (8 fragmentos de 5 s), el servidor debe verificar que todos los fragmentos `0..N-1` estén completos, ensamblarlos en el almacenamiento S3 con su hash SHA-256, cambiar el estado a `processing`, encolar `process_session(session_id)` y responder `202 Accepted`.
 - **Decisión:** `GarageS3StorageService.assemble_session_chunks` verifica la secuencia contigua `0..N-1`, concatena los fragmentos en orden, sube el archivo ensamblado a `s3://skillmatch-football/sessions/{session_id}/assembled/recording.mp4`, registra la fila `tipo = "video"` en `evidence_files` con el `sha256` global y dispara `process_session.delay(str(session_id))`.
 
+---
+
+## Fase 2 — Seguimiento del Balón y Detección de Toques por Video
+
+### D-08: Detector clásico híbrido MOG2 + Contornos Circulares + Hough con interfaz intercambiable (`BallDetectorProtocol`)
+- **Contexto:** Cuando el balón alcanza el ápice superior de su parábola vertical, su velocidad instantánea se aproxima a cero durante 1–2 fotogramas, lo que puede atenuar temporalmente la máscara pura de movimiento MOG2.
+- **Decisión:** Combinar la máscara de sustracción de fondo MOG2 morfológicamente filtrada con umbralización de luminancia/circularidad y `cv2.HoughCircles` como respaldo, integrando un filtro de Kalman lineal 4D (`[x, y, vx, vy]`) e interpolación lineal para huecos de hasta 5 fotogramas, detrás del protocolo `BallDetectorProtocol` para permitir enchufar luego una red tipo TrackNet en ONNX sin tocar el pipeline.
+
+
