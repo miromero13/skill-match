@@ -45,6 +45,9 @@ import {
   CheckCircle2,
   AlertCircle,
   FileCode,
+  Sparkles,
+  ChevronDown,
+  SlidersHorizontal,
 } from "lucide-react"
 import { useDatasetCaptureStore } from "@/stores/dataset-capture-store"
 import {
@@ -432,25 +435,31 @@ export function AdminDatasetCapturePage() {
             itemSplit = batchSplitMode
           }
 
-          const itemParticipant = participantId
-            ? batchFiles.length > 1
-              ? `${participantId}-${i + 1}`
-              : participantId
-            : `user-${i + 1}`
+          const itemParticipant = participantId.trim()
+            ? (batchFiles.length > 1 ? `${participantId}-${i + 1}` : participantId)
+            : `anon-p${String(i + 1).padStart(2, "0")}`
+
+          const targetDiscipline =
+            discipline === "futbol" || activeCategorySlug === "deporte"
+              ? "futbol"
+              : activeCategorySlug || discipline
+          const targetChallenge = selectedSkillName || challenge || item.name
+          const targetHardware = hardwareInfo.trim() || "Auto (Dispositivo Local)"
+          const targetSurface = surface.trim() || "césped"
 
           await uploadDatasetSample({
             file: item.file,
             fileName: item.name,
-            discipline: discipline === "futbol" ? "futbol" : activeCategorySlug,
-            challenge: selectedSkillName || challenge || item.name,
-            hardware_info: hardwareInfo,
+            discipline: targetDiscipline,
+            challenge: targetChallenge,
+            hardware_info: targetHardware,
             signed_consent: signedConsent,
             file_hash_sha256: hash,
             participant_id: itemParticipant,
             level_label: levelLabel || "Intermedio",
             manual_touch_count: manualTouchCount !== null ? manualTouchCount : undefined,
             noise_level: noiseLevel || "bajo",
-            surface: surface || "sintético",
+            surface: targetSurface,
             split: itemSplit,
           })
 
@@ -964,156 +973,202 @@ export function AdminDatasetCapturePage() {
           {/* Formulario de Metadatos y Consentimiento */}
           <Card className="border-border/60 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-semibold">2. Metadatos & Consentimiento Explícito</CardTitle>
+              <CardTitle className="text-lg font-semibold flex items-center justify-between">
+                <span>2. Metadatos & Consentimiento</span>
+                <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 text-[11px] flex items-center gap-1 font-normal">
+                  <Sparkles className="w-3 h-3 text-emerald-500" /> 100% Automático
+                </Badge>
+              </CardTitle>
               <CardDescription>
-                Registra la procedencia, disciplina, reto y hardware conforme a la gobernanza de IA interna.
+                Los metadatos se auto-generan a partir de la habilidad activa ({selectedSkillName || "Habilidad seleccionada"}).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="discipline-select" className="text-xs font-medium">Disciplina</Label>
-                  <Select value={discipline} onValueChange={setDiscipline}>
-                    <SelectTrigger id="discipline-select" className="w-full">
-                      <SelectValue placeholder="Selecciona disciplina" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="musica">Música e Instrumentos</SelectItem>
-                      <SelectItem value="futbol">Deportes y Fútbol</SelectItem>
-                      <SelectItem value="programacion">Programación y Software</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Tarjeta de Automatización Inteligente */}
+              <div className="p-3.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                  <Sparkles className="w-4 h-4 shrink-0 text-emerald-500" />
+                  <span>Modo Automático Activado (Sin Configuración Manual)</span>
                 </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="challenge-input" className="text-xs font-medium">Reto / Desafío</Label>
-                  <Input
-                    id="challenge-input"
-                    value={challenge}
-                    onChange={(e) => setChallenge(e.target.value)}
-                    placeholder="Ej. Guitarra Acústica - Arpegios"
-                  />
-                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  El sistema detecta automáticamente la habilidad (<strong>{selectedSkillName || activeCategorySlug}</strong>), asigna identificadores de participante anónimos (<code>anon-p01</code>, <code>anon-p02</code>...), distribuye la partición <strong>Train / Val / Test (70% / 15% / 15%)</strong> y aplica calibración estándar de captura sin requerir entrada manual.
+                </p>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="hardware-input" className="text-xs font-medium flex items-center gap-1.5">
-                  <Cpu className="w-3.5 h-3.5 text-muted-foreground" />
-                  Hardware / Periféricos Utilizados
-                </Label>
-                <Input
-                  id="hardware-input"
-                  value={hardwareInfo}
-                  onChange={(e) => setHardwareInfo(e.target.value)}
-                  placeholder="Ej. Logitech C920 Webcam + Micrófono Samson Go"
+              {/* Consentimiento firmado obligatorio */}
+              <div className="flex items-start gap-3 p-3.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+                <Switch
+                  id="consent-switch"
+                  checked={signedConsent}
+                  onCheckedChange={setSignedConsent}
+                  className="mt-0.5"
                 />
+                <div className="space-y-1">
+                  <Label htmlFor="consent-switch" className="text-xs font-semibold cursor-pointer text-foreground">
+                    Consentimiento Informado Firmado (Requisito Legal Estricto)
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Certifico que el sujeto participante firmó explícitamente el consentimiento para capturar audio, video o código y destinarlo exclusivamente al entrenamiento de los modelos de IA de SkillMatch.
+                  </p>
+                </div>
               </div>
 
-              {discipline === "futbol" && (
-                <div className="p-3.5 rounded-lg border border-border/80 bg-secondary/20 space-y-3">
-                  <p className="text-xs font-semibold text-foreground">
-                    Etiquetado de Muestra de Fútbol (Sección 10 — Sin Fuga por Participante)
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="participant-id-input" className="text-xs">
-                        ID Participante
-                      </Label>
-                      <Input
-                        id="participant-id-input"
-                        value={participantId}
-                        onChange={(e) => setParticipantId(e.target.value)}
-                        placeholder="Ej. P-014"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="manual-touch-input" className="text-xs">
-                        Conteo Manual de Toques
-                      </Label>
-                      <Input
-                        id="manual-touch-input"
-                        type="number"
-                        min={0}
-                        value={manualTouchCount ?? ""}
-                        onChange={(e) =>
-                          setManualTouchCount(
-                            e.target.value === "" ? null : Number(e.target.value)
-                          )
-                        }
-                        placeholder="Ej. 24"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="level-label-select" className="text-xs">
-                        Nivel Provisional
-                      </Label>
-                      <Select value={levelLabel} onValueChange={setLevelLabel}>
-                        <SelectTrigger id="level-label-select">
-                          <SelectValue placeholder="Nivel" />
+              {/* Acordeón Opcional para Investigadores / Configuración Manual */}
+              <details className="group border border-border/50 rounded-lg p-3 bg-card/40 transition-all">
+                <summary className="text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer flex items-center justify-between select-none">
+                  <span className="flex items-center gap-1.5">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                    Opciones avanzadas y etiquetado manual (opcional)
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="pt-3 space-y-4 mt-2 border-t border-border/40 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="discipline-select" className="text-xs font-medium">Disciplina</Label>
+                      <Select value={discipline} onValueChange={setDiscipline}>
+                        <SelectTrigger id="discipline-select" className="w-full">
+                          <SelectValue placeholder="Selecciona disciplina" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Principiante">Principiante</SelectItem>
-                          <SelectItem value="Intermedio">Intermedio</SelectItem>
-                          <SelectItem value="Avanzado">Avanzado</SelectItem>
-                          <SelectItem value="Experto">Experto</SelectItem>
+                          <SelectItem value="musica">Música e Instrumentos</SelectItem>
+                          <SelectItem value="futbol">Deportes y Fútbol</SelectItem>
+                          <SelectItem value="programacion">Programación y Software</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="challenge-input" className="text-xs font-medium">Reto / Desafío</Label>
+                      <Input
+                        id="challenge-input"
+                        value={challenge}
+                        onChange={(e) => setChallenge(e.target.value)}
+                        placeholder={selectedSkillName || "Ej. Dominadas de Balón"}
+                      />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="noise-level-select" className="text-xs">
-                        Ruido Ambiental
-                      </Label>
-                      <Select value={noiseLevel} onValueChange={setNoiseLevel}>
-                        <SelectTrigger id="noise-level-select">
-                          <SelectValue placeholder="Ruido" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="bajo">Bajo</SelectItem>
-                          <SelectItem value="medio">Medio</SelectItem>
-                          <SelectItem value="alto">Alto</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="surface-input" className="text-xs">
-                        Superficie
-                      </Label>
-                      <Input
-                        id="surface-input"
-                        value={surface}
-                        onChange={(e) => setSurface(e.target.value)}
-                        placeholder="Ej. Césped sintético"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="split-select" className="text-xs">
-                        Partición (Split)
-                      </Label>
-                      <Select
-                        value={batchFiles.length > 1 ? batchSplitMode : split}
-                        onValueChange={(val: "auto" | "train" | "val" | "test") => {
-                          setBatchSplitMode(val)
-                          setSplit(val === "auto" ? "train" : val)
-                        }}
-                      >
-                        <SelectTrigger id="split-select">
-                          <SelectValue placeholder="Split" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {batchFiles.length > 1 && (
-                            <SelectItem value="auto">Auto (70% Train / 15% Val / 15% Test)</SelectItem>
-                          )}
-                          <SelectItem value="train">Train (Entrenamiento)</SelectItem>
-                          <SelectItem value="val">Validation (Calibración)</SelectItem>
-                          <SelectItem value="test">Test (Prueba Ciega)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="hardware-input" className="text-xs font-medium flex items-center gap-1.5">
+                      <Cpu className="w-3.5 h-3.5 text-muted-foreground" />
+                      Hardware / Periféricos Utilizados
+                    </Label>
+                    <Input
+                      id="hardware-input"
+                      value={hardwareInfo}
+                      onChange={(e) => setHardwareInfo(e.target.value)}
+                      placeholder="Ej. Logitech C920 Webcam + Micrófono Samson Go"
+                    />
                   </div>
+
+                  {(discipline === "futbol" || activeCategorySlug === "deporte") && (
+                    <div className="p-3 rounded-lg border border-border/70 bg-secondary/10 space-y-3">
+                      <p className="text-xs font-semibold text-foreground">
+                        Etiquetado Manual de Fútbol (Opcional)
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="participant-id-input" className="text-xs">
+                            ID Participante
+                          </Label>
+                          <Input
+                            id="participant-id-input"
+                            value={participantId}
+                            onChange={(e) => setParticipantId(e.target.value)}
+                            placeholder="Auto (Ej. anon-p01)"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="manual-touch-input" className="text-xs">
+                            Conteo Manual de Toques
+                          </Label>
+                          <Input
+                            id="manual-touch-input"
+                            type="number"
+                            min={0}
+                            value={manualTouchCount ?? ""}
+                            onChange={(e) =>
+                              setManualTouchCount(
+                                e.target.value === "" ? null : Number(e.target.value)
+                              )
+                            }
+                            placeholder="Opcional (Auto-detectado)"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="level-label-select" className="text-xs">
+                            Nivel Provisional
+                          </Label>
+                          <Select value={levelLabel} onValueChange={setLevelLabel}>
+                            <SelectTrigger id="level-label-select">
+                              <SelectValue placeholder="Nivel" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Principiante">Principiante</SelectItem>
+                              <SelectItem value="Intermedio">Intermedio (Predeterminado)</SelectItem>
+                              <SelectItem value="Avanzado">Avanzado</SelectItem>
+                              <SelectItem value="Experto">Experto</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="noise-level-select" className="text-xs">
+                            Ruido Ambiental
+                          </Label>
+                          <Select value={noiseLevel} onValueChange={setNoiseLevel}>
+                            <SelectTrigger id="noise-level-select">
+                              <SelectValue placeholder="Ruido" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="bajo">Bajo (Predeterminado)</SelectItem>
+                              <SelectItem value="medio">Medio</SelectItem>
+                              <SelectItem value="alto">Alto</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="surface-input" className="text-xs">
+                            Superficie
+                          </Label>
+                          <Input
+                            id="surface-input"
+                            value={surface}
+                            onChange={(e) => setSurface(e.target.value)}
+                            placeholder="Césped (Predeterminado)"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="split-select" className="text-xs">
+                            Partición (Split)
+                          </Label>
+                          <Select
+                            value={batchFiles.length > 1 ? batchSplitMode : split}
+                            onValueChange={(val: "auto" | "train" | "val" | "test") => {
+                              setBatchSplitMode(val)
+                              setSplit(val === "auto" ? "train" : val)
+                            }}
+                          >
+                            <SelectTrigger id="split-select">
+                              <SelectValue placeholder="Split" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {batchFiles.length > 1 && (
+                                <SelectItem value="auto">Auto (70% Train / 15% Val / 15% Test)</SelectItem>
+                              )}
+                              <SelectItem value="train">Train (Entrenamiento)</SelectItem>
+                              <SelectItem value="val">Validation (Calibración)</SelectItem>
+                              <SelectItem value="test">Test (Prueba Ciega)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </details>
 
               {/* Consentimiento firmado obligatorio */}
               <div className="flex items-start gap-3 p-3.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5">

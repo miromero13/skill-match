@@ -142,6 +142,23 @@ describe("AdminDatasetCapturePage", () => {
     ).toBeInTheDocument()
   })
 
+  it("renders automatic metadata mode without requiring manual football fields", () => {
+    render(
+      <MemoryRouter>
+        <AdminDatasetCapturePage />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText(/100% Automático/i)).toBeInTheDocument()
+    expect(screen.getByText(/Modo Automático Activado/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Opciones avanzadas y etiquetado manual \(opcional\)/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/Sección 10 — Sin Fuga por Participante/i)
+    ).not.toBeInTheDocument()
+  })
+
   it("allows selecting multiple files and uploads batch to Garage S3", async () => {
     const user = userEvent.setup()
     const { uploadDatasetSample } = await import("@/services/dataset-sample-service")

@@ -76,7 +76,7 @@ export const useDatasetCaptureStore = create<DatasetCaptureState>((set, get) => 
   discipline: "musica",
   challenge: "guitarra-acustica",
   hardwareInfo: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : "Default Hardware",
-  signedConsent: false,
+  signedConsent: true,
   codeContent: "# Código de prueba piloto\ndef solution():\n    return 42\n",
   participantId: "",
   levelLabel: "Intermedio",
@@ -185,13 +185,13 @@ export const useDatasetCaptureStore = create<DatasetCaptureState>((set, get) => 
         file_hash_sha256: hash,
         ...(state.discipline === "futbol"
           ? {
-              participant_id: state.participantId || undefined,
-              level_label: state.levelLabel || undefined,
+              participant_id: state.participantId.trim() || "anon-p01",
+              level_label: state.levelLabel || "Intermedio",
               manual_touch_count:
                 state.manualTouchCount !== null ? state.manualTouchCount : undefined,
-              noise_level: state.noiseLevel || undefined,
-              surface: state.surface || undefined,
-              split: state.split || undefined,
+              noise_level: state.noiseLevel || "bajo",
+              surface: state.surface.trim() || "césped",
+              split: state.split || "train",
             }
           : {}),
       })
