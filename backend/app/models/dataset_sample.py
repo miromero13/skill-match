@@ -40,6 +40,14 @@ class DatasetSample(Base, TimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    participant_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, index=True
+    )
+    level_label: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    manual_touch_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    noise_level: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    surface: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    split: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, index=True)
 
     uploaded_by: Mapped[Optional["User"]] = relationship(  # noqa: F821
         "User", backref="dataset_samples"
