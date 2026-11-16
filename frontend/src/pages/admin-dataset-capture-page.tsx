@@ -52,7 +52,22 @@ import {
   FootballTrainingStudio,
 } from "@/features/football-validation"
 import { getSkills, getCategories } from "@/services/admin-catalog-service"
+import {
+  calculateFileSha256,
+  uploadDatasetSample,
+} from "@/services/dataset-sample-service"
 import type { Skill, Category } from "@/types/catalog"
+
+interface BatchFileItem {
+  id: string
+  file: File
+  name: string
+  size: number
+  format: string
+  sha256?: string
+  status: "idle" | "hashing" | "uploading" | "done" | "error"
+  errorMessage?: string
+}
 
 const CANONICAL_CATEGORIES = [
   { slug: "musica", name: "Música", icon: "🎵", description: "Audio espectral y técnica armónica" },
@@ -120,6 +135,9 @@ export function AdminDatasetCapturePage() {
   const [catalogSkills, setCatalogSkills] = useState<Skill[]>([])
   const [selectedSkillId, setSelectedSkillId] = useState<string>("")
   const [selectedSkillName, setSelectedSkillName] = useState<string>("Dominadas y Control de Balón")
+  const [batchFiles, setBatchFiles] = useState<BatchFileItem[]>([])
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; filename: string } | null>(null)
+  const [batchSplitMode, setBatchSplitMode] = useState<"auto" | "train" | "val" | "test">("auto")
 
   useEffect(() => {
     let isMounted = true
@@ -325,27 +343,139 @@ export function AdminDatasetCapturePage() {
   }
 
   const handleManualFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const fileList = event.target.files
+    if (!fileList || fileList.length === 0) return
 
-    const ext = file.name.split(".").pop()?.toLowerCase()
-    if (!ext || !["mp4", "wav", "py"].includes(ext)) {
+    const newItems: BatchFileItem[] = []
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i]
+      const ext = f.name.split(".").pop()?.toLowerCase() || ""
+      if (["mp4", "wav", "py"].includes(ext)) {
+        newItems.push({
+          id: `${f.name}-${f.size}-${Date.now()}-${i}`,
+          file: f,
+          name: f.name,
+          size: f.size,
+          format: ext,
+          status: "idle",
+        })
+      }
+    }
+
+    if (newItems.length === 0) {
       useDatasetCaptureStore.setState({
         error: "Formato no permitido. Solo se aceptan archivos .mp4, .wav o .py.",
       })
       return
     }
 
-    if (ext === "py") {
-      const text = await file.text()
+    setBatchFiles((prev) => [...prev, ...newItems])
+
+    // Mantener compatibilidad con archivo individual
+    const first = newItems[0]
+    if (first.format === "py") {
+      const text = await first.file.text()
       setCodeContent(text)
       setRecordingMode("code")
     }
+    await setRecordedBlob(first.file, first.name)
+  }
 
-    await setRecordedBlob(file, file.name)
+  const handleRemoveBatchFile = (id: string) => {
+    setBatchFiles((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  const handleClearBatch = () => {
+    setBatchFiles([])
+    setBatchProgress(null)
+    resetRecording()
   }
 
   const handleUploadSubmit = async () => {
+    if (batchFiles.length > 0) {
+      if (!signedConsent) {
+        useDatasetCaptureStore.setState({
+          error: "Debe otorgar el consentimiento explícito antes de subir la muestra.",
+        })
+        return
+      }
+
+      useDatasetCaptureStore.setState({ isUploading: true, error: null })
+      let uploadedCount = 0
+
+      for (let i = 0; i < batchFiles.length; i++) {
+        const item = batchFiles[i]
+        setBatchProgress({
+          current: i + 1,
+          total: batchFiles.length,
+          filename: item.name,
+        })
+
+        setBatchFiles((prev) =>
+          prev.map((f) => (f.id === item.id ? { ...f, status: "hashing" } : f))
+        )
+
+        try {
+          const hash = await calculateFileSha256(item.file)
+
+          setBatchFiles((prev) =>
+            prev.map((f) => (f.id === item.id ? { ...f, status: "uploading", sha256: hash } : f))
+          )
+
+          let itemSplit = split || "train"
+          if (batchSplitMode === "auto") {
+            const ratio = (i + 1) / batchFiles.length
+            if (ratio <= 0.7) itemSplit = "train"
+            else if (ratio <= 0.85) itemSplit = "val"
+            else itemSplit = "test"
+          } else {
+            itemSplit = batchSplitMode
+          }
+
+          const itemParticipant = participantId
+            ? batchFiles.length > 1
+              ? `${participantId}-${i + 1}`
+              : participantId
+            : `user-${i + 1}`
+
+          await uploadDatasetSample({
+            file: item.file,
+            fileName: item.name,
+            discipline: discipline === "futbol" ? "futbol" : activeCategorySlug,
+            challenge: selectedSkillName || challenge || item.name,
+            hardware_info: hardwareInfo,
+            signed_consent: signedConsent,
+            file_hash_sha256: hash,
+            participant_id: itemParticipant,
+            level_label: levelLabel || "Intermedio",
+            manual_touch_count: manualTouchCount !== null ? manualTouchCount : undefined,
+            noise_level: noiseLevel || "bajo",
+            surface: surface || "sintético",
+            split: itemSplit,
+          })
+
+          uploadedCount++
+          setBatchFiles((prev) =>
+            prev.map((f) => (f.id === item.id ? { ...f, status: "done" } : f))
+          )
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Error al subir muestra"
+          setBatchFiles((prev) =>
+            prev.map((f) => (f.id === item.id ? { ...f, status: "error", errorMessage: msg } : f))
+          )
+        }
+      }
+
+      useDatasetCaptureStore.setState({
+        isUploading: false,
+        lastUploadMessage: `¡Lote procesado exitosamente! Se subieron ${uploadedCount} de ${batchFiles.length} muestras reales al bucket Garage S3.`,
+      })
+
+      await fetchSamples(discipline === "all" ? undefined : discipline)
+      return
+    }
+
+    // Subida unitaria estándar (grabación cámara/micrófono o código directo)
     const success = await uploadCurrentCapture()
     if (success) {
       chunksRef.current = []
@@ -705,22 +835,106 @@ export function AdminDatasetCapturePage() {
                 </TabsContent>
               </Tabs>
 
-              {/* Subida Alternativa de Archivo */}
-              <div className="pt-2 border-t border-border/60">
-                <Label htmlFor="file-upload" className="text-xs font-medium text-muted-foreground block mb-1.5">
-                  O importa un archivo pregrabado (.mp4, .wav, .py):
-                </Label>
+              {/* Carga Múltiple de Archivos Reales */}
+              <div className="pt-3 border-t border-border/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="file-upload" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <UploadCloud className="w-4 h-4 text-emerald-500" />
+                    Carga Múltiple de Archivos Reales (.mp4, .wav, .py):
+                  </Label>
+                  {batchFiles.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearBatch}
+                      className="h-6 text-xs text-muted-foreground hover:text-destructive cursor-pointer"
+                    >
+                      Limpiar lista ({batchFiles.length})
+                    </Button>
+                  )}
+                </div>
                 <Input
                   id="file-upload"
                   type="file"
+                  multiple
                   accept=".mp4,.wav,.py,video/mp4,audio/wav,text/x-python"
                   onChange={handleManualFileUpload}
                   className="cursor-pointer file:cursor-pointer text-xs"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Podés seleccionar varios videos o audios reales al mismo tiempo para subirlos en lote directamente a Garage S3.
+                </p>
+
+                {/* Cola de Archivos Seleccionados */}
+                {batchFiles.length > 0 && (
+                  <div className="space-y-2 border border-border/70 rounded-lg p-3 bg-card/40 max-h-56 overflow-y-auto">
+                    <div className="text-xs font-semibold text-foreground flex items-center justify-between">
+                      <span>Archivos en lote ({batchFiles.length}):</span>
+                      <span className="text-muted-foreground font-mono text-[11px]">
+                        {(batchFiles.reduce((acc, f) => acc + f.size, 0) / (1024 * 1024)).toFixed(1)} MB total
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {batchFiles.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-2 rounded bg-background/60 border border-border/40 text-xs"
+                        >
+                          <div className="flex items-center gap-2 truncate max-w-[260px]">
+                            <span className="font-mono text-muted-foreground text-[10px]">#{idx + 1}</span>
+                            <Badge variant="secondary" className="text-[10px] uppercase font-mono">
+                              .{item.format}
+                            </Badge>
+                            <span className="truncate font-medium text-foreground" title={item.name}>
+                              {item.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {(item.size / (1024 * 1024)).toFixed(1)} MB
+                            </span>
+                            {item.status === "done" && (
+                              <Badge className="bg-emerald-600 text-white text-[10px] flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Subido
+                              </Badge>
+                            )}
+                            {item.status === "uploading" && (
+                              <Badge variant="outline" className="border-sky-500/40 text-sky-500 text-[10px] animate-pulse">
+                                Subiendo...
+                              </Badge>
+                            )}
+                            {item.status === "hashing" && (
+                              <Badge variant="outline" className="border-amber-500/40 text-amber-500 text-[10px]">
+                                SHA-256...
+                              </Badge>
+                            )}
+                            {item.status === "error" && (
+                              <Badge variant="destructive" className="text-[10px]">
+                                Error
+                              </Badge>
+                            )}
+                            {item.status === "idle" && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveBatchFile(item.id)}
+                                className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Vista previa de archivo capturado y Hash SHA-256 */}
-              {recordedBlob && (
+              {recordedBlob && batchFiles.length <= 1 && (
                 <div className="p-3.5 rounded-lg bg-secondary/50 border border-border/80 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -877,14 +1091,23 @@ export function AdminDatasetCapturePage() {
                       <Label htmlFor="split-select" className="text-xs">
                         Partición (Split)
                       </Label>
-                      <Select value={split} onValueChange={setSplit}>
+                      <Select
+                        value={batchFiles.length > 1 ? batchSplitMode : split}
+                        onValueChange={(val: "auto" | "train" | "val" | "test") => {
+                          setBatchSplitMode(val)
+                          setSplit(val === "auto" ? "train" : val)
+                        }}
+                      >
                         <SelectTrigger id="split-select">
                           <SelectValue placeholder="Split" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="train">Train</SelectItem>
-                          <SelectItem value="val">Validation</SelectItem>
-                          <SelectItem value="test">Test</SelectItem>
+                          {batchFiles.length > 1 && (
+                            <SelectItem value="auto">Auto (70% Train / 15% Val / 15% Test)</SelectItem>
+                          )}
+                          <SelectItem value="train">Train (Entrenamiento)</SelectItem>
+                          <SelectItem value="val">Validation (Calibración)</SelectItem>
+                          <SelectItem value="test">Test (Prueba Ciega)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -913,19 +1136,27 @@ export function AdminDatasetCapturePage() {
               {/* Botón de Subida */}
               <Button
                 type="button"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5"
-                disabled={isUploading || !signedConsent || (!recordedBlob && recordingMode !== "code")}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 shadow-sm disabled:opacity-50"
+                disabled={
+                  isUploading ||
+                  !signedConsent ||
+                  (batchFiles.length === 0 && !recordedBlob && recordingMode !== "code")
+                }
                 onClick={handleUploadSubmit}
               >
                 {isUploading ? (
                   <>
                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    Validando Hash SHA-256 y Almacenando en Servidor...
+                    {batchProgress
+                      ? `Subiendo muestra ${batchProgress.current} de ${batchProgress.total}: ${batchProgress.filename}...`
+                      : "Validando Hash SHA-256 y Almacenando en Servidor..."}
                   </>
                 ) : (
                   <>
                     <UploadCloud className="w-4 h-4 mr-2" />
-                    Subir Muestra al Dataset de IA (Multipart)
+                    {batchFiles.length > 1
+                      ? `Subir Lote de ${batchFiles.length} Muestras Reales a Garage S3`
+                      : "Subir Muestra al Dataset de IA (Multipart)"}
                   </>
                 )}
               </Button>

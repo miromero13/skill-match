@@ -88,15 +88,10 @@ describe("FootballTrainingStudio UI Component", () => {
     expect(screen.getByText("1.0.0-onnx")).toBeInTheDocument()
   })
 
-  it("disables training and synthetic generation when no skill is selected", async () => {
+  it("disables training button when no skill is selected", async () => {
     render(<FootballTrainingStudio />)
 
     expect(screen.getByText("Habilidad no seleccionada")).toBeInTheDocument()
-
-    const genBtn = screen.getByRole("button", {
-      name: /Generar Muestras y Guardar en S3/i,
-    })
-    expect(genBtn).toBeDisabled()
 
     const trainBtn = screen.getByRole("button", {
       name: /Entrenar y Evaluar Modelo/i,
@@ -104,40 +99,7 @@ describe("FootballTrainingStudio UI Component", () => {
     expect(trainBtn).toBeDisabled()
   })
 
-  it("triggers synthetic dataset generation when user clicks button", async () => {
-    const user = userEvent.setup()
-    const genSpy = vi
-      .spyOn(footballValidationApi, "generateSyntheticDataset")
-      .mockResolvedValue({
-        statuscode: 201,
-        message: "Generated",
-        data: {
-          generated_count: 12,
-          splits_summary: { train: 8, val: 2, test: 2 },
-          levels_summary: { Principiante: 3, Intermedio: 3, Avanzado: 3, Experto: 3 },
-          samples: [],
-        },
-      })
-
-    render(<FootballTrainingStudio skillId="skill-fb-1" />)
-
-    const genBtn = screen.getByRole("button", {
-      name: /Generar Muestras y Guardar en S3/i,
-    })
-    await user.click(genBtn)
-
-    await waitFor(() => {
-      expect(genSpy).toHaveBeenCalledWith({
-        count: 12,
-        train_ratio: 0.7,
-        val_ratio: 0.15,
-      })
-    })
-
-    expect(screen.getByText(/\+12 clips/i)).toBeInTheDocument()
-  })
-
-  it("triggers training and refreshes models catalog", async () => {
+  it("triggers training with 100% real data and refreshes models catalog", async () => {
     const user = userEvent.setup()
     const trainSpy = vi
       .spyOn(footballValidationApi, "trainLevelModel")
@@ -167,17 +129,24 @@ describe("FootballTrainingStudio UI Component", () => {
 
     render(<FootballTrainingStudio skillId="skill-fb-1" />)
 
+    expect(screen.getByText(/Cero Datos Simulados/i)).toBeInTheDocument()
+
     const trainBtn = screen.getByRole("button", {
       name: /Entrenar y Evaluar Modelo/i,
     })
     await user.click(trainBtn)
 
     await waitFor(() => {
-      expect(trainSpy).toHaveBeenCalled()
+      expect(trainSpy).toHaveBeenCalledWith({
+        activate: true,
+        dataset_source: "real_only",
+        skill_id: "skill-fb-1",
+        version_tag: undefined,
+      })
     })
 
     expect(
-      screen.getByText(/¡Entrenamiento exitoso! Modelo versión 2.0.0-onnx/i)
+      screen.getByText(/¡Entrenamiento exitoso! Modelo versión 2.0.0-onnx entrenado con datos 100% reales/i)
     ).toBeInTheDocument()
   })
 

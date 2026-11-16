@@ -13,13 +13,6 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Table,
   TableBody,
   TableCell,
@@ -30,16 +23,13 @@ import {
 import {
   BrainCircuit,
   Cpu,
-  Sparkles,
   CheckCircle2,
   AlertTriangle,
   Play,
   RotateCw,
-  Database,
   TrendingUp,
   Cloud,
   Trophy,
-  Filter,
 } from "lucide-react"
 import { footballValidationApi } from "../api/football-validation-api"
 
@@ -85,21 +75,7 @@ export function FootballTrainingStudio({
   const [selectedModel, setSelectedModel] = useState<ModelVersionItem | null>(null)
   const [isLoadingModels, setIsLoadingModels] = useState(false)
 
-  // Dataset Preselection state
-  const [datasetSource, setDatasetSource] = useState<
-    "all" | "real_only" | "synthetic_only"
-  >("all")
-
-  // Synthetic Generator state
-  const [synthCount, setSynthCount] = useState<number>(12)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [generationSummary, setGenerationSummary] = useState<{
-    count: number
-    splits: Record<string, number>
-    levels: Record<string, number>
-  } | null>(null)
-
-  // Training state
+  // Training state (100% Real Data)
   const [versionTag, setVersionTag] = useState<string>("")
   const [autoActivate, setAutoActivate] = useState<boolean>(true)
   const [isTraining, setIsTraining] = useState(false)
@@ -131,35 +107,6 @@ export function FootballTrainingStudio({
     return () => clearTimeout(timer)
   }, [])
 
-  const handleGenerateSynthetic = async () => {
-    if (!skillId) {
-      setErrorMessage("Debes seleccionar una habilidad del catálogo para generar muestras sintéticas.")
-      return
-    }
-    setIsGenerating(true)
-    setErrorMessage(null)
-    setGenerationSummary(null)
-    try {
-      const res = await footballValidationApi.generateSyntheticDataset({
-        count: synthCount,
-        train_ratio: 0.7,
-        val_ratio: 0.15,
-      })
-      if (res.statuscode === 201 && res.data) {
-        setGenerationSummary({
-          count: res.data.generated_count,
-          splits: res.data.splits_summary,
-          levels: res.data.levels_summary,
-        })
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error generando dataset sintético."
-      setErrorMessage(msg)
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
   const handleTrainModel = async () => {
     if (!skillId) {
       setErrorMessage("Debes seleccionar una habilidad del catálogo antes de iniciar el entrenamiento.")
@@ -172,12 +119,12 @@ export function FootballTrainingStudio({
       const res = await footballValidationApi.trainLevelModel({
         version_tag: versionTag.trim() || undefined,
         activate: autoActivate,
-        dataset_source: datasetSource,
+        dataset_source: "real_only",
         skill_id: skillId,
       })
       if (res.statuscode === 200 && res.data) {
         setTrainingMessage(
-          `¡Entrenamiento exitoso! Modelo versión ${res.data.version} exportado en ONNX y ${
+          `¡Entrenamiento exitoso! Modelo versión ${res.data.version} entrenado con datos 100% reales, exportado en ONNX y ${
             res.data.activa ? "activado como único modelo en producción" : "guardado en catálogo"
           }.`
         )
@@ -268,105 +215,22 @@ export function FootballTrainingStudio({
           <div>
             <AlertTitle className="font-semibold text-sm">Habilidad no seleccionada</AlertTitle>
             <AlertDescription className="text-xs mt-0.5">
-              Debes seleccionar una habilidad del catálogo en la barra superior para habilitar el generador de muestras sintéticas y el entrenamiento de modelos de IA.
+              Debes seleccionar una habilidad del catálogo en la barra superior para habilitar el entrenamiento con datos reales.
             </AlertDescription>
           </div>
         </Alert>
       )}
 
-      {/* Main Grid: Generador de Dataset & Lanzador de Entrenamiento */}
+      {/* Main Grid: Lanzador de Entrenamiento 100% Real & Métricas */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Columna Izquierda: Generador de Muestras & Configuración de Entrenamiento */}
+        {/* Columna Izquierda: Lanzador de Entrenamiento con Datos Reales */}
         <div className="lg:col-span-5 space-y-6">
           <Card className="border-border/60 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  1. Generador de Muestras Sintéticas
-                </CardTitle>
-                {!skillId && (
-                  <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600">
-                    Requiere Habilidad
-                  </Badge>
-                )}
-              </div>
-              <CardDescription>
-                Simula clips reales de {skillName} con física parabólica, impactos sonoros y variabilidad de niveles para entrenar sin esperar grabaciones de campo.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <Label htmlFor="synth-count">Cantidad de Muestras a Generar</Label>
-                  <span className="font-semibold text-emerald-600">{synthCount} clips</span>
-                </div>
-                <Input
-                  id="synth-count"
-                  type="number"
-                  min={1}
-                  max={48}
-                  value={synthCount}
-                  onChange={(e) => setSynthCount(Math.max(1, Math.min(48, Number(e.target.value) || 1)))}
-                  className="font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Partición automática: 70% Train (entrenamiento), 15% Val (validación), 15% Test (prueba ciega sin fuga).
-                </p>
-              </div>
-
-              <Button
-                onClick={handleGenerateSynthetic}
-                disabled={!skillId || isGenerating}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGenerating ? (
-                  <>
-                    <RotateCw className="w-4 h-4 animate-spin" />
-                    Generando y subiendo a Garage S3...
-                  </>
-                ) : (
-                  <>
-                    <Database className="w-4 h-4" />
-                    Generar Muestras y Guardar en S3
-                  </>
-                )}
-              </Button>
-
-              {generationSummary && (
-                <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 space-y-2 text-xs">
-                  <div className="flex items-center justify-between font-medium text-emerald-700 dark:text-emerald-400">
-                    <span>Muestras creadas con éxito:</span>
-                    <Badge variant="outline" className="border-emerald-500/40 text-emerald-600">
-                      +{generationSummary.count} clips
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 pt-1 text-muted-foreground text-center">
-                    <div className="p-1 rounded bg-background/50 border border-border/40">
-                      <div className="font-semibold text-foreground">{generationSummary.splits.train || 0}</div>
-                      <div>Train</div>
-                    </div>
-                    <div className="p-1 rounded bg-background/50 border border-border/40">
-                      <div className="font-semibold text-foreground">{generationSummary.splits.val || 0}</div>
-                      <div>Val</div>
-                    </div>
-                    <div className="p-1 rounded bg-background/50 border border-border/40">
-                      <div className="font-semibold text-foreground">{generationSummary.splits.test || 0}</div>
-                      <div>Test</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Card Lanzador de Entrenamiento con Preselección */}
-          <Card className="border-border/60 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <Play className="w-4 h-4 text-emerald-500" />
-                  2. Preselección y Lanzador de Entrenamiento
+                  Entrenar Modelo con Datos Reales
                 </CardTitle>
                 {!skillId && (
                   <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600">
@@ -375,44 +239,15 @@ export function FootballTrainingStudio({
                 )}
               </div>
               <CardDescription>
-                Elegí con qué datos entrenar el modelo y activá la versión deseada para producción.
+                Ajusta los pesos del clasificador ONNX extrayendo características físicas, auditivas y motrices exclusivamente de las grabaciones reales almacenadas en Garage S3.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Preselección de datos */}
-              <div className="space-y-2">
-                <Label className="text-sm flex items-center gap-1.5">
-                  <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-                  Preseleccionar Datos de Entrenamiento
-                </Label>
-                <Select
-                  value={datasetSource}
-                  onValueChange={(val) =>
-                    setDatasetSource(val as "all" | "real_only" | "synthetic_only")
-                  }
-                >
-                  <SelectTrigger className="text-xs sm:text-sm">
-                    <SelectValue placeholder="Seleccioná la fuente de datos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">
-                      Todas las Muestras Disponibles (Reales + Sintéticas)
-                    </SelectItem>
-                    <SelectItem value="real_only">
-                      Solo Muestras Reales (Grabadas y Subidas)
-                    </SelectItem>
-                    <SelectItem value="synthetic_only">
-                      Solo Muestras Sintéticas (Física 4D)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {datasetSource === "all"
-                    ? "Combina grabaciones humanas con clips sintéticos para máxima robustez."
-                    : datasetSource === "real_only"
-                    ? "Entrena únicamente con videos de personas reales grabados en el sistema."
-                    : "Entrena exclusivamente con datos sintéticos generados en el simulador."}
-                </p>
+              <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold">Cero Datos Simulados:</span> El entrenamiento procesa únicamente las muestras reales cargadas por participantes en la plataforma, evaluando en prueba ciega sin fuga de datos.
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -421,7 +256,7 @@ export function FootballTrainingStudio({
                 </Label>
                 <Input
                   id="version-tag"
-                  placeholder="ej. 1.2.0 (se auto-asigna si se omite)"
+                  placeholder="ej. 1.0.0 (se auto-asigna si se omite)"
                   value={versionTag}
                   onChange={(e) => setVersionTag(e.target.value)}
                   className="font-mono text-sm"
@@ -447,12 +282,12 @@ export function FootballTrainingStudio({
               <Button
                 onClick={handleTrainModel}
                 disabled={!skillId || isTraining}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isTraining ? (
                   <>
                     <RotateCw className="w-4 h-4 animate-spin" />
-                    Entrenando con {datasetSource}...
+                    Extrayendo datos reales y ajustando pesos...
                   </>
                 ) : (
                   <>
@@ -526,11 +361,10 @@ export function FootballTrainingStudio({
                   {/* Resumen de Datos de Entrenamiento */}
                   <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg border border-border/50 bg-muted/10 text-xs">
                     <span className="text-muted-foreground">
-                      Fuente: <strong className="text-foreground">{metrics.dataset_source || "all"}</strong> (
-                      {metrics.real_samples_count ?? 0} reales, {metrics.synthetic_samples_count ?? 0} sintéticas)
+                      Fuente: <strong className="text-foreground">Datos 100% Reales (Garage S3)</strong>
                     </span>
                     <span className="text-muted-foreground">
-                      Muestras de Test: <strong className="text-foreground">{metrics.test_samples || 0}</strong> ({metrics.test_participants || 0} participantes)
+                      Muestras de Test: <strong className="text-foreground">{metrics.test_samples || 0}</strong> ({metrics.test_participants || 0} participantes en prueba ciega)
                     </span>
                   </div>
 
@@ -722,7 +556,7 @@ export function FootballTrainingStudio({
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           <Badge variant="secondary" className="text-[10px]">
-                            {m.metricas.dataset_source || "all"}
+                            Datos Reales
                           </Badge>
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground max-w-[180px] truncate">

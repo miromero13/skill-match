@@ -141,6 +141,43 @@ describe("AdminDatasetCapturePage", () => {
       screen.getByText("Muestra multimedia subida y procesada exitosamente.")
     ).toBeInTheDocument()
   })
+
+  it("allows selecting multiple files and uploads batch to Garage S3", async () => {
+    const user = userEvent.setup()
+    const { uploadDatasetSample } = await import("@/services/dataset-sample-service")
+
+    render(
+      <MemoryRouter>
+        <AdminDatasetCapturePage />
+      </MemoryRouter>
+    )
+
+    const file1 = new File(["clip-video-1"], "clip-1.mp4", { type: "video/mp4" })
+    const file2 = new File(["clip-video-2"], "clip-2.mp4", { type: "video/mp4" })
+
+    const input = screen.getByLabelText(/Carga Múltiple de Archivos Reales/i)
+    await user.upload(input, [file1, file2])
+
+    expect(screen.getByText(/Archivos en lote \(2\):/i)).toBeInTheDocument()
+    expect(screen.getByText("clip-1.mp4")).toBeInTheDocument()
+    expect(screen.getByText("clip-2.mp4")).toBeInTheDocument()
+
+    // Enable consent
+    const consentSwitch = screen.getByRole("switch", {
+      name: /Consentimiento Informado Firmado/i,
+    })
+    await user.click(consentSwitch)
+
+    const uploadBtn = screen.getByRole("button", {
+      name: /Subir Lote de 2 Muestras Reales a Garage S3/i,
+    })
+    await user.click(uploadBtn)
+
+    const { waitFor } = await import("@testing-library/react")
+    await waitFor(() => {
+      expect(uploadDatasetSample).toHaveBeenCalledTimes(2)
+    })
+  })
 })
 
 describe("AdminRouteGuard obfuscation 404 for /admin/capture", () => {
