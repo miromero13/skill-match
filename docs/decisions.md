@@ -46,4 +46,17 @@ Este documento registra las decisiones de diseño e integración tomadas durante
 - **Contexto:** Cuando el balón alcanza el ápice superior de su parábola vertical, su velocidad instantánea se aproxima a cero durante 1–2 fotogramas, lo que puede atenuar temporalmente la máscara pura de movimiento MOG2.
 - **Decisión:** Combinar la máscara de sustracción de fondo MOG2 morfológicamente filtrada con umbralización de luminancia/circularidad y `cv2.HoughCircles` como respaldo, integrando un filtro de Kalman lineal 4D (`[x, y, vx, vy]`) e interpolación lineal para huecos de hasta 5 fotogramas, detrás del protocolo `BallDetectorProtocol` para permitir enchufar luego una red tipo TrackNet en ONNX sin tocar el pipeline.
 
+---
+
+## Fase 3 — Audio y Fusión Audio-Video
+
+### D-09: Espectrograma Mel en 200–4000 Hz y Flujo Espectral con `mediana + k·MAD` (`audio_events`)
+- **Contexto:** La sección 8 especifica audio mono a 48 kHz, espectrograma Mel en la banda ~200–4000 Hz, flujo espectral y selección de picos con umbral adaptativo (`mediana + k·MAD`) mientras no esté activo el clasificador CNN propio.
+- **Decisión:** Implementar el banco de filtros Mel triangular (32 bandas en 200–4000 Hz) con STFT de paso de 5 ms (240 muestras a 48 kHz) sobre `scipy.signal.stft` y `scipy.io.wavfile` (evitando bloqueos de compilación numba en Python 3.14+), dejando el protocolo `AudioImpactClassifierProtocol` listo para enchufar la CNN en ONNX en la Fase 7.
+
+### D-10: Fusión con compensación de calibración, emparejamiento ±70 ms, coherencia y deriva (`fusion`)
+- **Contexto:** La fusión debe estimar el desfase con el toque de calibración, emparejar eventos de video y audio con tolerancia de ±70 ms (`confirmed`, `video_only`, `audio_only`), calcular la coherencia (`confirmados / total`) y la deriva (pendiente de regresión lineal en `ms/min`), además de mejorar la precisión del conteo frente a solo video cuando hay oclusiones visuales breves.
+- **Decisión:** `fuse_audio_video_events` compensa primero el offset de calibración, realiza emparejamiento bipartito voraz por menor residuo dentro de ±70 ms, calcula la deriva con `np.polyfit` escalada a `ms/min` y, cuando la coherencia de la sesión es legítima (`>= 0.50`), rescata eventos de una sola modalidad con confianza alta para recuperar toques ocultos en video.
+
+
 

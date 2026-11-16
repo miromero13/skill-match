@@ -35,7 +35,7 @@ def estimate_calibration_offset_ms(
     video_events: list[TouchCandidate],
     audio_events: list[AudioImpactEvent],
     calibration_touch_ms: int | None = None,
-    max_calibration_offset_ms: int = 350,
+    max_calibration_offset_ms: int = 120,
 ) -> int:
     """
     Estimate initial audio-video clock offset (`audio_t_ms - video_t_ms`).
