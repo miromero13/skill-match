@@ -82,8 +82,16 @@ class Settings(BaseSettings):
 
     # Almacenamiento Garage S3 (Coolify VPS propio)
     GARAGE_S3_ENDPOINT_URL: str = Field(
-        default="http://localhost:3900",
+        default="https://s3.devhooh.com",
         description="Endpoint S3 de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_ADMIN_URL: Optional[str] = Field(
+        default="https://garage-admin.devhooh.com",
+        description="Endpoint Admin API v2 de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_WEB_URL: Optional[str] = Field(
+        default="https://garage-web.devhooh.com",
+        description="Endpoint Web de Garage S3 desplegado en Coolify",
     )
     GARAGE_S3_REGION: str = Field(
         default="garage",
@@ -96,6 +104,10 @@ class Settings(BaseSettings):
     GARAGE_S3_SECRET_ACCESS_KEY: Optional[SecretStr] = Field(
         default=None,
         description="Secret Access Key de Garage S3 (Secreto .env)",
+    )
+    GARAGE_S3_ADMIN_TOKEN: Optional[SecretStr] = Field(
+        default=None,
+        description="Token administrativo de Garage S3 (Secreto .env)",
     )
     GARAGE_S3_BUCKET: str = Field(
         default="skillmatch-football",

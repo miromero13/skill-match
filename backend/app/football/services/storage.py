@@ -116,10 +116,22 @@ class GarageS3StorageService:
         object_key: str,
         expires_in_seconds: int | None = None,
     ) -> str:
-        """Generate a short-lived signed URL for authorized access to evidence files."""
+        """Generate a short-lived S3v4 presigned URL (with HMAC fallback) for authorized access."""
         cfg = load_football_config()
         ttl = expires_in_seconds or cfg.session.presigned_url_ttl_seconds
         normalized_key = object_key.lstrip("/")
+        if self.access_key_id and self.secret_access_key:
+            try:
+                client = self._build_s3_client()
+                return str(
+                    client.generate_presigned_url(
+                        "get_object",
+                        Params={"Bucket": self.bucket_name, "Key": normalized_key},
+                        ExpiresIn=ttl,
+                    )
+                )
+            except (BotoCoreError, ClientError):
+                pass
         expires_at = int(time.time()) + ttl
         signing_secret = settings.SECRET_KEY.get_secret_value().encode("utf-8")
         message = f"{self.bucket_name}:{normalized_key}:{expires_at}".encode()

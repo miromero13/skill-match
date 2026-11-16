@@ -152,7 +152,33 @@ def test_garage_s3_storage_fallback_and_signed_url(tmp_path: Path) -> None:
         "sessions/test-session/chunks/0.mp4", expires_in_seconds=300
     )
     assert "http://garage.coolify.internal:3900/skillmatch-football-test/" in signed_url
-    assert "X-SkillMatch-Signature=" in signed_url
+    assert (
+        "X-Amz-Signature=" in signed_url or "X-SkillMatch-Signature=" in signed_url
+    )
+
+
+def test_live_garage_s3_roundtrip_if_configured() -> None:
+    storage = GarageS3StorageService()
+    if not (storage.access_key_id and storage.secret_access_key):
+        pytest.skip("Garage S3 credentials not configured")
+
+    test_key = f"tests/phase0-roundtrip-{uuid.uuid4().hex[:8]}.bin"
+    payload = b"skillmatch-phase0-live-garage-s3-check"
+    uri, sha256_hex = storage.put_object_bytes(
+        object_key=test_key,
+        payload=payload,
+        content_type="application/octet-stream",
+    )
+    assert uri == f"s3://{storage.bucket_name}/{test_key}"
+    assert len(sha256_hex) == 64
+
+    s3 = storage._build_s3_client()
+    try:
+        fetched = s3.get_object(Bucket=storage.bucket_name, Key=test_key)
+        assert fetched["Body"].read() == payload
+        assert fetched["Metadata"].get("sha256") == sha256_hex
+    finally:
+        s3.delete_object(Bucket=storage.bucket_name, Key=test_key)
 
 
 def test_celery_test_task_runs_eagerly() -> None:
