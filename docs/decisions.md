@@ -66,6 +66,19 @@ Este documento registra las decisiones de diseño e integración tomadas durante
 - **Contexto:** Cada tramo (`LOW`, `HIGH`, `SLOW`, `FAST`) requiere evaluar la mediana de alturas de pico (en diámetros de balón) o la mediana de intervalos entre toques (en segundos) con un puntaje continuo de `0` a `1` con tolerancia, medir la latencia de reacción desde la orden hasta el primer cambio de comportamiento y detectar si el video fue pregrabado con otro plan.
 - **Decisión:** `evaluate_challenge_plan` extrae la altura máxima alcanzada por el balón en el arco posterior a cada toque y el intervalo entre toques consecutivos dentro del tramo, aplica una rampa de tolerancia lineal alrededor de los umbrales de `config.yaml` (`1.5` y `3.0` diámetros; `1.0` y `0.6` s), mide la latencia hasta el primer toque que cumple la consigna del tramo y marca `plan_coherent = False` si el cumplimiento medio cae por debajo de `0.55` o más de un tercio de los tramos son incoherentes (`< 0.35`).
 
+---
+
+## Fases 5, 6, 7 y 8 — Características, Scoring, Antifraude, Entrenamiento ONNX e Informe Final
+
+### D-12: Clasificador de nivel por reglas calibradas e intercambio en caliente por modelo ONNX (`scoring` y `model_versions`)
+- **Contexto:** La Fase 5 requiere un clasificador inicial basado en reglas sobre los umbrales de `config.yaml` con probabilidades calibradas y retroalimentación determinística por plantillas, mientras que la Fase 7 exige entrenar un modelo sobre participantes agrupados sin fuga (`participant_id`), exportarlo a ONNX y activarlo desde `model_versions` sin cambiar el código.
+- **Decisión:** Implementar `RuleBasedLevelClassifier` como línea base y `TrainedArtifactLevelClassifier` como cargador de artefactos `.onnx` registrados en la tabla `model_versions` (`activa = True`). Cuando existe una fila activa en `model_versions`, `evaluate_and_persist_session_result` la utiliza automáticamente y registra su `version_modelo` (`level_classifier:1.0.0-onnx`).
+
+### D-13: Motor de señales antifraude ponderadas (`fraud`)
+- **Contexto:** La Fase 6 requiere combinar las 10 señales antifraude (baja coherencia A/V, deriva de reloj, pérdida de foco/pestaña, cortes/fotogramas repetidos, cámara inestable, balón/persona fuera de cuadro, múltiples rostros, latencia de reacción irreal `< 150 ms` o ausente, secuencia de plan incoherente e inconsistencia de duración) en un puntaje de `0` a `100` sin descartar sesiones en silencio.
+- **Decisión:** `evaluate_fraud_signals` evalúa cada señal contra los pesos configurables de `config.yaml`, persiste cada incidencia en `fraud_incidents` y marca `requiere_revision = True` (`estado = "needs_review"`) cuando el puntaje supera `review_risk_threshold` (`50.0`) o la confianza del clasificador es menor a `0.55`.
+
+
 
 
 
