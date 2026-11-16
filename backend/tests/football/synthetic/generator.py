@@ -26,6 +26,8 @@ class SyntheticJugglingSpec:
     background_noise_std: float = 2.0
     missing_frame_ranges: list[tuple[int, int]] = field(default_factory=list)
     audio_offset_ms: int = 0
+    audio_drift_ms_per_min: float = 0.0
+    custom_audio_touch_times_ms: list[int] | None = None
     audio_sample_rate_hz: int = 48000
     seed: int = 42
 
@@ -114,8 +116,14 @@ def generate_synthetic_audio_wav(
     )
     click_wave = 0.85 * envelope * carrier
 
-    for touch_ms in spec.touch_times_ms:
-        impact_ms = touch_ms + spec.audio_offset_ms
+    audio_touches = (
+        spec.custom_audio_touch_times_ms
+        if spec.custom_audio_touch_times_ms is not None
+        else spec.touch_times_ms
+    )
+    for touch_ms in audio_touches:
+        drift_ms = (touch_ms / 60000.0) * spec.audio_drift_ms_per_min
+        impact_ms = touch_ms + spec.audio_offset_ms + drift_ms
         start_idx = int((impact_ms / 1000.0) * sr)
         if 0 <= start_idx < total_samples:
             end_idx = min(total_samples, start_idx + click_samples)
