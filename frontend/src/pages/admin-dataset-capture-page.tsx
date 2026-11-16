@@ -62,6 +62,12 @@ export function AdminDatasetCapturePage() {
     hardwareInfo,
     signedConsent,
     codeContent,
+    participantId,
+    levelLabel,
+    manualTouchCount,
+    noiseLevel,
+    surface,
+    split,
     samples,
     totalCount,
     isLoading,
@@ -75,6 +81,12 @@ export function AdminDatasetCapturePage() {
     setHardwareInfo,
     setSignedConsent,
     setCodeContent,
+    setParticipantId,
+    setLevelLabel,
+    setManualTouchCount,
+    setNoiseLevel,
+    setSurface,
+    setSplit,
     setMediaStream,
     setRecordedBlob,
     setRecordingDurationSeconds,
@@ -508,6 +520,103 @@ export function AdminDatasetCapturePage() {
                   placeholder="Ej. Logitech C920 Webcam + Micrófono Samson Go"
                 />
               </div>
+
+              {discipline === "futbol" && (
+                <div className="p-3.5 rounded-lg border border-border/80 bg-secondary/20 space-y-3">
+                  <p className="text-xs font-semibold text-foreground">
+                    Etiquetado de Muestra de Fútbol (Sección 10 — Sin Fuga por Participante)
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="participant-id-input" className="text-xs">
+                        ID Participante
+                      </Label>
+                      <Input
+                        id="participant-id-input"
+                        value={participantId}
+                        onChange={(e) => setParticipantId(e.target.value)}
+                        placeholder="Ej. P-014"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="manual-touch-input" className="text-xs">
+                        Conteo Manual de Toques
+                      </Label>
+                      <Input
+                        id="manual-touch-input"
+                        type="number"
+                        min={0}
+                        value={manualTouchCount ?? ""}
+                        onChange={(e) =>
+                          setManualTouchCount(
+                            e.target.value === "" ? null : Number(e.target.value)
+                          )
+                        }
+                        placeholder="Ej. 24"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="level-label-select" className="text-xs">
+                        Nivel Provisional
+                      </Label>
+                      <Select value={levelLabel} onValueChange={setLevelLabel}>
+                        <SelectTrigger id="level-label-select">
+                          <SelectValue placeholder="Nivel" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Principiante">Principiante</SelectItem>
+                          <SelectItem value="Intermedio">Intermedio</SelectItem>
+                          <SelectItem value="Avanzado">Avanzado</SelectItem>
+                          <SelectItem value="Experto">Experto</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="noise-level-select" className="text-xs">
+                        Ruido Ambiental
+                      </Label>
+                      <Select value={noiseLevel} onValueChange={setNoiseLevel}>
+                        <SelectTrigger id="noise-level-select">
+                          <SelectValue placeholder="Ruido" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bajo">Bajo</SelectItem>
+                          <SelectItem value="medio">Medio</SelectItem>
+                          <SelectItem value="alto">Alto</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="surface-input" className="text-xs">
+                        Superficie
+                      </Label>
+                      <Input
+                        id="surface-input"
+                        value={surface}
+                        onChange={(e) => setSurface(e.target.value)}
+                        placeholder="Ej. Césped sintético"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="split-select" className="text-xs">
+                        Partición (Split)
+                      </Label>
+                      <Select value={split} onValueChange={setSplit}>
+                        <SelectTrigger id="split-select">
+                          <SelectValue placeholder="Split" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="train">Train</SelectItem>
+                          <SelectItem value="val">Validation</SelectItem>
+                          <SelectItem value="test">Test</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Consentimiento firmado obligatorio */}
               <div className="flex items-start gap-3 p-3.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5">

@@ -23,6 +23,12 @@ interface DatasetCaptureState {
   hardwareInfo: string
   signedConsent: boolean
   codeContent: string
+  participantId: string
+  levelLabel: string
+  manualTouchCount: number | null
+  noiseLevel: string
+  surface: string
+  split: string
 
   // Muestras existentes
   samples: DatasetSample[]
@@ -39,6 +45,12 @@ interface DatasetCaptureState {
   setHardwareInfo: (hardwareInfo: string) => void
   setSignedConsent: (signedConsent: boolean) => void
   setCodeContent: (code: string) => void
+  setParticipantId: (participantId: string) => void
+  setLevelLabel: (levelLabel: string) => void
+  setManualTouchCount: (count: number | null) => void
+  setNoiseLevel: (noiseLevel: string) => void
+  setSurface: (surface: string) => void
+  setSplit: (split: string) => void
   setMediaStream: (stream: MediaStream | null) => void
   setRecordedBlob: (blob: Blob | null, fileName: string | null) => Promise<void>
   setRecordingDurationSeconds: (seconds: number) => void
@@ -66,6 +78,12 @@ export const useDatasetCaptureStore = create<DatasetCaptureState>((set, get) => 
   hardwareInfo: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : "Default Hardware",
   signedConsent: false,
   codeContent: "# Código de prueba piloto\ndef solution():\n    return 42\n",
+  participantId: "",
+  levelLabel: "Intermedio",
+  manualTouchCount: null,
+  noiseLevel: "bajo",
+  surface: "cesped",
+  split: "train",
 
   samples: [],
   totalCount: 0,
@@ -80,6 +98,12 @@ export const useDatasetCaptureStore = create<DatasetCaptureState>((set, get) => 
   setHardwareInfo: (hardwareInfo) => set({ hardwareInfo }),
   setSignedConsent: (signedConsent) => set({ signedConsent }),
   setCodeContent: (codeContent) => set({ codeContent }),
+  setParticipantId: (participantId) => set({ participantId }),
+  setLevelLabel: (levelLabel) => set({ levelLabel }),
+  setManualTouchCount: (manualTouchCount) => set({ manualTouchCount }),
+  setNoiseLevel: (noiseLevel) => set({ noiseLevel }),
+  setSurface: (surface) => set({ surface }),
+  setSplit: (split) => set({ split }),
   setMediaStream: (mediaStream) => set({ mediaStream }),
   setRecordingDurationSeconds: (seconds) => set({ recordingDurationSeconds: seconds }),
   setIsRecording: (isRecording) => set({ isRecording }),
@@ -159,6 +183,17 @@ export const useDatasetCaptureStore = create<DatasetCaptureState>((set, get) => 
         hardware_info: state.hardwareInfo,
         signed_consent: state.signedConsent,
         file_hash_sha256: hash,
+        ...(state.discipline === "futbol"
+          ? {
+              participant_id: state.participantId || undefined,
+              level_label: state.levelLabel || undefined,
+              manual_touch_count:
+                state.manualTouchCount !== null ? state.manualTouchCount : undefined,
+              noise_level: state.noiseLevel || undefined,
+              surface: state.surface || undefined,
+              split: state.split || undefined,
+            }
+          : {}),
       })
 
       set({

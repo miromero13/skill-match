@@ -25,3 +25,16 @@ Este documento registra las decisiones de diseño e integración tomadas durante
 ### D-05: Autenticación en WebSocket (`/sessions/{id}/ws`)
 - **Contexto:** Los navegadores web no permiten enviar encabezados `Authorization: Bearer <token>` arbitrarios fácilmente en el constructor estándar de `WebSocket`.
 - **Decisión:** Soportar el token JWT tanto por query param (`?token=<jwt>`) como por encabezado `Authorization: Bearer <jwt>` en el handshake del WebSocket, verificando siempre que `session.user_id == current_user.id`.
+
+---
+
+## Fase 1 — Captura y Subida por Fragmentos
+
+### D-06: Registro de fragmentos e idempotencia en `evidence_files`
+- **Contexto:** `PUT /sessions/{id}/chunks/{n}` exige idempotencia (repetir el mismo fragmento tras un corte de red no debe duplicar registros ni archivos) y `GET /sessions/{id}` debe informar al cliente qué fragmentos ya están confirmados para reanudar desde el último.
+- **Decisión:** Registrar cada fragmento confirmado en `evidence_files` con `tipo = "chunk:{n}"` y su `sha256`. Si el cliente reenvía el mismo `chunk_index` con idéntico `sha256`, el backend devuelve `200 OK` con `idempotent_replay: true` sin volver a subir a Garage S3. Además, `GET /sessions/{id}` expone `confirmed_chunks: list[int]`.
+
+### D-07: Ensamblado de fragmentos en Garage S3 al finalizar (`POST /sessions/{id}/finalize`)
+- **Contexto:** Al finalizar una grabación de ~40 s (8 fragmentos de 5 s), el servidor debe verificar que todos los fragmentos `0..N-1` estén completos, ensamblarlos en el almacenamiento S3 con su hash SHA-256, cambiar el estado a `processing`, encolar `process_session(session_id)` y responder `202 Accepted`.
+- **Decisión:** `GarageS3StorageService.assemble_session_chunks` verifica la secuencia contigua `0..N-1`, concatena los fragmentos en orden, sube el archivo ensamblado a `s3://skillmatch-football/sessions/{session_id}/assembled/recording.mp4`, registra la fila `tipo = "video"` en `evidence_files` con el `sha256` global y dispara `process_session.delay(str(session_id))`.
+

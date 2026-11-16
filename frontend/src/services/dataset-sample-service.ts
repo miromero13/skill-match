@@ -42,6 +42,27 @@ export async function uploadDatasetSample(
   if (payload.file_hash_sha256) {
     formData.append("file_hash_sha256", payload.file_hash_sha256)
   }
+  if (payload.participant_id) {
+    formData.append("participant_id", payload.participant_id)
+  }
+  if (payload.level_label) {
+    formData.append("level_label", payload.level_label)
+  }
+  if (
+    payload.manual_touch_count !== undefined &&
+    payload.manual_touch_count !== null
+  ) {
+    formData.append("manual_touch_count", String(payload.manual_touch_count))
+  }
+  if (payload.noise_level) {
+    formData.append("noise_level", payload.noise_level)
+  }
+  if (payload.surface) {
+    formData.append("surface", payload.surface)
+  }
+  if (payload.split) {
+    formData.append("split", payload.split)
+  }
 
   return apiClient.post<DatasetSample>("/ai/datasets/samples/upload", formData, {
     showToastOnSuccess: true,
