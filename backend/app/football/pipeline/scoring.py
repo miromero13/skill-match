@@ -229,6 +229,28 @@ def score_session_features(
     cfg = config or full_cfg.scoring
     active_clf = classifier or RuleBasedLevelClassifier(config=cfg)
 
+    total_touches = int(features.get("total_touches", 0))
+    if total_touches == 0:
+        return ScoringOutput(
+            nivel="No calificado",
+            probabilidades={
+                "Principiante": 1.0,
+                "Intermedio": 0.0,
+                "Avanzado": 0.0,
+                "Experto": 0.0,
+            },
+            confianza=0.0,
+            requiere_revision=True,
+            retroalimentacion={
+                "fortalezas": [],
+                "mejoras": [
+                    "No se detectó ningún balón de fútbol ni toques válidos en la grabación. Asegúrate de enfocar la cámara de cuerpo entero mostrando el balón en juego."
+                ],
+            },
+            version_modelo=active_clf.model_version,
+            version_config=f"{full_cfg.version}:{full_cfg.config_hash[:12]}",
+        )
+
     probs = active_clf.predict_proba(features)
     best_level = max(LEVELS, key=lambda lvl: probs.get(lvl, 0.0))
     confidence = round(float(probs[best_level]), 4)

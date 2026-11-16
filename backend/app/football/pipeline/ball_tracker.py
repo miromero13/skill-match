@@ -50,8 +50,8 @@ class ClassicalMOG2HoughDetector:
     """
     Classical computer vision ball detector combining:
     1. MOG2 background subtraction + morphological opening/closing
-    2. Circularity-filtered foreground contour / brightness detection
-    3. HoughCircles refinement around the foreground region
+    2. Circularity-filtered foreground contour / brightness detection with skin-tone suppression
+    3. Motion-restricted HoughCircles refinement avoiding human faces and body parts
     """
 
     def __init__(self, min_radius_px: int = 8, max_radius_px: int = 160) -> None:
@@ -61,6 +61,29 @@ class ClassicalMOG2HoughDetector:
             history=120, varThreshold=25.0, detectShadows=False
         )
         self.kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+
+    def _is_skin_dominated(
+        self, frame_bgr: np.ndarray, cx: float, cy: float, radius: float
+    ) -> bool:
+        """Reject regions dominated by human skin tone (faces, arms, hands)."""
+        r_inner = max(4.0, radius * 0.7)
+        x1, y1 = max(0, int(cx - r_inner)), max(0, int(cy - r_inner))
+        x2, y2 = min(frame_bgr.shape[1], int(cx + r_inner)), min(
+            frame_bgr.shape[0], int(cy + r_inner)
+        )
+        if x2 <= x1 or y2 <= y1:
+            return False
+        roi = frame_bgr[y1:y2, x1:x2]
+        if roi.size == 0:
+            return False
+        ycrcb = cv2.cvtColor(roi, cv2.COLOR_BGR2YCrCb)
+        # Standard skin tone range: 133 <= Cr <= 173 and 77 <= Cb <= 127
+        skin_mask = cv2.inRange(
+            ycrcb,
+            np.array([0, 133, 77], dtype=np.uint8),
+            np.array([255, 173, 127], dtype=np.uint8),
+        )
+        return bool(np.mean(skin_mask > 0) > 0.38)
 
     def detect(
         self, frame_bgr: np.ndarray, frame_idx: int
@@ -96,6 +119,8 @@ class ClassicalMOG2HoughDetector:
             (cx, cy), radius = cv2.minEnclosingCircle(cnt)
             if not (self.min_radius_px <= radius <= self.max_radius_px):
                 continue
+            if self._is_skin_dominated(frame_bgr, cx, cy, radius):
+                continue
             score = min(1.0, circularity)
             if score > best_score:
                 best_score = score
@@ -104,20 +129,23 @@ class ClassicalMOG2HoughDetector:
         if best_candidate is not None:
             return best_candidate
 
-        # Fallback: HoughCircles on blurred grayscale image
-        circles = cv2.HoughCircles(
-            blurred,
-            cv2.HOUGH_GRADIENT,
-            dp=1.2,
-            minDist=float(self.min_radius_px * 2),
-            param1=100.0,
-            param2=28.0,
-            minRadius=self.min_radius_px,
-            maxRadius=self.max_radius_px,
-        )
-        if circles is not None and len(circles) > 0:
-            c = circles[0][0]
-            return float(c[0]), float(c[1]), float(c[2]), 0.70
+        # Fallback: HoughCircles only if motion mask is non-empty and target is not skin
+        if np.mean(fg_mask > 0) > 0.005:
+            circles = cv2.HoughCircles(
+                blurred,
+                cv2.HOUGH_GRADIENT,
+                dp=1.2,
+                minDist=float(self.min_radius_px * 2),
+                param1=100.0,
+                param2=30.0,
+                minRadius=self.min_radius_px,
+                maxRadius=self.max_radius_px,
+            )
+            if circles is not None and len(circles) > 0:
+                for c in circles[0]:
+                    cand_x, cand_y, cand_r = float(c[0]), float(c[1]), float(c[2])
+                    if not self._is_skin_dominated(frame_bgr, cand_x, cand_y, cand_r):
+                        return cand_x, cand_y, cand_r, 0.70
 
         return None
 
@@ -310,6 +338,23 @@ def track_ball_in_video(
     ball_diameter_px = max(2.0, 2.0 * median_radius)
 
     y_vals = np.array([pt.y for pt in points], dtype=np.float64)
+    non_interp_count = sum(1 for pt in points if not pt.interpolated)
+    vertical_span = float(np.max(y_vals) - np.min(y_vals))
+
+    # In football juggling, a moving ball must have at least 0.8 ball diameters of vertical travel,
+    # sufficient true detections, and must be below head level (median y in lower/middle frame).
+    # Stationary background circles, head tremors, or ceiling lights are rejected.
+    median_y = float(np.median(y_vals))
+    if non_interp_count < 8 or vertical_span < (0.8 * ball_diameter_px) or median_y < (0.28 * height):
+        return BallTrack(
+            points=[],
+            fps=fps,
+            frame_width=width,
+            frame_height=height,
+            median_radius_px=median_radius,
+            baseline_y_px=float(height),
+        )
+
     # 95th percentile of image y (lowest physical position of the ball at foot level)
     baseline_y = float(np.percentile(y_vals, 95))
 

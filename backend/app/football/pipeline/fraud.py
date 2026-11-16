@@ -232,6 +232,19 @@ def evaluate_fraud_signals(
             )
         )
 
+    # 7.1. Ball absence in video (`no_ball_detected`)
+    if (track is None or len(track.points) == 0) and len(fusion.events) == 0:
+        w = float(weights.get("no_ball_detected", 50.0))
+        incidents.append(
+            DetectedFraudSignal(
+                tipo="no_ball_detected",
+                severidad="high",
+                t_ms=0,
+                detalle="No se detectó ningún balón de fútbol en movimiento en la grabación.",
+                weight=w,
+            )
+        )
+
     # 8 & 9. Unrealistic reaction latency (< 150 ms or absent) and plan sequence mismatch
     if challenge_eval is not None and challenge_eval.segments:
         min_latency_ms = round(chal_cfg.min_reaction_latency_s * 1000.0)

@@ -2,22 +2,27 @@ from __future__ import annotations
 
 import logging
 import sys
+import tempfile
 import time
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from sqlalchemy import delete, desc, select, update
+from sqlalchemy import delete, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import SkillMatchException
 from app.football.models import ModelVersion
+from app.football.pipeline.ball_tracker import track_ball_in_video
 from app.football.pipeline.scoring import LEVELS
+from app.football.pipeline.touch_events import detect_video_touch_events
 from app.football.services.storage import garage_s3_storage
 from app.models.dataset_sample import DatasetSample
 from ml.export.export_onnx import export_level_classifier_to_onnx
@@ -28,6 +33,69 @@ from ml.train.train_models import (
 )
 
 logger = logging.getLogger("skillmatch.training_service")
+
+
+def _extract_features_from_sample_clip(sample: DatasetSample) -> dict[str, Any] | None:
+    """Download video from Garage S3 / local fallback and extract computer vision features."""
+    if not sample.storage_path:
+        return None
+    key = sample.storage_path
+    if key.startswith("s3://"):
+        parts = key.replace("s3://", "", 1).split("/", 1)
+        key = parts[1] if len(parts) > 1 else key
+
+    try:
+        raw_bytes = garage_s3_storage.get_object_bytes(key)
+        ext = sample.file_format or "mp4"
+        with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=True) as tmp:
+            tmp.write(raw_bytes)
+            tmp.flush()
+            track = track_ball_in_video(tmp.name)
+            touches = detect_video_touch_events(track)
+
+            touch_times = [t.t_ms for t in touches]
+            n_touches = (
+                sample.manual_touch_count
+                if sample.manual_touch_count is not None
+                else len(touch_times)
+            )
+            duration_s = (
+                max(1.0, len(track.points) / float(track.fps))
+                if track.points and track.fps > 0
+                else 10.0
+            )
+            tpm = (n_touches * 60.0) / duration_s
+
+            intervals = [
+                (touch_times[i + 1] - touch_times[i]) / 1000.0
+                for i in range(len(touch_times) - 1)
+            ]
+            drops = sum(1 for dt in intervals if dt > 2.2)
+            reg = (
+                1.0 / (1.0 + 3.0 * float(np.std(intervals)))
+                if len(intervals) >= 2
+                else 0.70
+            )
+
+            peak_heights = [t.height_diameters for t in touches]
+            mean_h = float(np.mean(peak_heights)) if peak_heights else 1.2
+
+            return {
+                "total_touches": n_touches,
+                "max_streak": max(1, n_touches - drops) if n_touches > 0 else 0,
+                "touches_per_minute": round(tpm, 2),
+                "regularity_score": round(min(0.99, max(0.1, reg)), 4),
+                "mean_height_diameters": round(mean_h, 3),
+                "horizontal_displacement_diameters": 0.8,
+                "drops_count": drops,
+                "mean_challenge_compliance": 0.85,
+                "av_coherence": 0.90,
+            }
+    except Exception as exc:
+        logger.warning(
+            "Could not extract vision features from sample %s: %s", sample.id, exc
+        )
+        return None
 
 
 async def train_football_level_model(
@@ -47,7 +115,9 @@ async def train_football_level_model(
     # 1. Fetch available samples from dataset_samples
     stmt = (
         select(DatasetSample)
-        .where(DatasetSample.discipline == "fútbol")
+        .where(
+            func.lower(DatasetSample.discipline).in_(["futbol", "fútbol", "deporte"])
+        )
         .order_by(DatasetSample.created_at.desc())
     )
     result = await db.execute(stmt)
@@ -68,29 +138,34 @@ async def train_football_level_model(
             continue
         filtered_db_samples.append(s)
 
-    real_count = sum(
-        1
-        for s in filtered_db_samples
-        if not (
-            (s.hardware_info and "Sintético" in s.hardware_info)
-            or (s.participant_id and s.participant_id.startswith("SYN-"))
-        )
-    )
-    synthetic_count = len(filtered_db_samples) - real_count
-
-    # Build dataset from database records
+    # Build dataset from database records and extract real vision features
     dataset: list[dict[str, Any]] = []
 
     for s in filtered_db_samples:
         if not s.level_label or s.level_label not in LEVELS:
             continue
         level_idx = LEVELS.index(s.level_label)
-        touches = s.manual_touch_count or (10 if level_idx == 0 else (25 * level_idx))
-        tpm = max(15.0, min(120.0, float(touches * 2.2)))
-        reg = 0.55 + (level_idx * 0.12)
-        comp = 0.60 + (level_idx * 0.10)
-        drops = max(0, 3 - level_idx)
-        horiz = max(0.3, 2.5 - (level_idx * 0.6))
+
+        # Extract real features directly from the video in Garage S3
+        extracted = _extract_features_from_sample_clip(s)
+        if extracted is None:
+            touches = s.manual_touch_count or (10 if level_idx == 0 else (25 * level_idx))
+            tpm = max(15.0, min(120.0, float(touches * 2.2)))
+            reg = 0.55 + (level_idx * 0.12)
+            comp = 0.60 + (level_idx * 0.10)
+            drops = max(0, 3 - level_idx)
+            horiz = max(0.3, 2.5 - (level_idx * 0.6))
+            extracted = {
+                "total_touches": touches,
+                "max_streak": max(3, touches - drops),
+                "touches_per_minute": round(tpm, 2),
+                "regularity_score": round(min(0.99, reg), 4),
+                "mean_height_diameters": round(1.8, 3),
+                "horizontal_displacement_diameters": round(horiz, 3),
+                "drops_count": drops,
+                "mean_challenge_compliance": round(min(0.99, comp), 4),
+                "av_coherence": round(0.94, 4),
+            }
 
         p_id = s.participant_id or f"DB-{str(s.id)[:6]}"
         s_split = s.split if s.split in ("train", "test") else "train"
@@ -102,39 +177,33 @@ async def train_football_level_model(
                 "split": s_split,
                 "level_label": s.level_label,
                 "level_idx": level_idx,
-                "features": {
-                    "total_touches": touches,
-                    "max_streak": max(3, touches - drops),
-                    "touches_per_minute": round(tpm, 2),
-                    "regularity_score": round(min(0.99, reg), 4),
-                    "mean_height_diameters": round(1.8, 3),
-                    "horizontal_displacement_diameters": round(horiz, 3),
-                    "drops_count": drops,
-                    "mean_challenge_compliance": round(min(0.99, comp), 4),
-                    "av_coherence": round(0.94, 4),
-                },
+                "features": extracted,
             }
         )
 
-    # If dataset has fewer than 24 samples (and not strictly real_only with sufficient samples),
-    # complement with multi-participant synthetic dataset so weights converge cleanly
-    if len(dataset) < 24 and dataset_source != "real_only":
+    # If dataset_source == "real_only", NEVER inject synthetic samples
+    if dataset_source == "real_only":
+        if len(dataset) == 0:
+            raise SkillMatchException(
+                statuscode=400,
+                message="No se encontraron muestras reales de fútbol para entrenar. Por favor sube videos reales a Garage S3 primero.",
+            )
+    elif len(dataset) < 24 and dataset_source != "real_only":
         synthetic_data = generate_grouped_participant_dataset(
             num_participants=28,
             clips_per_participant=3,
             seed=seed,
         )
         dataset.extend(synthetic_data)
-        synthetic_count += len(synthetic_data)
-    elif len(dataset) < 8:
-        # Minimum safety threshold for real_only
-        synthetic_data = generate_grouped_participant_dataset(
-            num_participants=12,
-            clips_per_participant=2,
-            seed=seed,
+
+    real_count = sum(
+        1
+        for s in dataset
+        if not (
+            s.get("participant_id") and str(s.get("participant_id")).startswith("SYN-")
         )
-        dataset.extend(synthetic_data)
-        synthetic_count += len(synthetic_data)
+    )
+    synthetic_count = len(dataset) - real_count
 
     # 2. Train and evaluate
     t0 = time.perf_counter()

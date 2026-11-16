@@ -74,7 +74,7 @@ def detect_video_touch_events(
 
         if v_before < -0.05 and v_after > 0.05:
             velocity_delta = v_after - v_before
-            if velocity_delta >= cfg.min_velocity_delta:
+            if cfg.min_velocity_delta <= velocity_delta <= 50.0 and not pts[i].interpolated:
                 pt = pts[i]
                 conf = min(
                     1.0,

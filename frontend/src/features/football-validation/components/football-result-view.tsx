@@ -6,6 +6,7 @@ import {
   RotateCcw,
   FileSearch,
   Award,
+  AlertCircle,
 } from "lucide-react"
 import {
   Card,
@@ -33,6 +34,10 @@ export function FootballResultView({
   onRetrySession,
 }: FootballResultViewProps) {
   const confidencePct = Math.round(result.confianza * 100)
+  const isNoBallDetected =
+    result.metricas.toques === 0 ||
+    result.nivel === "No calificado" ||
+    result.incidencias.some((inc) => inc.tipo === "no_ball_detected")
 
   return (
     <div className="space-y-6 w-full" data-testid="football-result-view">
@@ -42,7 +47,16 @@ export function FootballResultView({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                {!result.requiere_revision ? (
+                {isNoBallDetected ? (
+                  <Badge
+                    variant="destructive"
+                    className="border-rose-500/50 text-rose-500 bg-rose-500/10"
+                    data-testid="no-ball-badge"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5 mr-1" />
+                    Intento No Válido (Sin Balón Detectado)
+                  </Badge>
+                ) : !result.requiere_revision ? (
                   <Badge
                     variant="outline"
                     className="border-emerald-500/50 text-emerald-500 bg-emerald-500/10 animate-pulse"
@@ -108,6 +122,33 @@ export function FootballResultView({
         </CardHeader>
 
         <CardContent className="pt-5 space-y-5">
+          {/* Alerta Destacada cuando no se detecta balón en movimiento */}
+          {isNoBallDetected && (
+            <Alert
+              variant="destructive"
+              className="border-rose-500/50 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+              data-testid="no-ball-alert"
+            >
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle className="text-sm font-bold">
+                No se detectó un balón de fútbol en movimiento
+              </AlertTitle>
+              <AlertDescription className="text-xs space-y-1.5 mt-1 text-foreground/90">
+                <p>
+                  El algoritmo de visión artificial no detectó una trayectoria activa de dominio de balón (únicamente se observó un encuadre estático o rostro).
+                </p>
+                <div className="text-[11px] text-muted-foreground pt-1">
+                  <span className="font-semibold text-foreground">Recomendaciones para una validación válida:</span>
+                  <ul className="list-disc list-inside mt-0.5 space-y-0.5">
+                    <li>Coloca la cámara a 2-3 metros de distancia donde tu cuerpo completo y el suelo sean visibles.</li>
+                    <li>Usa un balón de fútbol reglamentario y asegúrate de contar con buena iluminación.</li>
+                    <li>Evita primeros planos del rostro o fondos con objetos esféricos en la parte superior.</li>
+                  </ul>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Métricas Principales */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="p-3 rounded-lg bg-secondary/40 border border-border/50">

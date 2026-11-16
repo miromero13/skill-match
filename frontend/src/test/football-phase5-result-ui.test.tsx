@@ -108,4 +108,57 @@ describe("Football Validation Phases 5 & 6 — FootballResultView UI", () => {
     await user.click(reviewBtn)
     expect(onReview).toHaveBeenCalledWith("sess-flagged-1")
   })
+
+  it("renders no-ball alert and invalid badge when 0 touches or level is No calificado", () => {
+    render(
+      <FootballResultView
+        result={{
+          session_id: "sess-no-ball-1",
+          estado: "needs_review",
+          nivel: "No calificado",
+          probabilidades: {
+            "No calificado": 1.0,
+            Principiante: 0.0,
+            Intermedio: 0.0,
+            Avanzado: 0.0,
+            Experto: 0.0,
+          },
+          confianza: 0.0,
+          metricas: {
+            toques: 0,
+            racha: 0,
+            toques_por_minuto: 0.0,
+            altura_media: 0.0,
+            regularidad: 0.0,
+            cumplimiento_por_tramo: [],
+          },
+          coherencia_audio_video: 0.0,
+          puntaje_riesgo: 70,
+          incidencias: [
+            {
+              tipo: "no_ball_detected",
+              severidad: "high",
+              t_ms: 0,
+              detalle: "No se detectó trayectoria de balón ni impactos válidos.",
+            },
+          ],
+          retroalimentacion: {
+            fortalezas: [],
+            mejoras: [
+              "Asegúrate de que el balón esté dentro del campo visual de la cámara.",
+            ],
+          },
+          requiere_revision: true,
+          version_modelo: "rules-v1",
+          version_config: "0.1.0-phase0:a1b2c3d4e5f6",
+        }}
+      />
+    )
+
+    expect(screen.getByTestId("no-ball-badge")).toBeInTheDocument()
+    expect(screen.getByTestId("no-ball-alert")).toBeInTheDocument()
+    expect(
+      screen.getByText(/No se detectó un balón de fútbol en movimiento/i)
+    ).toBeInTheDocument()
+  })
 })

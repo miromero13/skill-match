@@ -111,8 +111,10 @@ def _compute_touch_peak_heights(
     For each consecutive pair of touches `(t_k, t_{k+1})`, compute the apex height
     in ball diameters reached during the flight arc between `t_k` and `t_{k+1}`.
     """
-    if not touch_times_ms or track is None or not track.points:
+    if not touch_times_ms:
         return []
+    if track is None or not track.points:
+        return [0.0] * len(touch_times_ms)
 
     pts = track.points
     peak_heights: list[float] = []
@@ -249,7 +251,10 @@ def evaluate_challenge_plan(
             continue
 
         seg_times = [all_touch_times[i] for i in seg_indices]
-        seg_heights = [all_peak_heights[i] for i in seg_indices]
+        seg_heights = [
+            all_peak_heights[i] if i < len(all_peak_heights) else 0.0
+            for i in seg_indices
+        ]
         seg_intervals_s = [
             (seg_times[k + 1] - seg_times[k]) / 1000.0
             for k in range(len(seg_times) - 1)
