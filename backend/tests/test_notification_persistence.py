@@ -15,10 +15,10 @@ from alembic.migration import MigrationContext
 import pytest
 from sqlalchemy import inspect, MetaData, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import settings
-from app.models import Base, User
+from app.models import Base
 
 PARENT = "b18a0c1d2e3f"
 REVISION = "c25a1b2c3d4e"
@@ -67,13 +67,26 @@ async def persistence():
                 await connection.execute(text(f'SET search_path TO "{schema}"'))
                 await connection.commit()
                 await migrate(connection, schema, PARENT)
-                async with AsyncSession(bind=connection, expire_on_commit=False) as db:
-                    users = [User(id=uuid4(), email=f"hu25-persistence-{i}@example.invalid", full_name="HU25", role="MEMBER") for i in range(2)]
-                    db.add_all(users)
-                    await db.commit()
+                # This fixture intentionally stops at the historical HU-25 parent.
+                # Insert only columns that existed at that revision: the current
+                # User ORM also contains fields added by later migrations.
+                user_ids = [uuid4() for _ in range(2)]
+                await connection.execute(
+                    text(
+                        "INSERT INTO users (id, email, full_name, role, is_active, "
+                        "is_locked, failed_login_attempts, created_at, updated_at) "
+                        "VALUES (:id, :email, 'HU25', 'MEMBER', true, false, 0, "
+                        "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    ),
+                    [
+                        {"id": user_id, "email": f"hu25-persistence-{i}@example.invalid"}
+                        for i, user_id in enumerate(user_ids)
+                    ],
+                )
+                await connection.commit()
                 previous = await connection.run_sync(lambda c: signature(c, schema))
                 await migrate(connection, schema, REVISION)
-                yield connection, schema, [u.id for u in users], previous
+                yield connection, schema, user_ids, previous
             finally:
                 await connection.rollback()
                 await connection.execute(text("SET search_path TO public"))

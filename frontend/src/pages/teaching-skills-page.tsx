@@ -25,7 +25,7 @@ import {
 const initialForm: TeachingSkillPayload = {
     skill_id: "",
     declared_level: "BEGINNER",
-    years_of_experence: 0,
+    years_of_experience: 0,
     description: null,
     accepts_points: false,
     hourly_points_rate: null,
@@ -63,11 +63,11 @@ export function TeachingSkillsSection() {
 
     function startEdit(item: TeachingSkill) {
         setEditingId(item.id)
-        setExperienceInput(String(item.years_of_experence))
+        setExperienceInput(String(item.years_of_experience))
         setForm({
             skill_id: item.skill_id,
             declared_level: item.declared_level,
-            years_of_experence: item.years_of_experence,
+            years_of_experience: item.years_of_experience,
             description: item.description,
             accepts_points: item.accepts_points,
             hourly_points_rate: item.hourly_points_rate,
@@ -113,7 +113,7 @@ export function TeachingSkillsSection() {
                                         {declaredLevels.find(
                                             (level) => level.value === item.declared_level,
                                         )?.label}
-                                        {" · "}{item.years_of_experence} años de experiencia
+                                        {" · "}{item.years_of_experience} años de experiencia
                                     </p>
                                     {item.description && (
                                         <p className="text-sm text-muted-foreground">
@@ -263,7 +263,7 @@ export function TeachingSkillsSection() {
                                     setExperienceInput(event.target.value)
                                     setForm((current) => ({
                                         ...current,
-                                        years_of_experence: Number(event.target.value),
+                                        years_of_experience: Number(event.target.value),
                                     }))
                                 }}
                             />

@@ -79,7 +79,7 @@ async def evidence_api():
                     offers = [
                         TeachingSkill(
                             id=uuid4(), user_id=owner.id, skill_id=skill.id,
-                            declared_level="BEGINNER", years_of_experence=1,
+                            declared_level="BEGINNER", years_of_experience=1,
                             accepts_points=False, hourly_points_rate=None,
                             status="DECLARADA",
                         )

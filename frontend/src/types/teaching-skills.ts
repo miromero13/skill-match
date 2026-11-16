@@ -5,23 +5,30 @@ export const declaredLevels = [
     { value: "EXPERT", label: "Experto" },
 ] as const
 
-export type DeclaredLevel = (typeof declaredLevels)[number]["value"]
-export interface AvailableSkill {
+export type DeclaredLevel = typeof declaredLevels[number]["value"]
+
+export interface TeachingSkill {
     id: string
-    name: string
+    skill_id: string
+    skill_name: string
+    declared_level: DeclaredLevel
+    years_of_experience: number
+    description: string | null
+    accepts_points: boolean
+    hourly_points_rate: number | null
+    status: string
 }
 
 export interface TeachingSkillPayload {
     skill_id: string
     declared_level: DeclaredLevel
-    years_of_experence: number
+    years_of_experience: number
     description: string | null
     accepts_points: boolean
     hourly_points_rate: number | null
 }
 
-export interface TeachingSkill extends TeachingSkillPayload {
+export interface AvailableSkill {
     id: string
-    skill_name: string
-    status: string
+    name: string
 }
