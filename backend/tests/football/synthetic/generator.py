@@ -58,10 +58,10 @@ def _compute_ball_position(
     diameter_px = float(2 * spec.ball_radius_px)
     amplitude_px = spec.peak_height_diameters * diameter_px
 
-    # Before first touch: descending toward the first touch point
+    # Before first touch: descending from apex toward the first touch point
     first_t = float(sorted_touches[0])
     if t_ms <= first_t:
-        half_span = max(400.0, first_t)
+        half_span = 400.0
         dt = first_t - t_ms
         if dt >= half_span:
             return center_x, spec.touch_y_px - amplitude_px
@@ -80,15 +80,15 @@ def _compute_ball_position(
             height_above_touch = amplitude_px * arch
             return center_x, spec.touch_y_px - height_above_touch
 
-    # After last touch: rebound arc and settle
+    # After last touch: ball rebounds up to apex and stays held/caught at apex
     last_t = float(sorted_touches[-1])
-    post_span = 800.0
+    half_span = 400.0
     dt_after = t_ms - last_t
-    if dt_after <= post_span:
-        phase = dt_after / post_span
-        arch = 4.0 * phase * (1.0 - phase)
-        return center_x, spec.touch_y_px - amplitude_px * arch
-    return center_x, spec.touch_y_px
+    if dt_after <= half_span:
+        u = 1.0 - (dt_after / half_span)  # 1 at last touch -> 0 at apex
+        height_above_touch = amplitude_px * (1.0 - u * u)
+        return center_x, spec.touch_y_px - height_above_touch
+    return center_x, spec.touch_y_px - amplitude_px
 
 
 def generate_synthetic_audio_wav(
