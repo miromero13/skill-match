@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class CreateValidationSessionRequest(BaseModel):
-    skill_id: Optional[UUID] = Field(
+    skill_id: UUID | None = Field(
         default=None,
         description="Optional skill UUID for Football Ball Control validation",
     )
@@ -21,8 +21,8 @@ class ChallengeSegmentRead(BaseModel):
     tipo: Literal["LOW", "HIGH", "SLOW", "FAST"]
     inicio_servidor_ms: int
     duracion_ms: int
-    cumplimiento: Optional[float] = None
-    latencia_reaccion_ms: Optional[int] = None
+    cumplimiento: float | None = None
+    latencia_reaccion_ms: int | None = None
 
 
 class CreateValidationSessionResponse(BaseModel):
@@ -40,11 +40,11 @@ class ValidationSessionStatusResponse(BaseModel):
 
     id: UUID
     user_id: UUID
-    skill_id: Optional[UUID] = None
+    skill_id: UUID | None = None
     estado: str
     semilla: int
     creada_en: datetime
-    finalizada_en: Optional[datetime] = None
+    finalizada_en: datetime | None = None
     version_modelo: str
     version_config: str
     segments: list[ChallengeSegmentRead] = Field(default_factory=list)
@@ -52,9 +52,9 @@ class ValidationSessionStatusResponse(BaseModel):
 
 class WSClientMessage(BaseModel):
     type: Literal["client_event", "ping"]
-    event: Optional[Literal["tab_hidden", "focus_lost", "fullscreen_exit"]] = None
-    timestamp_ms: Optional[int] = None
-    payload: Optional[dict[str, Any]] = None
+    event: Literal["tab_hidden", "focus_lost", "fullscreen_exit"] | None = None
+    timestamp_ms: int | None = None
+    payload: dict[str, Any] | None = None
 
 
 class WSServerMessage(BaseModel):

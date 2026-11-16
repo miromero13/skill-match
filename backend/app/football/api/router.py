@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import (
@@ -19,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user
+from app.core.exceptions import SkillMatchException
 from app.core.security import decode_jwt_payload
 from app.db.session import AsyncSessionLocal, get_db
 from app.football.schemas import (
@@ -40,12 +43,15 @@ logger = logging.getLogger("skillmatch.football.api")
 
 router = APIRouter(tags=["Football Validation"])
 
+CurrentUserDep = Annotated[User, Depends(get_current_user)]
+DbSessionDep = Annotated[AsyncSession, Depends(get_db)]
+
 
 async def _authenticate_ws_user(
     websocket: WebSocket,
-    token: Optional[str],
+    token: str | None,
     db: AsyncSession,
-) -> Optional[User]:
+) -> User | None:
     raw_token = token
     if not raw_token:
         auth_header = websocket.headers.get("authorization")
@@ -80,9 +86,9 @@ async def _authenticate_ws_user(
 )
 async def create_session_endpoint(
     request: Request,
-    payload: Optional[CreateValidationSessionRequest] = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUserDep,
+    db: DbSessionDep,
+    payload: CreateValidationSessionRequest | None = None,
 ) -> APIResponse[CreateValidationSessionResponse]:
     skill_id = payload.skill_id if payload else None
     prefix = "/api/v1/football" if "/api/v1/" in request.url.path else "/api/football"
@@ -116,8 +122,8 @@ async def create_session_endpoint(
 )
 async def get_session_status_endpoint(
     session_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUserDep,
+    db: DbSessionDep,
 ) -> APIResponse[ValidationSessionStatusResponse]:
     session_obj = await get_Owned_validation_session(
         db=db,
@@ -154,13 +160,31 @@ async def get_session_status_endpoint(
     )
 
 
+@asynccontextmanager
+async def _open_ws_db(websocket: WebSocket) -> AsyncGenerator[AsyncSession, None]:
+    override_fn = websocket.app.dependency_overrides.get(get_db)
+    if override_fn is not None:
+        gen = override_fn()
+        db = await anext(gen)
+        try:
+            yield db
+        finally:
+            try:
+                await anext(gen)
+            except StopAsyncIteration:
+                pass
+    else:
+        async with AsyncSessionLocal() as db:
+            yield db
+
+
 @router.websocket("/sessions/{session_id}/ws")
 async def session_websocket_endpoint(
     websocket: WebSocket,
     session_id: UUID,
-    token: Optional[str] = Query(default=None),
+    token: Annotated[str | None, Query()] = None,
 ) -> None:
-    async with AsyncSessionLocal() as db:
+    async with _open_ws_db(websocket) as db:
         user = await _authenticate_ws_user(websocket, token, db)
         if user is None:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -172,7 +196,7 @@ async def session_websocket_endpoint(
                 session_id=session_id,
                 user_id=user.id,
             )
-        except Exception:
+        except SkillMatchException:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 

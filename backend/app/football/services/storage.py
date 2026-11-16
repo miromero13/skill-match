@@ -122,7 +122,7 @@ class GarageS3StorageService:
         normalized_key = object_key.lstrip("/")
         expires_at = int(time.time()) + ttl
         signing_secret = settings.SECRET_KEY.get_secret_value().encode("utf-8")
-        message = f"{self.bucket_name}:{normalized_key}:{expires_at}".encode("utf-8")
+        message = f"{self.bucket_name}:{normalized_key}:{expires_at}".encode()
         signature = hmac.new(signing_secret, message, hashlib.sha256).hexdigest()
         base = self.endpoint_url.rstrip("/")
         return (

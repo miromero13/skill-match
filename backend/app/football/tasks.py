@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from celery import Celery
@@ -47,5 +47,5 @@ def process_session(session_id: str) -> dict[str, Any]:
         "status": "processed_phase0_stub",
         "config_version": cfg.version,
         "config_hash": cfg.config_hash,
-        "processed_at": datetime.now(timezone.utc).isoformat(),
+        "processed_at": datetime.now(UTC).isoformat(),
     }

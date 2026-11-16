@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import status
@@ -26,7 +26,7 @@ async def count_recent_attempts(
     skill_id: UUID | None,
     window_minutes: int,
 ) -> int:
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    cutoff = datetime.now(UTC) - timedelta(minutes=window_minutes)
     stmt = select(func.count(ValidationSession.id)).where(
         ValidationSession.user_id == user_id,
         ValidationSession.creada_en >= cutoff,
@@ -68,7 +68,7 @@ async def create_validation_session(
 
     seed = secrets.randbelow(2_000_000_000) + 1
     segments_plan, signed_plan = generate_plan(seed)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     session_obj = ValidationSession(
         user_id=user_id,

@@ -3,15 +3,15 @@ from __future__ import annotations
 import enum
 import uuid
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Float,
     ForeignKey,
     Integer,
-    JSON,
     String,
     Text,
 )
@@ -65,7 +65,7 @@ class ValidationSession(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    skill_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    skill_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("skills.id", ondelete="SET NULL"),
         nullable=True,
@@ -83,7 +83,7 @@ class ValidationSession(Base, TimestampMixin):
         DateTime(timezone=True),
         nullable=False,
     )
-    finalizada_en: Mapped[Optional[datetime]] = mapped_column(
+    finalizada_en: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
@@ -92,31 +92,31 @@ class ValidationSession(Base, TimestampMixin):
     )
     version_config: Mapped[str] = mapped_column(String(64), nullable=False)
 
-    segments: Mapped[list["ChallengeSegment"]] = relationship(
+    segments: Mapped[list[ChallengeSegment]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",
         order_by="ChallengeSegment.indice",
     )
-    evidence_files: Mapped[list["EvidenceFile"]] = relationship(
+    evidence_files: Mapped[list[EvidenceFile]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",
     )
-    detected_events: Mapped[list["DetectedEvent"]] = relationship(
+    detected_events: Mapped[list[DetectedEvent]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",
         order_by="DetectedEvent.t_ms",
     )
-    features: Mapped[Optional["SessionFeature"]] = relationship(
+    features: Mapped[SessionFeature | None] = relationship(
         back_populates="session",
         uselist=False,
         cascade="all, delete-orphan",
     )
-    result: Mapped[Optional["ValidationResult"]] = relationship(
+    result: Mapped[ValidationResult | None] = relationship(
         back_populates="session",
         uselist=False,
         cascade="all, delete-orphan",
     )
-    fraud_incidents: Mapped[list["FraudIncident"]] = relationship(
+    fraud_incidents: Mapped[list[FraudIncident]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",
         order_by="FraudIncident.t_ms",
@@ -139,8 +139,8 @@ class ChallengeSegment(Base, TimestampMixin):
     tipo: Mapped[str] = mapped_column(String(20), nullable=False)
     inicio_servidor_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     duracion_ms: Mapped[int] = mapped_column(Integer, nullable=False)
-    cumplimiento: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    latencia_reaccion_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    cumplimiento: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latencia_reaccion_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     session: Mapped[ValidationSession] = relationship(back_populates="segments")
 
@@ -159,8 +159,8 @@ class EvidenceFile(Base, TimestampMixin):
     )
     tipo: Mapped[str] = mapped_column(String(20), nullable=False)
     ruta_minio: Mapped[str] = mapped_column(String(500), nullable=False)
-    duracion_s: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    fps: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    duracion_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fps: Mapped[float | None] = mapped_column(Float, nullable=True)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -251,7 +251,7 @@ class FraudIncident(Base, TimestampMixin):
     tipo: Mapped[str] = mapped_column(String(60), nullable=False)
     severidad: Mapped[str] = mapped_column(String(20), nullable=False)
     t_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    detalle: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    detalle: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     session: Mapped[ValidationSession] = relationship(back_populates="fraud_incidents")
 
