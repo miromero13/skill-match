@@ -4,6 +4,7 @@ import {
   User,
   Compass,
   ArrowLeftRight,
+  Handshake,
   Wallet,
   Calendar,
   Award,
@@ -20,6 +21,7 @@ export function PlatformSidebar() {
   const { user } = useAuthStore()
 
   const menuItems = [
+    { label: "Mis Coincidencias", icon: Handshake, to: "/matches", active: path === "/matches" },
     { label: "Mi Perfil y Horarios", icon: User, to: "/app/profile", active: path === "/app/profile" || path === "/app" },
     { label: "Explorar Instructores", icon: Compass, to: "/app/search", active: path.startsWith("/app/search") || path === "/search" },
     { label: "Habilidades que enseño", icon: BookOpen, to: "/app/teaching-skills", active: path === "/app/teaching-skills" },
