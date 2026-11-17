@@ -107,10 +107,10 @@ export function NotificationInboxPage() {
       >
         <TabsList
           aria-label="Filtrar notificaciones"
-          className="h-auto w-full flex-wrap"
+          className="h-auto min-h-12 w-full flex-wrap gap-1"
         >
           {Object.entries(labels).map(([key, label]) => (
-            <TabsTrigger className="min-h-11" key={key} value={key}>
+            <TabsTrigger className="min-h-10" key={key} value={key}>
               {label}
             </TabsTrigger>
           ))}

@@ -16,6 +16,7 @@ interface NotificationState {
   page: number
   total: number
   unreadTotal: number
+  realtimeRevision: number
   loading: boolean
   unreadLoading: boolean
   mutating: boolean
@@ -48,6 +49,7 @@ const initial = () => ({
   page: 1,
   total: 0,
   unreadTotal: 0,
+  realtimeRevision: 0,
   loading: false,
   unreadLoading: false,
   mutating: false,
