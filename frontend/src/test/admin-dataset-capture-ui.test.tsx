@@ -149,8 +149,7 @@ describe("AdminDatasetCapturePage", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText(/100% Automático/i)).toBeInTheDocument()
-    expect(screen.getByText(/Modo Automático Activado/i)).toBeInTheDocument()
+    expect(screen.getByText(/Automático/i)).toBeInTheDocument()
     expect(
       screen.getByText(/Opciones avanzadas y etiquetado manual \(opcional\)/i)
     ).toBeInTheDocument()

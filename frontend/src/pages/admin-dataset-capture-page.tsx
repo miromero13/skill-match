@@ -512,9 +512,6 @@ export function AdminDatasetCapturePage() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
             Ingesta y Captura de Muestras Multimedia
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Herramienta multiplataforma para datasets internos de IA (Música, Fútbol y Programación) con validación de hash SHA-256 y consentimiento explícito.
-          </p>
         </div>
 
         <Button
@@ -564,21 +561,9 @@ export function AdminDatasetCapturePage() {
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 bg-emerald-500/10 text-xs">
-                  Gobernanza Canónica
-                </Badge>
-                <CardTitle className="text-base font-semibold text-foreground">
-                  1. Selección de Categoría y Habilidad
-                </CardTitle>
-              </div>
-              <CardDescription className="mt-1">
-                El sistema opera estrictamente con 3 categorías fijas. Seleccioná una categoría para filtrar las habilidades del catálogo y desbloquear el entrenamiento.
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-1.5 self-start sm:self-auto text-xs text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-lg border border-border/40">
-              <span>Categorías fijas:</span>
-              <strong className="text-foreground">3 canónicas</strong>
+              <CardTitle className="text-base font-semibold text-foreground">
+                1. Selección de Categoría y Habilidad
+              </CardTitle>
             </div>
           </div>
         </CardHeader>
@@ -648,9 +633,11 @@ export function AdminDatasetCapturePage() {
                         {activeCategorySlug}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-1">
-                      {selectedSkill.description || "Habilidad validada por modelos locales de IA."}
-                    </p>
+                    {selectedSkill.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        {selectedSkill.description}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 text-xs">
                     <Badge variant="secondary" className="text-[11px]">
@@ -664,7 +651,7 @@ export function AdminDatasetCapturePage() {
               ) : (
                 <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
                   <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>Ninguna habilidad seleccionada. Seleccioná una para habilitar el generador y entrenamiento.</span>
+                  <span>Seleccioná una habilidad.</span>
                 </div>
               )}
             </div>
@@ -721,9 +708,6 @@ export function AdminDatasetCapturePage() {
                   </Badge>
                 )}
               </CardTitle>
-              <CardDescription>
-                Selecciona la modalidad de captura o importa un archivo multimedia local (.mp4, .wav, .py).
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <Tabs
@@ -762,7 +746,7 @@ export function AdminDatasetCapturePage() {
                     ) : (
                       <div className="text-center p-6 text-muted-foreground space-y-2">
                         <Video className="w-12 h-12 mx-auto stroke-1 opacity-50 text-emerald-400" />
-                        <p className="text-sm">Cámara inactiva. Pulsa &quot;Iniciar Grabación de Video&quot; para abrir la cámara web o del móvil.</p>
+                        <p className="text-sm">Cámara inactiva.</p>
                       </div>
                     )}
 
@@ -799,7 +783,7 @@ export function AdminDatasetCapturePage() {
                     <p className="text-sm text-muted-foreground">
                       {isRecording
                         ? `Grabando espectro de audio... ${formatTimer(recordingDurationSeconds)}`
-                        : "Micrófono listo para capturar audio de instrumentos o voz."}
+                        : "Micrófono listo."}
                     </p>
                   </div>
 
@@ -871,10 +855,6 @@ export function AdminDatasetCapturePage() {
                   onChange={handleManualFileUpload}
                   className="cursor-pointer file:cursor-pointer text-xs"
                 />
-                <p className="text-[11px] text-muted-foreground">
-                  Podés seleccionar varios videos o audios reales al mismo tiempo para subirlos en lote directamente a Garage S3.
-                </p>
-
                 {/* Cola de Archivos Seleccionados */}
                 {batchFiles.length > 0 && (
                   <div className="space-y-2 border border-border/70 rounded-lg p-3 bg-card/40 max-h-56 overflow-y-auto">
@@ -976,43 +956,11 @@ export function AdminDatasetCapturePage() {
               <CardTitle className="text-lg font-semibold flex items-center justify-between">
                 <span>2. Metadatos & Consentimiento</span>
                 <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 text-[11px] flex items-center gap-1 font-normal">
-                  <Sparkles className="w-3 h-3 text-emerald-500" /> 100% Automático
+                  <Sparkles className="w-3 h-3 text-emerald-500" /> Automático
                 </Badge>
               </CardTitle>
-              <CardDescription>
-                Los metadatos se auto-generan a partir de la habilidad activa ({selectedSkillName || "Habilidad seleccionada"}).
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Tarjeta de Automatización Inteligente */}
-              <div className="p-3.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                  <Sparkles className="w-4 h-4 shrink-0 text-emerald-500" />
-                  <span>Modo Automático Activado (Sin Configuración Manual)</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  El sistema detecta automáticamente la habilidad (<strong>{selectedSkillName || activeCategorySlug}</strong>), asigna identificadores de participante anónimos (<code>anon-p01</code>, <code>anon-p02</code>...), distribuye la partición <strong>Train / Val / Test (70% / 15% / 15%)</strong> y aplica calibración estándar de captura sin requerir entrada manual.
-                </p>
-              </div>
-
-              {/* Consentimiento firmado obligatorio */}
-              <div className="flex items-start gap-3 p-3.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
-                <Switch
-                  id="consent-switch"
-                  checked={signedConsent}
-                  onCheckedChange={setSignedConsent}
-                  className="mt-0.5"
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="consent-switch" className="text-xs font-semibold cursor-pointer text-foreground">
-                    Consentimiento Informado Firmado (Requisito Legal Estricto)
-                  </Label>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Certifico que el sujeto participante firmó explícitamente el consentimiento para capturar audio, video o código y destinarlo exclusivamente al entrenamiento de los modelos de IA de SkillMatch.
-                  </p>
-                </div>
-              </div>
-
               {/* Acordeón Opcional para Investigadores / Configuración Manual */}
               <details className="group border border-border/50 rounded-lg p-3 bg-card/40 transition-all">
                 <summary className="text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer flex items-center justify-between select-none">
@@ -1183,7 +1131,7 @@ export function AdminDatasetCapturePage() {
                     Consentimiento Informado Firmado (Requisito Legal Estricto)
                   </Label>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Certifico que el sujeto participante firmó explícitamente el consentimiento para capturar audio, video o código y destinarlo exclusivamente al entrenamiento de los modelos de IA de SkillMatch.
+                    Certifico que el sujeto participante firmó explícitamente el consentimiento para capturar audio, video o código.
                   </p>
                 </div>
               </div>
@@ -1247,8 +1195,7 @@ export function AdminDatasetCapturePage() {
               {filteredSamples.length === 0 ? (
                 <div className="text-center py-12 px-4 text-muted-foreground space-y-2">
                   <UploadCloud className="w-10 h-10 mx-auto stroke-1 opacity-40 text-muted-foreground" />
-                  <p className="text-sm">No hay muestras recolectadas para esta categoría.</p>
-                  <p className="text-xs">Las capturas subidas se listarán aquí con su hash y metadatos.</p>
+                  <p className="text-sm">Sin muestras todavía.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto max-h-[640px] overflow-y-auto">

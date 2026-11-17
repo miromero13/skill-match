@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -28,10 +27,20 @@ import {
   Play,
   RotateCw,
   TrendingUp,
-  Cloud,
   Trophy,
+  Eye,
 } from "lucide-react"
 import { footballValidationApi } from "../api/football-validation-api"
+
+interface DatasetPreviewSample {
+  id: string
+  participant_id: string | null
+  level_label: string | null
+  split: string | null
+  is_synthetic: boolean
+  manual_touch_count: number | null
+  created_at: string | null
+}
 
 interface ModelVersionItem {
   id: string
@@ -82,6 +91,13 @@ export function FootballTrainingStudio({
   const [trainingMessage, setTrainingMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  // Dataset preview (what train_football_level_model would actually use)
+  const [previewSamples, setPreviewSamples] = useState<DatasetPreviewSample[]>([])
+  const [previewRealCount, setPreviewRealCount] = useState(0)
+  const [previewSyntheticCount, setPreviewSyntheticCount] = useState(0)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+
   const fetchModels = async () => {
     setIsLoadingModels(true)
     setErrorMessage(null)
@@ -109,7 +125,7 @@ export function FootballTrainingStudio({
 
   const handleTrainModel = async () => {
     if (!skillId) {
-      setErrorMessage("Debes seleccionar una habilidad del catálogo antes de iniciar el entrenamiento.")
+      setErrorMessage("Seleccioná una habilidad primero.")
       return
     }
     setIsTraining(true)
@@ -119,14 +135,11 @@ export function FootballTrainingStudio({
       const res = await footballValidationApi.trainLevelModel({
         version_tag: versionTag.trim() || undefined,
         activate: autoActivate,
-        dataset_source: "real_only",
         skill_id: skillId,
       })
       if (res.statuscode === 200 && res.data) {
         setTrainingMessage(
-          `¡Entrenamiento exitoso! Modelo versión ${res.data.version} entrenado con datos 100% reales, exportado en ONNX y ${
-            res.data.activa ? "activado como único modelo en producción" : "guardado en catálogo"
-          }.`
+          `Modelo ${res.data.version} entrenado${res.data.activa ? " y activado" : ""}.`
         )
         setVersionTag("")
         await fetchModels()
@@ -136,6 +149,29 @@ export function FootballTrainingStudio({
       setErrorMessage(msg)
     } finally {
       setIsTraining(false)
+    }
+  }
+
+  const handleTogglePreview = async () => {
+    if (showPreview) {
+      setShowPreview(false)
+      return
+    }
+    setShowPreview(true)
+    setIsLoadingPreview(true)
+    setErrorMessage(null)
+    try {
+      const res = await footballValidationApi.getDatasetPreview()
+      if (res.statuscode === 200 && res.data) {
+        setPreviewSamples(res.data.samples)
+        setPreviewRealCount(res.data.real_count)
+        setPreviewSyntheticCount(res.data.synthetic_count)
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error cargando la vista previa del dataset."
+      setErrorMessage(msg)
+    } finally {
+      setIsLoadingPreview(false)
     }
   }
 
@@ -165,32 +201,11 @@ export function FootballTrainingStudio({
   return (
     <div className="space-y-6">
       {/* Top Banner Context */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm">
-        <div>
-          <div className="flex items-center gap-2">
-            <BrainCircuit className="w-6 h-6 text-emerald-500" />
-            <h2 className="text-xl font-bold tracking-tight">
-              Estudio de Entrenamiento de IA — {skillName}
-            </h2>
-            <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
-              Garage S3 + ONNX
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Preseleccioná datos de entrenamiento (reales o sintéticos), entrená modelos locales multinomiales con partición estricta y activá un único modelo para producción tras verificar el benchmark comparativo.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="flex items-center gap-1.5 py-1 px-3">
-            <Cloud className="w-3.5 h-3.5 text-sky-500" />
-            Garage S3 (Coolify)
-          </Badge>
-          <Badge variant="secondary" className="flex items-center gap-1.5 py-1 px-3">
-            <Cpu className="w-3.5 h-3.5 text-violet-500" />
-            Cero APIs de Terceros
-          </Badge>
-        </div>
+      <div className="flex items-center gap-2 p-4 rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm">
+        <BrainCircuit className="w-6 h-6 text-emerald-500" />
+        <h2 className="text-xl font-bold tracking-tight">
+          Entrenamiento de IA — {skillName}
+        </h2>
       </div>
 
       {errorMessage && (
@@ -212,12 +227,7 @@ export function FootballTrainingStudio({
       {!skillId && (
         <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300">
           <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
-          <div>
-            <AlertTitle className="font-semibold text-sm">Habilidad no seleccionada</AlertTitle>
-            <AlertDescription className="text-xs mt-0.5">
-              Debes seleccionar una habilidad del catálogo en la barra superior para habilitar el entrenamiento con datos reales.
-            </AlertDescription>
-          </div>
+          <AlertTitle className="font-semibold text-sm">Seleccioná una habilidad para entrenar</AlertTitle>
         </Alert>
       )}
 
@@ -230,33 +240,18 @@ export function FootballTrainingStudio({
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <Play className="w-4 h-4 text-emerald-500" />
-                  Entrenar Modelo con Datos Reales
+                  Entrenar Modelo
                 </CardTitle>
-                {!skillId && (
-                  <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600">
-                    Requiere Habilidad
-                  </Badge>
-                )}
               </div>
-              <CardDescription>
-                Ajusta los pesos del clasificador ONNX extrayendo características físicas, auditivas y motrices exclusivamente de las grabaciones reales almacenadas en Garage S3.
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-semibold">Cero Datos Simulados:</span> El entrenamiento procesa únicamente las muestras reales cargadas por participantes en la plataforma, evaluando en prueba ciega sin fuga de datos.
-                </div>
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="version-tag" className="text-sm">
-                  Etiqueta de Versión (Opcional)
+                  Versión (opcional)
                 </Label>
                 <Input
                   id="version-tag"
-                  placeholder="ej. 1.0.0 (se auto-asigna si se omite)"
+                  placeholder="ej. 1.0.0"
                   value={versionTag}
                   onChange={(e) => setVersionTag(e.target.value)}
                   className="font-mono text-sm"
@@ -264,20 +259,82 @@ export function FootballTrainingStudio({
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/20">
-                <div className="space-y-0.5">
-                  <Label htmlFor="auto-activate" className="text-sm font-medium">
-                    Activar Único en Producción
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Desactiva versiones anteriores y lo asigna al Validador.
-                  </p>
-                </div>
+                <Label htmlFor="auto-activate" className="text-sm font-medium">
+                  Activar en producción
+                </Label>
                 <Switch
                   id="auto-activate"
                   checked={autoActivate}
                   onCheckedChange={setAutoActivate}
                 />
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleTogglePreview}
+                disabled={isLoadingPreview}
+                className="w-full flex items-center justify-center gap-2"
+              >
+                {isLoadingPreview ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Cargando...
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-4 h-4" />
+                    {showPreview ? "Ocultar muestras" : "Ver muestras a usar"}
+                  </>
+                )}
+              </Button>
+
+              {showPreview && !isLoadingPreview && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
+                      {previewRealCount} reales
+                    </Badge>
+                    <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                      {previewSyntheticCount} sintéticas
+                    </Badge>
+                  </div>
+                  {previewSamples.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No hay muestras cargadas todavía para esta disciplina.
+                    </p>
+                  ) : (
+                    <div className="max-h-56 overflow-y-auto rounded-lg border border-border/50">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Participante</TableHead>
+                            <TableHead className="text-xs">Nivel</TableHead>
+                            <TableHead className="text-xs">Split</TableHead>
+                            <TableHead className="text-xs text-right">Toques (manual)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {previewSamples
+                            .filter((s) => !s.is_synthetic)
+                            .map((sample) => (
+                              <TableRow key={sample.id}>
+                                <TableCell className="text-xs font-mono">
+                                  {sample.participant_id ?? "—"}
+                                </TableCell>
+                                <TableCell className="text-xs">{sample.level_label ?? "—"}</TableCell>
+                                <TableCell className="text-xs">{sample.split ?? "—"}</TableCell>
+                                <TableCell className="text-xs text-right">
+                                  {sample.manual_touch_count ?? "—"}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <Button
                 onClick={handleTrainModel}
@@ -287,12 +344,12 @@ export function FootballTrainingStudio({
                 {isTraining ? (
                   <>
                     <RotateCw className="w-4 h-4 animate-spin" />
-                    Extrayendo datos reales y ajustando pesos...
+                    Entrenando...
                   </>
                 ) : (
                   <>
                     <Cpu className="w-4 h-4" />
-                    Entrenar y Evaluar Modelo
+                    Entrenar Modelo
                   </>
                 )}
               </Button>
@@ -308,17 +365,11 @@ export function FootballTrainingStudio({
                 <div>
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-emerald-500" />
-                    Métricas del Modelo: {selectedModel?.version || "Sin versión seleccionada"}
+                    {selectedModel?.version || "Sin modelo seleccionado"}
                   </CardTitle>
-                  <CardDescription>
-                    Evaluado en participantes completamente inéditos (Zero Participant Leakage).
-                  </CardDescription>
                 </div>
                 {selectedModel?.activa && (
-                  <Badge className="bg-emerald-600 text-white text-xs flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                    Activo en Producción
-                  </Badge>
+                  <Badge className="bg-emerald-600 text-white text-xs">Activo</Badge>
                 )}
               </div>
             </CardHeader>
@@ -357,28 +408,6 @@ export function FootballTrainingStudio({
                       <div className="text-xs text-muted-foreground mt-0.5">Latencia CPU</div>
                     </div>
                   </div>
-
-                  {/* Resumen de Datos de Entrenamiento */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg border border-border/50 bg-muted/10 text-xs">
-                    <span className="text-muted-foreground">
-                      Fuente: <strong className="text-foreground">Datos 100% Reales (Garage S3)</strong>
-                    </span>
-                    <span className="text-muted-foreground">
-                      Muestras de Test: <strong className="text-foreground">{metrics.test_samples || 0}</strong> ({metrics.test_participants || 0} participantes en prueba ciega)
-                    </span>
-                  </div>
-
-                  {/* Comparativa con línea base */}
-                  {metrics.beats_rule_baseline && (
-                    <div className="flex items-center gap-2 p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-xs text-emerald-700 dark:text-emerald-400">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" />
-                      <span>
-                        El modelo entrenado supera a la línea base de reglas (
-                        {((metrics.trained_exact_accuracy || 0) * 100).toFixed(1)}% vs{" "}
-                        {((metrics.rule_baseline_accuracy || 0) * 100).toFixed(1)}%).
-                      </span>
-                    </div>
-                  )}
 
                   {/* Matriz de Confusión */}
                   {metrics.confusion_matrix && metrics.confusion_matrix.length === 4 && (
@@ -430,9 +459,7 @@ export function FootballTrainingStudio({
                   {/* Historial de Pérdida (Loss) */}
                   {metrics.loss_history && metrics.loss_history.length > 0 && (
                     <div className="space-y-2">
-                      <div className="text-xs font-semibold text-muted-foreground">
-                        Convergencia de Pérdida (Cross-Entropy Loss por Épocas)
-                      </div>
+                      <div className="text-xs font-semibold text-muted-foreground">Loss por época</div>
                       <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 text-center text-xs">
                         {metrics.loss_history.map((pt) => (
                           <div
@@ -451,9 +478,7 @@ export function FootballTrainingStudio({
                 </>
               ) : (
                 <div className="py-12 text-center text-muted-foreground text-sm">
-                  {isLoadingModels
-                    ? "Cargando versiones de modelo..."
-                    : "No hay métricas disponibles. Lanzá un entrenamiento para generar el primer modelo."}
+                  {isLoadingModels ? "Cargando..." : "Sin modelos todavía."}
                 </div>
               )}
             </CardContent>
@@ -467,7 +492,7 @@ export function FootballTrainingStudio({
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Trophy className="w-4 h-4 text-amber-500" />
-              Benchmark Real Comparativo de Modelos — {skillName}
+              Modelos entrenados
             </CardTitle>
             <Button
               variant="outline"
@@ -477,17 +502,14 @@ export function FootballTrainingStudio({
               className="h-8 text-xs flex items-center gap-1.5"
             >
               <RotateCw className={`w-3.5 h-3.5 ${isLoadingModels ? "animate-spin" : ""}`} />
-              Actualizar Benchmark
+              Actualizar
             </Button>
           </div>
-          <CardDescription>
-            Comparación directa de precisión, error medio, latencia y tamaño de datos entre todas las versiones entrenadas. Solo un modelo puede estar activo en producción.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           {models.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground text-sm">
-              No hay versiones registradas aún. Generá muestras y lanzá un entrenamiento para crear la primera versión.
+              Sin versiones todavía.
             </div>
           ) : (
             <div className="overflow-x-auto border border-border/60 rounded-lg">
@@ -554,11 +576,6 @@ export function FootballTrainingStudio({
                             ? `${m.metricas.latency_ms_per_inference} ms`
                             : "0.03 ms"}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          <Badge variant="secondary" className="text-[10px]">
-                            Datos Reales
-                          </Badge>
-                        </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground max-w-[180px] truncate">
                           {m.ruta_onnx}
                         </TableCell>
@@ -578,7 +595,7 @@ export function FootballTrainingStudio({
                                 handleActivateModel(m.id)
                               }}
                             >
-                              Activar como Único
+                              Activar
                             </Button>
                           )}
                         </TableCell>

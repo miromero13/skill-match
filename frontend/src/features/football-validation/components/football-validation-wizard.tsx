@@ -460,7 +460,7 @@ export function FootballValidationWizard({
             ["liveness", "3. Prueba de Vida"],
             ["calibration", "4. Calibración"],
             ["recording", "5. Retos en Vivo"],
-            ["processing", "6. Garage S3 & IA"],
+            ["processing", "6. Procesando"],
             ["result", "7. Resultado"],
           ] as const
         ).map(([key, label]) => (
@@ -496,11 +496,8 @@ export function FootballValidationWizard({
           <CardHeader>
             <CardTitle className="text-xl font-bold flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-emerald-500" />
-              Validación de Habilidad de Fútbol con IA Propia
+              Validación de Habilidad de Fútbol
             </CardTitle>
-            <CardDescription>
-              Evalúa tu dominio y control de balón en tiempo real con visión artificial clásica (MOG2 + Hough + Kalman), fusión acústica a 48 kHz y retos dinámicos «El entrenador dice» firmados con HMAC.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-start gap-3 p-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
@@ -514,10 +511,10 @@ export function FootballValidationWizard({
                   htmlFor="football-consent-switch"
                   className="text-xs font-semibold cursor-pointer"
                 >
-                  Consentimiento Explícito de Grabación y Supervisión Antifraude
+                  Consentimiento de grabación y supervisión antifraude
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Autorizo el uso temporal de cámara y micrófono (retención limitada a 30 días en nuestro servidor Garage S3 propio) para validar mi nivel de control de balón.
+                  Uso de cámara y micrófono, con retención máxima de 30 días.
                 </p>
               </div>
             </div>
@@ -530,9 +527,7 @@ export function FootballValidationWizard({
               data-testid="start-football-session-btn"
             >
               <Play className="w-4 h-4 mr-2" />
-              {isBusy
-                ? "Creando Sesión y Plan HMAC..."
-                : "Iniciar Sesión de Validación"}
+              {isBusy ? "Creando sesión..." : "Iniciar Validación"}
             </Button>
           </CardContent>
         </Card>
@@ -544,11 +539,8 @@ export function FootballValidationWizard({
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
               <Sun className="w-5 h-5 text-amber-500" />
-              Verificación de Ambiente (Luz, Ruido, Rostro y Balón)
+              Verificación de Ambiente
             </CardTitle>
-            <CardDescription>
-              El servidor comprueba las condiciones antes de habilitar la prueba de vida.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <canvas ref={canvasRef} className="hidden" />
@@ -565,7 +557,7 @@ export function FootballValidationWizard({
                 ) : (
                   <div className="text-center p-4 text-xs text-muted-foreground">
                     <Camera className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    Modo sin cámara física detectada (puedes ajustar telemetría o subir un video en el paso de grabación).
+                    Sin cámara detectada.
                   </div>
                 )}
               </div>
@@ -638,7 +630,7 @@ export function FootballValidationWizard({
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               <CheckCircle2 className="w-4 h-4 mr-2" />
-              Validar Ambiente en el Servidor
+              Validar Ambiente
             </Button>
           </CardContent>
         </Card>
@@ -650,10 +642,10 @@ export function FootballValidationWizard({
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
               <Eye className="w-5 h-5 text-emerald-500" />
-              Prueba de Vida (Liveness Check)
+              Prueba de Vida
             </CardTitle>
             <CardDescription>
-              Realiza una inclinación de cabeza frente a la cámara para confirmar presencia en vivo antes de calibrar.
+              Inclina la cabeza frente a la cámara.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -676,10 +668,10 @@ export function FootballValidationWizard({
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
               <Crosshair className="w-5 h-5 text-sky-500" />
-              Toque Único de Calibración Audio-Video
+              Calibración Audio-Video
             </CardTitle>
             <CardDescription>
-              Da un toque claro al balón frente a la cámara para sincronizar el desfase entre el micrófono (48 kHz) y el video antes de iniciar los retos.
+              Da un toque claro al balón frente a la cámara.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -690,7 +682,7 @@ export function FootballValidationWizard({
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               <Play className="w-4 h-4 mr-2" />
-              Registrar Toque de Calibración e Iniciar Retos
+              Registrar Toque e Iniciar Retos
             </Button>
           </CardContent>
         </Card>
@@ -712,7 +704,7 @@ export function FootballValidationWizard({
               <CardContent className="pt-4 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="text-xs text-muted-foreground">
-                    Fragmentos confirmados en Garage S3:{" "}
+                    Fragmentos confirmados:{" "}
                     <span className="font-mono font-bold text-foreground">
                       {confirmedChunks.length > 0
                         ? confirmedChunks.join(", ")
@@ -736,7 +728,7 @@ export function FootballValidationWizard({
                       onClick={handleFinishRecordingAndScore}
                     >
                       <Square className="w-4 h-4 mr-1.5" />
-                      Finalizar, Ensamblar en Garage S3 y Evaluar
+                      Finalizar y Evaluar
                     </Button>
                   </div>
                 </div>
@@ -746,7 +738,7 @@ export function FootballValidationWizard({
                     htmlFor="direct-video-validation-input"
                     className="text-xs font-medium text-muted-foreground block mb-1.5"
                   >
-                    ¿Quieres probar el pipeline completo con un video `.mp4` de tu computadora? Súbelo aquí y se fragmentará hacia Garage S3 (`https://s3.devhooh.com`) para correr el detector real:
+                    O sube un video .mp4 / .webm
                   </Label>
                   <Input
                     id="direct-video-validation-input"
@@ -780,7 +772,7 @@ export function FootballValidationWizard({
                     />
                   ) : (
                     <div className="text-center p-4 text-xs text-muted-foreground">
-                      Usa el botón &quot;Subir archivo .mp4&quot; a la izquierda o conecta una cámara web para grabar en vivo.
+                      Sin cámara conectada.
                     </div>
                   )}
                   {isRecording && (
@@ -803,12 +795,7 @@ export function FootballValidationWizard({
         <Card className="border-border/70 text-center py-12">
           <CardContent className="space-y-3">
             <RefreshCw className="w-10 h-10 mx-auto text-emerald-500 animate-spin" />
-            <CardTitle className="text-lg">
-              Ensamblando Fragmentos en Garage S3 y Ejecutando Pipeline de IA...
-            </CardTitle>
-            <CardDescription className="max-w-md mx-auto text-xs">
-              Corriendo seguimiento de balón (MOG2 + Kalman), detección de toques (Savitzky-Golay), impactos de audio (Mel 48 kHz), fusión ±70 ms, cumplimiento de retos y clasificador de nivel.
-            </CardDescription>
+            <CardTitle className="text-lg">Procesando video...</CardTitle>
           </CardContent>
         </Card>
       )}

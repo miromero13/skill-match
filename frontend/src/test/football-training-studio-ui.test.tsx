@@ -74,9 +74,8 @@ describe("FootballTrainingStudio UI Component", () => {
     render(<FootballTrainingStudio skillId="skill-fb-1" skillName="Dominadas y Control de Balón" />)
 
     expect(
-      screen.getByText(/Estudio de Entrenamiento de IA/i)
+      screen.getByText(/Entrenamiento de IA/i)
     ).toBeInTheDocument()
-    expect(screen.getByText("Garage S3 + ONNX")).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getAllByText("100.0%").length).toBeGreaterThan(0)
@@ -85,16 +84,16 @@ describe("FootballTrainingStudio UI Component", () => {
     expect(screen.getAllByText("Exact Accuracy").length).toBeGreaterThan(0)
     expect(screen.getByText("Línea Base (Reglas)")).toBeInTheDocument()
     expect(screen.getByText("Matriz de Confusión (Filas: Real / Columnas: Predicción)")).toBeInTheDocument()
-    expect(screen.getByText("1.0.0-onnx")).toBeInTheDocument()
+    expect(screen.getAllByText("1.0.0-onnx").length).toBeGreaterThan(0)
   })
 
   it("disables training button when no skill is selected", async () => {
     render(<FootballTrainingStudio />)
 
-    expect(screen.getByText("Habilidad no seleccionada")).toBeInTheDocument()
+    expect(screen.getByText("Seleccioná una habilidad para entrenar")).toBeInTheDocument()
 
     const trainBtn = screen.getByRole("button", {
-      name: /Entrenar y Evaluar Modelo/i,
+      name: /Entrenar Modelo/i,
     })
     expect(trainBtn).toBeDisabled()
   })
@@ -129,25 +128,70 @@ describe("FootballTrainingStudio UI Component", () => {
 
     render(<FootballTrainingStudio skillId="skill-fb-1" />)
 
-    expect(screen.getByText(/Cero Datos Simulados/i)).toBeInTheDocument()
-
     const trainBtn = screen.getByRole("button", {
-      name: /Entrenar y Evaluar Modelo/i,
+      name: /Entrenar Modelo/i,
     })
     await user.click(trainBtn)
 
     await waitFor(() => {
       expect(trainSpy).toHaveBeenCalledWith({
         activate: true,
-        dataset_source: "real_only",
         skill_id: "skill-fb-1",
         version_tag: undefined,
       })
     })
 
-    expect(
-      screen.getByText(/¡Entrenamiento exitoso! Modelo versión 2.0.0-onnx entrenado con datos 100% reales/i)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Modelo 2\.0\.0-onnx entrenado/i)).toBeInTheDocument()
+  })
+
+  it("shows the real dataset samples that would train the model on preview", async () => {
+    const user = userEvent.setup()
+    const previewSpy = vi
+      .spyOn(footballValidationApi, "getDatasetPreview")
+      .mockResolvedValue({
+        statuscode: 200,
+        message: "Success",
+        data: {
+          samples: [
+            {
+              id: "sample-1",
+              participant_id: "REAL-01",
+              level_label: "Avanzado",
+              split: "train",
+              is_synthetic: false,
+              manual_touch_count: 42,
+              created_at: "2026-11-16T00:00:00Z",
+            },
+            {
+              id: "sample-2",
+              participant_id: "SYN-P-001-C00",
+              level_label: "Experto",
+              split: "train",
+              is_synthetic: true,
+              manual_touch_count: 80,
+              created_at: "2026-11-16T00:00:00Z",
+            },
+          ],
+          total_count: 2,
+          real_count: 1,
+          synthetic_count: 1,
+        },
+      })
+
+    render(<FootballTrainingStudio skillId="skill-fb-1" />)
+
+    const previewBtn = screen.getByRole("button", {
+      name: /Ver muestras a usar/i,
+    })
+    await user.click(previewBtn)
+
+    await waitFor(() => {
+      expect(previewSpy).toHaveBeenCalled()
+    })
+
+    expect(await screen.findByText("REAL-01")).toBeInTheDocument()
+    expect(screen.queryByText("SYN-P-001-C00")).not.toBeInTheDocument()
+    expect(screen.getByText("1 reales")).toBeInTheDocument()
   })
 
   it("activates an inactive model version when clicking activate button", async () => {
@@ -171,7 +215,7 @@ describe("FootballTrainingStudio UI Component", () => {
       expect(screen.getByText("1.1.0-onnx")).toBeInTheDocument()
     })
 
-    const activateBtn = screen.getByRole("button", { name: /Activar como Único/i })
+    const activateBtn = screen.getByRole("button", { name: /^Activar$/i })
     await user.click(activateBtn)
 
     await waitFor(() => {

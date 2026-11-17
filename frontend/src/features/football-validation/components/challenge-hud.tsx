@@ -52,7 +52,7 @@ export function ChallengeHud({
     ? CHALLENGE_COPY[activeCommand.tipo]
     : {
         title: "PREPARADO PARA LA ORDEN",
-        subtitle: "Sigue en vivo las instrucciones de «El entrenador dice»",
+        subtitle: "Esperando la orden",
         badgeVariant: "outline" as const,
       }
 
@@ -68,7 +68,7 @@ export function ChallengeHud({
             Supervisión Antifraude Activa
           </AlertTitle>
           <AlertDescription className="text-xs text-muted-foreground">
-            Mantén pantalla completa, no cambies de pestaña y permanece dentro del cuadro con el balón visible.
+            No cambies de pestaña; mantén el balón en cuadro.
           </AlertDescription>
         </Alert>
       )}
@@ -111,7 +111,7 @@ export function ChallengeHud({
             <div className="p-3 rounded-lg bg-secondary/40 flex items-center justify-between">
               <div className="space-y-0.5">
                 <span className="text-[11px] text-muted-foreground block">
-                  Toques en vivo (aprox., no vinculante)
+                  Toques en vivo (aprox.)
                 </span>
                 <span
                   className="text-xl font-bold font-mono text-foreground"
@@ -126,7 +126,7 @@ export function ChallengeHud({
             <div className="p-3 rounded-lg bg-secondary/40 flex items-center justify-between">
               <div className="space-y-0.5">
                 <span className="text-[11px] text-muted-foreground block">
-                  Tiempo restante del tramo
+                  Tiempo restante
                 </span>
                 <span className="text-xl font-bold font-mono text-foreground">
                   {Math.max(0, remainingSeconds)} s

@@ -54,7 +54,7 @@ export function FootballResultView({
                     data-testid="no-ball-badge"
                   >
                     <ShieldAlert className="w-3.5 h-3.5 mr-1" />
-                    Intento No Válido (Sin Balón Detectado)
+                    Sin Balón Detectado
                   </Badge>
                 ) : !result.requiere_revision ? (
                   <Badge
@@ -63,7 +63,7 @@ export function FootballResultView({
                     data-testid="verified-skill-seal"
                   >
                     <Award className="w-3.5 h-3.5 mr-1" />
-                    Habilidad Verificada con IA Propia
+                    Habilidad Verificada
                   </Badge>
                 ) : (
                   <Badge
@@ -72,7 +72,7 @@ export function FootballResultView({
                     data-testid="needs-review-badge"
                   >
                     <ShieldAlert className="w-3.5 h-3.5 mr-1" />
-                    Pendiente de Revisión Técnica
+                    Pendiente de Revisión
                   </Badge>
                 )}
                 <Badge variant="outline" className="font-mono text-[11px]">
@@ -133,18 +133,8 @@ export function FootballResultView({
               <AlertTitle className="text-sm font-bold">
                 No se detectó un balón de fútbol en movimiento
               </AlertTitle>
-              <AlertDescription className="text-xs space-y-1.5 mt-1 text-foreground/90">
-                <p>
-                  El algoritmo de visión artificial no detectó una trayectoria activa de dominio de balón (únicamente se observó un encuadre estático o rostro).
-                </p>
-                <div className="text-[11px] text-muted-foreground pt-1">
-                  <span className="font-semibold text-foreground">Recomendaciones para una validación válida:</span>
-                  <ul className="list-disc list-inside mt-0.5 space-y-0.5">
-                    <li>Coloca la cámara a 2-3 metros de distancia donde tu cuerpo completo y el suelo sean visibles.</li>
-                    <li>Usa un balón de fútbol reglamentario y asegúrate de contar con buena iluminación.</li>
-                    <li>Evita primeros planos del rostro o fondos con objetos esféricos en la parte superior.</li>
-                  </ul>
-                </div>
+              <AlertDescription className="text-xs mt-1 text-foreground/90">
+                Cámara a 2-3 m, cuerpo y suelo visibles, buena iluminación.
               </AlertDescription>
             </Alert>
           )}
@@ -234,7 +224,7 @@ export function FootballResultView({
             >
               <ShieldAlert className="h-4 w-4" />
               <AlertTitle className="text-xs font-semibold">
-                Incidencias de Supervisión Registradas ({result.incidencias.length})
+                Incidencias ({result.incidencias.length})
               </AlertTitle>
               <AlertDescription className="text-xs space-y-1 mt-1">
                 {result.incidencias.map((inc, idx) => (
@@ -251,7 +241,7 @@ export function FootballResultView({
             <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="w-4 h-4" />
               <span>
-                Validación completada sin incidencias antifraude (Config:{" "}
+                Sin incidencias antifraude (Config:{" "}
                 <code className="font-mono">{result.version_config}</code>).
               </span>
             </div>
