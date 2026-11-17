@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Boolean, Integer, DateTime, Text, JSON
+from sqlalchemy import String, Boolean, Integer, DateTime, Text, JSON, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -157,6 +157,18 @@ class User(Base, TimestampMixin):
         nullable=True,
         default=None,
         comment="Ciudad o zona de referencia para clases presenciales",
+    )
+    latitude: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        default=None,
+        comment="Latitud geográfica aproximada para cálculo de cercanía",
+    )
+    longitude: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        default=None,
+        comment="Longitud geográfica aproximada para cálculo de cercanía",
     )
     buffer_minutes: Mapped[int] = mapped_column(
         Integer,
