@@ -26,6 +26,23 @@ FEATURE_NAMES: list[str] = [
     "av_coherence",
 ]
 
+# Neutral defaults for features a bare juggling clip cannot measure (no challenge
+# timing, no audio): used only to impute missing keys so real samples without
+# these features can still train, instead of raising KeyError or inventing a
+# fixed value inside the feature extractor itself.
+_FEATURE_DEFAULTS: dict[str, float] = {
+    "horizontal_displacement_diameters": 1.5,
+    "mean_challenge_compliance": 1.0,
+    "av_coherence": 1.0,
+}
+
+
+def _feature_vector(features: dict[str, Any]) -> list[float]:
+    return [
+        float(features[f]) if f in features else _FEATURE_DEFAULTS[f]
+        for f in FEATURE_NAMES
+    ]
+
 
 def generate_grouped_participant_dataset(
     num_participants: int = 32,
@@ -128,7 +145,7 @@ def train_and_evaluate_level_classifier(
     assert train_participants.isdisjoint(test_participants)
 
     x_train = np.array(
-        [[float(r["features"][f]) for f in FEATURE_NAMES] for r in train_rows],
+        [_feature_vector(r["features"]) for r in train_rows],
         dtype=np.float64,
     )
     y_train = np.array([int(r["level_idx"]) for r in train_rows], dtype=np.int64)
@@ -180,8 +197,7 @@ def train_and_evaluate_level_classifier(
             rule_correct += 1
 
         x_vec = (
-            np.array([float(feats[f]) for f in FEATURE_NAMES], dtype=np.float64)
-            - scaler_mean
+            np.array(_feature_vector(feats), dtype=np.float64) - scaler_mean
         ) / scaler_scale
         t_logits = weights @ x_vec + biases
         pred_idx = int(np.argmax(t_logits))

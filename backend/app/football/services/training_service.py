@@ -80,22 +80,35 @@ def _extract_features_from_sample_clip(sample: DatasetSample) -> dict[str, Any] 
             peak_heights = [t.height_diameters for t in touches]
             mean_h = float(np.mean(peak_heights)) if peak_heights else 1.2
 
+            # horizontal_displacement_diameters, mean_challenge_compliance and
+            # av_coherence cannot be measured from a bare clip without challenge
+            # timing or audio context, so they are omitted here rather than
+            # reported as a fixed constant (a constant has zero variance and
+            # degrades the trained scaler for every real sample).
             return {
                 "total_touches": n_touches,
                 "max_streak": max(1, n_touches - drops) if n_touches > 0 else 0,
                 "touches_per_minute": round(tpm, 2),
                 "regularity_score": round(min(0.99, max(0.1, reg)), 4),
                 "mean_height_diameters": round(mean_h, 3),
-                "horizontal_displacement_diameters": 0.8,
                 "drops_count": drops,
-                "mean_challenge_compliance": 0.85,
-                "av_coherence": 0.90,
             }
     except Exception as exc:
         logger.warning(
             "Could not extract vision features from sample %s: %s", sample.id, exc
         )
         return None
+
+
+def _count_real_rows(dataset: list[dict[str, Any]]) -> int:
+    """Rows not generated synthetically (synthetic participants are prefixed `SYN-`)."""
+    return sum(
+        1
+        for row in dataset
+        if not (
+            row.get("participant_id") and str(row.get("participant_id")).startswith("SYN-")
+        )
+    )
 
 
 async def train_football_level_model(
@@ -140,6 +153,7 @@ async def train_football_level_model(
 
     # Build dataset from database records and extract real vision features
     dataset: list[dict[str, Any]] = []
+    skipped_extraction_failures = 0
 
     for s in filtered_db_samples:
         if not s.level_label or s.level_label not in LEVELS:
@@ -149,23 +163,9 @@ async def train_football_level_model(
         # Extract real features directly from the video in Garage S3
         extracted = _extract_features_from_sample_clip(s)
         if extracted is None:
-            touches = s.manual_touch_count or (10 if level_idx == 0 else (25 * level_idx))
-            tpm = max(15.0, min(120.0, float(touches * 2.2)))
-            reg = 0.55 + (level_idx * 0.12)
-            comp = 0.60 + (level_idx * 0.10)
-            drops = max(0, 3 - level_idx)
-            horiz = max(0.3, 2.5 - (level_idx * 0.6))
-            extracted = {
-                "total_touches": touches,
-                "max_streak": max(3, touches - drops),
-                "touches_per_minute": round(tpm, 2),
-                "regularity_score": round(min(0.99, reg), 4),
-                "mean_height_diameters": round(1.8, 3),
-                "horizontal_displacement_diameters": round(horiz, 3),
-                "drops_count": drops,
-                "mean_challenge_compliance": round(min(0.99, comp), 4),
-                "av_coherence": round(0.94, 4),
-            }
+            # Never fabricate features from the human label (that leaks the answer).
+            skipped_extraction_failures += 1
+            continue
 
         p_id = s.participant_id or f"DB-{str(s.id)[:6]}"
         s_split = s.split if s.split in ("train", "test") else "train"
@@ -181,6 +181,15 @@ async def train_football_level_model(
             }
         )
 
+    if skipped_extraction_failures:
+        logger.warning(
+            "Excluded %d real sample(s) from training: vision feature extraction failed "
+            "(features are never invented from the level label).",
+            skipped_extraction_failures,
+        )
+    real_samples_before_synthetic_fill = _count_real_rows(dataset)
+    generated_fill_count = 0
+
     # If dataset_source == "real_only", NEVER inject synthetic samples
     if dataset_source == "real_only":
         if len(dataset) == 0:
@@ -189,20 +198,18 @@ async def train_football_level_model(
                 message="No se encontraron muestras reales de fútbol para entrenar. Por favor sube videos reales a Garage S3 primero.",
             )
     elif len(dataset) < 24 and dataset_source != "real_only":
+        # Explicit fallback: mix generated participants in; the real count stays traceable
+        # through `real_samples_before_synthetic_fill` in the model metrics.
         synthetic_data = generate_grouped_participant_dataset(
             num_participants=28,
             clips_per_participant=3,
             seed=seed,
         )
         dataset.extend(synthetic_data)
+        generated_fill_count = len(synthetic_data)
 
-    real_count = sum(
-        1
-        for s in dataset
-        if not (
-            s.get("participant_id") and str(s.get("participant_id")).startswith("SYN-")
-        )
-    )
+    # Generated fill rows use `P-xxx-Cyy` participant ids, so subtract them explicitly.
+    real_count = _count_real_rows(dataset) - generated_fill_count
     synthetic_count = len(dataset) - real_count
 
     # 2. Train and evaluate
@@ -213,6 +220,9 @@ async def train_football_level_model(
     # Add dataset and latency benchmarking to metrics
     trained_artifact["metrics"]["dataset_source"] = dataset_source
     trained_artifact["metrics"]["real_samples_count"] = real_count
+    trained_artifact["metrics"]["real_samples_before_synthetic_fill"] = (
+        real_samples_before_synthetic_fill
+    )
     trained_artifact["metrics"]["synthetic_samples_count"] = synthetic_count
     trained_artifact["metrics"]["total_samples_count"] = len(dataset)
     trained_artifact["metrics"]["latency_ms_per_inference"] = round(max(0.012, latency_ms), 3)
