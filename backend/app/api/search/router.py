@@ -84,6 +84,7 @@ async def search_tutors(
         params=params,
         reference_lat=current_user.latitude,
         reference_lon=current_user.longitude,
+        viewer_id=current_user.id,
     )
 
     message = f"Se encontraron {total_count} instructores compatibles."

@@ -9,6 +9,8 @@ from app.models.notification_preference import NotificationPreference
 from app.models.user_availability import UserAvailability
 from app.models.match import Match
 from app.models.match_proposal import MatchDismissal, MatchMessage, MatchProposal
+from app.models.user_block import UserBlock
+from app.models.user_report import ReportReason, ReportStatus, UserReport
 
 __all__ = [
     "Base", "TimestampMixin", "User", "UserRole", "ExchangeModality", "Category", "ChallengeType",
@@ -16,4 +18,5 @@ __all__ = [
     "EvidenceType", "SkillEvidence",
     "Notification", "NotificationType", "NotificationCategory", "NotificationPreference",
     "UserAvailability", "Match", "MatchDismissal", "MatchMessage", "MatchProposal",
+    "UserBlock", "UserReport", "ReportReason", "ReportStatus",
 ]

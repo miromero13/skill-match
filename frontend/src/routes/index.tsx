@@ -24,8 +24,18 @@ import { SearchPage } from "@/pages/search-page"
 import { NotificationLayout } from "@/components/notifications/notification-layout"
 import { NotificationInboxPage } from "@/pages/notifications/notification-inbox-page"
 import { NotificationSettingsPage } from "@/pages/notifications/notification-settings-page"
+import { PrivacySettingsPage } from "@/pages/settings/privacy-settings-page"
 
 export const router = createBrowserRouter([
+  {
+    path: "/settings/privacy",
+    element: (
+      <MemberRouteGuard>
+        <PlatformLayout />
+      </MemberRouteGuard>
+    ),
+    children: [{ index: true, element: <PrivacySettingsPage /> }],
+  },
   {
     path: "/matches",
     element: (
@@ -117,6 +127,10 @@ export const router = createBrowserRouter([
       {
         path: "complaints",
         element: <FeedPage />, // Placeholder para Vista 24A
+      },
+      {
+        path: "settings/privacy",
+        element: <PrivacySettingsPage />,
       },
     ],
   },

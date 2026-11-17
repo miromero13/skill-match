@@ -1,6 +1,11 @@
 import { createStore } from "zustand/vanilla"
-import { getMatchSuggestion, getMatchSuggestions } from "@/services/match-service"
-import type { MatchSuggestion } from "@/types/match"
+import {
+    getMatchCompatibility,
+    getMatchSuggestion,
+    getMatchSuggestions,
+    getUserCompatibility,
+} from "@/services/match-service"
+import type { MatchCompatibility, MatchSuggestion } from "@/types/match"
 
 interface MatchState {
     items: MatchSuggestion[]
@@ -12,13 +17,17 @@ interface MatchState {
     loading: boolean
     loadingDetail: boolean
     failed: boolean
+    compatibilityCache: Record<string, MatchCompatibility>
+    loadingCompatibility: Record<string, boolean>
     load: (page: number, signal: AbortSignal) => Promise<void>
     loadDetail: (id: string, signal: AbortSignal) => Promise<void>
+    loadCompatibility: (matchId: string, signal?: AbortSignal) => Promise<MatchCompatibility | null>
+    loadUserCompatibility: (userId: string, signal?: AbortSignal) => Promise<MatchCompatibility | null>
 }
 
 export function createMatchStore() {
     // Cada pantalla crea su propio store. Al desmontarla se descartan sus datos.
-    return createStore<MatchState>()((set) => ({
+    return createStore<MatchState>()((set, get) => ({
         items: [],
         detail: null,
         count: 0,
@@ -28,6 +37,8 @@ export function createMatchStore() {
         loading: true,
         loadingDetail: false,
         failed: false,
+        compatibilityCache: {},
+        loadingCompatibility: {},
 
         load: async (page, signal) => {
             // Prepara la pantalla para la página solicitada.
@@ -77,6 +88,59 @@ export function createMatchStore() {
                         error instanceof Error ? error.message : "No se pudo cargar la coincidencia.",
                     loadingDetail: false,
                 })
+            }
+        },
+
+        loadCompatibility: async (matchId, signal) => {
+            const cached = get().compatibilityCache[matchId]
+            if (cached) return cached
+
+            set((state) => ({
+                loadingCompatibility: { ...state.loadingCompatibility, [matchId]: true },
+            }))
+
+            try {
+                const response = await getMatchCompatibility(matchId, signal)
+                if (signal?.aborted) return null
+
+                set((state) => ({
+                    compatibilityCache: { ...state.compatibilityCache, [matchId]: response.data },
+                    loadingCompatibility: { ...state.loadingCompatibility, [matchId]: false },
+                }))
+                return response.data
+            } catch {
+                if (signal?.aborted) return null
+                set((state) => ({
+                    loadingCompatibility: { ...state.loadingCompatibility, [matchId]: false },
+                }))
+                return null
+            }
+        },
+
+        loadUserCompatibility: async (userId, signal) => {
+            const cacheKey = `user_${userId}`
+            const cached = get().compatibilityCache[cacheKey]
+            if (cached) return cached
+
+            set((state) => ({
+                loadingCompatibility: { ...state.loadingCompatibility, [cacheKey]: true },
+            }))
+
+            try {
+                const response = await getUserCompatibility(userId, signal)
+                if (signal?.aborted) return null
+
+                set((state) => ({
+                    compatibilityCache: { ...state.compatibilityCache, [cacheKey]: response.data },
+                    loadingCompatibility: { ...state.loadingCompatibility, [cacheKey]: false },
+                }))
+                return response.data
+            } catch {
+                if (signal?.aborted) return null
+                set((state) => ({
+                    loadingCompatibility: { ...state.loadingCompatibility, [cacheKey]: false },
+                }))
+                return null
             }
         },
     }))

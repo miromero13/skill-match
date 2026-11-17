@@ -9,6 +9,8 @@ import {
   User,
   Sparkles,
   CheckCircle2,
+  ShieldAlert,
+  Lock,
 } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +18,10 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { TutorSearchResult, TutorTeachingSkill } from "@/types/search"
+import { CompatibilityBadge } from "@/components/matches/compatibility-badge"
+import { ReportBlockDialog } from "@/components/moderation/report-block-dialog"
+import { BlockedProfileBanner } from "@/components/moderation/blocked-profile-banner"
+import { useUserModerationStore } from "@/stores/user-moderation-store"
 
 interface TutorCardProps {
   tutor: TutorSearchResult
@@ -31,6 +37,9 @@ const LEVEL_LABELS: Record<string, string> = {
 
 export function TutorCard({ tutor, onProposeSwap }: TutorCardProps) {
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
+  const [reportDialogOpen, setReportDialogOpen] = useState(false)
+  const { safetyCache } = useUserModerationStore()
+  const isBlocked = safetyCache[tutor.id]?.is_blocked_by_me ?? false
 
   const initials = tutor.full_name
     .split(" ")
@@ -91,13 +100,16 @@ export function TutorCard({ tutor, onProposeSwap }: TutorCardProps) {
               </div>
             </div>
 
-            {/* Rating pill */}
-            <div className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400 shrink-0">
-              <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-              <span>{tutor.rating.toFixed(1)}</span>
-              {tutor.total_reviews > 0 && (
-                <span className="text-[10px] font-normal text-muted-foreground">({tutor.total_reviews})</span>
-              )}
+            {/* Rating y Afinidad */}
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              <div className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                <span>{tutor.rating.toFixed(1)}</span>
+                {tutor.total_reviews > 0 && (
+                  <span className="text-[10px] font-normal text-muted-foreground">({tutor.total_reviews})</span>
+                )}
+              </div>
+              <CompatibilityBadge counterpartId={tutor.id} size="sm" />
             </div>
           </div>
 
@@ -186,16 +198,46 @@ export function TutorCard({ tutor, onProposeSwap }: TutorCardProps) {
               Perfil
             </Button>
             <Button
+              variant="ghost"
               size="sm"
-              className="h-8 text-xs px-3 gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => onProposeSwap?.(tutor)}
+              className="h-8 text-xs px-2 text-muted-foreground hover:text-destructive"
+              title="Reportar o Bloquear a este usuario"
+              onClick={() => setReportDialogOpen(true)}
+              data-testid={`report-tutor-btn-${tutor.id}`}
             >
-              <ArrowLeftRight className="h-3.5 w-3.5" />
-              <span>Intercambio</span>
+              <ShieldAlert className="h-3.5 w-3.5" />
             </Button>
+            {isBlocked ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled
+                className="h-8 text-xs px-3 gap-1 border-destructive/40 text-destructive bg-destructive/5"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                <span>Bloqueado</span>
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="h-8 text-xs px-3 gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => onProposeSwap?.(tutor)}
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5" />
+                <span>Intercambio</span>
+              </Button>
+            )}
           </div>
         </CardFooter>
       </Card>
+
+      {/* Modal de Reporte y Bloqueo (Vista 26 / 28) */}
+      <ReportBlockDialog
+        targetUserId={tutor.id}
+        targetUserName={tutor.full_name}
+        open={reportDialogOpen}
+        onOpenChange={setReportDialogOpen}
+      />
 
       {/* Modal de perfil expandido */}
       <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
@@ -223,6 +265,14 @@ export function TutorCard({ tutor, onProposeSwap }: TutorCardProps) {
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-xs">
+            {isBlocked && (
+              <BlockedProfileBanner
+                userId={tutor.id}
+                userName={tutor.full_name}
+                blockedAt={safetyCache[tutor.id]?.blocked_at}
+              />
+            )}
+
             {tutor.bio && (
               <div>
                 <span className="font-semibold text-foreground block mb-1">Presentación:</span>
@@ -252,6 +302,50 @@ export function TutorCard({ tutor, onProposeSwap }: TutorCardProps) {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Acciones de Vista 27 / 29 */}
+            <div className="pt-2 border-t border-border flex flex-col gap-2">
+              {isBlocked ? (
+                <>
+                  <Button variant="outline" disabled className="w-full justify-center gap-1.5 text-xs border-destructive/40 text-destructive bg-destructive/5">
+                    <Lock className="h-3.5 w-3.5" />
+                    Proponer Intercambio (Bloqueado)
+                  </Button>
+                  <Button variant="outline" disabled className="w-full justify-center gap-1.5 text-xs text-muted-foreground">
+                    <Lock className="h-3.5 w-3.5" />
+                    Enviar Mensaje de Chat (Bloqueado)
+                  </Button>
+                </>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-xs text-destructive hover:bg-destructive/10 border-destructive/30"
+                    onClick={() => {
+                      setProfileDialogOpen(false)
+                      setReportDialogOpen(true)
+                    }}
+                  >
+                    <ShieldAlert className="h-3.5 w-3.5 mr-1" />
+                    Reportar / Bloquear
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="flex-1 text-xs gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => {
+                      setProfileDialogOpen(false)
+                      onProposeSwap?.(tutor)
+                    }}
+                  >
+                    <ArrowLeftRight className="h-3.5 w-3.5" />
+                    Intercambio
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </DialogContent>

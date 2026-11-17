@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.catalog import Category, Skill
 from app.models.teaching_skill import TeachingSkill
 from app.models.user import ExchangeModality, User
+from app.models.user_block import UserBlock
 from app.schemas.search import (
     TutorSearchFilterParams,
     TutorSearchResultItem,
@@ -47,6 +48,7 @@ class SearchService:
         params: TutorSearchFilterParams,
         reference_lat: Optional[float] = None,
         reference_lon: Optional[float] = None,
+        viewer_id: Optional[UUID] = None,
     ) -> tuple[list[TutorSearchResultItem], int]:
         # Coordenadas efectivas: query param prevalece sobre el perfil del usuario autenticado
         eff_lat = params.latitude if params.latitude is not None else reference_lat
@@ -62,6 +64,12 @@ class SearchService:
                 Skill.is_active == True,
             )
         )
+
+        # Exclusión automática de usuarios bloqueados mutuamente (RF-MAT-14 / HU-26)
+        if viewer_id is not None:
+            blocked_by_viewer = select(UserBlock.blocked_id).where(UserBlock.blocker_id == viewer_id)
+            blocking_viewer = select(UserBlock.blocker_id).where(UserBlock.blocked_id == viewer_id)
+            stmt = stmt.where(~User.id.in_(blocked_by_viewer), ~User.id.in_(blocking_viewer))
 
         # Filtro por texto libre
         if params.query and params.query.strip():
