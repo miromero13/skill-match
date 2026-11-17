@@ -7,11 +7,12 @@ from app.models.skill_evidence import EvidenceType, SkillEvidence
 from app.models.notification import Notification, NotificationCategory, NotificationType
 from app.models.notification_preference import NotificationPreference
 from app.models.user_availability import UserAvailability
+from app.models.match import Match
 
 __all__ = [
     "Base", "TimestampMixin", "User", "UserRole", "ExchangeModality", "Category", "ChallengeType",
     "Skill", "SkillLevel", "Rubric", "UserLearningSkill", "UrgencyLevel", "TeachingSkill", 
     "EvidenceType", "SkillEvidence",
     "Notification", "NotificationType", "NotificationCategory", "NotificationPreference",
-    "UserAvailability",
+    "UserAvailability", "Match"
 ]

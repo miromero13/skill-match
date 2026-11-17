@@ -65,6 +65,8 @@ class UserProfileService:
             exchange_modality=user.exchange_modality or ExchangeModality.VIRTUAL,
             presencial_radius_km=user.presencial_radius_km if user.presencial_radius_km is not None else 10,
             location_label=user.location_label,
+            latitude=user.latitude,
+            longitude=user.longitude,
             buffer_minutes=user.buffer_minutes if user.buffer_minutes is not None else 15,
             gcal_synced=bool(user.gcal_synced),
             gcal_calendar_email=user.gcal_calendar_email,
@@ -100,6 +102,8 @@ class UserProfileService:
         user.exchange_modality = payload.exchange_modality
         user.presencial_radius_km = payload.presencial_radius_km
         user.location_label = payload.location_label
+        user.latitude = payload.latitude
+        user.longitude = payload.longitude
         user.buffer_minutes = payload.buffer_minutes
         user.gcal_synced = payload.gcal_synced
         user.gcal_calendar_email = payload.gcal_calendar_email
@@ -136,6 +140,10 @@ class UserProfileService:
             user.presencial_radius_km = payload.presencial_radius_km
         if "location_label" in fields_set:
             user.location_label = payload.location_label
+        if "latitude" in fields_set:
+            user.latitude = payload.latitude
+        if "longitude" in fields_set:
+            user.longitude = payload.longitude
         if "buffer_minutes" in fields_set and payload.buffer_minutes is not None:
             user.buffer_minutes = payload.buffer_minutes
         if "gcal_synced" in fields_set and payload.gcal_synced is not None:

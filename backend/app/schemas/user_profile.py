@@ -20,6 +20,8 @@ class UserProfileUpdate(BaseModel):
     exchange_modality: ExchangeModality = Field(default=ExchangeModality.VIRTUAL)
     presencial_radius_km: int = Field(default=10, ge=0, le=500)
     location_label: Optional[str] = Field(default=None, max_length=255)
+    latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0)
+    longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0)
     buffer_minutes: int = Field(default=15)
     gcal_synced: bool = Field(default=False)
     gcal_calendar_email: Optional[str] = Field(default=None, max_length=255)
@@ -53,6 +55,8 @@ class UserProfilePatch(BaseModel):
     exchange_modality: Optional[ExchangeModality] = Field(default=None)
     presencial_radius_km: Optional[int] = Field(default=None, ge=0, le=500)
     location_label: Optional[str] = Field(default=None, max_length=255)
+    latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0)
+    longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0)
     buffer_minutes: Optional[int] = Field(default=None)
     gcal_synced: Optional[bool] = Field(default=None)
     gcal_calendar_email: Optional[str] = Field(default=None, max_length=255)
@@ -101,6 +105,8 @@ class UserProfileResponse(BaseModel):
     exchange_modality: ExchangeModality = ExchangeModality.VIRTUAL
     presencial_radius_km: int = 10
     location_label: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     buffer_minutes: int = 15
     gcal_synced: bool = False
     gcal_calendar_email: Optional[str] = None

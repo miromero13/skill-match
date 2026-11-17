@@ -18,12 +18,23 @@ import { MemberRouteGuard } from "@/components/member-route-guard"
 import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { ProfilePage } from "@/pages/profile-page"
 import { AvailabilityPage } from "@/pages/availability-page"
+import { MatchesPage } from "@/pages/matches-page"
+import { SearchPage } from "@/pages/search-page"
 
 import { NotificationLayout } from "@/components/notifications/notification-layout"
 import { NotificationInboxPage } from "@/pages/notifications/notification-inbox-page"
 import { NotificationSettingsPage } from "@/pages/notifications/notification-settings-page"
 
 export const router = createBrowserRouter([
+  {
+    path: "/matches",
+    element: (
+      <MemberRouteGuard>
+        <PlatformLayout />
+      </MemberRouteGuard>
+    ),
+    children: [{ index: true, element: <MatchesPage /> }],
+  },
   // 1. Public Layout (Landing Page, Institucional)
   {
     path: "/",
@@ -36,14 +47,14 @@ export const router = createBrowserRouter([
     ],
   },
 
-  {
-    path: "/notifications",
+  { path: "/notifications",
     element: <NotificationLayout />,
     children: [
       { index: true, element: <NotificationInboxPage /> },
       { path: "settings", element: <NotificationSettingsPage /> },
     ],
   },
+  { path: "/search", element: <Navigate to="/app/search" replace /> },
   { path: "/app/notifications", element: <Navigate to="/notifications" replace /> },
   { path: "/app/notifications/settings", element: <Navigate to="/notifications/settings" replace /> },
 
@@ -69,7 +80,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "search",
-        element: <FeedPage />, // Placeholder para Vista 02
+        element: <SearchPage />,
       },
       {
         path: "swaps",

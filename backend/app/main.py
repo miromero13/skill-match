@@ -31,6 +31,8 @@ from app.services.notification_connection_manager import notification_connection
 from app.api.users.notification_preferences import router as notification_preferences_router
 from app.api.users.profile import router as user_profile_router
 from app.api.users.availability import router as user_availability_router
+from app.api.matches.router import router as matches_router
+from app.api.search import search_router
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -98,6 +100,8 @@ def create_application() -> FastAPI:
     app.include_router(notification_preferences_router, prefix="/api")
     app.include_router(user_profile_router, prefix="/api")
     app.include_router(user_availability_router, prefix="/api")
+    app.include_router(matches_router, prefix="/api")
+    app.include_router(search_router, prefix="/api")
 
     return app
 
