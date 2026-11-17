@@ -3,6 +3,9 @@ import { Link } from "react-router-dom"
 import { useStore } from "zustand"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { MatchNegotiation } from "@/components/matches/match-negotiation"
 import {
     Dialog,
     DialogContent,
@@ -20,15 +23,31 @@ function SkillExchange({ match }: { match: MatchSuggestion }) {
             <div className="min-w-0 rounded-lg border p-3">
                 <p className="text-sm font-medium">Tú le enseñas</p>
                 <ul className="mt-1 list-disc break-words pl-5 text-sm text-muted-foreground">
-                    {match.you_teach.map((name, index) => <li key={index}>{name}</li>)}
+                    {match.you_teach.map((name, index) => (
+                        <li key={index}>{name} {match.you_verified?.includes(name) && <Badge variant="secondary">Verificada</Badge>}</li>
+                    ))}
                 </ul>
             </div>
             <div className="min-w-0 rounded-lg border p-3">
                 <p className="text-sm font-medium">Te enseña</p>
                 <ul className="mt-1 list-disc break-words pl-5 text-sm text-muted-foreground">
-                    {match.they_teach.map((name, index) => <li key={index}>{name}</li>)}
+                    {match.they_teach.map((name, index) => (
+                        <li key={index}>{name} {match.they_verified?.includes(name) && <Badge variant="secondary">Verificada</Badge>}</li>
+                    ))}
                 </ul>
             </div>
+        </div>
+    )
+}
+
+function MemberIdentity({ name, photo }: { name: string; photo: string | null }) {
+    return (
+        <div className="flex min-w-0 items-center gap-2">
+            <Avatar>
+                {photo && <AvatarImage src={photo} alt="" />}
+                <AvatarFallback>{name.slice(0, 2).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <span className="break-words font-medium">{name}</span>
         </div>
     )
 }
@@ -95,10 +114,13 @@ export function MatchSuggestions({ preview = false }: { preview?: boolean }) {
             {!loading && !failed && visibleItems.map((match) => (
                 <Card key={match.id}>
                     <CardContent className="space-y-3 p-4">
-                        <h3 className="break-words font-semibold">{match.counterpart_name}</h3>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <MemberIdentity name={match.member_name} photo={match.member_avatar_url} />
+                            <MemberIdentity name={match.counterpart_name} photo={match.counterpart_avatar_url} />
+                        </div>
                         <SkillExchange match={match} />
                         <Button variant="outline" onClick={() => setSelectedId(match.id)}>
-                            Ver detalle
+                            {match.status === "confirmed" ? "Ver intercambio" : "Ver propuesta"}
                         </Button>
                     </CardContent>
                 </Card>
@@ -135,7 +157,19 @@ export function MatchSuggestions({ preview = false }: { preview?: boolean }) {
                             {loadingDetail ? "Cargando detalle…" : detailMessage}
                         </DialogDescription>
                     </DialogHeader>
-                    {detail && !loadingDetail && <SkillExchange match={detail} />}
+                    {detail && detail.id === selectedId && !loadingDetail && (
+                        <>
+                            <SkillExchange match={detail} />
+                            <MatchNegotiation
+                                key={detail.id}
+                                id={detail.id}
+                                onChange={(hide) => {
+                                    if (hide) setSelectedId(null)
+                                    setRetry((value) => value + 1)
+                                }}
+                            />
+                        </>
+                    )}
                 </DialogContent>
             </Dialog>
         </section>

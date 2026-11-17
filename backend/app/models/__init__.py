@@ -8,11 +8,12 @@ from app.models.notification import Notification, NotificationCategory, Notifica
 from app.models.notification_preference import NotificationPreference
 from app.models.user_availability import UserAvailability
 from app.models.match import Match
+from app.models.match_proposal import MatchDismissal, MatchMessage, MatchProposal
 
 __all__ = [
     "Base", "TimestampMixin", "User", "UserRole", "ExchangeModality", "Category", "ChallengeType",
     "Skill", "SkillLevel", "Rubric", "UserLearningSkill", "UrgencyLevel", "TeachingSkill", 
     "EvidenceType", "SkillEvidence",
     "Notification", "NotificationType", "NotificationCategory", "NotificationPreference",
-    "UserAvailability", "Match"
+    "UserAvailability", "Match", "MatchDismissal", "MatchMessage", "MatchProposal",
 ]
