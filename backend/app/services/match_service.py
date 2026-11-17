@@ -1,11 +1,13 @@
 from uuid import UUID
-from sqlalchemy import func, select
+from sqlalchemy import case, func, literal_column, or_, select
+from sqlalchemy.orm import aliased
 from sqlalchemy.dialects.postgresql import aggregate_order_by, insert 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import SkillMatchException
 from app.models.catalog import Category, Skill
 from app.models.match import Match
+from app.models.match_proposal import MatchDismissal
 from app.models.teaching_skill import TeachingSkill
 from app.models.user import User, UserRole
 from app.models.user_availability import UserAvailability
@@ -78,6 +80,8 @@ def directional_skills(member_id: UUID, *, member_teaches: bool):
             other_id.label("counterpart_id"),
             # Agrupa las habilidades de ese candidato en una lista ordenada.
             func.array_agg(aggregate_order_by(Skill.name, Skill.name)).label("skills"),
+            func.array_agg(Skill.name)
+            .filter(func.upper(teaching.status) == "VERIFICADA").label("verified"),
         )
         .select_from(teaching)
         # El cruce usa el mismo ID del catálogo en ambas tablas.
@@ -104,17 +108,41 @@ def reciprocal_skills(member_id: UUID):
 
     # Segundo sentido. Lo que la otra persona ofrece y tú buscas.
     incoming = directional_skills(member_id, member_teaches=False).subquery()
+    unavailable = (
+        select(Match.id)
+        .outerjoin(MatchDismissal, (MatchDismissal.match_id == Match.id)
+                   & (MatchDismissal.member_id == member_id))
+        .where(
+            Match.member_a_id == func.least(member_id, outgoing.c.counterpart_id),
+            Match.member_b_id == func.greatest(member_id, outgoing.c.counterpart_id),
+            (Match.status == "declined") | MatchDismissal.member_id.is_not(None),
+        )
+        .correlate(outgoing)
+        .exists()
+    )
 
-    return (
+    empty_skills = literal_column("ARRAY[]::varchar[]")
+    direct = (
         select(
             outgoing.c.counterpart_id,
             outgoing.c.skills.label("you_teach"),
             incoming.c.skills.label("they_teach"),
+            func.coalesce(outgoing.c.verified, empty_skills).label("you_verified"),
+            func.coalesce(incoming.c.verified, empty_skills).label("they_verified"),
         )
         .select_from(outgoing)
         # INNER JOIN conserva solo candidatos que aparecen en los dos sentidos.
         .join(incoming, incoming.c.counterpart_id == outgoing.c.counterpart_id)
+        .where(~unavailable)
+    ).cte()
+    counterpart = case((Match.member_a_id == member_id, Match.member_b_id), else_=Match.member_a_id)
+    # A confirmed exchange remains reachable if a member edits their skills.
+    confirmed = select(counterpart, empty_skills, empty_skills, empty_skills, empty_skills).where(
+        or_(Match.member_a_id == member_id, Match.member_b_id == member_id),
+        Match.status == "confirmed",
+        ~select(direct.c.counterpart_id).where(direct.c.counterpart_id == counterpart).exists(),
     )
+    return select(direct).union_all(confirmed)
 
 
 async def save_suggestions(
@@ -141,17 +169,24 @@ async def save_suggestions(
 def match_details_query(member_id: UUID):
     # Vuelve a comprobar la reciprocidad para no mostrar sugerencias obsoletas.
     crossed = reciprocal_skills(member_id).subquery()
+    member = aliased(User)
 
     return (
         select(
             Match.id,
             User.full_name.label("counterpart_name"),
+            User.avatar_url.label("counterpart_avatar_url"),
+            member.full_name.label("member_name"),
+            member.avatar_url.label("member_avatar_url"),
             Match.status,
             crossed.c.you_teach,
             crossed.c.they_teach,
+            crossed.c.you_verified,
+            crossed.c.they_verified,
         )
         .select_from(crossed)
         .join(User, User.id == crossed.c.counterpart_id)
+        .join(member, member.id == member_id)
         .join(
             Match,
             # least y greatest reproducen el orden guardado por save_suggestions.
@@ -202,6 +237,9 @@ async def get_suggestion(
     # Una coincidencia ajena, inexistente u obsoleta produce la misma respuesta.
     if row is None:
         raise SkillMatchException("Recurso no encontrado", statuscode=404)
+
+    return MatchResponse.model_validate(row)
+
 
 async def compute_compatibility_between_users(
     db: AsyncSession,

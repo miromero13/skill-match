@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     ALGORITHM: str = Field(default="HS256", description="Algoritmo de firma de tokens JWT")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=1440, description="Minutos de expiración de Access Token")
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30, description="Días de expiración de Refresh Token")
+    WS_TICKET_EXPIRE_SECONDS: int = Field(
+        default=30,
+        ge=5,
+        le=120,
+        description="Segundos de vigencia del ticket temporal para handshake WebSocket",
+    )
 
     # Administrador Inicial por Defecto (Cargado estrictamente desde .env)
     ADMIN_EMAIL: str = Field(..., description="Correo institucional del Administrador inicial del sistema")

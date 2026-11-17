@@ -10,6 +10,10 @@ from app.models.user import User, UserRole
 from app.schemas.match import MatchCompatibilityResponse, MatchResponse
 from app.schemas.response import APIResponse
 from app.services import match_service
+from app.services import match_proposal_service as negotiation
+from app.schemas.match_proposal import (
+    MessageResponse, MessageWrite, ProposalDecision, ProposalResponse, ProposalWrite,
+)
 
 # main.py añade el prefijo /api.
 router = APIRouter(prefix="/matches", tags=["Matches · HU-21"])
@@ -96,3 +100,84 @@ async def get_counterpart_compatibility(
         data=item,
         message=f"Score de compatibilidad con {item.counterpart_name}: {item.compatibility_score}%.",
     )
+
+
+@router.get("/{match_id}/proposal", response_model=APIResponse[ProposalResponse])
+async def read_proposal(
+    match_id: UUID,
+    user: User = Depends(current_member),
+    db: AsyncSession = Depends(get_db),
+):
+    item = await negotiation.read(db, match_id, user.id)
+    return APIResponse(statuscode=200, message="Propuesta consultada.", data=item)
+
+
+
+@router.post("/{match_id}/proposals", response_model=APIResponse[ProposalResponse], status_code=201)
+async def create_proposal(
+    match_id: UUID,
+    payload: ProposalWrite,
+    user: User = Depends(current_member),
+    db: AsyncSession = Depends(get_db),
+):
+    item = await negotiation.propose(db, match_id, user.id, payload)
+    return APIResponse(statuscode=201, message="Propuesta enviada.", data=item)
+
+
+
+@router.post("/{match_id}/accept", response_model=APIResponse[ProposalResponse])
+async def accept_proposal(
+    match_id: UUID,
+    payload: ProposalDecision,
+    user: User = Depends(current_member),
+    db: AsyncSession = Depends(get_db),
+):
+    item = await negotiation.decide(db, match_id, user.id, payload.proposal_id, accept=True)
+    return APIResponse(statuscode=200, message="Intercambio confirmado.", data=item)
+
+
+
+@router.post("/{match_id}/decline", response_model=APIResponse[ProposalResponse])
+async def decline_proposal(
+    match_id: UUID,
+    payload: ProposalDecision,
+    user: User = Depends(current_member),
+    db: AsyncSession = Depends(get_db),
+):
+    item = await negotiation.decide(db, match_id, user.id, payload.proposal_id, accept=False)
+    return APIResponse(statuscode=200, message="Propuesta rechazada.", data=item)
+
+
+
+@router.delete("/{match_id}", response_model=APIResponse[None])
+async def dismiss_suggestion(
+    match_id: UUID,
+    user: User = Depends(current_member),
+    db: AsyncSession = Depends(get_db),
+):
+    await negotiation.dismiss(db, match_id, user.id)
+    return APIResponse(statuscode=200, message="Sugerencia descartada.")
+
+
+
+@router.get("/{match_id}/messages", response_model=APIResponse[list[MessageResponse]])
+async def list_messages(
+    match_id: UUID,
+    page: int = Query(default=1, ge=1),
+    user: User = Depends(current_member),
+    db: AsyncSession = Depends(get_db),
+):
+    item, count = await negotiation.list_messages(db, match_id, user.id, page)
+    return APIResponse(statuscode=200, message="Mensajes recuperados.", data=item, count=count)
+
+
+
+@router.post("/{match_id}/messages", response_model=APIResponse[MessageResponse], status_code=201)
+async def send_message(
+    match_id: UUID,
+    payload: MessageWrite,
+    user: User = Depends(current_member),
+    db: AsyncSession = Depends(get_db),
+):
+    item = await negotiation.send_message(db, match_id, user.id, payload.body)
+    return APIResponse(statuscode=201, message="Mensaje enviado.", data=item)

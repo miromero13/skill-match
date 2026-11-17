@@ -89,6 +89,7 @@ it("filters and paginates using server queries, rendering messages as text", asy
   const actor = userEvent.setup()
   renderPage()
   expect(await screen.findByText(item.message)).toBeInTheDocument()
+  expect(screen.getByRole("tablist")).toHaveClass("min-h-12", "gap-1")
   expect(document.querySelector("script")).toBeNull()
   expect(screen.getByText("No leída")).toBeInTheDocument()
   await actor.click(screen.getByRole("button", { name: "Siguiente" }))
@@ -203,6 +204,30 @@ it("opens a preview independent of the current inbox filter and closes with Esca
   expect(bell).toHaveFocus()
   fireEvent(window, new Event("focus"))
   await waitFor(() => expect(service.getUnreadCount).toHaveBeenCalledTimes(3))
+})
+it("refreshes an open bell preview after a realtime invalidation", async () => {
+  const actor = userEvent.setup()
+  const router = createMemoryRouter([
+    { path: "*", element: <NotificationBell /> },
+  ])
+  render(<RouterProvider router={router} />)
+  await actor.click(
+    await screen.findByRole("button", {
+      name: "Notificaciones, 9 no leídas",
+    })
+  )
+  await screen.findByText(item.title)
+  const callsBeforeEvent = vi.mocked(service.getNotifications).mock.calls.length
+
+  act(() => {
+    store.setState((state) => ({
+      realtimeRevision: state.realtimeRevision + 1,
+    }))
+  })
+
+  await waitFor(() =>
+    expect(service.getNotifications).toHaveBeenCalledTimes(callsBeforeEvent + 1)
+  )
 })
 it("edits every preference, saves the complete revision and restores server values on reopen", async () => {
   const actor = userEvent.setup()

@@ -13,7 +13,7 @@ import { getAuthSessionVersion, useAuthStore } from "@/stores/auth-store"
 import { getNotifications } from "@/services/notification-service"
 import type { NotificationItem } from "@/types/notification"
 
-function NotificationPreview() {
+function NotificationPreview({ revision }: { revision: number }) {
   const [items, setItems] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +41,7 @@ function NotificationPreview() {
     return () => {
       active = false
     }
-  }, [attempt, version])
+  }, [attempt, revision, version])
   return (
     <>
       {loading && <p role="status">Cargando avisos…</p>}
@@ -90,6 +90,9 @@ export function NotificationBell() {
   const count = useNotificationStore((state) => state.unreadTotal)
   const error = useNotificationStore((state) => state.unreadError)
   const loadUnread = useNotificationStore((state) => state.loadUnread)
+  const realtimeRevision = useNotificationStore(
+    (state) => state.realtimeRevision
+  )
   const version = useAuthStore(() => getAuthSessionVersion())
   useEffect(() => {
     void loadUnread()
@@ -140,7 +143,7 @@ export function NotificationBell() {
             {error}
           </p>
         )}
-        <NotificationPreview key={version} />
+        <NotificationPreview revision={realtimeRevision} />
         <div className="flex flex-wrap gap-2">
           <Button asChild onClick={() => setOpen(false)}>
             <Link to="/notifications">Ver bandeja</Link>

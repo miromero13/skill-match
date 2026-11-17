@@ -15,10 +15,10 @@ from alembic.migration import MigrationContext
 import pytest
 from sqlalchemy import inspect, MetaData, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.config import settings
-from app.models import Base
+from app.models import Base, User
 
 PARENT = "b18a0c1d2e3f"
 REVISION = "c25a1b2c3d4e"
