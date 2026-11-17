@@ -23,7 +23,7 @@ def extract_session_features(
     Consolidates tracking, audio-video fusion, and dynamic challenge outputs into
     the canonical feature dictionary required by `scoring` and `fraud`.
     """
-    valid_events = sorted(
+    all_valid_events = sorted(
         [
             ev
             for ev in fusion.events
@@ -36,20 +36,31 @@ def extract_session_features(
         ],
         key=lambda e: e.t_ms,
     )
+    # Ground bounces (ball hit the floor, not the player) break the juggling
+    # streak but are not themselves a valid touch, so they are excluded from
+    # total_touches/touch_times_ms while still acting as a streak boundary.
+    valid_events = [ev for ev in all_valid_events if not ev.is_ground_bounce]
     touch_times_ms = [ev.t_ms for ev in valid_events]
     total_touches = len(touch_times_ms)
+    ground_bounce_count = sum(1 for ev in all_valid_events if ev.is_ground_bounce)
 
-    # Compute intervals, drops (> 2.2 s gap between touches), and max streak
+    # Compute intervals, drops (> 2.2 s gap between touches, or a ground bounce
+    # between them), and max streak of consecutive touches without a drop.
     intervals_s: list[float] = []
-    drops = 0
+    drops = ground_bounce_count
     max_streak = 0
     current_streak = 1 if total_touches > 0 else 0
 
-    for idx in range(len(touch_times_ms) - 1):
-        dt_s = (touch_times_ms[idx + 1] - touch_times_ms[idx]) / 1000.0
+    for idx in range(len(valid_events) - 1):
+        t_curr, t_next = valid_events[idx].t_ms, valid_events[idx + 1].t_ms
+        dt_s = (t_next - t_curr) / 1000.0
         intervals_s.append(dt_s)
-        if dt_s > 2.2:
-            drops += 1
+        bounce_between = any(
+            t_curr < ev.t_ms < t_next for ev in all_valid_events if ev.is_ground_bounce
+        )
+        if dt_s > 2.2 or bounce_between:
+            if dt_s > 2.2:
+                drops += 1
             max_streak = max(max_streak, current_streak)
             current_streak = 1
         else:
@@ -114,6 +125,7 @@ def extract_session_features(
     return {
         "total_touches": total_touches,
         "max_streak": max_streak,
+        "ground_bounce_count": ground_bounce_count,
         "touches_per_minute": touches_per_minute,
         "interval_std_s": round(interval_std_s, 4),
         "regularity_score": regularity_score,

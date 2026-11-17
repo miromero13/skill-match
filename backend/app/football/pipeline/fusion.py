@@ -17,6 +17,7 @@ class FusedTouchEvent:
     video_t_ms: int | None = None
     audio_t_ms: int | None = None
     offset_ms: int | None = None
+    is_ground_bounce: bool = False
 
 
 @dataclass
@@ -131,6 +132,7 @@ def fuse_audio_video_events(
                 video_t_ms=v_ev.t_ms,
                 audio_t_ms=a_ev.t_ms,
                 offset_ms=residual,
+                is_ground_bounce=v_ev.is_ground_bounce,
             )
         )
         paired_times_ms.append(float(fused_t))
@@ -146,6 +148,7 @@ def fuse_audio_video_events(
                     video_t_ms=v_ev.t_ms,
                     audio_t_ms=None,
                     offset_ms=None,
+                    is_ground_bounce=v_ev.is_ground_bounce,
                 )
             )
 

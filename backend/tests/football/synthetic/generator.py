@@ -26,6 +26,8 @@ class SyntheticJugglingSpec:
     peak_height_diameters: float = 2.2
     background_noise_std: float = 2.0
     missing_frame_ranges: list[tuple[int, int]] = field(default_factory=list)
+    ground_drop_times_ms: list[int] = field(default_factory=list)
+    ground_y_px: float = 340.0
     audio_offset_ms: int = 0
     audio_drift_ms_per_min: float = 0.0
     custom_audio_touch_times_ms: list[int] | None = None
@@ -41,6 +43,7 @@ class SyntheticClipResult:
     ball_radius_px: int
     fps: int
     total_frames: int
+    ground_truth_drop_ms: list[int] = field(default_factory=list)
 
 
 def _compute_ball_position(
@@ -52,14 +55,28 @@ def _compute_ball_position(
     (OpenCV image coordinates). Each touch at `touch_times_ms[k]` is a local
     maximum of `y_px` (`touch_y_px`, i.e., local minimum of height above foot)
     followed by a parabolic flight arc up to `peak_height_diameters`.
+
+    When `t_ms` falls within `ground_drop_window_ms` of a `ground_drop_times_ms`
+    entry, the ball instead descends past `touch_y_px` down to the lower
+    `ground_y_px` (the real floor), simulating a missed touch / ground bounce,
+    then rebounds with reduced energy (half the normal peak height).
     """
     center_x = spec.width * 0.5 + 18.0 * math.sin(t_ms / 900.0)
     sorted_touches = sorted(spec.touch_times_ms)
-    if not sorted_touches:
-        return center_x, spec.touch_y_px
-
     diameter_px = float(2 * spec.ball_radius_px)
     amplitude_px = spec.peak_height_diameters * diameter_px
+
+    drop_half_span = 350.0
+    for drop_ms in spec.ground_drop_times_ms:
+        dt_drop = t_ms - float(drop_ms)
+        if abs(dt_drop) <= drop_half_span:
+            u = 1.0 - (abs(dt_drop) / drop_half_span)  # 0 at edges -> 1 at drop instant
+            depth_px = spec.ground_y_px - spec.touch_y_px
+            y_px = spec.touch_y_px + depth_px * (u * u)
+            return center_x, y_px
+
+    if not sorted_touches:
+        return center_x, spec.touch_y_px
 
     # Before first touch: descending from apex toward the first touch point
     first_t = float(sorted_touches[0])
@@ -245,6 +262,7 @@ def generate_synthetic_juggling_clip(
         ball_radius_px=active_spec.ball_radius_px,
         fps=active_spec.fps,
         total_frames=total_frames,
+        ground_truth_drop_ms=sorted(active_spec.ground_drop_times_ms),
     )
 
 

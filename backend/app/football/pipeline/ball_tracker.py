@@ -21,6 +21,7 @@ class BallFramePoint:
     confidence: float
     interpolated: bool = False
     height_diameters: float = 0.0
+    is_ground_level: bool = False
 
 
 @dataclass
@@ -31,6 +32,7 @@ class BallTrack:
     frame_height: int = 360
     median_radius_px: float = 24.0
     baseline_y_px: float = 280.0
+    ground_y_px: float | None = None
 
 
 class BallDetectorProtocol(Protocol):
@@ -358,8 +360,22 @@ def track_ball_in_video(
     # 95th percentile of image y (lowest physical position of the ball at foot level)
     baseline_y = float(np.percentile(y_vals, 95))
 
+    # Real floor estimate: the absolute lowest position the ball reached (max y).
+    # A dropped ball that bounces off the ground goes lower than normal foot-level
+    # touches; a point counts as ground-level only when it sits close to that
+    # absolute floor AND clearly below the typical foot-level baseline, so normal
+    # rebound noise around the baseline is not misclassified as a ground bounce.
+    absolute_floor_y = float(np.max(y_vals))
+    ground_margin_px = max(4.0, 0.25 * ball_diameter_px)
+    ground_y: float | None = None
+    if (absolute_floor_y - baseline_y) >= (0.6 * ball_diameter_px):
+        ground_y = absolute_floor_y
+
     for pt in points:
         pt.height_diameters = max(0.0, (baseline_y - pt.y) / ball_diameter_px)
+        pt.is_ground_level = (
+            ground_y is not None and (ground_y - pt.y) <= ground_margin_px
+        )
 
     return BallTrack(
         points=points,
@@ -368,4 +384,5 @@ def track_ball_in_video(
         frame_height=height,
         median_radius_px=median_radius,
         baseline_y_px=baseline_y,
+        ground_y_px=ground_y,
     )

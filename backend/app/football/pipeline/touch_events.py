@@ -18,6 +18,7 @@ class TouchCandidate:
     height_diameters: float
     velocity_delta_diameters_per_s: float
     confidence: float
+    is_ground_bounce: bool = False
 
 
 def detect_video_touch_events(
@@ -90,6 +91,7 @@ def detect_video_touch_events(
                         height_diameters=max(0.0, h_curr),
                         velocity_delta_diameters_per_s=velocity_delta,
                         confidence=max(0.5, conf),
+                        is_ground_bounce=pt.is_ground_level,
                     )
                 )
 
@@ -109,4 +111,67 @@ def detect_video_touch_events(
         else:
             filtered.append(cand)
 
-    return filtered
+    ground_bounces = _detect_ground_bounces(pts, min_separation_ms=min_separation_ms)
+
+    # Drop foot-touch candidates too close to a ground bounce: the ball crossing
+    # foot level while falling into or rebounding out of the bounce is part of
+    # that same physical event, not a separate touch.
+    bounce_exclusion_ms = 350
+    foot_touches = [
+        cand
+        for cand in filtered
+        if all(abs(cand.t_ms - b.t_ms) > bounce_exclusion_ms for b in ground_bounces)
+    ]
+
+    combined = foot_touches + ground_bounces
+    combined.sort(key=lambda c: c.t_ms)
+    return combined
+
+
+def _detect_ground_bounces(
+    pts: list,
+    min_separation_ms: int,
+) -> list[TouchCandidate]:
+    """
+    Ground contacts flatten `height_diameters` near zero over several frames
+    (unlike a sharp foot-touch rebound), so they are detected directly from
+    `is_ground_level` runs rather than from the velocity-sign-change filter
+    used for foot touches. Each contiguous run of ground-level, non-interpolated
+    points yields one bounce centered on its lowest (deepest) point.
+    """
+    bounces: list[TouchCandidate] = []
+    run: list = []
+
+    def flush_run() -> None:
+        if not run:
+            return
+        deepest = max(run, key=lambda pt: pt.y)
+        bounces.append(
+            TouchCandidate(
+                t_ms=deepest.t_ms,
+                frame_idx=deepest.frame_idx,
+                x=deepest.x,
+                y=deepest.y,
+                height_diameters=0.0,
+                velocity_delta_diameters_per_s=0.0,
+                confidence=max(0.5, float(deepest.confidence)),
+                is_ground_bounce=True,
+            )
+        )
+
+    for pt in pts:
+        if pt.is_ground_level and not pt.interpolated:
+            run.append(pt)
+            continue
+        flush_run()
+        run = []
+    flush_run()
+
+    # Merge bounce centers closer than min_separation_ms (same physical bounce)
+    bounces.sort(key=lambda c: c.t_ms)
+    merged: list[TouchCandidate] = []
+    for cand in bounces:
+        if merged and (cand.t_ms - merged[-1].t_ms) < min_separation_ms:
+            continue
+        merged.append(cand)
+    return merged

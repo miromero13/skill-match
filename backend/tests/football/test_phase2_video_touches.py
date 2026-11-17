@@ -71,6 +71,40 @@ def test_exact_touch_count_on_synthetic_videos(tmp_path: Path) -> None:
             assert abs(detected.t_ms - gt_ms) <= 70
 
 
+def test_ground_bounce_is_not_counted_as_touch_and_cuts_streak(tmp_path: Path) -> None:
+    """
+    A ball that falls past foot level down to the real floor (ground_y_px) is a
+    dropped touch, not a valid touch. It must not inflate total_touches and it
+    must be flagged so the juggling streak resets there instead of merging into
+    one continuous run.
+    """
+    touch_times = [900, 1700, 2500, 4200, 5000, 5800]  # gap at 2500 -> 4200 is the drop
+    spec = SyntheticJugglingSpec(
+        duration_s=(touch_times[-1] + 1200) / 1000.0,
+        touch_times_ms=touch_times,
+        peak_height_diameters=2.1,
+        background_noise_std=1.5,
+        ground_drop_times_ms=[3350],
+        seed=321,
+    )
+    clip = generate_synthetic_juggling_clip(
+        output_dir=tmp_path,
+        spec=spec,
+        clip_name="ground_bounce",
+        include_audio=False,
+    )
+
+    track = track_ball_in_video(clip.video_path)
+    candidates = detect_video_touch_events(track)
+
+    bounce_candidates = [c for c in candidates if c.is_ground_bounce]
+    valid_candidates = [c for c in candidates if not c.is_ground_bounce]
+
+    assert len(bounce_candidates) == 1
+    assert abs(bounce_candidates[0].t_ms - 3350) <= 150
+    assert len(valid_candidates) == len(touch_times)
+
+
 def test_celery_process_session_runs_phase2_pipeline(tmp_path: Path) -> None:
     celery_app.conf.task_always_eager = True
     spec = SyntheticJugglingSpec(
