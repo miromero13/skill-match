@@ -1,0 +1,1 @@
+"""Personal notification inbox endpoints."""

@@ -1,3 +1,5 @@
+import { NotificationBell } from "@/components/notifications/notification-bell"
+import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom"
 import { useAuthStore } from "@/stores/auth-store"
@@ -15,6 +17,7 @@ import {
   LogOut,
   Loader2,
   Circle,
+  Bell,
 } from "lucide-react"
 
 export function AdminLayout() {
@@ -36,6 +39,7 @@ export function AdminLayout() {
 
   // Menú con restricción RBAC: 'Gestión de Usuarios' (Equipo Administrador) solo visible para rol ADMIN (HU-10 / Vista 15A)
   const navItems = [
+    { label: "Notificaciones personales", to: "/notifications", icon: Bell, visible: true },
     {
       label: "Mis habilidades y evidencias",
       to: "/admin/my-teaching-skills",
@@ -161,7 +165,7 @@ export function AdminLayout() {
                 {user?.fullName || "Administrador Central"}
               </p>
               <p className="text-[9px] font-medium text-[#00786F] leading-none">
-                Rol: SuperAdmin
+                Rol: ADMIN
               </p>
             </div>
           </div>
@@ -201,6 +205,7 @@ export function AdminLayout() {
 
           {/* Derecha: Badge de Estado del Sistema */}
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00786F1A] text-[#2DD4BF] text-[11px] font-semibold border border-[#00786F40]">
               <Circle className="w-2 h-2 fill-[#2DD4BF] text-[#2DD4BF] animate-pulse" />
               <span className="hidden sm:inline">Sistema En Línea · Latencia 24ms</span>
@@ -244,9 +249,14 @@ export function AdminLayout() {
         )}
 
         {/* 4. ÁREA DE PÁGINAS HIJAS */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8">
           <Outlet />
         </main>
+        <nav aria-label="Navegación móvil de administración" className="fixed inset-x-0 bottom-0 z-40 flex flex-wrap justify-around gap-1 border-t bg-background p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] text-foreground lg:hidden">
+          <Button asChild variant="ghost"><NavLink to="/admin/dashboard">Panel</NavLink></Button>
+          <Button asChild variant="ghost"><NavLink to="/notifications" end>Mis avisos</NavLink></Button>
+          <Button asChild variant="ghost"><NavLink to="/notifications/settings">Preferencias</NavLink></Button>
+        </nav>
       </div>
     </div>
   )

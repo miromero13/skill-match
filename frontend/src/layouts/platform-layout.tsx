@@ -9,7 +9,7 @@ export function PlatformLayout() {
       <PlatformHeader />
       <div className="flex flex-1">
         <PlatformSidebar />
-        <main className="flex-1 overflow-y-auto pb-[54px] md:pb-0">
+        <main className="min-w-0 flex-1 overflow-y-auto pb-[54px] md:pb-0">
           <Outlet />
         </main>
       </div>
