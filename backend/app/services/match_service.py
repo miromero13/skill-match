@@ -11,6 +11,7 @@ from app.models.match_proposal import MatchDismissal
 from app.models.teaching_skill import TeachingSkill
 from app.models.user import User, UserRole
 from app.models.user_availability import UserAvailability
+from app.models.user_block import UserBlock
 from app.models.user_learning_skill import UserLearningSkill
 from app.schemas.match import (
     CompatibilityFactors,
@@ -75,6 +76,10 @@ def directional_skills(member_id: UUID, *, member_teaches: bool):
     owner_id = teaching.user_id if member_teaches else learning.user_id
     other_id = learning.user_id if member_teaches else teaching.user_id
 
+    # Subconsultas para exclusión automática de bloqueos mutuos (RF-MAT-14 / HU-26)
+    blocked_by_me = select(UserBlock.blocked_id).where(UserBlock.blocker_id == member_id)
+    blocking_me = select(UserBlock.blocker_id).where(UserBlock.blocked_id == member_id)
+
     return (
         select(
             other_id.label("counterpart_id"),
@@ -97,6 +102,8 @@ def directional_skills(member_id: UUID, *, member_teaches: bool):
             User.is_locked.is_(False),      # Excluye las cuentas bloqueadas.
             Skill.is_active.is_(True),      # Considera habilidades publicadas.
             Category.is_active.is_(True),   # Considera categorías activas.
+            ~other_id.in_(blocked_by_me),   # Excluye usuarios bloqueados por mí.
+            ~other_id.in_(blocking_me),     # Excluye usuarios que me han bloqueado.
         )
         .group_by(other_id)
     )
