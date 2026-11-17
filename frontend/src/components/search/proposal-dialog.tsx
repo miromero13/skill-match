@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { useLearningSkillStore } from "@/stores/learning-skill-store"
 import { toast } from "sonner"
 import type { TutorSearchResult } from "@/types/search"
+import { CompatibilityBadge } from "@/components/matches/compatibility-badge"
 
 interface ProposalDialogProps {
   tutor: TutorSearchResult | null
@@ -54,10 +55,13 @@ export function ProposalDialog({ tutor, open, onOpenChange }: ProposalDialogProp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-            <ArrowLeftRight className="h-5 w-5 text-primary" />
-            Proponer Intercambio a {tutor.full_name}
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-2 pr-6">
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <ArrowLeftRight className="h-5 w-5 text-primary" />
+              Proponer Intercambio a {tutor.full_name}
+            </DialogTitle>
+            <CompatibilityBadge counterpartId={tutor.id} size="sm" />
+          </div>
           <DialogDescription className="text-xs">
             Selecciona la habilidad que deseas aprender con {tutor.full_name} y envía un mensaje inicial de presentación.
           </DialogDescription>

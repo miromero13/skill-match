@@ -7,7 +7,7 @@ from app.core.deps import get_current_user
 from app.core.exceptions import SkillMatchException
 from app.db.session import get_db
 from app.models.user import User, UserRole
-from app.schemas.match import MatchResponse
+from app.schemas.match import MatchCompatibilityResponse, MatchResponse
 from app.schemas.response import APIResponse
 from app.services import match_service
 
@@ -58,3 +58,41 @@ async def get_my_suggestion(
     # El servicio verifica que el solicitante pertenezca a esa coincidencia.
     item = await match_service.get_suggestion(db, user.id, match_id)
     return APIResponse.ok(data=item, message="Coincidencia recuperada correctamente.")
+
+
+@router.get(
+    "/{match_id}/compatibility",
+    response_model=APIResponse[MatchCompatibilityResponse],
+    response_model_exclude={"count"},
+    summary="Cálculo y explicabilidad del score de compatibilidad (HU-22)",
+    description="Calcula el score de compatibilidad porcentual ponderado y las razones explicativas del match.",
+)
+async def get_match_compatibility(
+    match_id: UUID,
+    user: User = Depends(current_member),
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse[MatchCompatibilityResponse]:
+    # Verifica pertenencia estricta del miembro (404 si es ajeno)
+    item = await match_service.get_match_compatibility(db, user.id, match_id)
+    return APIResponse.ok(
+        data=item,
+        message=f"Score de compatibilidad calculado: {item.compatibility_score}%.",
+    )
+
+
+@router.get(
+    "/user/{user_id}/compatibility",
+    response_model=APIResponse[MatchCompatibilityResponse],
+    response_model_exclude={"count"},
+    summary="Compatibilidad directa con un miembro específico",
+)
+async def get_counterpart_compatibility(
+    user_id: UUID,
+    user: User = Depends(current_member),
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse[MatchCompatibilityResponse]:
+    item = await match_service.get_user_compatibility(db, user.id, user_id)
+    return APIResponse.ok(
+        data=item,
+        message=f"Score de compatibilidad con {item.counterpart_name}: {item.compatibility_score}%.",
+    )

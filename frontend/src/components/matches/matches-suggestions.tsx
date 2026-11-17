@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { createMatchStore } from "@/stores/match-store"
 import type { MatchSuggestion } from "@/types/match"
+import { CompatibilityBadge } from "./compatibility-badge"
 
 function SkillExchange({ match }: { match: MatchSuggestion }) {
     // En móvil apila los dos lados. Desde sm los muestra juntos.
@@ -93,13 +94,22 @@ export function MatchSuggestions({ preview = false }: { preview?: boolean }) {
             )}
 
             {!loading && !failed && visibleItems.map((match) => (
-                <Card key={match.id}>
+                <Card key={match.id} className="transition-all hover:border-primary/40">
                     <CardContent className="space-y-3 p-4">
-                        <h3 className="break-words font-semibold">{match.counterpart_name}</h3>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h3 className="break-words font-semibold">{match.counterpart_name}</h3>
+                            <CompatibilityBadge
+                                matchId={match.id}
+                                initialScore={match.compatibility_score}
+                                size="sm"
+                            />
+                        </div>
                         <SkillExchange match={match} />
-                        <Button variant="outline" onClick={() => setSelectedId(match.id)}>
-                            Ver detalle
-                        </Button>
+                        <div className="flex items-center justify-between pt-1">
+                            <Button variant="outline" size="sm" onClick={() => setSelectedId(match.id)}>
+                                Ver detalle
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             ))}
@@ -128,9 +138,18 @@ export function MatchSuggestions({ preview = false }: { preview?: boolean }) {
                 open={selectedId !== null}
                 onOpenChange={(open) => { if (!open) setSelectedId(null) }}
             >
-                <DialogContent className="max-h-[85dvh] overflow-y-auto">
+                <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>{detail?.counterpart_name ?? "Detalle de coincidencia"}</DialogTitle>
+                        <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
+                            <DialogTitle>{detail?.counterpart_name ?? "Detalle de coincidencia"}</DialogTitle>
+                            {detail && (
+                                <CompatibilityBadge
+                                    matchId={detail.id}
+                                    initialScore={detail.compatibility_score}
+                                    size="default"
+                                />
+                            )}
+                        </div>
                         <DialogDescription>
                             {loadingDetail ? "Cargando detalle…" : detailMessage}
                         </DialogDescription>

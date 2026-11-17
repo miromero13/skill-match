@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { TutorSearchResult, TutorTeachingSkill } from "@/types/search"
+import { CompatibilityBadge } from "@/components/matches/compatibility-badge"
 
 interface TutorCardProps {
   tutor: TutorSearchResult
@@ -91,13 +92,16 @@ export function TutorCard({ tutor, onProposeSwap }: TutorCardProps) {
               </div>
             </div>
 
-            {/* Rating pill */}
-            <div className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400 shrink-0">
-              <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-              <span>{tutor.rating.toFixed(1)}</span>
-              {tutor.total_reviews > 0 && (
-                <span className="text-[10px] font-normal text-muted-foreground">({tutor.total_reviews})</span>
-              )}
+            {/* Rating y Afinidad */}
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              <div className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                <span>{tutor.rating.toFixed(1)}</span>
+                {tutor.total_reviews > 0 && (
+                  <span className="text-[10px] font-normal text-muted-foreground">({tutor.total_reviews})</span>
+                )}
+              </div>
+              <CompatibilityBadge counterpartId={tutor.id} size="sm" />
             </div>
           </div>
 
