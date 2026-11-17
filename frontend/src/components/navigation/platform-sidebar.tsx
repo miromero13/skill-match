@@ -3,6 +3,7 @@ import { useAuthStore } from "@/stores/auth-store"
 import {
   User,
   ArrowLeftRight,
+  Handshake,
   Wallet,
   Calendar,
   Award,
@@ -19,6 +20,7 @@ export function PlatformSidebar() {
   const { user } = useAuthStore()
 
   const menuItems = [
+    { label: "Mis Coincidencias", icon: Handshake, to: "/matches", active: path === "/matches" },
     { label: "Mi Perfil y Horarios", icon: User, to: "/app/profile", active: path === "/app/profile" || path === "/app" },
     { label: "Habilidades que enseño", icon: BookOpen, to: "/app/teaching-skills", active: path === "/app/teaching-skills" },
     { label: "Quiero Aprender", icon: BookOpen, to: "/app/learning-skills", active: path === "/app/learning-skills" },

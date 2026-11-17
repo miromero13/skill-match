@@ -18,12 +18,22 @@ import { MemberRouteGuard } from "@/components/member-route-guard"
 import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { ProfilePage } from "@/pages/profile-page"
 import { AvailabilityPage } from "@/pages/availability-page"
+import { MatchesPage } from "@/pages/matches-page"
 
 import { NotificationLayout } from "@/components/notifications/notification-layout"
 import { NotificationInboxPage } from "@/pages/notifications/notification-inbox-page"
 import { NotificationSettingsPage } from "@/pages/notifications/notification-settings-page"
 
 export const router = createBrowserRouter([
+  {
+    path: "/matches",
+    element: (
+      <MemberRouteGuard>
+        <PlatformLayout />
+      </MemberRouteGuard>
+    ),
+    children: [{ index: true, element: <MatchesPage /> }],
+  },
   // 1. Public Layout (Landing Page, Institucional)
   {
     path: "/",

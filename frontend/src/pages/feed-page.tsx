@@ -1,11 +1,9 @@
 import { Link } from "react-router-dom"
+import { MatchSuggestions } from "@/components/matches/matches-suggestions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   ShieldCheck,
-  ArrowLeftRight,
-  Clock,
-  Sparkles,
   ArrowRight,
   Calendar,
   Star,
@@ -17,115 +15,7 @@ export function FeedPage() {
       <div className="mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* CENTER COLUMN: Main Feed (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
-          {/* 1. Deep Teal Hero Banner */}
-          <div className="rounded-2xl bg-primary p-6 text-primary-foreground shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1.5 max-w-md">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 shrink-0" />
-                <h2 className="font-bold text-base sm:text-lg leading-tight">
-                  ¡Tenés 3 nuevos matches para aprender Guitarra!
-                </h2>
-              </div>
-              <p className="text-xs text-primary-foreground/80 leading-relaxed">
-                Usuarios certificados por IA buscan aprender tus conocimientos en Python.
-              </p>
-            </div>
-            <Button
-              size="sm"
-              asChild
-              className="bg-background text-primary hover:bg-background/90 font-bold text-xs rounded-full px-4 shrink-0 shadow-xs"
-            >
-              <Link to="/app/search" className="flex items-center gap-1.5">
-                <span>Explorar Matches</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </div>
-
-          {/* 2. Match Card (Sofía Rossi) */}
-          <Card className="rounded-2xl border shadow-xs bg-card overflow-hidden">
-            <CardContent className="p-5 sm:p-6 space-y-5">
-              {/* Header: User Info & Compatibility Badge */}
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground font-black text-sm shrink-0">
-                    SR
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base text-foreground leading-snug">
-                      Sofía Rossi
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Guitarrista Clásica & Aprendiz de Programación · Buenos Aires
-                    </p>
-                  </div>
-                </div>
-
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary shrink-0">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>98% Compatibilidad</span>
-                </div>
-              </div>
-
-              {/* Reciprocal Swap Box */}
-              <div className="rounded-xl border bg-muted/20 p-4">
-                <div className="grid grid-cols-11 items-center gap-2">
-                  {/* Left: She Teaches */}
-                  <div className="col-span-5 space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                      ELLA TE ENSEÑA
-                    </span>
-                    <div className="flex items-center gap-1 font-bold text-sm text-foreground">
-                      <span>Guitarra Clásica & Solfeo</span>
-                      <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                    </div>
-                    <span className="text-xs font-semibold text-primary block">
-                      Nivel 4 (Avanzado) · Verificado IA
-                    </span>
-                  </div>
-
-                  {/* Center: Bidirectional Swap Icon */}
-                  <div className="col-span-1 flex justify-center">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <ArrowLeftRight className="h-4 w-4" />
-                    </div>
-                  </div>
-
-                  {/* Right: You Teach */}
-                  <div className="col-span-5 space-y-1 text-right">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                      VOS LE ENSEÑAS
-                    </span>
-                    <div className="flex items-center justify-end gap-1 font-bold text-sm text-foreground">
-                      <span>Python Backend & FastAPI</span>
-                      <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                    </div>
-                    <span className="text-xs font-semibold text-primary block">
-                      Nivel 5 (Master) · Verificado IA
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Schedule Info */}
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span>Coincidencia de horario: Martes y Jueves 18:30 a 20:00 (Modalidad Virtual)</span>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold gap-2 rounded-lg px-5 shadow-xs">
-                  <ArrowLeftRight className="h-3.5 w-3.5" />
-                  <span>Proponer Intercambio</span>
-                </Button>
-                <Button variant="outline" className="text-xs font-semibold gap-2 rounded-lg px-4 border-border">
-                  <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                  <span>Ver Pasaporte de Sofía</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <MatchSuggestions preview />
         </div>
 
         {/* RIGHT COLUMN: User Widgets & Next Session (4 cols) */}
