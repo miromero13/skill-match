@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import httpx
@@ -80,5 +81,68 @@ async def test_reciprocal_suggestions_and_private_details():
                     await db.delete(b_interest)
                     await db.flush()
                     assert (await client.get(url, headers=headers["A"])).raise_for_status().json()["count"] == 0
+                    restored_interest = UserLearningSkill(user_id=b.id, skill_id=python.id)
+                    db.add(restored_interest)
+                    await db.flush()
+
+                    # El descarte es personal y una propuesta del otro miembro lo reabre.
+                    assert (await client.delete(detail_url, headers=headers["A"])).status_code == 200
+                    assert (await client.get(url, headers=headers["A"])).json()["count"] == 0
+                    assert (await client.get(url, headers=headers["B"])).json()["count"] == 1
+                    messages_url = f"{detail_url}/messages"
+                    assert (await client.get(messages_url, headers=headers["A"])).status_code == 409
+                    starts_at = datetime.now(timezone.utc) + timedelta(days=1)
+                    proposals_url = f"{detail_url}/proposals"
+                    response = await client.post(
+                        proposals_url, headers=headers["B"], json={"starts_at": starts_at.isoformat()},
+                    )
+                    assert response.status_code == 201
+                    first_proposal = response.json()["data"]["id"]
+                    assert (await client.get(url, headers=headers["A"])).json()["count"] == 1
+                    response = await client.post(
+                        proposals_url, headers=headers["A"],
+                        json={"starts_at": (starts_at + timedelta(days=1)).isoformat(),
+                              "replaces_proposal_id": first_proposal},
+                    )
+                    assert response.status_code == 201
+                    second_proposal = response.json()["data"]["id"]
+                    accept_url = f"{detail_url}/accept"
+                    assert (await client.post(
+                        accept_url, headers=headers["B"], json={"proposal_id": first_proposal},
+                    )).status_code == 409
+                    assert (await client.post(
+                        accept_url, headers=headers["C"], json={"proposal_id": second_proposal},
+                    )).status_code == 404
+                    for _ in range(2):
+                        response = await client.post(
+                            accept_url, headers=headers["B"], json={"proposal_id": second_proposal},
+                        )
+                        assert response.status_code == 200
+                        assert response.json()["data"]["contact_enabled"]
+                    assert (await client.post(
+                        messages_url, headers=headers["A"], json={"body": "Nos vemos el jueves."},
+                    )).status_code == 201
+                    response = await client.get(messages_url, headers=headers["B"])
+                    assert response.json()["data"][0]["body"] == "Nos vemos el jueves."
+                    assert (await client.get(messages_url, headers=headers["C"])).status_code == 404
+                    await db.delete(restored_interest)
+                    db.add(UserLearningSkill(user_id=c.id, skill_id=python.id))
+                    await db.flush()
+                    response = await client.get(url, headers=headers["A"])
+                    choices = {match["counterpart_name"]: match for match in response.json()["data"]}
+                    assert choices["B"]["status"] == "confirmed"
+                    other_url = f"/api/matches/{choices['C']['id']}"
+                    response = await client.post(
+                        f"{other_url}/proposals", headers=headers["A"],
+                        json={"starts_at": starts_at.isoformat()},
+                    )
+                    assert response.status_code == 201
+                    response = await client.post(
+                        f"{other_url}/decline", headers=headers["C"],
+                        json={"proposal_id": response.json()["data"]["id"]},
+                    )
+                    assert response.status_code == 200
+                    assert response.json()["data"]["status"] == "declined"
+                    assert (await client.get(url, headers=headers["C"])).json()["count"] == 0
         finally:
             await transaction.rollback()
