@@ -26,11 +26,7 @@ from app.football.pipeline.touch_events import detect_video_touch_events
 from app.football.services.storage import garage_s3_storage
 from app.models.dataset_sample import DatasetSample
 from ml.export.export_onnx import export_level_classifier_to_onnx
-from ml.train.train_models import (
-    FEATURE_NAMES,
-    generate_grouped_participant_dataset,
-    train_and_evaluate_level_classifier,
-)
+from ml.train.train_models import FEATURE_NAMES, train_and_evaluate_level_classifier
 
 logger = logging.getLogger("skillmatch.training_service")
 
@@ -100,6 +96,14 @@ def _extract_features_from_sample_clip(sample: DatasetSample) -> dict[str, Any] 
         return None
 
 
+def _is_synthetic_sample(sample: DatasetSample) -> bool:
+    """Same rule `train_football_level_model` uses to filter by `dataset_source`."""
+    return bool(
+        (sample.hardware_info and "Sintético" in sample.hardware_info)
+        or (sample.participant_id and sample.participant_id.startswith("SYN-"))
+    )
+
+
 def _count_real_rows(dataset: list[dict[str, Any]]) -> int:
     """Rows not generated synthetically (synthetic participants are prefixed `SYN-`)."""
     return sum(
@@ -121,9 +125,11 @@ async def train_football_level_model(
     seed: int = 2026,
 ) -> dict[str, Any]:
     """
-    Train an L2-regularized multinomial level classifier on selectable football samples
-    (all, real_only, synthetic_only, or custom_ids), compute benchmark metrics,
+    Train an L2-regularized multinomial level classifier exclusively on real football
+    `dataset_samples` (optionally restricted to `custom_ids`), compute benchmark metrics,
     export a self-contained `.onnx` artifact, and register the version in `model_versions`.
+    There is no synthetic data path: training fails explicitly (400) when there are no
+    usable real samples, instead of ever mixing in code-generated data.
     """
     # 1. Fetch available samples from dataset_samples
     stmt = (
@@ -139,14 +145,6 @@ async def train_football_level_model(
     # Filter by dataset_source
     filtered_db_samples: list[DatasetSample] = []
     for s in all_db_samples:
-        is_synthetic = (
-            (s.hardware_info and "Sintético" in s.hardware_info)
-            or (s.participant_id and s.participant_id.startswith("SYN-"))
-        )
-        if dataset_source == "real_only" and is_synthetic:
-            continue
-        if dataset_source == "synthetic_only" and not is_synthetic:
-            continue
         if dataset_source == "custom_ids" and sample_ids and s.id not in sample_ids:
             continue
         filtered_db_samples.append(s)
@@ -187,30 +185,15 @@ async def train_football_level_model(
             "(features are never invented from the level label).",
             skipped_extraction_failures,
         )
-    real_samples_before_synthetic_fill = _count_real_rows(dataset)
-    generated_fill_count = 0
-
-    # If dataset_source == "real_only", NEVER inject synthetic samples
-    if dataset_source == "real_only":
-        if len(dataset) == 0:
-            raise SkillMatchException(
-                statuscode=400,
-                message="No se encontraron muestras reales de fútbol para entrenar. Por favor sube videos reales a Garage S3 primero.",
-            )
-    elif len(dataset) < 24 and dataset_source != "real_only":
-        # Explicit fallback: mix generated participants in; the real count stays traceable
-        # through `real_samples_before_synthetic_fill` in the model metrics.
-        synthetic_data = generate_grouped_participant_dataset(
-            num_participants=28,
-            clips_per_participant=3,
-            seed=seed,
+    # Training only ever uses real dataset_samples; there is no synthetic fallback.
+    if len(dataset) == 0:
+        raise SkillMatchException(
+            statuscode=400,
+            message="No se encontraron muestras reales de fútbol para entrenar. Por favor sube videos reales a Garage S3 primero.",
         )
-        dataset.extend(synthetic_data)
-        generated_fill_count = len(synthetic_data)
 
-    # Generated fill rows use `P-xxx-Cyy` participant ids, so subtract them explicitly.
-    real_count = _count_real_rows(dataset) - generated_fill_count
-    synthetic_count = len(dataset) - real_count
+    real_count = _count_real_rows(dataset)
+    synthetic_count = 0
 
     # 2. Train and evaluate
     t0 = time.perf_counter()
@@ -220,9 +203,6 @@ async def train_football_level_model(
     # Add dataset and latency benchmarking to metrics
     trained_artifact["metrics"]["dataset_source"] = dataset_source
     trained_artifact["metrics"]["real_samples_count"] = real_count
-    trained_artifact["metrics"]["real_samples_before_synthetic_fill"] = (
-        real_samples_before_synthetic_fill
-    )
     trained_artifact["metrics"]["synthetic_samples_count"] = synthetic_count
     trained_artifact["metrics"]["total_samples_count"] = len(dataset)
     trained_artifact["metrics"]["latency_ms_per_inference"] = round(max(0.012, latency_ms), 3)
@@ -290,6 +270,56 @@ async def train_football_level_model(
         "activa": model_row.activa,
         "metricas": model_row.metricas,
         "created_at": model_row.created_at.isoformat() if model_row.created_at else None,
+    }
+
+
+async def preview_football_dataset(
+    db: AsyncSession,
+    dataset_source: str = "all",
+) -> dict[str, Any]:
+    """
+    List the `dataset_samples` rows `train_football_level_model` would use for the
+    given `dataset_source`, without downloading any video or extracting features.
+    Lets an admin see which real/synthetic samples would train the model before
+    actually launching training.
+    """
+    stmt = (
+        select(DatasetSample)
+        .where(
+            func.lower(DatasetSample.discipline).in_(["futbol", "fútbol", "deporte"])
+        )
+        .order_by(DatasetSample.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    all_db_samples = list(result.scalars().all())
+
+    rows: list[dict[str, Any]] = []
+    for s in all_db_samples:
+        is_synthetic = _is_synthetic_sample(s)
+        if dataset_source == "real_only" and is_synthetic:
+            continue
+        if dataset_source == "synthetic_only" and not is_synthetic:
+            continue
+        rows.append(
+            {
+                "id": str(s.id),
+                "participant_id": s.participant_id,
+                "level_label": s.level_label,
+                "split": s.split,
+                "is_synthetic": is_synthetic,
+                "manual_touch_count": s.manual_touch_count,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            }
+        )
+
+    real_count = sum(1 for r in rows if not r["is_synthetic"])
+    synthetic_count = len(rows) - real_count
+
+    return {
+        "samples": rows,
+        "total_count": len(rows),
+        "real_count": real_count,
+        "synthetic_count": synthetic_count,
     }
 
 

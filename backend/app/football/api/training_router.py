@@ -9,12 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_admin_user
 from app.db.session import get_db
-from app.football.services.synthetic_dataset_service import (
-    generate_and_store_synthetic_samples,
-)
 from app.football.services.training_service import (
     activate_football_model_version,
     list_football_model_versions,
+    preview_football_dataset,
     train_football_level_model,
 )
 from app.models.user import User
@@ -25,27 +23,6 @@ training_router = APIRouter(
     tags=["Football AI Training & Dataset Generation"],
     dependencies=[Depends(get_current_admin_user)],
 )
-
-
-class GenerateSyntheticDatasetRequest(BaseModel):
-    count: int = Field(
-        default=12,
-        ge=1,
-        le=48,
-        description="Número de muestras sintéticas a generar (1-48)",
-    )
-    train_ratio: float = Field(
-        default=0.70,
-        ge=0.1,
-        le=0.9,
-        description="Proporción de muestras para partición 'train'",
-    )
-    val_ratio: float = Field(
-        default=0.15,
-        ge=0.05,
-        le=0.5,
-        description="Proporción de muestras para partición 'val'",
-    )
 
 
 class TrainModelRequest(BaseModel):
@@ -71,29 +48,26 @@ class TrainModelRequest(BaseModel):
     )
 
 
-@training_router.post(
-    "/generate-synthetic",
+@training_router.get(
+    "/dataset-preview",
     response_model=APIResponse[dict[str, Any]],
-    status_code=status.HTTP_201_CREATED,
-    summary="Generar muestras sintéticas de fútbol con física de dominadas",
+    status_code=status.HTTP_200_OK,
+    summary="Previsualizar las muestras de dataset que se usarían al entrenar",
 )
-async def generate_synthetic_dataset(
-    payload: GenerateSyntheticDatasetRequest,
+async def dataset_preview(
+    dataset_source: str = Query(
+        default="all",
+        description="Fuente de datos a previsualizar: 'all', 'real_only', o 'synthetic_only'",
+    ),
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(get_current_admin_user),
 ) -> APIResponse[dict[str, Any]]:
-    result = await generate_and_store_synthetic_samples(
-        db=db,
-        admin_user=admin_user,
-        count=payload.count,
-        train_ratio=payload.train_ratio,
-        val_ratio=payload.val_ratio,
-    )
+    preview = await preview_football_dataset(db=db, dataset_source=dataset_source)
     return APIResponse(
-        statuscode=status.HTTP_201_CREATED,
-        message=f"Se generaron y almacenaron {result['generated_count']} muestras sintéticas de fútbol exitosamente.",
-        data=result,
-        count=result["generated_count"],
+        statuscode=status.HTTP_200_OK,
+        message="Vista previa del dataset de fútbol recuperada exitosamente.",
+        data=preview,
+        count=preview["total_count"],
     )
 
 

@@ -118,35 +118,10 @@ export const footballValidationApi = {
     )
   },
 
-  async generateSyntheticDataset(payload: {
-    count: number
-    train_ratio?: number
-    val_ratio?: number
-  }): Promise<
-    APIResponse<{
-      generated_count: number
-      splits_summary: Record<string, number>
-      levels_summary: Record<string, number>
-      samples: Array<{
-        id: string
-        sample_id: string
-        participant_id: string
-        level_label: string
-        manual_touch_count: number
-        split: string
-        storage_path: string
-        file_size_bytes: number
-        duration_s: number
-      }>
-    }>
-  > {
-    return apiClient.post("/football/training/generate-synthetic", payload)
-  },
-
   async trainLevelModel(payload: {
     version_tag?: string
     activate?: boolean
-    dataset_source?: "all" | "real_only" | "synthetic_only" | "custom_ids"
+    dataset_source?: "all" | "custom_ids"
     sample_ids?: string[]
     skill_id?: string
   }): Promise<
@@ -224,5 +199,28 @@ export const footballValidationApi = {
     }>
   > {
     return apiClient.post(`/football/training/models/${modelId}/activate`, {})
+  },
+
+  async getDatasetPreview(
+    datasetSource: "all" = "all"
+  ): Promise<
+    APIResponse<{
+      samples: Array<{
+        id: string
+        participant_id: string | null
+        level_label: string | null
+        split: string | null
+        is_synthetic: boolean
+        manual_touch_count: number | null
+        created_at: string | null
+      }>
+      total_count: number
+      real_count: number
+      synthetic_count: number
+    }>
+  > {
+    return apiClient.get(
+      `/football/training/dataset-preview?dataset_source=${datasetSource}`
+    )
   },
 }

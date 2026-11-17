@@ -91,20 +91,20 @@ async def test_failed_extraction_sample_is_excluded_not_invented_from_label(
     training_db.add(broken)
     await training_db.flush()
 
-    caplog.set_level(logging.WARNING, logger="skillmatch.training_service")
-    result = await training_service.train_football_level_model(
-        db=training_db,
-        version_tag=f"leak-{uuid.uuid4().hex[:6]}",
-        activate=False,
-        dataset_source="custom_ids",
-        sample_ids=[broken.id],
-    )
+    from app.core.exceptions import SkillMatchException
 
-    assert len(captured_training_datasets) == 1
-    trained_ids = {row["sample_id"] for row in captured_training_datasets[0]}
-    assert str(broken.id) not in trained_ids
-    assert result["metricas"]["real_samples_before_synthetic_fill"] == 0
-    assert result["metricas"]["real_samples_count"] == 0
+    caplog.set_level(logging.WARNING, logger="skillmatch.training_service")
+    with pytest.raises(SkillMatchException) as exc_info:
+        await training_service.train_football_level_model(
+            db=training_db,
+            version_tag=f"leak-{uuid.uuid4().hex[:6]}",
+            activate=False,
+            dataset_source="custom_ids",
+            sample_ids=[broken.id],
+        )
+
+    assert exc_info.value.statuscode == 400
+    assert captured_training_datasets == []
     assert any(
         "excluded" in rec.getMessage().lower() and "1" in rec.getMessage()
         for rec in caplog.records
@@ -113,7 +113,7 @@ async def test_failed_extraction_sample_is_excluded_not_invented_from_label(
 
 
 @pytest.mark.asyncio
-async def test_successfully_extracted_sample_is_kept_and_counted_before_synthetic_fill(
+async def test_successfully_extracted_sample_is_kept_and_broken_one_excluded(
     training_db: AsyncSession,
     captured_training_datasets: list[list[dict[str, Any]]],
     monkeypatch: pytest.MonkeyPatch,
@@ -144,10 +144,9 @@ async def test_successfully_extracted_sample_is_kept_and_counted_before_syntheti
     assert kept["features"] == REAL_FEATURES
 
     metrics = result["metricas"]
-    assert metrics["real_samples_before_synthetic_fill"] == 1
     assert metrics["real_samples_count"] == 1
-    assert metrics["synthetic_samples_count"] > 0
-    assert metrics["total_samples_count"] == len(trained_rows)
+    assert metrics["synthetic_samples_count"] == 0
+    assert metrics["total_samples_count"] == len(trained_rows) == 1
 
 
 def test_extract_features_from_sample_clip_omits_unmeasured_constants(
