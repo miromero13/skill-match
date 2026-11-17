@@ -25,6 +25,8 @@ class ScoringOutput:
     retroalimentacion: dict[str, list[str]] = field(default_factory=dict)
     version_modelo: str = "rules-v1"
     version_config: str = ""
+    puntaje_1_100: float = 1.0
+    puntaje_calibrado: bool = False
 
 
 class LevelClassifierProtocol(Protocol):
@@ -173,14 +175,18 @@ class RuleBasedLevelClassifier:
 
 class TrainedArtifactLevelClassifier:
     """
-    Loads a trained ordinal linear/MLP/ONNX-exported model artifact from disk
-    (registered in `model_versions`) and computes calibrated level probabilities.
+    Loads a trained ordinal linear/MLP/ONNX-exported model artifact (registered in
+    `model_versions`) and computes calibrated level probabilities.
+
+    `artifact_path` is either a local filesystem path or an `s3://bucket/key` URI
+    (what `model_versions.ruta_onnx` holds after training); S3 URIs are fetched
+    through the Garage S3 storage service.
     """
 
     def __init__(self, artifact_path: str | Path, version_tag: str) -> None:
-        self.artifact_path = Path(artifact_path)
+        self.artifact_path = artifact_path
         self._version_tag = version_tag
-        raw_bytes = self.artifact_path.read_bytes()
+        raw_bytes = self._read_artifact_bytes(artifact_path)
         # Support JSON-serialized weights inside `.onnx` / `.json` artifact header
         text = raw_bytes.decode("utf-8", errors="ignore")
         json_start = text.find("{")
@@ -188,6 +194,19 @@ class TrainedArtifactLevelClassifier:
         if json_start == -1 or json_end == -1:
             raise ValueError(f"Invalid model artifact format: {artifact_path}")
         self.meta: dict[str, Any] = json.loads(text[json_start : json_end + 1])
+
+    @staticmethod
+    def _read_artifact_bytes(artifact_path: str | Path) -> bytes:
+        location = str(artifact_path)
+        if location.startswith("s3://"):
+            # Imported lazily: the storage service pulls in boto3 and app settings.
+            from app.football.services.storage import garage_s3_storage
+
+            parts = location.removeprefix("s3://").split("/", 1)
+            if len(parts) < 2 or not parts[1]:
+                raise ValueError(f"Invalid S3 model artifact URI: {location}")
+            return garage_s3_storage.get_object_bytes(parts[1])
+        return Path(artifact_path).read_bytes()
 
     @property
     def model_version(self) -> str:
@@ -213,6 +232,21 @@ class TrainedArtifactLevelClassifier:
             lvl: round(prob, 4)
             for lvl, prob in zip(LEVELS, probs, strict=True)
         }
+
+
+def _probabilities_to_score_1_100(probs: dict[str, float]) -> float:
+    """
+    Map level probabilities to a 1-100 score via the expected level index:
+    `expected = sum(i * p_i)` over `LEVELS` (range 0..len(LEVELS)-1), linearly
+    rescaled to [1, 100]. Monotonic in each `p_i` shift toward a higher level,
+    bounded, and deterministic. NOT calibrated against real human performance
+    (see `ScoringOutput.puntaje_calibrado`): the centers/scales behind `probs`
+    itself (`RuleBasedLevelClassifier`) are still hand-picked, not fit to data.
+    """
+    max_idx = len(LEVELS) - 1
+    expected_idx = sum(i * probs.get(lvl, 0.0) for i, lvl in enumerate(LEVELS))
+    score = 1.0 + (expected_idx / max_idx) * 99.0
+    return round(min(100.0, max(1.0, score)), 2)
 
 
 def score_session_features(
@@ -249,6 +283,8 @@ def score_session_features(
             },
             version_modelo=active_clf.model_version,
             version_config=f"{full_cfg.version}:{full_cfg.config_hash[:12]}",
+            puntaje_1_100=1.0,
+            puntaje_calibrado=False,
         )
 
     probs = active_clf.predict_proba(features)
@@ -267,4 +303,6 @@ def score_session_features(
         retroalimentacion=feedback,
         version_modelo=active_clf.model_version,
         version_config=f"{full_cfg.version}:{full_cfg.config_hash[:12]}",
+        puntaje_1_100=_probabilities_to_score_1_100(probs),
+        puntaje_calibrado=False,
     )

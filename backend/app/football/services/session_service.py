@@ -773,6 +773,8 @@ async def evaluate_and_persist_session_result(
         result_row.probabilidades = scoring_out.probabilidades
         result_row.confianza = scoring_out.confianza
         result_row.puntaje_riesgo = fraud_out.puntaje_riesgo
+        result_row.puntaje_1_100 = scoring_out.puntaje_1_100
+        result_row.puntaje_calibrado = scoring_out.puntaje_calibrado
         result_row.requiere_revision = requires_review
         result_row.retroalimentacion = scoring_out.retroalimentacion
     else:
@@ -782,6 +784,8 @@ async def evaluate_and_persist_session_result(
             probabilidades=scoring_out.probabilidades,
             confianza=scoring_out.confianza,
             puntaje_riesgo=fraud_out.puntaje_riesgo,
+            puntaje_1_100=scoring_out.puntaje_1_100,
+            puntaje_calibrado=scoring_out.puntaje_calibrado,
             requiere_revision=requires_review,
             retroalimentacion=scoring_out.retroalimentacion,
         )
@@ -832,6 +836,7 @@ async def get_validation_result_payload(
         toques_por_minuto=float(f_json.get("touches_per_minute", 0.0)),
         altura_media=float(f_json.get("mean_height_diameters", 0.0)),
         regularidad=float(f_json.get("regularity_score", 0.0)),
+        bote_count=int(f_json.get("ground_bounce_count", 0)),
         cumplimiento_por_tramo=segments_read,
     )
     incidents_read = [
@@ -852,6 +857,8 @@ async def get_validation_result_payload(
         confianza=res.confianza,
         metricas=metrics,
         coherencia_audio_video=float(f_json.get("av_coherence", 0.0)),
+        puntaje_1_100=res.puntaje_1_100,
+        puntaje_calibrado=res.puntaje_calibrado,
         puntaje_riesgo=res.puntaje_riesgo,
         incidencias=incidents_read,
         retroalimentacion=res.retroalimentacion,

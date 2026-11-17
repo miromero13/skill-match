@@ -202,6 +202,20 @@ async def test_end_to_end_session_result_endpoint_persists_versions(
     db: AsyncSession = football_p5_api["db"]
     headers = {"Authorization": f"Bearer {token}"}
 
+    # This test covers the rules path: deactivate any trained model that already lives in
+    # the shared dev DB (now that S3 artifacts load, an active model would be served).
+    # The fixture wraps everything in a transaction that is rolled back afterwards.
+    from sqlalchemy import update
+
+    from app.football.models import ModelVersion
+
+    await db.execute(
+        update(ModelVersion)
+        .where(ModelVersion.nombre == "level_classifier")
+        .values(activa=False)
+    )
+    await db.commit()
+
     create_resp = await client.post("/api/v1/football/sessions", headers=headers, json={})
     assert create_resp.status_code == 201
     session_id = create_resp.json()["data"]["session_id"]
@@ -247,6 +261,61 @@ async def test_end_to_end_session_result_endpoint_persists_versions(
     assert result_data["version_modelo"] == "rules-v1"
     assert ":" in result_data["version_config"]
     assert len(result_data["retroalimentacion"]["fortalezas"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_result_endpoint_exposes_score_1_100_calibration_flag_and_bounces(
+    football_p5_api: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    """S3/S5/S6: the API exposes the 1-100 score, its calibration flag and bounce count."""
+    client: AsyncClient = football_p5_api["client"]
+    token: str = football_p5_api["member_token"]
+    member_user: User = football_p5_api["member_user"]
+    db: AsyncSession = football_p5_api["db"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    create_resp = await client.post("/api/v1/football/sessions", headers=headers, json={})
+    assert create_resp.status_code == 201
+    session_id = create_resp.json()["data"]["session_id"]
+
+    spec = SyntheticJugglingSpec(
+        duration_s=8.5,
+        touch_times_ms=[800 + i * 600 for i in range(12)],
+        peak_height_diameters=1.4,
+        seed=556,
+    )
+    clip = generate_synthetic_juggling_clip(
+        output_dir=tmp_path,
+        spec=spec,
+        clip_name="e2e_score_1_100",
+        include_audio=True,
+    )
+    assert clip.audio_path is not None
+
+    session_obj = await get_Owned_validation_session(
+        db=db,
+        session_id=uuid.UUID(session_id),
+        user_id=member_user.id,
+    )
+    await evaluate_and_persist_session_result(
+        db=db,
+        session_obj=session_obj,
+        video_path=str(clip.video_path),
+        audio_path=str(clip.audio_path),
+    )
+
+    res_resp = await client.get(
+        f"/api/v1/football/sessions/{session_id}/result",
+        headers=headers,
+    )
+    assert res_resp.status_code == 200
+    data = res_resp.json()["data"]
+    assert isinstance(data["puntaje_1_100"], float)
+    assert 1.0 <= data["puntaje_1_100"] <= 100.0
+    assert data["puntaje_calibrado"] is False
+    assert isinstance(data["metricas"]["bote_count"], int)
+    assert data["metricas"]["bote_count"] >= 0
 
 
 def test_simulated_fraud_attacks_trigger_incidents_and_legit_clips_have_zero_fp() -> None:
@@ -373,3 +442,89 @@ def test_simulated_fraud_attacks_trigger_incidents_and_legit_clips_have_zero_fp(
     types7 = {inc.tipo for inc in attack7.incidencias}
     assert "out_of_frame" in types7
     assert "duration_mismatch" in types7
+
+
+def _build_level_artifact_bytes() -> bytes:
+    import json
+
+    from app.football.pipeline.scoring import LEVELS
+
+    feature_names = ["total_touches", "max_streak", "touches_per_minute"]
+    artifact = {
+        "model_name": "level_classifier",
+        "feature_names": feature_names,
+        "classes": list(LEVELS),
+        "scaler_mean": [20.0, 10.0, 40.0],
+        "scaler_scale": [10.0, 5.0, 20.0],
+        "weights": [
+            [-1.0, -1.0, -1.0],
+            [-0.3, -0.3, -0.3],
+            [0.3, 0.3, 0.3],
+            [1.0, 1.0, 1.0],
+        ],
+        "biases": [0.0, 0.0, 0.0, 0.0],
+    }
+    return b"ONNX_ML_SKILLMATCH_V1\n" + json.dumps(artifact).encode("utf-8")
+
+
+def test_trained_artifact_classifier_loads_from_s3_uri() -> None:
+    """The active model's `ruta_onnx` is an `s3://bucket/key` URI, never a disk path."""
+    from app.football.pipeline.scoring import LEVELS, TrainedArtifactLevelClassifier
+    from app.football.services.storage import garage_s3_storage
+
+    key = f"tests/models/level-classifier-{uuid.uuid4().hex[:8]}.onnx"
+    uri, _ = garage_s3_storage.put_object_bytes(
+        object_key=key,
+        payload=_build_level_artifact_bytes(),
+        content_type="application/octet-stream",
+    )
+    try:
+        classifier = TrainedArtifactLevelClassifier(
+            artifact_path=f"s3://{garage_s3_storage.bucket_name}/{key}",
+            version_tag="test",
+        )
+        assert uri == f"s3://{garage_s3_storage.bucket_name}/{key}"
+        assert classifier.model_version == "test"
+
+        strong = classifier.predict_proba(
+            {"total_touches": 60, "max_streak": 30, "touches_per_minute": 100}
+        )
+        weak = classifier.predict_proba(
+            {"total_touches": 2, "max_streak": 1, "touches_per_minute": 5}
+        )
+        assert set(strong) == set(LEVELS)
+        assert sum(strong.values()) == pytest.approx(1.0, abs=1e-3)
+        assert sum(weak.values()) == pytest.approx(1.0, abs=1e-3)
+        assert max(strong, key=lambda k: strong[k]) == "Experto"
+        assert max(weak, key=lambda k: weak[k]) == "Principiante"
+    finally:
+        local_copy = garage_s3_storage.local_fallback_dir / garage_s3_storage.bucket_name / key
+        local_copy.unlink(missing_ok=True)
+        if garage_s3_storage.access_key_id and garage_s3_storage.secret_access_key:
+            try:
+                garage_s3_storage._build_s3_client().delete_object(
+                    Bucket=garage_s3_storage.bucket_name, Key=key
+                )
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def test_trained_artifact_classifier_still_loads_from_local_path(tmp_path: Path) -> None:
+    from app.football.pipeline.scoring import TrainedArtifactLevelClassifier
+
+    artifact_file = tmp_path / "level_classifier_local.onnx"
+    artifact_file.write_bytes(_build_level_artifact_bytes())
+
+    classifier = TrainedArtifactLevelClassifier(
+        artifact_path=str(artifact_file), version_tag="local"
+    )
+    probs = classifier.predict_proba(
+        {"total_touches": 60, "max_streak": 30, "touches_per_minute": 100}
+    )
+    assert sum(probs.values()) == pytest.approx(1.0, abs=1e-3)
+    assert max(probs, key=lambda k: probs[k]) == "Experto"
+
+    path_classifier = TrainedArtifactLevelClassifier(
+        artifact_path=artifact_file, version_tag="local-path"
+    )
+    assert path_classifier.model_version == "local-path"

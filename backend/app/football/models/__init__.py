@@ -226,6 +226,10 @@ class ValidationResult(Base, TimestampMixin):
     )
     confianza: Mapped[float] = mapped_column(Float, nullable=False)
     puntaje_riesgo: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    puntaje_1_100: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    puntaje_calibrado: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
     requiere_revision: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )

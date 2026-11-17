@@ -130,6 +130,7 @@ class ValidationMetricsRead(BaseModel):
     toques_por_minuto: float
     altura_media: float
     regularidad: float
+    bote_count: int
     cumplimiento_por_tramo: list[ChallengeSegmentRead] = Field(default_factory=list)
 
 
@@ -141,6 +142,8 @@ class ValidationResultResponse(BaseModel):
     confianza: float
     metricas: ValidationMetricsRead
     coherencia_audio_video: float
+    puntaje_1_100: float
+    puntaje_calibrado: bool
     puntaje_riesgo: float
     incidencias: list[FraudIncidentRead] = Field(default_factory=list)
     retroalimentacion: dict[str, list[str]]
