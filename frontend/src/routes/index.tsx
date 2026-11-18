@@ -17,6 +17,7 @@ import { AdminRouteGuard } from "@/components/admin-route-guard"
 import { MemberRouteGuard } from "@/components/member-route-guard"
 import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { EvaluationSetupPage } from "@/pages/evaluation-setup-page"
+import { BrowserSupervisionPage } from "@/pages/browser-supervision-page"
 import { ProfilePage } from "@/pages/profile-page"
 import { AdminDatasetCapturePage } from "@/pages/admin-dataset-capture-page"
 import { FootballValidationWizard } from "@/features/football-validation"
@@ -123,6 +124,10 @@ export const router = createBrowserRouter([
       {
         path: "teaching-skills",
         element: <TeachingSkillsPage />,
+      },
+      {
+        path: "browser-supervision-test",
+        element: <BrowserSupervisionPage />,
       },
       {
         path: "football-validation",
