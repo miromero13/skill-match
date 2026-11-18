@@ -127,6 +127,9 @@ export function TeachingSkillsSection() {
                                         </p>
                                     )}
                                     <div className="flex flex-wrap gap-2">
+                                        {item.status !== "VERIFICADA" && <Button asChild>
+                                            <Link to={`/evaluation/${item.id}/setup`}>Validar habilidad</Link>
+                                        </Button>}
                                         <EvidenceManager skill={item} />
                                         <Button
                                             variant="outline"

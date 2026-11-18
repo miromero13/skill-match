@@ -207,6 +207,45 @@ class User(Base, TimestampMixin):
         comment="Hash SHA-256 determinístico del vector biométrico registrado",
     )
 
+    # Campos de Verificación de Identidad con Carnet (CI/DNI) 100% Automática
+    identity_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="NOT_VERIFIED",
+        server_default="NOT_VERIFIED",
+        comment="Estado de verificación de identidad: NOT_VERIFIED, VERIFIED, REJECTED",
+    )
+    id_document_number: Mapped[Optional[str]] = mapped_column(
+        String(64),
+        nullable=True,
+        default=None,
+        comment="Número de carnet de identidad o DNI verificado",
+    )
+    id_document_type: Mapped[Optional[str]] = mapped_column(
+        String(32),
+        nullable=True,
+        default="CI",
+        comment="Tipo de documento de identidad oficial (CI/DNI)",
+    )
+    id_face_similarity_score: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        default=None,
+        comment="Puntaje de similitud coseno entre foto del carnet y rostro en vivo (0.0 a 1.0)",
+    )
+    identity_verified_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
+        comment="Marca de tiempo UTC de la verificación exitosa de identidad",
+    )
+    identity_rejection_reason: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        default=None,
+        comment="Motivo explicativo en caso de rechazo de identidad",
+    )
+
     wallet: Mapped[Optional["Wallet"]] = relationship("Wallet", lazy="selectin", uselist=False)
 
     # Relación con demandas de aprendizaje (HU-15)

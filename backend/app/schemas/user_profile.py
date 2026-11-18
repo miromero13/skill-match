@@ -91,8 +91,42 @@ class BiometricEnrollRequest(BaseModel):
     )
 
 
+class IdentityVerifyRequest(BaseModel):
+    """Solicitud de verificación 100% automática de identidad con CI/DNI y selfie en vivo."""
+    id_card_base64: str = Field(
+        ...,
+        description="Fotografía o captura nítida del anverso del carnet CI/DNI en base64",
+    )
+    selfie_base64: str = Field(
+        ...,
+        description="Captura facial en vivo del usuario frente a la cámara web en base64",
+    )
+    id_number: str = Field(
+        ...,
+        min_length=4,
+        max_length=30,
+        description="Número de carnet de identidad o DNI (ej. 8472910)",
+    )
+    full_name: str = Field(
+        ...,
+        min_length=2,
+        max_length=150,
+        description="Nombre completo tal como figura en el documento de identidad",
+    )
+    lighting_score: float = Field(
+        default=0.85,
+        ge=0.0,
+        le=1.0,
+        description="Índice de iluminación medido en cámara (0.0 a 1.0)",
+    )
+    face_centered: bool = Field(
+        default=True,
+        description="Confirmación del encuadre centrado",
+    )
+
+
 class UserProfileResponse(BaseModel):
-    """Respuesta consolidada del perfil de usuario e indicadores biométricos."""
+    """Respuesta consolidada del perfil de usuario e indicadores biométricos y de identidad."""
     id: UUID
     user_id: UUID
     full_name: str
@@ -114,5 +148,13 @@ class UserProfileResponse(BaseModel):
     biometric_enrolled_at: Optional[datetime] = None
     biometric_face_hash: Optional[str] = None
     embedding_dimensions: Optional[int] = None
+
+    # Verificación de identidad con CI/DNI
+    identity_status: str = "NOT_VERIFIED"
+    id_document_number: Optional[str] = None
+    id_document_type: Optional[str] = "CI"
+    id_face_similarity_score: Optional[float] = None
+    identity_verified_at: Optional[datetime] = None
+    identity_rejection_reason: Optional[str] = None
 
     model_config = {"from_attributes": True}

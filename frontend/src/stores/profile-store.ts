@@ -8,11 +8,13 @@ import {
   patchMyProfile,
   replaceMyAvailability,
   updateMyProfile,
+  verifyMyIdentity,
 } from "@/services/profile-service"
 import type {
   AvailabilityMatrixPayload,
   AvailabilitySlot,
   BiometricEnrollPayload,
+  IdentityVerifyPayload,
   UserProfileData,
   UserProfilePatchPayload,
   UserProfileUpdatePayload,
@@ -25,12 +27,14 @@ interface ProfileState {
   isLoadingProfile: boolean
   isSavingProfile: boolean
   isEnrollingBiometrics: boolean
+  isVerifyingIdentity: boolean
   isLoadingAvailability: boolean
   isSavingAvailability: boolean
   loadProfile: () => Promise<void>
   saveProfile: (payload: UserProfileUpdatePayload) => Promise<boolean>
   patchProfile: (payload: UserProfilePatchPayload) => Promise<boolean>
   enrollBiometrics: (payload: BiometricEnrollPayload) => Promise<boolean>
+  verifyIdentity: (payload: IdentityVerifyPayload) => Promise<boolean>
   loadAvailability: () => Promise<void>
   saveAvailability: (payload: AvailabilityMatrixPayload) => Promise<boolean>
   removeAvailabilitySlot: (slotId: string) => Promise<boolean>
@@ -45,6 +49,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   isLoadingProfile: false,
   isSavingProfile: false,
   isEnrollingBiometrics: false,
+  isVerifyingIdentity: false,
   isLoadingAvailability: false,
   isSavingAvailability: false,
 
@@ -122,6 +127,22 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       return false
     } finally {
       if (epoch === sessionEpoch) set({ isEnrollingBiometrics: false })
+    }
+  },
+
+  verifyIdentity: async (payload) => {
+    if (get().isVerifyingIdentity) return false
+    const epoch = sessionEpoch
+    set({ isVerifyingIdentity: true })
+    try {
+      const updated = await verifyMyIdentity(payload)
+      if (epoch !== sessionEpoch) return false
+      set({ profile: updated })
+      return true
+    } catch {
+      return false
+    } finally {
+      if (epoch === sessionEpoch) set({ isVerifyingIdentity: false })
     }
   },
 

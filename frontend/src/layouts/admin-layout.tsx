@@ -17,7 +17,6 @@ import {
   LogOut,
   Loader2,
   Circle,
-  Bell,
 } from "lucide-react"
 
 export function AdminLayout() {
@@ -39,13 +38,6 @@ export function AdminLayout() {
 
   // Menú con restricción RBAC: 'Gestión de Usuarios' (Equipo Administrador) solo visible para rol ADMIN (HU-10 / Vista 15A)
   const navItems = [
-    { label: "Notificaciones personales", to: "/notifications", icon: Bell, visible: true },
-    {
-      label: "Mis habilidades y evidencias",
-      to: "/admin/my-teaching-skills",
-      icon: BookOpen,
-      visible: user?.role === "ADMIN",
-    },
     {
       label: "Dashboard & Analítica",
       to: "/admin/dashboard",
@@ -102,6 +94,9 @@ export function AdminLayout() {
 
   // Título dinámico para el breadcrumb de la barra superior
   const getBreadcrumbTitle = () => {
+    if (location.pathname.includes("/admin/dashboard")) {
+      return "Dashboard & Analítica"
+    }
     if (location.pathname.includes("/admin/administrators")) {
       return "Directorio de Miembros & Control de Acceso"
     }
