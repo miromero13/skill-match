@@ -65,6 +65,7 @@ export interface AVWindowResponse {
   speech_detected: boolean
   mouth_moving?: boolean
   mouth_sync?: boolean | null
+  multiple_speakers?: boolean
   noise_level: number
   anomalies: string[]
   incidents_created: LedgerIncident[]

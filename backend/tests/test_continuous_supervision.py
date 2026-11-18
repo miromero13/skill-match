@@ -140,6 +140,13 @@ def test_head_pose_down_and_lateral_and_mouth_sync():
     )
     assert res_center["orientation"] == "CENTER"
 
+    # 1b. Frontal face with higher natural pitch_ratio (~0.59) and nose_mouth_eye_ratio (~0.35) must be CENTER, not DOWN
+    frontal_laptop_face = [80, 40, 120, 150, 115, 103, 165, 103, 140, 128, 120, 145.5, 160, 145.5, 0.95]
+    res_laptop_center = ContinuousSupervisionService.analyze_frame_face(
+        img, StubDetector(frontal_laptop_face), None, None, trial_key="trial-laptop-frontal"
+    )
+    assert res_laptop_center["orientation"] == "CENTER"
+
     # 2. Looking down: nose moves closer to mouth (ny=137 vs mouth=153), eyes shift lower in box
     down_face = [80, 45, 120, 145, 115, 108, 165, 108, 140, 137, 120, 153, 160, 153, 0.92]
     res_down = ContinuousSupervisionService.analyze_frame_face(

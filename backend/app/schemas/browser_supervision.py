@@ -92,6 +92,7 @@ class AVWindowResponse(BaseModel):
     speech_detected: bool
     mouth_moving: bool = False
     mouth_sync: Optional[bool] = None
+    multiple_speakers: bool = False
     noise_level: float
     anomalies: list[str]
     incidents_created: list[IncidentResponse]

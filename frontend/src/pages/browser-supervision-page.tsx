@@ -106,6 +106,7 @@ export function BrowserSupervisionPage() {
   const [speechDetected, setSpeechDetected] = useState(false)
   const [mouthMoving, setMouthMoving] = useState(false)
   const [mouthSync, setMouthSync] = useState<boolean | null>(null)
+  const [multipleSpeakers, setMultipleSpeakers] = useState(false)
   const [noiseLevel, setNoiseLevel] = useState(0)
   const [vuLevel, setVuLevel] = useState(0)
   const [deviceError, setDeviceError] = useState("")
@@ -353,6 +354,9 @@ export function BrowserSupervisionPage() {
                 setSpeechDetected(res.speech_detected)
                 setMouthMoving(Boolean(res.mouth_moving))
                 setMouthSync(res.mouth_sync ?? null)
+                setMultipleSpeakers(
+                  Boolean(res.multiple_speakers || res.anomalies.includes("MULTIPLE_SPEAKERS")),
+                )
                 setNoiseLevel(res.noise_level)
                 if (res.anomalies.length > 0) {
                   void ledger(trialId)
@@ -763,13 +767,17 @@ export function BrowserSupervisionPage() {
                     </span>
                     <Badge
                       variant={
-                        (speechDetected && mouthSync === false) || noiseLevel > 0.22
+                        multipleSpeakers ||
+                        (speechDetected && mouthSync === false) ||
+                        noiseLevel > 0.14
                           ? "destructive"
                           : "secondary"
                       }
                       className="text-[11px]"
                     >
-                      {speechDetected
+                      {multipleSpeakers
+                        ? "Voces / audio de fondo"
+                        : speechDetected
                         ? mouthSync
                           ? "Voz propia (boca activa)"
                           : "Voz sin boca coincidente"
@@ -781,9 +789,11 @@ export function BrowserSupervisionPage() {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {speechDetected
+                    {multipleSpeakers
+                      ? "Alerta: Se detectaron múltiples voces o sonido multimedia de fondo (TV/serie/terceros)."
+                      : speechDetected
                       ? mouthSync
-                        ? "Habla detectada coincidente con el movimiento de tu boca."
+                        ? "Habla propia verificada: única voz y coincidente con tu movimiento labial."
                         : "Alerta: Se detectó voz sin movimiento labial coincidente."
                       : noiseLevel > 0.14
                       ? "Alerta: Ruido ambiental excesivo."

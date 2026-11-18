@@ -169,6 +169,7 @@ class BrowserSupervisionService:
             "speech_detected": result["speech_detected"],
             "mouth_moving": result["mouth_moving"],
             "mouth_sync": result["mouth_sync"],
+            "multiple_speakers": result["multiple_speakers"],
             "noise_level": result["noise_level"],
             "anomalies": result["anomalies"],
             "incidents_created": [IncidentResponse.model_validate(inc) for inc in created_incidents],
