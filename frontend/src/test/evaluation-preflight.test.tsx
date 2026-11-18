@@ -59,6 +59,8 @@ describe("shared evaluation preparation", () => {
   it("reading instructions does not register consent or start an attempt", async () => {
     showPage()
     expect(await screen.findByRole("heading", { name: "Validar Python" })).toBeInTheDocument()
+    expect(screen.getByRole("navigation", { name: "Pasos del pre-embarque" })).toHaveTextContent("Calibración")
+    expect(screen.getByText("Paso 1 de 3")).toBeInTheDocument()
     expect(getEvaluationPreflight).toHaveBeenCalledWith("offer-1")
     expect(screen.getByText("Teoría")).toBeInTheDocument()
     expect(screen.getByText("Práctica de la habilidad")).toBeInTheDocument()
@@ -87,6 +89,7 @@ describe("shared evaluation preparation", () => {
       policy_version: "v1.0",
     })
     expect(await screen.findByText(/El intento todavía no comenzó ni se descontó/)).toBeInTheDocument()
+    expect(screen.getByText("Paso 3 de 3")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Preparar cámara y micrófono" })).toBeInTheDocument()
     expect(screen.getByText(/Habilidades gratuitas disponibles: 3\/3/)).toBeInTheDocument()
     expect(useEvaluationPreflightStore.getState().preflight?.free_evaluations_left).toBe(3)
