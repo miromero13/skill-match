@@ -1,12 +1,35 @@
 """Bounded metadata only: clipboard contents and arbitrary context are forbidden."""
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
-IncidentKind = Literal["AWAY", "RETURN", "COPY", "CUT", "PASTE", "DROP", "CONTEXT_MENU",
-                       "FULLSCREEN_EXIT", "OFFLINE", "ONLINE", "PAGE_EXIT", "SESSION_OPEN", "SESSION_RESUME"]
+IncidentKind = Literal[
+    "AWAY",
+    "RETURN",
+    "COPY",
+    "CUT",
+    "PASTE",
+    "DROP",
+    "CONTEXT_MENU",
+    "FULLSCREEN_EXIT",
+    "OFFLINE",
+    "ONLINE",
+    "PAGE_EXIT",
+    "SESSION_OPEN",
+    "SESSION_RESUME",
+    "FACE_ABSENT",
+    "MULTIPLE_FACES",
+    "IDENTITY_MISMATCH",
+    "HEAD_POSE_DOWN",
+    "HEAD_POSE_SIDE",
+    "VOICE_DETECTED",
+    "MULTIPLE_SPEAKERS",
+    "HIGH_NOISE",
+    "DEVICE_DISCONNECTED",
+    "STREAM_ERROR",
+]
 
 
 class TabRequest(BaseModel):
@@ -50,3 +73,23 @@ class IncidentResponse(IncidentRequest):
 class BatchResponse(BaseModel):
     accepted_ids: list[UUID]
     event_count: int
+
+
+class AVWindowRequest(TabRequest):
+    window_id: UUID
+    observed_at: AwareDatetime
+    duration_ms: int = Field(default=8000, ge=1000, le=30000, strict=True)
+    mode: Literal["QUIET", "SPEAKING"] = "QUIET"
+    frames: list[str] = Field(default_factory=list, max_length=6)
+    audio_samples: Optional[list[float]] = Field(default=None, max_length=150000)
+
+
+class AVWindowResponse(BaseModel):
+    window_id: UUID
+    face_count: int
+    head_orientation: Literal["CENTER", "DOWN", "LEFT", "RIGHT", "UNKNOWN"]
+    identity_match: Optional[bool]
+    speech_detected: bool
+    noise_level: float
+    anomalies: list[str]
+    incidents_created: list[IncidentResponse]
