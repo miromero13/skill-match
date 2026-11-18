@@ -445,6 +445,15 @@ export function AdminDatasetCapturePage() {
       useDatasetCaptureStore.setState({ isUploading: true, error: null })
       let uploadedCount = 0
 
+      const autoParticipantNumbers = samples
+        .filter((s) => s.discipline.toLowerCase() === "futbol" && s.participant_id)
+        .map((s) => {
+          const match = /^anon-p(\d+)/.exec(s.participant_id || "")
+          return match ? Number.parseInt(match[1], 10) : 0
+        })
+      const nextAutoParticipantNumber =
+        (autoParticipantNumbers.length > 0 ? Math.max(...autoParticipantNumbers) : 0) + 1
+
       for (let i = 0; i < batchFiles.length; i++) {
         const item = batchFiles[i]
         setBatchProgress({
@@ -476,7 +485,7 @@ export function AdminDatasetCapturePage() {
 
           const itemParticipant = participantId.trim()
             ? (batchFiles.length > 1 ? `${participantId}-${i + 1}` : participantId)
-            : `anon-p${String(i + 1).padStart(2, "0")}`
+            : `anon-p${String(nextAutoParticipantNumber + i).padStart(2, "0")}`
 
           const targetDiscipline =
             discipline === "futbol" || activeCategorySlug === "deporte"
