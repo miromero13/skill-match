@@ -12,6 +12,12 @@ from app.models.theory_question import TheoryQuestion
 from app.services.evaluation_calibration_service import EvaluationCalibrationService
 
 
+@pytest.fixture(autouse=True)
+def ready_runtime(monkeypatch):
+    from app.services.theory_exam_service import TheoryExamService
+    monkeypatch.setattr(TheoryExamService, "check_runtime", staticmethod(lambda: None))
+
+
 async def prepare(db, user, offer, evaluation_id, count=5):
     evaluation = await db.get(Evaluation, uuid.UUID(evaluation_id))
     evaluation.status = "READY_FOR_THEORY"
@@ -128,3 +134,19 @@ async def test_assigned_snapshots_survive_bank_archival_and_level_change_is_reje
     assert (await client.get(path)).json() == before
     replay = await client.post("/api/evaluations/start", json=payload)
     assert replay.status_code == 200 and replay.json() == started.json()
+
+
+@pytest.mark.asyncio
+async def test_missing_speech_assets_never_consume_an_attempt(scenario, monkeypatch, tmp_path):
+    from app.services.local_speech_service import LocalSpeechService
+    from app.services.theory_exam_service import TheoryExamService
+    monkeypatch.setattr(LocalSpeechService, "MODEL_DIR", tmp_path)
+    monkeypatch.setattr(TheoryExamService, "check_runtime", staticmethod(LocalSpeechService.ensure_available))
+    client, db, user, offer = scenario
+    key = (await client.post(endpoint(offer, "consent"), json=CONSENT)).json()["data"]["id"]
+    await prepare(db, user, offer, key)
+    response = await client.post("/api/evaluations/start", json={"evaluation_id": key, "level_number": 1})
+    assert response.status_code == 503
+    assert response.json() == {"statuscode": 503, "message": LocalSpeechService.UNAVAILABLE, "data": None}
+    before = (await client.get(endpoint(offer, "preflight"))).json()["data"]
+    assert before["free_evaluations_left"] == 3 and before["attempts_used"] == 0

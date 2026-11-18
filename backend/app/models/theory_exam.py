@@ -16,3 +16,6 @@ class TheoryExam(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     deadline_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     questions: Mapped[list[dict]] = mapped_column(JSONB)
+    current_position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    question_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    answers: Mapped[list[dict]] = mapped_column(JSONB, default=list, server_default="[]")

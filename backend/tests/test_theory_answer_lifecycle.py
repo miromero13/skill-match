@@ -25,7 +25,7 @@ async def started(scenario):
     client, db, user, offer = scenario
     key = (await client.post(endpoint(offer, "consent"), json=CONSENT)).json()["data"]["id"]
     await prepare(db, user, offer, key)
-    response = await client.post("/api/evaluations/start", json={"evaluation_id": key, "level_number": 1, "text_grading_consent": True})
+    response = await client.post("/api/evaluations/start", json={"evaluation_id": key, "level_number": 1})
     assert response.status_code == 200
     return client, key
 
@@ -77,13 +77,6 @@ async def test_client_transcript_is_not_accepted_as_an_oral_answer(scenario):
 @pytest.mark.asyncio
 async def test_transcription_boundary_records_once_and_finishes_pending_review(scenario, monkeypatch):
     from app.services.local_speech_service import LocalSpeechService
-    from app.services.theory_grading_provider import TheoryGradingProvider
-    from app.schemas.theory_grading import ProviderGrade
-    calls = []
-    async def grade(self, **kwargs):
-        calls.append(kwargs)
-        return ProviderGrade(criteria=[{"criterion":"Mutability", "attainment":0.75, "reason":"Explains the distinction."}], feedback="Mostly correct.")
-    monkeypatch.setattr(TheoryGradingProvider, "grade", grade)
     monkeypatch.setattr(LocalSpeechService, "transcribe", lambda raw: "Lists can be modified; tuples cannot.")
     client, key = await started(scenario)
     for index in range(5):
@@ -102,70 +95,7 @@ async def test_transcription_boundary_records_once_and_finishes_pending_review(s
     final = (await client.get(f"/api/evaluations/{key}/status")).json()["data"]
     assert final["status"] == "THEORY_PENDING_REVIEW" and final["answered_count"] == 5
     assert final["current_question"] is None and final["question_deadline_at"] is None
-    assert final["grading_state"] == "PENDING" and final["grading_score"] is None
-    first = await client.post(f"/api/evaluations/{key}/grading/retry", json={})
-    assert first.status_code == 200 and first.json()["message"] == "Corrección teórica procesada."
-    assert first.json()["data"]["score"] == 75.0
-    assert first.json()["data"]["state"] == "COMPLETE"
-    assert len(calls) == 5
-    assert all(set(call) == {"question", "reference", "transcript", "rubric"} for call in calls)
-    replay = await client.post(f"/api/evaluations/{key}/grading/retry", json={})
-    assert replay.status_code == 200 and replay.json() == first.json()
-    assert len(calls) == 5
-    assert (await client.get(f"/api/evaluations/{key}/result")).json() == first.json() | {"message":"Resultado de corrección recuperado exitosamente."}
-
-
-@pytest.mark.asyncio
-async def test_provider_failure_keeps_answers_and_attempt_pending_for_explicit_retry(scenario, monkeypatch):
-    from app.services.local_speech_service import LocalSpeechService
-    from app.services.theory_grading_provider import TheoryGradingProvider, GradingProviderError
-    monkeypatch.setattr(LocalSpeechService, "transcribe", lambda raw: "Recorded explanation")
-    async def fail(self, **kwargs):
-        raise GradingProviderError("private provider payload")
-    monkeypatch.setattr(TheoryGradingProvider, "grade", fail)
-    _, _, _, offer = scenario
-    preflight_path = endpoint(offer, "preflight")
-    client, key = await started(scenario)
-    started_before = (await client.post("/api/evaluations/start", json={"evaluation_id": key, "level_number": 1, "text_grading_consent": True})).json()
-    attempts_before = await client.get(preflight_path)
-    last_payload = None
-    last_receipt = None
-    for _ in range(5):
-        progress = (await client.get(f"/api/evaluations/{key}/status")).json()["data"]
-        last_payload = {"submission_id": str(uuid.uuid4()), "question_id": progress["current_question"]["id"], "audio_base64": audio()}
-        last_receipt = await client.post(f"/api/evaluations/{key}/answers", json=last_payload)
-    failure = await client.post(f"/api/evaluations/{key}/grading/retry", json={})
-    assert failure.status_code == 503
-    assert failure.json() == {"statuscode":503, "message":"No se pudo corregir la evaluación. Tu respuesta y tu intento permanecen guardados; podés reintentar.", "data":None}
-    after = (await client.get(f"/api/evaluations/{key}/status")).json()["data"]
-    assert after["grading_state"] == "ERROR" and after["grading_score"] is None and after["answered_count"] == 5
-    assert (await client.post(f"/api/evaluations/{key}/answers", json=last_payload)).json() == last_receipt.json()
-    result = (await client.get(f"/api/evaluations/{key}/result")).json()["data"]
-    assert result["state"] == "ERROR" and result["score"] is None
-    from app.core.config import settings
-    from pydantic import SecretStr
-    monkeypatch.setattr(settings, "THEORY_GRADING_PROVIDER", "gemini")
-    monkeypatch.setattr(settings, "THEORY_GRADING_MODEL", "different-model")
-    monkeypatch.setattr(settings, "GEMINI_API_KEY", SecretStr("other-key"))
-    pinned = await client.post(f"/api/evaluations/{key}/grading/retry", json={})
-    assert pinned.status_code == 503 and pinned.json()["data"] is None
-    monkeypatch.setattr(settings, "THEORY_GRADING_PROVIDER", "openai")
-    monkeypatch.setattr(settings, "THEORY_GRADING_MODEL", "mock-model")
-    from app.schemas.theory_grading import ProviderGrade
-    async def retry_same_provider(self, **kwargs):
-        return ProviderGrade(criteria=[{"criterion":"Mutability", "attainment":0.75, "reason":"Explains distinction."}], feedback="Mostly correct.")
-    monkeypatch.setattr(TheoryGradingProvider, "grade", retry_same_provider)
-    retried = await client.post(f"/api/evaluations/{key}/grading/retry", json={})
-    assert retried.status_code == 200
-    assert retried.json()["data"]["provider"] == "openai"
-    assert retried.json()["data"]["model"] == "mock-model"
-    assert retried.json()["data"]["prompt_version"] == "theory-rubric-v1"
-    started_after = (await client.post("/api/evaluations/start", json={"evaluation_id": key, "level_number": 1, "text_grading_consent": True})).json()
-    attempts_after = await client.get(preflight_path)
-    assert started_after["data"]["started_at"] == started_before["data"]["started_at"]
-    assert attempts_after.status_code == attempts_before.status_code == 403
-    assert attempts_after.json() == attempts_before.json()
-    assert (await client.post(f"/api/evaluations/{key}/answers", json=last_payload)).json() == last_receipt.json()
+    assert "score" not in final  # No semantic grader exists yet.
 
 
 @pytest.mark.asyncio

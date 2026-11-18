@@ -12,10 +12,12 @@ from app.models.user import User, UserRole
 from app.schemas.theory_exam import TheoryStartResponse, PublicTheoryQuestion
 from app.services.evaluation_calibration_service import EvaluationCalibrationService
 from app.services.evaluation_preflight_service import EvaluationPreflightService, POLICY_VERSION
+from app.services.local_speech_service import LocalSpeechService
 
 
 class TheoryExamService:
     QUESTION_COUNT = 5
+    check_runtime = staticmethod(LocalSpeechService.ensure_available)
 
     @staticmethod
     async def owned(db, user, evaluation_id, *, lock=False):
@@ -57,13 +59,15 @@ class TheoryExamService:
                  TheoryQuestion.status == "PUBLISHED"))).all()
         if len(candidates) < cls.QUESTION_COUNT:
             raise SkillMatchException(statuscode=409, message="No hay suficientes preguntas publicadas para esta habilidad y nivel.")
+        cls.check_runtime()
         selected = secrets.SystemRandom().sample(candidates, cls.QUESTION_COUNT)
         now = datetime.now(timezone.utc)
         # Keep correction material server-side in the fixed snapshot, never in public schemas.
         questions = [{"id": str(item.id), "version": item.version, "position": index + 1,
                       **item.content} for index, item in enumerate(selected)]
         exam = TheoryExam(evaluation_id=evaluation.id, level_number=payload.level_number,
-                          started_at=now, deadline_at=now + timedelta(minutes=10), questions=questions)
+                          started_at=now, deadline_at=now + timedelta(minutes=10), questions=questions,
+                          current_position=0, question_started_at=now, answers=[])
         evaluation.started_at = now
         evaluation.status = "THEORY_ACTIVE"
         db.add(exam)

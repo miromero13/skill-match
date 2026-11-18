@@ -6,7 +6,6 @@ import wave
 
 import numpy as np
 
-from app.core.config import settings
 from app.core.exceptions import SkillMatchException
 
 
@@ -20,13 +19,12 @@ class LocalSpeechService:
         if not all((cls.MODEL_DIR / name).is_file() and (cls.MODEL_DIR / name).stat().st_size > 0
                    for name in ("encoder.onnx", "decoder.onnx", "tokens.txt")):
             raise SkillMatchException(statuscode=503, message=cls.UNAVAILABLE)
-        if not settings.THEORY_ASR_ENABLED:
-            raise SkillMatchException(statuscode=503, message="La transcripción local está deshabilitada en la configuración. Tu intento no se descontó.")
 
     @classmethod
     def transcribe(cls, audio_bytes: bytes) -> str:
-        cls.ensure_available()
         paths = [cls.MODEL_DIR / name for name in ("encoder.onnx", "decoder.onnx", "tokens.txt")]
+        if not all(path.is_file() and path.stat().st_size > 0 for path in paths):
+            raise SkillMatchException(statuscode=503, message=cls.UNAVAILABLE)
         try:
             with wave.open(io.BytesIO(audio_bytes), "rb") as source:
                 if (source.getnchannels() != 1 or source.getsampwidth() != 2 or source.getframerate() != 16000

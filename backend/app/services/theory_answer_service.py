@@ -35,9 +35,7 @@ class TheoryAnswerService:
             exam.current_position += 1
             exam.question_started_at = deadline
         if exam.current_position == len(exam.questions):
-            evaluation.status = "THEORY_PENDING_REVIEW" if exam.grading_state not in {"GRADING", "COMPLETE", "ERROR"} else evaluation.status
-            if exam.grading_state not in {"GRADING", "COMPLETE", "ERROR"}:
-                exam.grading_state = "PENDING"
+            evaluation.status = "THEORY_PENDING_REVIEW"
 
     @classmethod
     async def locked(cls, db, user, key):
@@ -59,8 +57,6 @@ class TheoryAnswerService:
             position=min(exam.current_position + 1, len(exam.questions)), server_time=now,
             deadline_at=exam.deadline_at, question_deadline_at=cls.deadline(exam),
             current_question=PublicTheoryQuestion.model_validate(current) if current else None,
-            grading_state=exam.grading_state, grading_score=exam.grading_score,
-            grading_feedback=exam.grading_result.get("feedback") if exam.grading_result else None,
         )
         await db.commit()
         return result
@@ -118,6 +114,5 @@ class TheoryAnswerService:
         exam.question_started_at = datetime.now(timezone.utc)
         if exam.current_position == len(exam.questions):
             evaluation.status = "THEORY_PENDING_REVIEW"
-            exam.grading_state = "PENDING"
         await db.commit()
         return OralAnswerResponse.model_validate(answer)

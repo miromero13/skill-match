@@ -30,3 +30,30 @@ class PublicTheoryQuestion(BaseModel):
     choices: list[Choice]
     time_limit_seconds: int
     max_score: float
+
+
+class OralAnswerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    submission_id: UUID
+    question_id: UUID
+    audio_base64: str = Field(min_length=1, max_length=6400000)
+
+
+class TheoryProgressResponse(BaseModel):
+    evaluation_id: UUID
+    status: str
+    question_count: int
+    answered_count: int
+    position: int
+    server_time: datetime
+    deadline_at: datetime
+    question_deadline_at: datetime | None
+    current_question: PublicTheoryQuestion | None
+
+
+class OralAnswerResponse(BaseModel):
+    submission_id: UUID
+    question_id: UUID
+    transcript: str
+    received_at: datetime
+    status: str

@@ -15,7 +15,7 @@ from app.db.session import get_db
 from app.main import app
 from app.models import Category, Evaluation, Skill, TeachingSkill, User, UserRole
 from test_evaluation_preflight import CONSENT
-from test_theory_exam_start import prepare
+from test_theory_exam_start import prepare, ready_runtime
 
 
 @pytest.mark.asyncio
