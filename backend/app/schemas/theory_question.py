@@ -45,3 +45,12 @@ class QuestionResponse(BaseModel):
     level_number: int
     status: Literal["DRAFT", "PUBLISHED", "ARCHIVED"]
     content: QuestionContent
+
+
+class QuestionVersionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+
+
+class QuestionEditRequest(QuestionVersionRequest):
+    content: QuestionContent

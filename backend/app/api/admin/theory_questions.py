@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_admin_user
 from app.db.session import get_db
 from app.schemas.response import APIResponse
-from app.schemas.theory_question import QuestionCreate, QuestionResponse
+from app.schemas.theory_question import (
+    QuestionCreate, QuestionResponse, QuestionEditRequest, QuestionVersionRequest,
+)
 from app.services.theory_question_service import TheoryQuestionService
 
 router = APIRouter(prefix="/admin/theory/questions", tags=["Banco de preguntas"],
@@ -42,3 +44,35 @@ async def get_question(question_id: UUID, db: AsyncSession = Depends(get_db)):
     item = await TheoryQuestionService.get(db, question_id)
     return APIResponse.ok(message="Pregunta teórica recuperada exitosamente.",
                           data=QuestionResponse.model_validate(item))
+
+
+@router.patch("/{question_id}", response_model=APIResponse[QuestionResponse],
+              response_model_exclude={"count"}, summary="Crear revisión de borrador sin modificar el historial")
+async def edit_question(question_id: UUID, payload: QuestionEditRequest,
+                        db: AsyncSession = Depends(get_db)):
+    item = await TheoryQuestionService.revise(db, question_id, payload.expected_version, "edit", payload.content)
+    return APIResponse.ok(message="Nueva versión de pregunta creada.", data=QuestionResponse.model_validate(item))
+
+
+@router.post("/{question_id}/publish", response_model=APIResponse[QuestionResponse],
+             response_model_exclude={"count"}, summary="Publicar una versión con referencia y rúbrica completas")
+async def publish_question(question_id: UUID, payload: QuestionVersionRequest,
+                           db: AsyncSession = Depends(get_db)):
+    item = await TheoryQuestionService.revise(db, question_id, payload.expected_version, "publish")
+    return APIResponse.ok(message="Pregunta publicada exitosamente.", data=QuestionResponse.model_validate(item))
+
+
+@router.post("/{question_id}/archive", response_model=APIResponse[QuestionResponse],
+             response_model_exclude={"count"}, summary="Archivar conservando versiones anteriores")
+async def archive_question(question_id: UUID, payload: QuestionVersionRequest,
+                           db: AsyncSession = Depends(get_db)):
+    item = await TheoryQuestionService.revise(db, question_id, payload.expected_version, "archive")
+    return APIResponse.ok(message="Pregunta archivada exitosamente.", data=QuestionResponse.model_validate(item))
+
+
+@router.get("/{question_id}/versions", response_model=APIResponse[list[QuestionResponse]],
+            summary="Consultar historial de versiones inmutables")
+async def question_versions(question_id: UUID, db: AsyncSession = Depends(get_db)):
+    items = await TheoryQuestionService.history(db, question_id)
+    return APIResponse.ok(message="Versiones de pregunta recuperadas exitosamente.",
+                          data=[QuestionResponse.model_validate(item) for item in items], count=len(items))
