@@ -182,7 +182,7 @@ class LearningSkillService:
             learning_skill.target_level = payload.target_level
         if payload.urgency is not None:
             learning_skill.urgency = payload.urgency
-        if payload.notes is not None:
+        if "notes" in payload.model_fields_set:
             learning_skill.notes = payload.notes
 
         await db.commit()

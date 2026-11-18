@@ -293,6 +293,73 @@ async def test_update_learning_skill_success(mock_setup):
 
 
 @pytest.mark.asyncio
+async def test_update_learning_skill_clear_notes_with_null(mock_setup):
+    """Verifica que enviar notes: null limpia la nota previa (HU-15)."""
+    transport = ASGITransport(app=app)
+    skill = mock_setup["skill"]
+    session = mock_setup["session"]
+
+    existing = UserLearningSkill(
+        user_id=mock_setup["user"].id,
+        skill_id=skill.id,
+        current_level=1,
+        target_level=3,
+        urgency=UrgencyLevel.LOW,
+        notes="Nota original que debe ser eliminada",
+    )
+    session.add(existing)
+
+    update_payload = {
+        "notes": None,
+    }
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.put(
+            f"/api/users/me/learning-skills/{existing.id}",
+            json=update_payload,
+            headers=mock_setup["headers"],
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["statuscode"] == 200
+        assert body["data"]["notes"] is None
+        assert existing.notes is None
+
+
+@pytest.mark.asyncio
+async def test_update_learning_skill_preserve_notes_when_omitted(mock_setup):
+    """Verifica que no enviar el campo notes conserva la nota existente (HU-15)."""
+    transport = ASGITransport(app=app)
+    skill = mock_setup["skill"]
+    session = mock_setup["session"]
+
+    existing = UserLearningSkill(
+        user_id=mock_setup["user"].id,
+        skill_id=skill.id,
+        current_level=1,
+        target_level=3,
+        urgency=UrgencyLevel.LOW,
+        notes="Nota que debe ser conservada intacta",
+    )
+    session.add(existing)
+
+    update_payload = {
+        "target_level": 4,
+    }
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.put(
+            f"/api/users/me/learning-skills/{existing.id}",
+            json=update_payload,
+            headers=mock_setup["headers"],
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["statuscode"] == 200
+        assert body["data"]["target_level"] == 4
+        assert body["data"]["notes"] == "Nota que debe ser conservada intacta"
+        assert existing.notes == "Nota que debe ser conservada intacta"
+
+
+@pytest.mark.asyncio
 async def test_delete_learning_skill_success(mock_setup):
     transport = ASGITransport(app=app)
     skill = mock_setup["skill"]
