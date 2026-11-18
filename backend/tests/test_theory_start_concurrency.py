@@ -1,6 +1,5 @@
 """Real independent-connection HTTP requests race the same exam start."""
 import asyncio
-import base64
 import uuid
 from datetime import datetime, timezone
 
@@ -16,12 +15,12 @@ from app.db.session import get_db
 from app.main import app
 from app.models import Category, Evaluation, Skill, TeachingSkill, User, UserRole
 from test_evaluation_preflight import CONSENT
-from test_theory_exam_start import prepare, ready_runtime
+from test_theory_exam_start import prepare
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("race", ["same", "quota", "grading"])
-async def test_concurrent_starts_replay_one_fixed_exam(race, monkeypatch):
+@pytest.mark.parametrize("race", ["same", "quota"])
+async def test_concurrent_starts_replay_one_fixed_exam(race):
     if not settings.POSTGRES_DB.startswith("suite_hardening_"):
         pytest.skip("Requires disposable database runner")
     schema = "theory_start_" + uuid.uuid4().hex
@@ -83,14 +82,9 @@ async def test_concurrent_starts_replay_one_fixed_exam(race, monkeypatch):
                                           biometric_consent_at=datetime.now(timezone.utc), policy_version="v1.0",
                                           ip_address="test", user_agent="test", started_at=datetime.now(timezone.utc)))
                     await db.commit()
-            if race == "grading":
-                from pydantic import SecretStr
-                monkeypatch.setattr(settings, "THEORY_GRADING_PROVIDER", "openai")
-                monkeypatch.setattr(settings, "THEORY_GRADING_MODEL", "mock-model")
-                monkeypatch.setattr(settings, "OPENAI_API_KEY", SecretStr("mock-key"))
             responses = await asyncio.gather(*(client.post("/api/evaluations/start",
-                json={"evaluation_id": exam_key, "level_number": 1, "text_grading_consent": True}) for exam_key in keys))
-            if race in {"same", "grading"}:
+                json={"evaluation_id": exam_key, "level_number": 1}) for exam_key in keys))
+            if race == "same":
                 assert [r.status_code for r in responses] == [200, 200]
                 assert responses[0].json() == responses[1].json()
             else:
@@ -103,34 +97,6 @@ async def test_concurrent_starts_replay_one_fixed_exam(race, monkeypatch):
             questions = await client.get(f"/api/evaluations/{key}/questions")
             assert questions.status_code == 200 and questions.json()["count"] == 5
             assert len({q["id"] for q in questions.json()["data"]}) == 5
-            if race == "grading":
-                from app.services.local_speech_service import LocalSpeechService
-                from app.services.theory_grading_provider import TheoryGradingProvider
-                from app.schemas.theory_grading import ProviderGrade
-                monkeypatch.setattr(LocalSpeechService, "transcribe", lambda raw: "Answer")
-                for question in questions.json()["data"]:
-                    response = await client.post(f"/api/evaluations/{key}/answers", json={
-                        "submission_id": str(uuid.uuid4()), "question_id": question["id"],
-                        "audio_base64": base64.b64encode(b"audio").decode()})
-                    assert response.status_code == 200
-                started_grade, release = asyncio.Event(), asyncio.Event()
-                calls = []
-                async def grade(self, **kwargs):
-                    calls.append(kwargs)
-                    started_grade.set()
-                    await release.wait()
-                    return ProviderGrade(criteria=[{"criterion":"Mutability", "attainment":0.5, "reason":"Partial"}], feedback="Partial")
-                monkeypatch.setattr(TheoryGradingProvider, "grade", grade)
-                first = asyncio.create_task(client.post(f"/api/evaluations/{key}/grading/retry", json={}))
-                await asyncio.wait_for(started_grade.wait(), timeout=5)
-                competing = await client.post(f"/api/evaluations/{key}/grading/retry", json={})
-                assert competing.status_code == 409
-                release.set()
-                graded = await first
-                assert graded.status_code == 200 and graded.json()["data"]["state"] == "COMPLETE"
-                assert len(calls) == 5
-                replay = await client.post(f"/api/evaluations/{key}/grading/retry", json={})
-                assert replay.json() == graded.json() and len(calls) == 5
             spent = await client.get(root + "/preflight")
             assert spent.status_code == 403
             assert spent.json() == {"statuscode": 403, "message": "Límite de evaluaciones gratuitas alcanzado para esta habilidad", "data": None}

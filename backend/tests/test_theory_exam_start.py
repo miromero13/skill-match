@@ -12,17 +12,6 @@ from app.models.theory_question import TheoryQuestion
 from app.services.evaluation_calibration_service import EvaluationCalibrationService
 
 
-@pytest.fixture(autouse=True)
-def ready_runtime(monkeypatch):
-    from pydantic import SecretStr
-    from app.core.config import settings
-    from app.services.theory_exam_service import TheoryExamService
-    monkeypatch.setattr(TheoryExamService, "check_runtime", staticmethod(lambda: None))
-    monkeypatch.setattr(settings, "THEORY_GRADING_PROVIDER", "openai")
-    monkeypatch.setattr(settings, "THEORY_GRADING_MODEL", "mock-model")
-    monkeypatch.setattr(settings, "OPENAI_API_KEY", SecretStr("mock-key"))
-
-
 async def prepare(db, user, offer, evaluation_id, count=5):
     evaluation = await db.get(Evaluation, uuid.UUID(evaluation_id))
     evaluation.status = "READY_FOR_THEORY"
@@ -38,39 +27,12 @@ async def prepare(db, user, offer, evaluation_id, count=5):
 
 
 @pytest.mark.asyncio
-async def test_new_start_requires_explicit_text_consent_without_consuming_attempt(scenario):
-    client, db, user, offer = scenario
-    evaluation_id = (await client.post(endpoint(offer, "consent"), json=CONSENT)).json()["data"]["id"]
-    await prepare(db, user, offer, evaluation_id)
-    response = await client.post("/api/evaluations/start", json={"evaluation_id": evaluation_id, "level_number": 1})
-    assert response.status_code == 400
-    assert response.json() == {"statuscode": 400, "message": "Se requiere consentimiento explícito para enviar texto de respuesta al corrector externo.", "data": None}
-    state = (await client.get(endpoint(offer, "preflight"))).json()["data"]
-    assert state["attempts_used"] == 0 and state["free_evaluations_left"] == 3
-    assert state["pending_evaluation_id"] == evaluation_id
-
-
-@pytest.mark.asyncio
-async def test_unconfigured_provider_does_not_consume_attempt(scenario, monkeypatch):
-    from app.core.config import settings
-    monkeypatch.setattr(settings, "THEORY_GRADING_PROVIDER", "disabled")
-    client, db, user, offer = scenario
-    evaluation_id = (await client.post(endpoint(offer, "consent"), json=CONSENT)).json()["data"]["id"]
-    await prepare(db, user, offer, evaluation_id)
-    response = await client.post("/api/evaluations/start", json={"evaluation_id": evaluation_id, "level_number": 1, "text_grading_consent": True})
-    assert response.status_code == 503
-    assert response.json() == {"statuscode": 503, "message": "El corrector teórico no está configurado. Tu intento no se descontó.", "data": None}
-    state = (await client.get(endpoint(offer, "preflight"))).json()["data"]
-    assert state["attempts_used"] == 0 and state["free_evaluations_left"] == 3
-
-
-@pytest.mark.asyncio
 async def test_start_is_idempotent_and_never_exposes_correction_keys(scenario):
     client, db, user, offer = scenario
     consent = await client.post(endpoint(offer, "consent"), json=CONSENT)
     evaluation_id = consent.json()["data"]["id"]
     await prepare(db, user, offer, evaluation_id)
-    payload = {"evaluation_id": evaluation_id, "level_number": 1, "text_grading_consent": True}
+    payload = {"evaluation_id": evaluation_id, "level_number": 1}
     first = await client.post("/api/evaluations/start", json=payload)
     assert first.status_code == 200
     body = first.json()
@@ -105,7 +67,7 @@ async def test_rejected_start_preserves_consent_and_free_attempt(scenario, condi
     if condition == "enrollment":
         user.biometric_face_hash = "replaced-face"
     await db.commit()
-    rejected = await client.post("/api/evaluations/start", json={"evaluation_id": consent["id"], "level_number": 1, "text_grading_consent": True})
+    rejected = await client.post("/api/evaluations/start", json={"evaluation_id": consent["id"], "level_number": 1})
     message = ("No hay suficientes preguntas publicadas para esta habilidad y nivel." if condition == "bank"
                else "Completá una calibración válida antes de iniciar el examen.")
     assert rejected.status_code == 409
@@ -130,10 +92,8 @@ async def test_other_members_and_admins_cannot_start_or_read_foreign_exam(scenar
         db.add(stranger)
         await db.commit()
         client.headers["Authorization"] = f"Bearer {create_access_token(subject=str(stranger.id), role=role.value)}"
-        for response in [await client.post("/api/evaluations/start", json={"evaluation_id": consent["id"], "level_number": 1, "text_grading_consent": True}),
-                         await client.get(f"/api/evaluations/{consent['id']}/questions"),
-                         await client.get(f"/api/evaluations/{consent['id']}/result"),
-                         await client.post(f"/api/evaluations/{consent['id']}/grading/retry", json={})]:
+        for response in [await client.post("/api/evaluations/start", json={"evaluation_id": consent["id"], "level_number": 1}),
+                         await client.get(f"/api/evaluations/{consent['id']}/questions")]:
             assert response.status_code == 404
             assert response.json() == {"statuscode": 404, "message": "Recurso no encontrado", "data": None}
     client.headers["Authorization"] = owner_auth
@@ -148,7 +108,7 @@ async def test_assigned_snapshots_survive_bank_archival_and_level_change_is_reje
     client, db, user, offer = scenario
     consent = (await client.post(endpoint(offer, "consent"), json=CONSENT)).json()["data"]
     await prepare(db, user, offer, consent["id"])
-    payload = {"evaluation_id": consent["id"], "level_number": 1, "text_grading_consent": True}
+    payload = {"evaluation_id": consent["id"], "level_number": 1}
     started = await client.post("/api/evaluations/start", json=payload)
     assert started.status_code == 200
     path = f"/api/evaluations/{consent['id']}/questions"
@@ -168,19 +128,3 @@ async def test_assigned_snapshots_survive_bank_archival_and_level_change_is_reje
     assert (await client.get(path)).json() == before
     replay = await client.post("/api/evaluations/start", json=payload)
     assert replay.status_code == 200 and replay.json() == started.json()
-
-
-@pytest.mark.asyncio
-async def test_missing_speech_assets_never_consume_an_attempt(scenario, monkeypatch, tmp_path):
-    from app.services.local_speech_service import LocalSpeechService
-    from app.services.theory_exam_service import TheoryExamService
-    monkeypatch.setattr(LocalSpeechService, "MODEL_DIR", tmp_path)
-    monkeypatch.setattr(TheoryExamService, "check_runtime", staticmethod(LocalSpeechService.ensure_available))
-    client, db, user, offer = scenario
-    key = (await client.post(endpoint(offer, "consent"), json=CONSENT)).json()["data"]["id"]
-    await prepare(db, user, offer, key)
-    response = await client.post("/api/evaluations/start", json={"evaluation_id": key, "level_number": 1, "text_grading_consent": True})
-    assert response.status_code == 503
-    assert response.json() == {"statuscode": 503, "message": LocalSpeechService.UNAVAILABLE, "data": None}
-    before = (await client.get(endpoint(offer, "preflight"))).json()["data"]
-    assert before["free_evaluations_left"] == 3 and before["attempts_used"] == 0

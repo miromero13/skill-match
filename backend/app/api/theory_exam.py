@@ -9,9 +9,6 @@ from app.models.user import User
 from app.schemas.response import APIResponse
 from app.schemas.theory_exam import TheoryStartRequest, TheoryStartResponse, PublicTheoryQuestion
 from app.services.theory_exam_service import TheoryExamService
-from app.services.theory_answer_service import TheoryAnswerService
-from app.schemas.theory_exam import TheoryProgressResponse, OralAnswerRequest, OralAnswerResponse, TheoryGradingResponse
-from app.services.theory_grading_service import TheoryGradingService
 
 router = APIRouter(prefix="/evaluations", tags=["Examen teórico"])
 
@@ -30,35 +27,3 @@ async def theory_questions(evaluation_id: UUID, db: AsyncSession = Depends(get_d
                            user: User = Depends(get_current_user)):
     result = await TheoryExamService.questions(db, user, evaluation_id)
     return APIResponse.ok(message="Preguntas del examen recuperadas exitosamente.", data=result, count=len(result))
-
-
-@router.get("/{evaluation_id}/status", response_model=APIResponse[TheoryProgressResponse],
-            response_model_exclude={"count"}, summary="Consultar progreso y plazos controlados por el servidor")
-async def theory_status(evaluation_id: UUID, db: AsyncSession = Depends(get_db),
-                        user: User = Depends(get_current_user)):
-    data = await TheoryAnswerService.status(db, user, evaluation_id)
-    return APIResponse.ok(message="Estado del examen recuperado exitosamente.", data=data)
-
-
-@router.get("/{evaluation_id}/result", response_model=APIResponse[TheoryGradingResponse],
-            response_model_exclude={"count"}, summary="Consultar resultado teórico propio")
-async def theory_result(evaluation_id: UUID, db: AsyncSession = Depends(get_db),
-                        user: User = Depends(get_current_user)):
-    data = await TheoryGradingService.result(db, user, evaluation_id)
-    return APIResponse.ok(message="Resultado de corrección recuperado exitosamente.", data=data)
-
-
-@router.post("/{evaluation_id}/grading/retry", response_model=APIResponse[TheoryGradingResponse],
-             response_model_exclude={"count"}, summary="Solicitar o reintentar corrección teórica")
-async def retry_theory_grading(evaluation_id: UUID, db: AsyncSession = Depends(get_db),
-                               user: User = Depends(get_current_user)):
-    data = await TheoryGradingService.retry(db, user, evaluation_id)
-    return APIResponse.ok(message="Corrección teórica procesada.", data=data)
-
-
-@router.post("/{evaluation_id}/answers", response_model=APIResponse[OralAnswerResponse],
-             response_model_exclude={"count"}, summary="Registrar audio oral con transcripción local e idempotencia")
-async def theory_answer(evaluation_id: UUID, payload: OralAnswerRequest,
-                        db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
-    data = await TheoryAnswerService.submit(db, user, evaluation_id, payload)
-    return APIResponse.ok(message="Respuesta oral registrada exitosamente.", data=data)
