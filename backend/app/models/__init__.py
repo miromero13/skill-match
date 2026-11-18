@@ -2,6 +2,8 @@ from app.db.base import Base, TimestampMixin
 from app.models.user import User, UserRole, ExchangeModality
 from app.models.wallet import Wallet
 from app.models.revoked_token import RevokedToken
+from app.models.evaluation import Evaluation
+from app.models.calibration import CalibrationChallenge
 from app.models.catalog import Category, ChallengeType, Skill, SkillLevel, Rubric
 from app.models.user_learning_skill import UserLearningSkill, UrgencyLevel
 from app.models.teaching_skill import TeachingSkill
@@ -30,7 +32,7 @@ from app.models.user_block import UserBlock
 from app.models.user_report import ReportReason, ReportStatus, UserReport
 
 __all__ = [
-    "Base", "TimestampMixin", "User", "UserRole", "ExchangeModality", "Wallet", "RevokedToken", "Category", "ChallengeType",
+    "Base", "TimestampMixin", "User", "UserRole", "ExchangeModality", "Wallet", "RevokedToken", "Evaluation", "CalibrationChallenge", "Category", "ChallengeType",
     "Skill", "SkillLevel", "Rubric", "UserLearningSkill", "UrgencyLevel", "TeachingSkill", 
     "EvidenceType", "SkillEvidence", "DatasetSample",
     "ValidationSession", "ValidationSessionState", "ChallengeSegment", "ChallengeSegmentType",
