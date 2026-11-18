@@ -1,0 +1,27 @@
+{
+  "repository": "csukuangfj/sherpa-onnx-whisper-base",
+  "revision": "bb53ee204431c90d314c1cc08d28d23e5b7927cc",
+  "artifacts": [
+    {
+      "file": "encoder.onnx",
+      "source_file": "base-encoder.onnx",
+      "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base/resolve/bb53ee204431c90d314c1cc08d28d23e5b7927cc/base-encoder.onnx",
+      "bytes": 95087154,
+      "sha256": "5a6b87cb313993f6c9fefec9e7027556f6cb30becddf49655bee36c50ecc12d7"
+    },
+    {
+      "file": "decoder.onnx",
+      "source_file": "base-decoder.onnx",
+      "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base/resolve/bb53ee204431c90d314c1cc08d28d23e5b7927cc/base-decoder.onnx",
+      "bytes": 196548998,
+      "sha256": "8a12c3f6ad65bb5b86d7e6eccc302378f20f9fb2df6cb10747c62895da7ac194"
+    },
+    {
+      "file": "tokens.txt",
+      "source_file": "base-tokens.txt",
+      "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base/resolve/bb53ee204431c90d314c1cc08d28d23e5b7927cc/base-tokens.txt",
+      "bytes": 816730,
+      "sha256": "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"
+    }
+  ]
+}
