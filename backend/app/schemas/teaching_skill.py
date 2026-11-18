@@ -19,7 +19,7 @@ class TeachingSkillWrite(BaseModel):
     years_of_experience: int = Field(strict=True, ge=0, le=60)
     description: str | None = Field(default=None, max_length=2000)
     accepts_points: bool = False
-    hourly_points_rate: int | None = Field(default=None, strict=True, le=2_147_483_647)
+    hourly_points_rate: int | None = Field(default=None, strict=True, gt=0, le=2_147_483_647)
 
     @model_validator(mode="after")
     def validate_rate(self) -> "TeachingSkillWrite": 
