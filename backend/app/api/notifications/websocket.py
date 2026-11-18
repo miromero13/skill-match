@@ -48,6 +48,9 @@ async def notification_websocket(
         logger.warning("Handshake WebSocket de notificaciones rechazado")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+    finally:
+        # Libera la sesión de BD de inmediato para no retener conexiones del pool en canales WebSocket persistentes
+        await db.close()
 
     await notification_connection_manager.connect(identity.user_id, websocket)
     try:

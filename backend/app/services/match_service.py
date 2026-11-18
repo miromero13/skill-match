@@ -223,6 +223,9 @@ async def list_suggestions(
     # Guarda la sugerencia la primera vez que se devuelve esa página.
     await save_suggestions(db, member_id, counterpart_ids)
 
+    if not counterpart_ids:
+        return [], total or 0
+
     # Carga las filas guardadas y los cruces de habilidades en una consulta.
     rows = await db.execute(
         match_details_query(member_id)
