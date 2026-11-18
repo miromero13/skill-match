@@ -163,7 +163,7 @@ export function CreateAdminModal() {
                   ROL EN LA PLATAFORMA:
                 </span>
                 <div className="h-[36px] px-[10px] bg-[#0F1416] border border-[#1E2629] rounded-[6px] flex items-center justify-between text-[11px] font-[500] text-[#F0FDFA] cursor-default select-none">
-                  <span>Auditor Forense & Mediador Arbitral ▾</span>
+                  <span>ADMIN — Administrador</span>
                 </div>
               </div>
 
@@ -173,7 +173,7 @@ export function CreateAdminModal() {
                   ESTADO DE CUENTA:
                 </span>
                 <div className="h-[36px] px-[10px] bg-[#0F1416] border border-[#1E2629] rounded-[6px] flex items-center justify-between text-[11px] font-[500] text-[#F0FDFA] cursor-default select-none">
-                  <span>Activa (Verificada) ▾</span>
+                  <span>Activa</span>
                 </div>
               </div>
             </div>

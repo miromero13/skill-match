@@ -27,7 +27,7 @@ export function PlatformSidebar() {
     { label: "Habilidades que enseño", icon: BookOpen, to: "/app/teaching-skills", active: path === "/app/teaching-skills" },
     { label: "Quiero Aprender", icon: BookOpen, to: "/app/learning-skills", active: path === "/app/learning-skills" },
     { label: "Intercambios Activos", icon: ArrowLeftRight, to: "/app/swaps", active: path === "/app/swaps", badge: "2" },
-    { label: "Billetera & Cashout", icon: Wallet, to: "/app/wallet", active: path === "/app/wallet", value: "150 pts" },
+    { label: "Billetera", icon: Wallet, to: "/app/wallet", active: path === "/app/wallet", value: `${user?.skillPointsBalance ?? 0} pts` },
     { label: "Disponibilidad y Agenda", icon: Calendar, to: "/app/availability", active: path === "/app/availability" },
     { label: "Certificados de IA", icon: Award, to: "/app/certificates", active: path === "/app/certificates" },
     { label: "Reputación y Reseñas", icon: Star, to: "/app/reputation", active: path === "/app/reputation", value: "4.9 ★" },
@@ -45,14 +45,14 @@ export function PlatformSidebar() {
       {/* 1. Mini User Card */}
       <div className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-2xs">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-black text-xs shrink-0">
-          CM
+          {user?.fullName.split(" ").map((name) => name[0]).join("").slice(0, 2).toUpperCase() || "MB"}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
-            <span className="font-bold text-xs text-foreground truncate">Carlos Méndez</span>
+            <span className="font-bold text-xs text-foreground truncate">{user?.fullName || "Miembro"}</span>
             <ShieldCheck className="h-3.5 w-3.5 text-primary shrink-0" />
           </div>
-          <span className="text-[11px] text-muted-foreground block truncate">@carlos.dev</span>
+          <span className="text-[11px] text-muted-foreground block truncate">{user?.email}</span>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/api-client"
-import { useAuthStore, type UserRole } from "@/stores/auth-store"
+import { getAuthSessionVersion, useAuthStore, type UserRole } from "@/stores/auth-store"
 import { toast } from "sonner"
 
 export interface UserMeDto {
@@ -11,6 +11,7 @@ export interface UserMeDto {
   avatar_url?: string | null
   phone_number?: string | null
   provider?: string | null
+  skill_points_balance: number
 }
 
 export interface TokenRefreshResponseDto {
@@ -38,7 +39,6 @@ export async function loginWithGoogle(idToken: string): Promise<GoogleAuthRespon
     {
       showToastOnError: true,
       showToastOnSuccess: true,
-      successMessage: "¡Bienvenido a SkillMatch!",
     }
   )
 
@@ -51,7 +51,7 @@ export async function loginWithGoogle(idToken: string): Promise<GoogleAuthRespon
       fullName: authData.user.full_name,
       role: authData.user.role,
       avatarUrl: authData.user.avatar_url || undefined,
-      skillPointsBalance: 150, // Bono de bienvenida inicial (3 validaciones gratis)
+      skillPointsBalance: authData.user.skill_points_balance,
       reputationScore: 5.0,
       trustLevel: 1,
       isVerified: true,
@@ -83,6 +83,7 @@ export async function getMe(): Promise<UserMeDto> {
     fullName: me.full_name,
     role: me.role,
     avatarUrl: me.avatar_url || undefined,
+    skillPointsBalance: me.skill_points_balance,
     isVerified: true,
   })
 
@@ -94,10 +95,13 @@ export async function getMe(): Promise<UserMeDto> {
  * Garantiza la limpieza local incluso ante caídas de conexión.
  */
 export async function logoutSession(): Promise<void> {
+  const sessionVersion = getAuthSessionVersion()
+  let message = "Sesión cerrada en este dispositivo."
+  let confirmed = false
   const refreshToken = useAuthStore.getState().refreshToken
 
   try {
-    await apiClient.post(
+    const response = await apiClient.post(
       "/auth/logout",
       refreshToken ? { refresh_token: refreshToken } : undefined,
       {
@@ -105,14 +109,18 @@ export async function logoutSession(): Promise<void> {
         showToastOnSuccess: false,
       }
     )
+    message = response.message
+    confirmed = true
   } catch (error) {
     // Si falla la red o el token ya estaba revocado, procedemos con la purga local igualmente
     console.warn("Fallo o advertencia al revocar sesión en servidor:", error)
   } finally {
-    useAuthStore.getState().logout()
-    toast.success("Sesión cerrada", {
-      description: "Tu sesión ha sido finalizada de forma segura.",
-    })
+    if (getAuthSessionVersion() === sessionVersion) {
+      useAuthStore.getState().logout()
+      toast.success(message, {
+        description: confirmed ? undefined : "No se pudo confirmar la revocación en el servidor.",
+      })
+    }
   }
 }
 
@@ -120,6 +128,7 @@ export async function logoutSession(): Promise<void> {
  * Renueva manualmente el token de sesión (POST /api/auth/refresh).
  */
 export async function refreshSession(): Promise<TokenRefreshResponseDto> {
+  const sessionVersion = getAuthSessionVersion()
   const refreshToken = useAuthStore.getState().refreshToken
   if (!refreshToken) {
     throw new Error("No hay un refresh token disponible en almacenamiento.")
@@ -135,6 +144,9 @@ export async function refreshSession(): Promise<TokenRefreshResponseDto> {
   )
 
   const tokenData = response.data
+  if (getAuthSessionVersion() !== sessionVersion || useAuthStore.getState().refreshToken !== refreshToken) {
+    throw new Error("Solicitud de una sesión anterior descartada.")
+  }
   useAuthStore.getState().setTokens(tokenData.access_token, tokenData.refresh_token)
   return tokenData
 }

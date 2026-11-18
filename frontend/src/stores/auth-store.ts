@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
 import { hybridAuthStorage } from "./storage-adapter"
+import { onAuthRehydrate } from "./auth-hydration"
 
 export type UserRole = "MEMBER" | "ADMIN"
 let authSessionVersion = 0
@@ -37,7 +38,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>()(
-  persist(
+  persist<AuthState>(
     (set) => ({
       user: null,
       token: null,
@@ -97,6 +98,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "skillmatch-auth-storage",
       storage: createJSONStorage(() => hybridAuthStorage),
+      onRehydrateStorage: onAuthRehydrate,
     }
   )
 )

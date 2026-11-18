@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { Navigate, useLocation } from "react-router-dom"
 import { useAuthStore } from "@/stores/auth-store"
+import { useAuthHydration } from "@/stores/auth-hydration"
 
 interface MemberRouteGuardProps {
   children: ReactNode
@@ -16,8 +17,10 @@ interface MemberRouteGuardProps {
 export function MemberRouteGuard({ children }: MemberRouteGuardProps) {
   const { isAuthenticated, user, token } = useAuthStore()
   const location = useLocation()
+  const hydration = useAuthHydration()
+  if (hydration === "loading") return <p role="status">Cargando sesión...</p>
 
-  if (!isAuthenticated || !token) {
+  if (hydration === "error" || !isAuthenticated || !token || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
@@ -25,5 +28,6 @@ export function MemberRouteGuard({ children }: MemberRouteGuardProps) {
     return <Navigate to="/admin/dashboard" replace />
   }
 
+  if (user.role !== "MEMBER") return <Navigate to="/login" replace />
   return <>{children}</>
 }
