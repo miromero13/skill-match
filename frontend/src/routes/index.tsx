@@ -11,6 +11,7 @@ import { AdminLoginPage } from "@/pages/admin-login-page"
 import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
 import { AdminUsersPage } from "@/pages/admin-users-page"
 import { AdminCatalogPage } from "@/pages/admin-catalog-page"
+import { TheoryBankPage } from "@/pages/theory-bank-page"
 import { LearningSkillsPage } from "@/pages/learning-skills-page"
 import { AdminLayout } from "@/layouts/admin-layout"
 import { AdminRouteGuard } from "@/components/admin-route-guard"
@@ -240,6 +241,12 @@ export const router = createBrowserRouter([
         element: <AdminUsersPage />,
       },
     ],
+  },
+
+  {
+    path: "/admin/theory/questions",
+    element: <AdminRouteGuard><AdminLayout /></AdminRouteGuard>,
+    children: [{ index: true, element: <TheoryBankPage /> }],
   },
 
   // 6.1 Admin Backoffice - Catálogo de Habilidades (HU-12)
