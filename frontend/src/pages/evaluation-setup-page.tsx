@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { useEvaluationPreflightStore } from "@/stores/evaluation-preflight-store"
+import { CalibrationPanel } from "@/components/evaluations/calibration-panel"
 
 export function EvaluationSetupPage() {
   const { skillId } = useParams<{ skillId: string }>()
@@ -35,7 +36,7 @@ export function EvaluationSetupPage() {
       {consent ? <Card><CardHeader><CardTitle>Consentimiento registrado</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <p>El intento todavía no comenzó ni se descontó.</p>
-          <p>La comprobación del ambiente se integrará con la etapa de calibración. Todavía no se activaron la cámara ni el micrófono.</p>
+          <CalibrationPanel key={consent.id} evaluationId={consent.id} />
           <p className="text-sm text-muted-foreground">Estado: {consent.status} · Evaluación: {consent.id}</p>
         </CardContent>
       </Card> : step === 1 ? <Card>

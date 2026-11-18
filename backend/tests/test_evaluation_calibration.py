@@ -119,3 +119,30 @@ async def test_invalid_images_never_use_profile_synthetic_fallback(scenario):
     assert state["ready"] is False
     quota = (await client.get(endpoint(offer, "preflight"))).json()["data"]
     assert quota["free_evaluations_left"] == 3
+
+
+@pytest.mark.asyncio
+async def test_missing_models_fail_closed_without_consuming(scenario, monkeypatch, tmp_path):
+    import base64
+    import json
+    import cv2
+    import numpy as np
+    import app.services.calibration_vision_service as vision
+    client, db, user, offer = scenario
+    user.biometric_embedding = json.dumps([1.0] + [0.0] * 127)
+    await db.commit()
+    monkeypatch.setattr(vision, "YUNET_MODEL_PATH", tmp_path / "missing.onnx")
+    frames = []
+    for value in (100, 110, 120):
+        ok, encoded = cv2.imencode(".jpg", np.full((240, 320, 3), value, dtype=np.uint8))
+        assert ok
+        frames.append(base64.b64encode(encoded.tobytes()).decode())
+    evaluation_id = await prepare(scenario)
+    challenge = (await client.post(f"/api/evaluations/{evaluation_id}/liveness/challenge")).json()["data"]
+    response = await client.post(f"/api/evaluations/{evaluation_id}/liveness/verify-identity",
+                                 json={**PAYLOAD, "challenge_id": challenge["id"], "frames": frames})
+    assert response.status_code == 503
+    assert response.json() == {"statuscode": 503, "message": "Los modelos locales de calibración no están disponibles.", "data": None}
+    state = (await client.get(f"/api/evaluations/{evaluation_id}/environment/verify")).json()["data"]
+    assert state["ready"] is False and state["started_at"] is None
+    assert (await client.get(endpoint(offer, "preflight"))).json()["data"]["free_evaluations_left"] == 3
