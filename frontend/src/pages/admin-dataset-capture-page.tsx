@@ -402,6 +402,12 @@ export function AdminDatasetCapturePage() {
         })
         return
       }
+      if ((discipline === "futbol" || activeCategorySlug === "deporte") && !levelLabel) {
+        useDatasetCaptureStore.setState({
+          error: "Seleccioná el nivel real del participante antes de subir las muestras.",
+        })
+        return
+      }
 
       useDatasetCaptureStore.setState({ isUploading: true, error: null })
       let uploadedCount = 0
@@ -456,7 +462,7 @@ export function AdminDatasetCapturePage() {
             signed_consent: signedConsent,
             file_hash_sha256: hash,
             participant_id: itemParticipant,
-            level_label: levelLabel || "Intermedio",
+            level_label: levelLabel,
             manual_touch_count: manualTouchCount !== null ? manualTouchCount : undefined,
             noise_level: noiseLevel || "bajo",
             surface: targetSurface,
@@ -961,8 +967,18 @@ export function AdminDatasetCapturePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {(discipline === "futbol" || activeCategorySlug === "deporte") && !levelLabel && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Falta elegir el nivel real del participante, abajo en “Opciones avanzadas”.</span>
+                </div>
+              )}
+
               {/* Acordeón Opcional para Investigadores / Configuración Manual */}
-              <details className="group border border-border/50 rounded-lg p-3 bg-card/40 transition-all">
+              <details
+                className="group border border-border/50 rounded-lg p-3 bg-card/40 transition-all"
+                open={discipline === "futbol" || activeCategorySlug === "deporte" ? true : undefined}
+              >
                 <summary className="text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer flex items-center justify-between select-none">
                   <span className="flex items-center gap-1.5">
                     <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
@@ -1046,15 +1062,18 @@ export function AdminDatasetCapturePage() {
                         </div>
                         <div className="space-y-1">
                           <Label htmlFor="level-label-select" className="text-xs">
-                            Nivel Provisional
+                            Nivel real del participante *
                           </Label>
                           <Select value={levelLabel} onValueChange={setLevelLabel}>
-                            <SelectTrigger id="level-label-select">
-                              <SelectValue placeholder="Nivel" />
+                            <SelectTrigger
+                              id="level-label-select"
+                              className={!levelLabel ? "border-amber-500/50" : undefined}
+                            >
+                              <SelectValue placeholder="Seleccioná un nivel..." />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Principiante">Principiante</SelectItem>
-                              <SelectItem value="Intermedio">Intermedio (Predeterminado)</SelectItem>
+                              <SelectItem value="Intermedio">Intermedio</SelectItem>
                               <SelectItem value="Avanzado">Avanzado</SelectItem>
                               <SelectItem value="Experto">Experto</SelectItem>
                             </SelectContent>

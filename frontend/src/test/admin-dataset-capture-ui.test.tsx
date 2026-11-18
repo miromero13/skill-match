@@ -76,6 +76,7 @@ describe("AdminDatasetCapturePage", () => {
       error: null,
       lastUploadMessage: null,
       signedConsent: false,
+      levelLabel: "",
     })
   })
 
@@ -184,6 +185,11 @@ describe("AdminDatasetCapturePage", () => {
     })
     await user.click(consentSwitch)
 
+    // Football/Deporte is the default active category, so the real level must be
+    // chosen explicitly before upload is allowed (no silent "Intermedio" default).
+    await user.click(screen.getByRole("combobox", { name: /Nivel real del participante/i }))
+    await user.click(await screen.findByRole("option", { name: "Avanzado" }))
+
     const uploadBtn = screen.getByRole("button", {
       name: /Subir Lote de 2 Muestras Reales a Garage S3/i,
     })
@@ -193,6 +199,50 @@ describe("AdminDatasetCapturePage", () => {
     await waitFor(() => {
       expect(uploadDatasetSample).toHaveBeenCalledTimes(2)
     })
+    expect(uploadDatasetSample).toHaveBeenCalledWith(
+      expect.objectContaining({ level_label: "Avanzado" })
+    )
+  })
+
+  it("blocks football batch upload without an explicit level, then allows it once selected", async () => {
+    const user = userEvent.setup()
+    const { uploadDatasetSample } = await import("@/services/dataset-sample-service")
+
+    render(
+      <MemoryRouter>
+        <AdminDatasetCapturePage />
+      </MemoryRouter>
+    )
+
+    const file = new File(["clip-video"], "clip.mp4", { type: "video/mp4" })
+    const input = screen.getByLabelText(/Carga Múltiple de Archivos Reales/i)
+    await user.upload(input, [file])
+
+    await user.click(
+      screen.getByRole("switch", { name: /Consentimiento Informado Firmado/i })
+    )
+
+    const uploadBtn = screen.getByRole("button", {
+      name: /Subir Muestra al Dataset de IA/i,
+    })
+    await user.click(uploadBtn)
+
+    expect(uploadDatasetSample).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(/Seleccioná el nivel real del participante/i)
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("combobox", { name: /Nivel real del participante/i }))
+    await user.click(await screen.findByRole("option", { name: "Avanzado" }))
+    await user.click(uploadBtn)
+
+    const { waitFor } = await import("@testing-library/react")
+    await waitFor(() => {
+      expect(uploadDatasetSample).toHaveBeenCalledTimes(1)
+    })
+    expect(uploadDatasetSample).toHaveBeenCalledWith(
+      expect.objectContaining({ level_label: "Avanzado" })
+    )
   })
 })
 
