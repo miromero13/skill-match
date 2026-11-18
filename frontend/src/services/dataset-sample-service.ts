@@ -76,3 +76,12 @@ export async function deleteDatasetSample(
     showToastOnSuccess: true,
   })
 }
+
+export async function getDatasetSamplePreviewUrl(
+  id: string
+): Promise<APIResponse<{ preview_url: string; file_format: string }>> {
+  return apiClient.get<{ preview_url: string; file_format: string }>(
+    `/ai/datasets/samples/${id}/preview-url`,
+    { showToastOnError: false }
+  )
+}

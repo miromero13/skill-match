@@ -39,6 +39,14 @@ vi.mock("@/services/dataset-sample-service", () => ({
     message: "Muestra eliminada exitosamente.",
     data: null,
   }),
+  getDatasetSamplePreviewUrl: vi.fn().mockResolvedValue({
+    statuscode: 200,
+    message: "URL de vista previa generada exitosamente.",
+    data: {
+      preview_url: "https://s3.example.com/skillmatch-football/sample-1.mp4?signature=abc",
+      file_format: "mp4",
+    },
+  }),
 }))
 
 vi.mock("@/services/admin-catalog-service", () => ({
@@ -242,6 +250,30 @@ describe("AdminDatasetCapturePage", () => {
     })
     expect(uploadDatasetSample).toHaveBeenCalledWith(
       expect.objectContaining({ level_label: "Avanzado" })
+    )
+  })
+
+  it("opens a video preview dialog when clicking the view button on a sample", async () => {
+    const user = userEvent.setup()
+    const { getDatasetSamplePreviewUrl } = await import("@/services/dataset-sample-service")
+
+    render(
+      <MemoryRouter>
+        <AdminDatasetCapturePage />
+      </MemoryRouter>
+    )
+
+    const viewBtn = await screen.findByRole("button", { name: /Ver muestra/i })
+    await user.click(viewBtn)
+
+    await screen.findByText(/Vista previa de la muestra/i)
+    expect(getDatasetSamplePreviewUrl).toHaveBeenCalledWith("sample-1")
+
+    const video = document.querySelector("video")
+    expect(video).toBeInTheDocument()
+    expect(video).toHaveAttribute(
+      "src",
+      "https://s3.example.com/skillmatch-football/sample-1.mp4?signature=abc"
     )
   })
 })

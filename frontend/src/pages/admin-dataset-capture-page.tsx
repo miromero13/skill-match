@@ -22,6 +22,12 @@ import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Table,
   TableBody,
   TableCell,
@@ -37,6 +43,7 @@ import {
   Play,
   Square,
   Trash2,
+  Eye,
   ShieldCheck,
   Hash,
   Cpu,
@@ -58,6 +65,7 @@ import { getSkills, getCategories } from "@/services/admin-catalog-service"
 import {
   calculateFileSha256,
   uploadDatasetSample,
+  getDatasetSamplePreviewUrl,
 } from "@/services/dataset-sample-service"
 import type { Skill, Category } from "@/types/catalog"
 
@@ -135,6 +143,31 @@ export function AdminDatasetCapturePage() {
   const [filterDiscipline, setFilterDiscipline] = useState<string>("all")
   const [categories, setCategories] = useState<Category[]>([])
   const [activeCategorySlug, setActiveCategorySlug] = useState<string>("deporte")
+  const [previewSample, setPreviewSample] = useState<{
+    url: string
+    format: string
+  } | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null)
+
+  const handlePreviewSample = async (sampleId: string) => {
+    setLoadingPreviewId(sampleId)
+    setPreviewError(null)
+    try {
+      const res = await getDatasetSamplePreviewUrl(sampleId)
+      if (res.statuscode === 200 && res.data) {
+        setPreviewSample({ url: res.data.preview_url, format: res.data.file_format })
+      } else {
+        setPreviewError(res.message)
+      }
+    } catch (err: unknown) {
+      setPreviewError(
+        err instanceof Error ? err.message : "No se pudo generar la vista previa."
+      )
+    } finally {
+      setLoadingPreviewId(null)
+    }
+  }
   const [catalogSkills, setCatalogSkills] = useState<Skill[]>([])
   const [selectedSkillId, setSelectedSkillId] = useState<string>("")
   const [selectedSkillName, setSelectedSkillName] = useState<string>("Dominadas y Control de Balón")
@@ -1256,6 +1289,17 @@ export function AdminDatasetCapturePage() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => handlePreviewSample(sample.id)}
+                              disabled={loadingPreviewId === sample.id}
+                              aria-label="Ver muestra"
+                              title="Ver muestra"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                               onClick={() => deleteSampleById(sample.id)}
                               title="Eliminar muestra defectuosa"
@@ -1275,6 +1319,32 @@ export function AdminDatasetCapturePage() {
       </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={previewSample !== null} onOpenChange={(open) => !open && setPreviewSample(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Vista previa de la muestra</DialogTitle>
+          </DialogHeader>
+          {previewSample?.format === "mp4" ? (
+            <video src={previewSample.url} controls autoPlay className="w-full rounded-lg" />
+          ) : previewSample?.format === "wav" ? (
+            <audio src={previewSample.url} controls autoPlay className="w-full" />
+          ) : previewSample ? (
+            <pre className="text-xs bg-neutral-950 text-emerald-400 p-4 rounded-lg overflow-auto max-h-[60vh]">
+              <a href={previewSample.url} target="_blank" rel="noreferrer" className="underline">
+                Abrir archivo
+              </a>
+            </pre>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {previewError && (
+        <Alert variant="destructive" className="fixed bottom-4 right-4 w-auto max-w-sm z-50">
+          <AlertTitle>No se pudo previsualizar</AlertTitle>
+          <AlertDescription className="text-sm">{previewError}</AlertDescription>
+        </Alert>
+      )}
     </div>
   )
 }
