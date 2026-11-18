@@ -55,16 +55,16 @@ SkillMatch **no puede usar proveedores de IA cerrados de pago (OpenAI, Anthropic
 
 | ID | Requisito Funcional | Prioridad |
 |---|---|:---:|
-| **RF-USR-01** | El sistema permitirá registrar usuarios con nombre, correo, contraseña, fecha de nacimiento y país/ciudad. | A |
-| **RF-USR-02** | El sistema permitirá registro e inicio de sesión mediante proveedores externos (Google, Apple). | M |
-| **RF-USR-03** | El sistema verificará el correo electrónico mediante un enlace o código de un solo uso antes de activar la cuenta. | A |
+| **RF-USR-01** | El sistema registrará miembros exclusivamente con identidad verificada de Google (nombre, correo y avatar), rol MEMBER, sin contraseña local y con billetera inicial de 0 puntos. | A |
+| **RF-USR-02** | El sistema permitirá registro e inicio de sesión de miembros únicamente mediante Google; los ADMIN utilizarán exclusivamente correo y contraseña. | M |
+| **RF-USR-03** | El registro de miembros exigirá el correo verificado y la credencial válida de Google antes de activar la cuenta; no existe OTP ni verificación local por correo. | A |
 | **RF-USR-04** | El sistema permitirá iniciar y cerrar sesión de forma segura mediante tokens JWT con expiración y renovación (*refresh tokens*). | A |
-| **RF-USR-05** | El sistema permitirá recuperar y cambiar la contraseña mediante un enlace temporal firmado. | A |
+| **RF-USR-05** | Los ADMIN podrán cambiar contraseñas administrativas desde la gestión autorizada; no existe recuperación por correo ni contraseña local para miembros. | A |
 | **RF-USR-06** | El sistema ofrecerá autenticación en dos pasos (2FA) opcional vía TOTP. | M |
 | **RF-USR-07** | El usuario podrá ver y editar su perfil: foto, biografía, idiomas, zona horaria y enlaces externos. | A |
 | **RF-USR-08** | El usuario configurará su disponibilidad semanal por franjas horarias y su zona horaria. | A |
 | **RF-USR-09** | El usuario seleccionará su modalidad de intercambio: presencial, virtual o ambas, y su radio geográfico para encuentros presenciales. | A |
-| **RF-USR-10** | El sistema aplicará control de acceso por roles (Usuario, Administrador, Moderador) restringiendo funciones según el rol (RBAC). | A |
+| **RF-USR-10** | El sistema aplicará control de acceso por los dos roles canónicos (MEMBER, ADMIN) restringiendo funciones según el rol (RBAC). | A |
 | **RF-USR-11** | El usuario controlará la privacidad de su perfil: qué datos son públicos, visibles solo para matches o privados. | M |
 | **RF-USR-12** | El usuario podrá ver y revocar sesiones activas en otros dispositivos. | B |
 | **RF-USR-13** | El usuario podrá desactivar o eliminar su cuenta y solicitar la exportación de sus datos personales. | M |

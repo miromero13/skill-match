@@ -11,12 +11,13 @@ from app.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from app.models.user_learning_skill import UserLearningSkill
     from app.models.user_availability import UserAvailability
+    from app.models.wallet import Wallet
 
 
 class UserRole(str, Enum):
     """
     Roles canónicos del sistema SkillMatch (estrictamente dos).
-    - MEMBER: Miembro de la comunidad (autenticado por OAuth o OTP WhatsApp, sin contraseña).
+    - MEMBER: Miembro de la comunidad (autenticado por Google, sin contraseña).
     - ADMIN: Administrador de la plataforma (autenticado por correo y contraseña).
     """
     MEMBER = "MEMBER"
@@ -92,7 +93,7 @@ class User(Base, TimestampMixin):
         comment="Timestamp hasta el cual la cuenta permanece bloqueada"
     )
 
-    # Campos complementarios para miembros (OAuth / OTP WhatsApp - HU-07)
+    # Campos complementarios para miembros (Google OAuth - HU-07)
     phone_number: Mapped[Optional[str]] = mapped_column(
         String(30),
         unique=True,
@@ -109,7 +110,7 @@ class User(Base, TimestampMixin):
         String(50),
         nullable=True,
         default=None,
-        comment="google | github | whatsapp | institutional"
+        comment="google | institutional"
     )
     provider_user_id: Mapped[Optional[str]] = mapped_column(
         String(255),
@@ -205,6 +206,8 @@ class User(Base, TimestampMixin):
         default=None,
         comment="Hash SHA-256 determinístico del vector biométrico registrado",
     )
+
+    wallet: Mapped[Optional["Wallet"]] = relationship("Wallet", lazy="selectin", uselist=False)
 
     # Relación con demandas de aprendizaje (HU-15)
     learning_skills: Mapped[list["UserLearningSkill"]] = relationship(

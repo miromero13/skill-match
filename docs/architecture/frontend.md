@@ -58,7 +58,7 @@ frontend/
 │   ├── hooks/                # Hooks personalizados (useMediaQuery, useWebSocket, etc.)
 │   ├── pages/                # Vistas de página enrutadas por React Router
 │   │   ├── admin/            # Vistas protegidas por rol ADMIN (protección 404 para MEMBER)
-│   │   ├── auth/             # Registro social, login OTP y login admin
+│   │   ├── auth/             # Registro/login Google y login admin
 │   │   ├── evaluation/       # Layout de examen: Monaco Editor, cámara, metrónomo
 │   │   ├── public/           # Landing page institucional y Pasaporte público QR
 │   │   └── user/             # Perfil, disponibilidad, billetera, sesiones

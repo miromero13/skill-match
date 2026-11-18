@@ -69,15 +69,8 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: SecretStr = Field(..., description="Contraseña maestra del Administrador inicial (Secreto .env)")
     ADMIN_FULL_NAME: str = Field(default="Administrador Principal", description="Nombre completo del Administrador inicial")
 
-    # Proveedores de Autenticación Social & OTP (Opcionales / Se cargan de .env)
-    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google OAuth Client ID")
-    GOOGLE_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Google OAuth Client Secret (Secreto .env)")
-
-    GITHUB_CLIENT_ID: Optional[str] = Field(default=None, description="GitHub OAuth Client ID")
-    GITHUB_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="GitHub OAuth Client Secret (Secreto .env)")
-
-    WHATSAPP_API_KEY: Optional[SecretStr] = Field(default=None, description="WhatsApp API Key (Secreto .env)")
-    WHATSAPP_PHONE_NUMBER_ID: Optional[str] = Field(default=None, description="WhatsApp Business Phone Number ID")
+    # Google Identity Services: ID-token flow, no client secret or other providers.
+    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google OAuth Web Client ID; must match the frontend")
 
     # Almacenamiento MinIO / S3
     MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Endpoint de MinIO/S3")

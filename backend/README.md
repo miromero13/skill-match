@@ -61,17 +61,12 @@ ADMIN_EMAIL="admin@skillmatch.io"
 ADMIN_PASSWORD="SuperSecretAdminPassword123!"
 ADMIN_FULL_NAME="Administrador Principal"
 
-# --- Proveedores de Autenticación Social & OTP (Sprint 0 - HU-07) ---
+# --- Autenticación de miembros exclusivamente con Google (Sprint 0 - HU-07) ---
 # Google OAuth 2.0 (Google Identity Services / Web Client)
 # Obtener en Google Cloud Console -> APIs & Services -> Credentials -> OAuth 2.0 Client IDs
 GOOGLE_CLIENT_ID="tu-google-client-id.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET="GOCSPX-tu-google-client-secret"
 
-GITHUB_CLIENT_ID=""
-GITHUB_CLIENT_SECRET=""
 
-WHATSAPP_API_KEY=""
-WHATSAPP_PHONE_NUMBER_ID=""
 
 # --- Almacenamiento de Evidencias y MinIO S3 (Sprint 1 al 4) ---
 MINIO_ENDPOINT="localhost:9000"
@@ -224,3 +219,27 @@ Para ejecutar las pruebas:
 pytest -v
 ```
 
+
+
+## 7. Autenticación, sesiones y catálogo (HU-07, HU-08, HU-09, HU-10 y HU-12)
+
+### Identidades y credenciales
+
+- `POST /api/auth/oauth/google` es el único ingreso MEMBER. Requiere un ID token real, email verificado, audiencia `GOOGLE_CLIENT_ID`, emisor y expiración válidos. La identidad remota se verifica también en desarrollo; no existe bypass para tokens no firmados ni ingreso con GitHub/WhatsApp/OTP.
+- `GOOGLE_CLIENT_ID` es público, no un client secret. Debe coincidir con el cliente Web del frontend y con la audiencia solicitada por los SDK nativos. Sin configurar, el endpoint devuelve 503, no una cuenta simulada.
+- ADMIN utiliza exclusivamente `/api/admin/auth/login` con correo y contraseña. Google no autentica ni convierte cuentas ADMIN. Cualquier ADMIN activo puede gestionar otros ADMIN; el correo de seed no concede privilegios adicionales. Se conserva la protección contra auto-suspensión y la respuesta 404 para MEMBER/anónimos en rutas administrativas.
+- El registro MEMBER crea una `wallets` vinculada, con saldo 0 en la misma transacción. `GET /api/auth/me` devuelve el saldo real. La migración agrega billeteras de saldo cero a miembros existentes, sin otorgar bonos ni habilitar operaciones monetarias.
+- Refresh firma el nuevo par antes de consumir atómicamente el anterior. `revoked_tokens` guarda hashes SHA-256 y expiraciones, compartidos entre procesos; no almacena JWT en texto plano. Logout valida la propiedad del refresh antes de revocar credenciales.
+- El ID token enviado a Google se redacta en los logs HTTPX; nunca registrar cuerpos de autenticación ni credenciales.
+
+### Migrar y administrar el catálogo
+
+Ejecutar `alembic upgrade head` antes de iniciar esta versión. La cadena agrega billeteras, revocaciones durables y jerarquía/unicidad del catálogo. Respaldar la base de datos antes de actualizar un entorno con datos; un downgrade de estas migraciones elimina las nuevas tablas/columnas y no sustituye un respaldo.
+
+La migración de catálogo conserva los registros y rehúsa nombres normalizados duplicados entre categorías hermanas o habilidades de la misma categoría. Si informa `Duplicate normalized catalog names`, revisar los conflictos y decidir sus nombres antes de repetir: no los renombra, fusiona ni elimina automáticamente.
+
+- Público: `GET /api/categories`, `GET /api/skills` y `GET /api/skills/{id}`. Solo se muestran registros activos con ancestros activos; filtrar una categoría incluye descendientes.
+- Administración: se mantienen `/api/admin/catalog/categories` y `/api/admin/catalog/skills`. Las categorías incluyen `parent_id`; los movimientos validan referencias y rechazan ciclos con bloqueo transaccional.
+- `DELETE` de categoría/habilidad desactiva, no borra físicamente. La eliminación de habilidades con miembros vinculados devuelve 409; `PATCH` con `is_active=false` conserva las asociaciones.
+
+Las pruebas HTTP de esta entrega usan PostgreSQL aislado y mocks de Google. No acreditan disponibilidad de Google real, configuración de sus clientes ni ejecución en hardware nativo.

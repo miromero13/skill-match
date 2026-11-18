@@ -84,7 +84,7 @@ backend/
 ├── app/
 │   ├── api/                      # Controladores REST organizados por dominio
 │   │   ├── admin/                # Endpoints exclusivos para ADMIN (política 404 para miembros)
-│   │   ├── auth/                 # OAuth Google/GitHub, OTP WhatsApp, Login Admin
+│   │   ├── auth/                 # Google OAuth para MEMBER, correo/clave para ADMIN
 │   │   ├── evaluations/          # Evaluaciones teóricas, Sandbox de código, audio, video
 │   │   ├── health/               # Endpoint /api/health (chequeo app y DB)
 │   │   ├── matching/             # Matching bilateral y grafos triangulares
