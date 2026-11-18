@@ -986,11 +986,11 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Actor Principal:** Miembro de la Comunidad
 - **Roles Permitidos:** `UserRole.MEMBER`
 - **Sprint:** Sprint 3
-- **Estado:** En progreso — preembarque implementado; cierre integral pendiente (seguimiento local, Jira no sincronizado)
+- **Estado:** Listo — aceptado por el usuario (SM-23)
 - **Puntos de Historia:** 3
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-USR-14`, `RF-FRA-19`
-- **Evidencia:** backend `3f33c1e`, adaptación UI `fb91c57`; pruebas públicas de preflight y regresión backend correctas. Las casillas marcadas indican implementación comprobada, no aprobación de producción. Pendientes: integración con inicio real SM-39, revisión independiente y comprobación responsive. Ver [estado consolidado](status-validacion.md).
+- **Evidencia:** backend `3f33c1e`, adaptación UI `fb91c57`; pruebas públicas de preflight y regresión backend correctas. El usuario acepta SM-23 como terminada. El inicio real y consumo único de intento pertenecen a SM-39, no al consentimiento ni a la calibración. Ver [estado consolidado](status-validacion.md).
 - **Dependencias y Bloqueos:**
   - **Bloqueada por (Is blocked by):**
     - `HU-09` (`SM-21`): Sesión activa y autenticación JWT requerida como `UserRole.MEMBER`.
@@ -1016,16 +1016,16 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
       - `POST /api/evaluations/skills/{teaching_skill_id}/consent`: Registra la aceptación explícita de biometría y supervisión para la habilidad indicada. Crea o inicializa la entidad `Evaluation` en estado `PENDING_CALIBRATION`. Almacena en base de datos: `biometric_consent_at` (timestamp inmutable), `policy_version` (ej. `"v1.0"`), `ip_address` y `user_agent`.
     - [x] **Validación de Enrolamiento Previo:** Si el miembro no completó su enrolamiento biométrico oficial en el perfil (`has_biometric_enrollment == false`), el preflight/consent rechaza la petición con `statuscode: 400` (*"Debe registrar su rostro testigo en su perfil antes de solicitar una certificación"*).
     - [x] **Control de Intentos y Cupos Gratuitos:** Valida que el miembro no supere el tope de 3 habilidades validadas gratis en la plataforma y que mantenga disponible su único intento gratuito por habilidad. Si ya agotó sus cupos, bloquea la solicitud con `statuscode: 403` (*"Límite de evaluaciones gratuitas alcanzado para esta habilidad"*), dejando la recarga por billetera para integración con `HU-42`.
-    - [ ] **Bloqueo Estricto:** Prohibición absoluta de crear sesión de examen (`/start`) o habilitar la calibración (`/liveness`) si no existe el registro inmutable de consentimiento previo para la postulación.
+    - [x] **Bloqueo de calibración:** Exige evaluación propia con consentimiento inmutable y enrolamiento vigente. La protección de `/start` y el débito atómico corresponden a SM-39.
   - **Frontend:**
     - [x] Stepper de pre-embarque interactivo en ruta `/evaluation/:skillId/setup`:
       - **Paso 1 (Instrucciones):** Tarjetas con temario de la prueba, duración estimada, requerimientos de periféricos y botón "Siguiente: Normas de Integridad".
       - **Paso 2 (Normas y Consentimiento):** Explicación del uso de cámara y micrófono para fines anti-fraude, indicador visual (*"Validación gratuita restante: X/3 habilidades (Intento 1/1)"*) y checkboxes obligatorios de consentimiento.
-    - [ ] Botón "Comenzar Calibración" deshabilitado hasta que todos los checkboxes obligatorios estén marcados y confirmados por el backend.
-    - [ ] Redirección asistida al perfil (`/profile`) con banner de aviso si el miembro aún no enroló su rostro testigo.
+    - [x] Botón `Registrar consentimiento` deshabilitado hasta aceptar los checks; el consentimiento confirmado permite continuar a calibración.
+    - [x] Redirección asistida a `/app/profile` si falta el enrolamiento del rostro testigo.
     - [x] Gestión del estado del asistente en store de **Zustand**.
     - [x] Mensajes de feedback consumiendo el `message` del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Interfaz responsive de preembarque aceptada por el usuario.
 
 ---
 
@@ -1168,73 +1168,69 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ---
 
-#### HU-31: Detección de pérdida de foco, cambio de pestaña y bloqueo de portapapeles
+#### HU-31: Detección de pérdida de foco, cambio de pestaña y bloqueo de portapapeles (Jira: SM-43)
 - **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
 - **Actor Principal:** Sistema Supervisor / Auditoría
 - **Roles Permitidos:** `UserRole.MEMBER`
 - **Sprint:** Sprint 3
-- **Estado:** En progreso — controles y bitácora de ensayo implementados; integración con examen pendiente (Jira no sincronizado)
+- **Estado:** Listo — aceptado por el usuario
 - **Puntos de Historia:** 3
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-FRA-03`, `RF-FRA-09`
-- **Evidencia:** commits `596f944`, `d668587`, `f01be87`, `efdfc78`; guía [SM-43](browser-supervision.md). Funcionan portapapeles/drop dentro del área, foco/pestañas, duración, autorización exclusiva y bitácora persistente en `/api/browser-supervision/trials`. No sustituye los endpoints `/evaluations/{id}/incidents`, el layout/store del examen ni las vistas de advertencia/expulsión descritas abajo. No se aplican sanciones. El usuario informó una prueba favorable; no es revisión independiente.
+- **Alcance aceptado:** Módulo funcional de supervisión de navegador probado en una sesión independiente. La conexión al examen real se separa en [la tarea de integración de SM-43/SM-49](supervision-exam-integration.md), sin reabrir esta historia.
 - **Descripción:**
-  > **Como** sistema de integridad,  
-  > **quiero** bloquear el portapapeles y registrar cualquier cambio de pestaña o ventana minimizada,  
-  > **para** impedir que el aspirante busque respuestas externas durante la prueba.
-- **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** `08B - Advertencia Preventiva Anti-Fraude (Aviso 1 de 2)` y `08 - Detección de Trampa e Infracción Anti-Fraude`
-  - **Mobile Responsive:** `10B - Mobile Advertencia Preventiva Anti-Fraude` y `10 - Mobile Alerta Detección de Trampa`
-  - **Alcance Visual:** Vista Completa — Modal de advertencia preventiva ámbar tras primer blur/paste en 08B/10B, y modal terminal rojo de expulsión con bloqueo de 7 días en 08/10
-- **Criterios de Aceptación:**
+  > **Como** sistema de integridad, **quiero** bloquear el portapapeles dentro del área supervisada y registrar pérdidas de foco/cambios de pestaña, **para** disponer de controles reutilizables y una bitácora persistente antes de conectarlos al examen real.
+- **Vista implementada:** `/app/browser-supervision-test`, accesible desde el preembarque. Los modales de advertencia/expulsión del examen se conectan en la tarea de integración, no se consideran implementados aquí.
+- **Criterios de Aceptación — alcance entregado:**
   - **Backend:**
-    - [ ] Endpoints documentados en Swagger UI (`/docs`):
-      - `POST /api/evaluations/{id}/incidents`: Registra incidencia con tipo y timestamp en la tabla `evaluation_incidents`.
-      - `GET /api/evaluations/{id}/incidents`: Consulta histórico con `count`.
+    - [x] API documentada bajo `/api/browser-supervision/trials`: creación, consulta, heartbeat, liberación, cierre y envío/consulta de incidentes.
+    - [x] Propiedad MEMBER, autorización exclusiva por pestaña, plazo de20s y una sesión abierta por usuario con vigencia24h.
+    - [x] Incidentes persistentes con secuencia y recepción del servidor, paginación, lotes atómicos y reintentos idempotentes.
+    - [x] Ninguna sesión de ensayo crea un inicio de examen ni consume intentos.
   - **Frontend:**
-    - [ ] Desactivación de eventos del portapapeles (`copy`, `paste`, `cut`) y menú contextual (`contextmenu`) dentro del Layout de examen.
-    - [x] Listener de eventos `visibilitychange` y `window.onblur`.
-    - [ ] Envío inmediato de incidencia vía API ante pérdida de foco con alerta visual de advertencia.
-    - [ ] Store de **Zustand** que registra incidentes y despliega advertencias con el `message` del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Bloqueo de `copy`, `paste`, `cut`, menú contextual y drop dentro del área supervisada, sin trampas globales de teclado.
+    - [x] Detección de visibilidad/foco, salida/regreso con duración, red y salida de pantalla completa cuando se usa.
+    - [x] Cola recuperable y acotada; se retiran solo eventos reconocidos, con fallos de almacenamiento y desbordamiento visibles.
+    - [x] Consentimiento explícito, controles de iniciar/detener/cerrar, bitácora restaurable y mensajes del backend.
+    - [x] Liberación de listeners y recursos al detener o navegar; interfaz de ensayo aceptada por el usuario.
+- **Evidencia:** `596f944`, `d668587`, `f01be87`, `efdfc78`; pruebas públicas de API/concurrencia/monitor/vista y prueba favorable del usuario. Ver [guía y límites](browser-supervision.md).
+- **Fuera de esta entrega:** Endpoints y estado del examen, advertencias/expulsión y sanciones; se trasladan a la tarea de integración. La telemetría del navegador no demuestra por sí sola una trampa.
 
 ---
 
-#### HU-32: Verificación de entorno, liveness y cotejo biométrico 1:1 con cámara
+#### HU-32: Verificación de entorno, liveness y cotejo biométrico 1:1 con cámara (Jira: SM-44)
 - **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
 - **Actor Principal:** Miembro Aspirante a Certificación
 - **Roles Permitidos:** `UserRole.MEMBER`
 - **Sprint:** Sprint 3
-- **Estado:** En progreso — calibración implementada; eficacia física y alineación de criterios pendientes (Jira no sincronizado)
+- **Estado:** Listo — aceptado por el usuario
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-FRA-07`, `RF-FRA-08`, `RF-FRA-10 ★`, `RF-FRA-13`
-- **Evidencia:** commits `3f33c1e`, `67a7536`, `1061128`, `9417ee5`, `da5dc06`; [contrato y límites](evaluation-calibration.md). Se implementaron captura real, comprobaciones locales y cotejo SFace (umbral0.363 contra el campo biométrico del usuario). Por pedido del usuario el reto vence a45s, con11s de movimiento: difiere de3–5s en el criterio original. Se usan posiciones faciales, no flujo óptico completo; Fourier es experimental, no PAD certificado. Las casillas no acreditan eficacia anti-spoofing ni sustituyen prueba física/revisión independiente.
+- **Alcance aceptado:** Calibración secuencial local previa al examen. Se actualizan los criterios originales al comportamiento acordado: reto con45s de vigencia y captura de11s, no3–5s; posiciones faciales, no flujo óptico completo ni parpadeo obligatorio.
 - **Descripción:**
-  > **Como** plataforma que certifica habilidades auténticas,  
-  > **quiero** verificar periféricos, validar hardware físico contra webcams virtuales, exigir un reto motor de prueba de vida (*liveness*) y comparar el rostro de la cámara contra el enrolamiento biométrico del perfil,  
-  > **para** confirmar que quien rinde la evaluación es una persona viva presente en tiempo real y exactamente el usuario dueño de la cuenta, mitigando deepfakes, suplantaciones y grabaciones.
-- **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** `04C - Pre-embarque: Paso 3 (Calibración y Validación)`
-  - **Mobile Responsive:** `06C - Mobile Pre-embarque: Paso 3 (Calibración)`
-  - **Alcance Visual:** Vista Completa — Paso 3 del stepper: comprobación de webcam física nativa, micrófono, iluminación, reto motor aleatorio de liveness y verificación biométrica facial 1:1 con OpenCV/PyTorch
-- **Criterios de Aceptación:**
-  - **Backend (OpenCV & PyTorch Service):**
-    - [x] Validación de prerrequisito: bloqueo automático de la prueba si el usuario no completó su enrolamiento biométrico en el perfil (`has_biometric_enrollment == false`).
-    - [ ] Algoritmo Anti-Spoofing pasivo con OpenCV: análisis de texturas (LBP / Fourier) para detectar pantallas (celulares, monitores), bordes de fotos impresas o anomalías de color en piel.
-    - [ ] Verificación de flujo óptico y prueba de vida (*liveness*): generación de reto motor aleatorio con expiración corta (3 a 5 segundos) y validación de coherencia cinemática (parpadeo coordinado, giro angular de cabeza).
-    - [x] **Cotejo Biométrico Facial 1:1:** Extracción del embedding facial en los frames de la prueba y cálculo de similitud (distancia coseno / euclidiana) contra el embedding guardado en `user_profiles`. Si la similitud es menor al umbral de confianza (ej. < 0.80), la evaluación no se autoriza por discrepancia de identidad.
-    - [x] Endpoints documentados en Swagger UI (`/docs`):
-      - `POST /api/evaluations/{id}/liveness/challenge`: Emite semilla y tipo de reto gestual aleatorio con timestamp de expiración.
-      - `POST /api/evaluations/{id}/liveness/verify-identity`: Valida ráfaga de frames del reto motor, ejecuta anti-spoofing y realiza el cotejo biométrico 1:1 contra el perfil.
-      - `GET /api/evaluations/{id}/environment/verify`: Confirma condiciones mínimas de cámara, resolución y luz.
+  > **Como** plataforma, **quiero** comprobar cámara, micrófono, entorno, movimiento facial y coincidencia con el rostro testigo, **para** preparar la evaluación supervisada con consentimiento previo y sin consumir intentos.
+- **Vistas:** Paso3 del preembarque, referencias04C/06C, en `/evaluation/:skillId/setup`.
+- **Criterios de Aceptación — alcance entregado:**
+  - **Backend y modelos locales:**
+    - [x] Exigir consentimiento y enrolamiento vigentes; invalidar preparación si cambia el rostro testigo.
+    - [x] Comprobar iluminación, encuadre y una sola cara con parsing de imágenes acotado.
+    - [x] Reto aleatorio con45s de vigencia:11s de captura guiada de centro, giro y regreso, validado mediante posiciones faciales.
+    - [x] Cotejo1:1 con YuNet/SFace, embedding del usuario y umbral coseno0.363; rechazo explícito ante discrepancia.
+    - [x] Heurística pasiva experimental de pantallas; no se afirma PAD certificado ni detección infalible de fotos/deepfakes.
+    - [x] Secuencia automática11s de movimiento →3s de silencio ambiente →8s de audio/video hablado, con4s de frase y4s de pausa.
+    - [x] Voz/silencio con WebRTC VAD; varios hablantes/superposición con modelos locales Pyannote/3D-Speaker y Sherpa, sin inferencia en nube ni descarga al atender peticiones.
+    - [x] Comprobación temporal de actividad de boca/audio como heurística de movimiento, no lectura semántica de labios.
+    - [x] Preparación solo si pasan los12 controles; rechazo explícito si faltan modelos/evidencia, sin éxito simulado y sin persistir medios crudos.
+    - [x] API documentada: `/liveness/challenge`, `/liveness/verify-identity` y `/environment/verify` bajo `/api/evaluations/{id}`.
   - **Frontend:**
-    - [ ] Asistente interactivo guiado por store de **Zustand** en ruta `/evaluation/:id/setup`.
-    - [ ] **Detección y bloqueo de cámaras virtuales:** Auditoría de etiquetas de dispositivos con `MediaStreamTrack` y `navigator.mediaDevices.enumerateDevices()` para bloquear drivers conocidos de inyección de video (OBS Virtual Camera, ManyCam, v4l2loopback).
-    - [x] Verificación de periféricos: cámara web, micrófono, iluminación y encuadre del rostro.
-    - [ ] Reto interactivo guiado solicitando un movimiento aleatorio en tiempo real con barra de cuenta regresiva (ej. parpadear dos veces, girar levemente el rostro a la derecha).
-    - [x] Indicaciones y mensajes en pantalla utilizando el `message` del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Preembarque con Zustand y panel guiado de captura real de cámara/micrófono.
+    - [x] Auditoría de etiquetas de dispositivos para rechazar cámaras virtuales conocidas, sin prometer autenticidad física del dispositivo.
+    - [x] Captura audio/video sincronizada por reloj PCM, instrucciones de giro con espejo solo visual y secuencia sin botones intermedios.
+    - [x] Permisos explícitos, cancelación, liberación de dispositivos y mensajes de error del backend.
+    - [x] Interfaz de calibración aceptada por el usuario.
+- **Evidencia:** `3f33c1e`, `a7052fd`, `9417ee5`, `da5dc06`, `67a7536`, `1061128`; pruebas de preflight/calibración y [contrato/límites](evaluation-calibration.md).
+- **Límites documentados:** La aceptación cierra esta historia; no convierte heurísticas en certificación PAD ni añade evidencia de eficacia física o revisión independiente que no se haya realizado. La supervisión continua pertenece a SM-49.
 
 ---
 
@@ -1382,6 +1378,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 ---
 
 #### HU-37: Detección de múltiples rostros, voces accesorias y verificación continua de identidad durante evaluaciones
+- **Integración al examen:** [SM-57](supervision-exam-integration.md), tarea separada para conectar SM-43/SM-49 desde el entorno de prueba. SM-49 sigue Por hacer; SM-23/SM-43/SM-44 están Listo por aceptación del usuario.
 - **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
 - **Actor Principal:** Sistema Supervisor / Anti-Fraude
 - **Roles Permitidos:** `UserRole.MEMBER`

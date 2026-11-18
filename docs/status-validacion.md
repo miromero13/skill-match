@@ -1,50 +1,39 @@
 # Estado de las tareas de validación
 
-**Hay implementación comprobada, pero todavía no hay un examen completo ejecutable.** Las casillas `[x]` de `USER_STORIES.md` identifican criterios concretos ya implementados; no significan que toda la historia esté terminada ni que haya sido aprobada para producción.
+SM-23, SM-43 y SM-44 están **Listo**, por aceptación explícita del usuario. El estado se actualizó mediante el MCP de Jira configurado en `.pi/mcp.json` y se volvió a consultar después de cada transición.
 
-Este documento es seguimiento local. **Jira no fue actualizado:** esta sesión no tiene conector, CLI ni configuración de acceso disponible. No se inventaron transiciones o números de comentarios. La asignación cubre las diez historias del bloque acordado, no una consulta actual del total de asignaciones del tablero.
+## Estado sincronizado con Jira
 
-## Lo implementado
-
-| Jira | Entrega comprobada | Lo que impide cerrar toda la historia |
+| Historia/tarea | Estado | Alcance |
 |---|---|---|
-| SM-23 | Preflight/consentimiento, pertenencia, enrolamiento, cupos, stepper, Zustand y mensajes del servidor | Inicio real de SM-39, revisión independiente y validación integral/responsive. El botón actual es `Registrar consentimiento`; el enlace al perfil usa `/app/profile`, no `/profile` literal del backlog |
-| SM-43 | Controles reales de navegador y bitácora en ensayo con TTL24h, permiso exclusivo20s, cola y reenvíos idempotentes | Asociar controles/incidentes al examen real, endpoints y store del examen, vistas de advertencia/expulsión y política de sanciones acordada. La prueba favorable del usuario no sustituye revisión independiente |
-| SM-44 | Cámara/audio reales, iluminación/encuadre, reto guiado, cotejo SFace y comprobaciones audiovisuales locales | Prueba física de eficacia, revisión independiente y alinear los criterios:45s de vigencia/11s de movimiento acordados frente a3–5s originales; sin flujo óptico completo ni garantía PAD |
+| [SM-23](https://sauterdevs.atlassian.net/browse/SM-23) | **Listo** | Preembarque, instrucciones, requisitos, consentimiento y habilitación de calibración |
+| [SM-43](https://sauterdevs.atlassian.net/browse/SM-43) | **Listo** | Supervisión de navegador, cola y bitácora funcionales en la página de ensayo |
+| [SM-44](https://sauterdevs.atlassian.net/browse/SM-44) | **Listo** | Calibración secuencial local de cámara/audio, movimiento, identidad y comprobaciones audiovisuales |
+| [SM-57](https://sauterdevs.atlassian.net/browse/SM-57) | **Por hacer** | Conectar supervisión de navegador y audiovisual al examen real; [especificación](supervision-exam-integration.md) |
+| [SM-49](https://sauterdevs.atlassian.net/browse/SM-49) | **Por hacer** | Implementación de supervisión audiovisual continua; la conexión posterior al examen corresponde a SM-57 |
 
-**Criterios marcados ahora:**6 de SM-23,1 de SM-43 y5 de SM-44. No se cambiaron a `[x]` los criterios todavía parciales, el diseño responsive no demostrado ni los de las historias pendientes.
+Se actualizaron las descripciones de SM-43 y SM-44 al alcance entregado. SM-49 conserva su descripción original con una referencia añadida a SM-57. La integración pendiente no reabre las tres historias aceptadas.
 
-## Lo pendiente
+## Alcance acordado de SM-44
 
-| Jira | Trabajo pendiente |
-|---|---|
-| SM-49 | Supervisión continua audiovisual. Especificación preparada en `odd/tasks/continuous-supervision.md`; todavía sin implementación nueva |
-| SM-39 | Inicio atómico/idempotente, consumo único al fijar `started_at`, banco de preguntas, tiempos/respuestas/calificación |
-| SM-40 | Editor, sandbox aislado y ejecución real con tests privados/límites |
-| SM-41 | AST, complejidad y calidad; similitud estructural necesita alcance explícito |
-| SM-42 | Defensa, preguntas vinculadas a la entrega, respuestas y rúbrica |
-| SM-45 | Consolidación, feedback y otorgamiento idempotente del sello |
-| SM-46 | Consola administrativa, dictámenes y apelaciones |
+- Vigencia del reto:45s; movimiento guiado:11s, seguido de3s de silencio ambiente y8s de voz/pausa.
+- YuNet/SFace y cotejo1:1 con umbral coseno0.363; posiciones faciales, no flujo óptico completo.
+- VAD, modelos locales para varios hablantes/superposición y heurística temporal de boca/audio.
+- Comprobaciones pasivas y de etiquetas de cámara como controles experimentales, no garantías PAD, de lectura de labios ni de autenticidad física del dispositivo.
 
-SM-47/48 (prácticas de guitarra/deportes) pertenecen a otros responsables. Integrarlas al flujo no implica implementar sus evaluadores.
+## Evidencia existente
 
-## Evidencia y commits existentes
+- SM-23: `3f33c1e`, `fb91c57`.
+- SM-44: `a7052fd`, `9417ee5`, `da5dc06`, `67a7536`, `1061128` y calibración inicial en `3f33c1e`.
+- SM-43: `596f944`, `d668587`, `f01be87`, `efdfc78`.
+- Última regresión backend observada:679 correctas/1 omitida por Garage S3/1 aviso Starlette-httpx; base descartable eliminada.
+- Última comprobación frontend, job28:197 correctas/1 fallo previo de catálogo en `evidence-navigation.test.tsx:149`; tests exit1, TypeScript/Vite build exit0. Persiste advertencia de chunk>500kB.
+- Estas evidencias no se presentan como revisión independiente ni como certificación de eficacia física. No se ejecutaron pruebas adicionales para esta actualización de estados/documentación.
 
-- SM-23/backend y calibración inicial: `3f33c1e`.
-- Adaptación del preembarque: `fb91c57`.
-- Modelos locales y avisos: `a7052fd`; voz/hablantes: `67a7536`; evidencia audiovisual: `1061128`; captura: `9417ee5`; panel/guía: `da5dc06`.
-- SM-43: `596f944` (backend), `d668587` (monitor/cola), `f01be87` (vista), `efdfc78` (guía).
-- Última regresión backend observada:679 correctas/1 omitida por Garage S3/1 aviso Starlette-httpx, base descartable eliminada. En esta actualización de estado no se cambió ni se volvió a ejecutar el backend.
-- Comprobación actual del frontend, job28:197 correctas/1 fallo en `evidence-navigation.test.tsx:149`, mismo caso de catálogo previamente observado; tests exit1. TypeScript/Vite build exit0; advertencia de chunk>500kB persiste. No se reparó ese caso fuera de alcance.
+## Commits del pedido de guardar lo existente
 
-## Cambios de interfaz guardados por pedido del usuario
+- `e2ea0ec`: navegación y scroll de plataforma.
+- `92715a7`: snapshot de interfaz de identidad, conservado como trabajo pendiente; no acredita extracción documental automática ni validación integral del contrato.
+- `4e024e5`: primera actualización de criterios; el presente cambio corrige ese seguimiento con la aceptación explícita posterior del usuario.
 
-El pedido «Hace commits de lo que hay» incluye los cambios existentes de navegación, scroll, perfil y tarjeta de identidad. Se guardan sin atribuir su autoría a esta implementación ni certificarlos como historias terminadas.
-
-**Advertencia de identidad:** el frontend actual envía `CI-AUTO` cuando no existe número de documento y agrega una fotografía posterior opcional al contrato TypeScript. Las pruebas de interfaz no acreditan extracción automática del número/nombre, uso de esa fotografía por el backend ni verificación documental integral. Ese bloque se conserva como trabajo pendiente, no como identidad completa/aprobada.
-
-No hubo push, migración de la base de aplicación, seed ni modificación de registros durante esta actualización. Los cambios de documentación no necesitan RED conductual: se verifican contra código/pruebas y mediante comprobaciones estructurales del Markdown.
-
-## Próximo paso
-
-Implementar SM-49 en el ensayo autorizado, después SM-39 e integrar los controles al examen. Para sincronizar Jira hace falta acceso mediante una integración autorizada; mientras tanto solo se completan casillas locales comprobadas, sin cerrar historias incompletas.
+SM-39–42 y SM-45/46 siguen pendientes; SM-47/48 corresponden a otros responsables. No hubo push, migración de la base de aplicación, seed ni modificación de registros de aplicación en esta actualización.
