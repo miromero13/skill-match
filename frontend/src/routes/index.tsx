@@ -16,6 +16,7 @@ import { AdminLayout } from "@/layouts/admin-layout"
 import { AdminRouteGuard } from "@/components/admin-route-guard"
 import { MemberRouteGuard } from "@/components/member-route-guard"
 import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
+import { EvaluationSetupPage } from "@/pages/evaluation-setup-page"
 import { ProfilePage } from "@/pages/profile-page"
 import { AdminDatasetCapturePage } from "@/pages/admin-dataset-capture-page"
 import { FootballValidationWizard } from "@/features/football-validation"
@@ -29,6 +30,11 @@ import { NotificationSettingsPage } from "@/pages/notifications/notification-set
 import { PrivacySettingsPage } from "@/pages/settings/privacy-settings-page"
 
 export const router = createBrowserRouter([
+  {
+    path: "/evaluation/:skillId/setup",
+    element: <MemberRouteGuard><PlatformLayout /></MemberRouteGuard>,
+    children: [{ index: true, element: <EvaluationSetupPage /> }],
+  },
   {
     path: "/settings/privacy",
     element: (
@@ -168,9 +174,15 @@ export const router = createBrowserRouter([
     path: "/admin/dashboard",
     element: (
       <AdminRouteGuard>
-        <AdminDashboardPage />
+        <AdminLayout />
       </AdminRouteGuard>
     ),
+    children: [
+      {
+        index: true,
+        element: <AdminDashboardPage />,
+      },
+    ],
   },
 
   // 6. Admin Backoffice - Gestión de Usuarios y Administradores (HU-10 - Vistas 15A, 15B, 17A, 17B)
@@ -206,11 +218,6 @@ export const router = createBrowserRouter([
   },
 
   // 6.2 Alias /admin/skills -> /admin/catalog
-  {
-    path: "/admin/my-teaching-skills",
-    element: <AdminRouteGuard><AdminLayout /></AdminRouteGuard>,
-    children: [{ index: true, element: <ProfilePage /> }],
-  },
   {
     path: "/admin/skills",
     element: <Navigate to="/admin/catalog" replace />,
