@@ -552,11 +552,13 @@ export function ProfilePage() {
                 </Dialog>
               </div>
 
-              {/* 2. Stats_Pills (★ 4.98 Pedagógico | 42 listas Sesiones | 100% Asistencia) */}
+              {/* 2. Stats_Pills (Estado real de reputación, sesiones y asistencia) */}
               <div className="grid grid-cols-3 gap-2.5">
                 <div className="rounded-xl bg-muted/60 p-3 text-center">
                   <span className="block text-sm font-bold text-amber-600">
-                    ★ {authUser?.reputationScore?.toFixed(2) || "4.98"}
+                    {authUser?.reputationScore && authUser.reputationScore > 0
+                      ? `★ ${authUser.reputationScore.toFixed(1)}`
+                      : "Nuevo"}
                   </span>
                   <span className="text-[11px] text-muted-foreground">
                     Pedagógico
@@ -564,15 +566,15 @@ export function ProfilePage() {
                 </div>
                 <div className="rounded-xl bg-muted/60 p-3 text-center">
                   <span className="block text-sm font-bold text-primary">
-                    42 listas
+                    0
                   </span>
                   <span className="text-[11px] text-muted-foreground">
                     Sesiones
                   </span>
                 </div>
                 <div className="rounded-xl bg-muted/60 p-3 text-center">
-                  <span className="block text-sm font-bold text-emerald-600">
-                    100%
+                  <span className="block text-sm font-bold text-muted-foreground">
+                    -
                   </span>
                   <span className="text-[11px] text-muted-foreground">
                     Asistencia

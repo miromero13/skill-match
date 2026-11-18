@@ -142,7 +142,9 @@ export function PlatformHeader() {
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-semibold leading-none">{user?.fullName || "Miembro de la Comunidad"}</p>
-                  <p className="text-xs leading-none text-muted-foreground">{user?.email || "miembro@skillmatch.io"}</p>
+                  {user?.email && (
+                    <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                  )}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -150,10 +152,13 @@ export function PlatformHeader() {
                 <Link to="/app/profile">Mi Perfil & Pasaporte</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/app/swaps">Mis Intercambios</Link>
+                <Link to="/app/teaching-skills">Mis Habilidades para Enseñar</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/app/exam-demo">Sandbox de Evaluación IA</Link>
+                <Link to="/app/learning-skills">Habilidades que Deseo Aprender</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/app/swaps">Mis Intercambios</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

@@ -7,8 +7,7 @@ export function PlatformLayout() {
   const location = useLocation()
   const showSidebar =
     location.pathname === "/app" ||
-    location.pathname === "/app/" ||
-    location.pathname === "/app/swaps"
+    location.pathname === "/app/"
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
