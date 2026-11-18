@@ -62,6 +62,7 @@ export interface BiometricEnrollPayload {
 
 export interface IdentityVerifyPayload {
   id_card_base64: string
+  id_card_back_base64?: string
   selfie_base64: string
   id_number: string
   full_name: string

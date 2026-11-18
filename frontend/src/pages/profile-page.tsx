@@ -313,11 +313,11 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1380px] p-4 md:p-6 space-y-6">
+    <div className="mx-auto w-full max-w-[1380px] h-full p-4 md:p-6 overflow-y-auto xl:overflow-hidden">
       {/* ESTRUCTURA IDÉNTICA A OPENPENCIL (Vista 09 Web Desktop & Vista 11 Mobile Responsive) */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 items-start">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 xl:grid-rows-1 xl:h-full xl:min-h-0">
         {/* COLUMNA IZQUIERDA (Profile_Left_Sidebar - 420px en Web) */}
-        <div className="space-y-5 xl:col-span-4">
+        <div className="space-y-5 xl:col-span-4 xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-2 pb-8">
           <Card className="border-border/80 shadow-2xs">
             <CardContent className="p-5 space-y-5">
               {/* 1. Avatar_Header */}
@@ -684,8 +684,12 @@ export function ProfilePage() {
                     </span>
                   </div>
                   {profile?.identity_status === "VERIFIED" ? (
-                    <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] px-2 py-0.5">
+                    <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] px-2 py-0.5 font-semibold">
                       CI Verificado ✓
+                    </Badge>
+                  ) : profile?.identity_status === "REJECTED" ? (
+                    <Badge variant="destructive" className="text-[10px] px-2 py-0.5">
+                      Rechazado
                     </Badge>
                   ) : profile?.has_biometric_enrollment ? (
                     <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-300 text-[10px] px-2 py-0.5">
@@ -699,47 +703,50 @@ export function ProfilePage() {
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   {profile?.identity_status === "VERIFIED"
-                    ? `CI: ${profile.id_document_number} • ${Math.round((profile.id_face_similarity_score ?? 1) * 100)}% Similitud Facial`
-                    : "Requerido para certificar habilidades: vinculá tu carnet oficial y tu rostro en vivo para evitar suplantaciones."}
+                    ? `CI: ${profile.id_document_number} • Titular verificado con biometría`
+                    : profile?.identity_rejection_reason
+                      ? `Rechazado: ${profile.identity_rejection_reason}`
+                      : "Requerido para certificar habilidades: vinculá tu carnet oficial y tu rostro en vivo para evitar suplantaciones."}
                 </p>
 
-                <Dialog
-                  open={biometricDialogOpen}
-                  onOpenChange={setBiometricDialogOpen}
-                >
-                  <DialogTrigger asChild>
-                    <Button
-                      variant={
-                        profile?.identity_status === "VERIFIED" ? "outline" : "default"
-                      }
-                      size="sm"
-                      className="w-full h-8 text-xs gap-1.5"
-                    >
-                      <Camera className="size-3.5" />
-                      {profile?.identity_status === "VERIFIED"
-                        ? "Verificar Otro Documento"
-                        : "Verificar con Carnet (CI/DNI)"}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-3xl">
-                    <DialogHeader>
-                      <DialogTitle>
-                        Verificación de Identidad con Carnet (CI/DNI) y Biometría Facial
-                      </DialogTitle>
-                      <DialogDescription>
-                        Cotejo 100% automático y local entre tu documento de identidad oficial y tu rostro en vivo para erradicar el fraude de suplantación.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <BiometricEnrollmentCard />
-                  </DialogContent>
-                </Dialog>
+                {/* El botón y modal SOLO se muestran cuando NO está verificado */}
+                {profile?.identity_status !== "VERIFIED" && (
+                  <Dialog
+                    open={biometricDialogOpen}
+                    onOpenChange={setBiometricDialogOpen}
+                  >
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="w-full h-8 text-xs gap-1.5"
+                      >
+                        <Camera className="size-3.5" />
+                        {profile?.identity_status === "REJECTED"
+                          ? "Reintentar Verificación de Carnet"
+                          : "Verificar con Carnet (CI/DNI)"}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl">
+                      <DialogHeader>
+                        <DialogTitle>
+                          Verificación de Identidad con Carnet (CI/DNI)
+                        </DialogTitle>
+                        <DialogDescription>
+                          Cargá el anverso y reverso de tu documento para cotejarlo automáticamente con tu rostro en vivo.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <BiometricEnrollmentCard onVerified={() => setBiometricDialogOpen(false)} />
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* COLUMNA DERECHA (Right_Availability_And_Skills en OpenPencil) */}
-        <div className="space-y-6 xl:col-span-8">
+        <div className="space-y-6 xl:col-span-8 xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-2 pb-8">
           {/* 1. Matriz_Disponibilidad_30Min_Card (Idéntica a n4499 en Web y n4677 en Mobile) */}
           <Card className="border-border/80 shadow-2xs">
             <CardHeader className="pb-3">
