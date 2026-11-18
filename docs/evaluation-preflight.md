@@ -32,6 +32,16 @@ El historial de cupos se calcula a partir de `started_at`, nunca de la mera exis
 
 La duración estimada no se inventa: se informa como no configurada mientras no exista la configuración de la prueba. La interfaz tampoco presenta una cámara de demostración como calibración real.
 
+## Interfaz y referencias del prototipo
+
+La preparación usa las vistas exportadas de OpenPencil **04A/04B/04C** (web) y **06A/06B/06C** (móvil), disponibles en `docs/prototipo/png/`. Se conserva la tarjeta central, el indicador de tres pasos, los paneles de fondo suave y las acciones inferiores; en móvil se apilan los campos y la vista de cámara.
+
+1. **Instrucciones:** habilidad real, temario, etapas, requisitos, duración configurada y cupos. No se inventa un selector de nivel ni una duración que el backend aún no proporciona.
+2. **Normas:** tres consentimientos explícitos y aviso de consumo irreversible al iniciar. `Registrar consentimiento` habilita la calibración solo después de la confirmación del servidor.
+3. **Calibración:** vista previa con guía facial, estado del micrófono y resultados reales de la captura. No se muestran verificaciones exitosas antes de comprobarlas. `Volver a Normas` cierra los dispositivos y permite revisar las condiciones, sin revocar el consentimiento ya registrado. `Comenzar primera prueba` permanece deshabilitado: el inicio real de SM-39 todavía no está integrado.
+
+La adaptación visual no sustituye una comparación en navegador ni pruebas con cámara física.
+
 ## Migración y datos
 
 La revisión `9b742e18ac30` agrega la tabla vacía `evaluations`. Su padre es `006744e724ff`, una migración de merge ya presente en el árbol de trabajo del usuario. No se modifican esos merges ni se aplican migraciones automáticamente a la base local.

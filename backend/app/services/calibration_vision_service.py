@@ -8,6 +8,9 @@ import cv2
 import numpy as np
 
 from app.core.exceptions import SkillMatchException
+from app.services.calibration_audio_service import CalibrationAudioService
+from app.services.calibration_speaker_service import CalibrationSpeakerService
+from app.services.calibration_av_service import CalibrationAVService
 from app.services.biometric_service import (
     YUNET_MODEL_PATH, SFACE_MODEL_PATH, SFACE_COSINE_THRESHOLD,
 )
@@ -77,16 +80,13 @@ class CalibrationVisionService:
         return energy == 0 or float(spectrum.max()) / energy < 0.16
 
     @classmethod
-    def assess(cls, frames, audio_samples, camera_label, action, enrollment):
+    def assess(cls, frames, audio_samples, camera_label, action, enrollment, ambient_audio_samples=None, spoken_frames=None):
         decoded = [cls.decode_frame(raw) for raw in frames]
         if len({digest for _, digest in decoded}) < 3:
             reject("La prueba de vida requiere una secuencia de imágenes diferentes.")
         label = camera_label.casefold()
         if any(name in label for name in ("obs", "manycam", "v4l2loopback", "virtual cam")):
             reject("Seleccioná una cámara física para la calibración.")
-        audio = np.asarray(audio_samples, dtype=np.float32)
-        if not np.isfinite(audio).all() or float(np.sqrt(np.mean(audio ** 2))) < 0.003:
-            reject("No se detectó señal del micrófono. Decí «listo» durante la captura y repetí la comprobación.")
         try:
             reference = np.asarray(json.loads(enrollment), dtype=np.float32)
         except (ValueError, TypeError):
@@ -134,6 +134,9 @@ class CalibrationVisionService:
         if (abs(poses[0]) > 0.18 or abs(poses[-1] - poses[0]) > 0.09
                 or not any(direction * (pose - poses[0]) >= 0.12 for pose in poses[1:-1])):
             reject("No se completó el movimiento solicitado. Mirá al centro, girá hacia el lado indicado y volvé al centro.")
+        audio_checks = CalibrationAudioService.assess(ambient_audio_samples, audio_samples)
+        speaker_checks = CalibrationSpeakerService.assess(np.asarray(audio_samples, dtype=np.float32))
+        av_checks = CalibrationAVService.assess(spoken_frames or [], audio_samples, enrollment)
         return {"lighting": True, "framing": True, "single_face": True,
-                "microphone": True, "identity": True, "liveness": True,
-                "passive_screen_check": True}
+                "identity": True, "liveness": True, "passive_screen_check": True,
+                **audio_checks, **speaker_checks, **av_checks}

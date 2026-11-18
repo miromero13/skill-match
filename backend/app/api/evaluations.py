@@ -18,7 +18,7 @@ router = APIRouter(prefix="/evaluations", tags=["Evaluación: preparación compa
 
 
 @router.post("/{evaluation_id}/liveness/challenge", response_model=APIResponse[CalibrationChallengeResponse],
-             response_model_exclude={"count"}, summary="Emitir un reto de calibración válido por cinco segundos")
+             response_model_exclude={"count"}, summary="Emitir un reto de calibración válido por cuarenta y cinco segundos")
 async def calibration_challenge(evaluation_id: UUID, db: AsyncSession = Depends(get_db),
                                 user: User = Depends(get_current_user)):
     data = await EvaluationCalibrationService.challenge(db, user, evaluation_id)
