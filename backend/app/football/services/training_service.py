@@ -206,7 +206,10 @@ async def train_football_level_model(
 
     # 2. Train and evaluate
     t0 = time.perf_counter()
-    trained_artifact = train_and_evaluate_level_classifier(dataset=dataset, seed=seed)
+    try:
+        trained_artifact = train_and_evaluate_level_classifier(dataset=dataset, seed=seed)
+    except ValueError as exc:
+        raise SkillMatchException(statuscode=400, message=str(exc)) from exc
     latency_ms = ((time.perf_counter() - t0) / 100.0) * 1000.0
 
     # Add dataset and latency benchmarking to metrics

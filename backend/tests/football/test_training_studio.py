@@ -352,10 +352,20 @@ async def test_train_model_list_and_activate_lifecycle(
     await _commit_samples(committed_training_env, samples)
 
     # 1. Train model (enqueue -> status; eager mode already finished)
+    # Restricted to this test's own sample_ids via custom_ids: the shared dev DB
+    # may hold other real samples from prior runs (or from the admin's manual
+    # uploads) whose participant_id/split could legitimately collide across
+    # splits and now correctly reject training (see test_train_models_participant_leak.py).
+    # This test must stay independent of that unrelated state.
     status_data = await _enqueue_training(
         client,
         admin_headers,
-        {"version_tag": "2.0.0-test", "activate": True},
+        {
+            "version_tag": "2.0.0-test",
+            "activate": True,
+            "dataset_source": "custom_ids",
+            "sample_ids": [str(s.id) for s in samples],
+        },
     )
     assert status_data["status"] == "done"
     model_data = status_data["result"]
@@ -368,9 +378,7 @@ async def test_train_model_list_and_activate_lifecycle(
     assert len(metrics["confusion_matrix"]) == 4
     assert "loss_history" in metrics
     assert metrics["synthetic_samples_count"] == 0
-    # The shared dev DB may already hold other real samples from prior runs;
-    # training must count at least the ones this test inserted, never invent more.
-    assert metrics["real_samples_count"] >= len(samples)
+    assert metrics["real_samples_count"] == len(samples)
     assert metrics["latency_ms_per_inference"] > 0
     assert metrics["total_samples_count"] == metrics["real_samples_count"]
 
