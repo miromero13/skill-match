@@ -803,7 +803,7 @@ export function BrowserSupervisionPage() {
               </div>
 
               <p className="text-[11px] text-muted-foreground italic border-t pt-2">
-                * Orientación cefálica y sincronía labial calculadas localmente con YuNet + WebRTC VAD (ventana cada 2.4s). No realiza eye-tracking ni detección de objetos/smartphones.
+                * Orientación 3D (Pitch/Yaw) y apertura labial (jawOpen/MAR) calculadas localmente con MediaPipe Face Landmarker + Sherpa-ONNX (ventana cada 2.4s). No realiza detección de objetos/smartphones.
               </p>
             </div>
           </div>
