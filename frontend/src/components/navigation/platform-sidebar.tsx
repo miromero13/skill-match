@@ -48,7 +48,7 @@ export function PlatformSidebar() {
   ]
 
   return (
-    <aside className="w-64 shrink-0 space-y-4 p-4 text-sm hidden lg:block">
+    <aside className="w-64 shrink-0 space-y-4 p-4 text-sm hidden lg:block h-full overflow-y-auto border-r border-border bg-card/30">
       {/* 1. Mini User Card */}
       <div className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-2xs">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-black text-xs shrink-0">

@@ -8,13 +8,22 @@ export function PlatformLayout() {
   const showSidebar =
     location.pathname === "/app" ||
     location.pathname === "/app/"
+  const isProfile = location.pathname.startsWith("/app/profile")
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="flex h-screen flex-col bg-background text-foreground overflow-hidden">
       <PlatformHeader />
-      <div className="flex flex-1">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {showSidebar && <PlatformSidebar />}
-        <main className="min-w-0 flex-1 overflow-y-auto pb-[54px] md:pb-0">
+        <main
+          className={`min-w-0 flex-1 h-full pb-[54px] md:pb-0 ${
+            showSidebar
+              ? "overflow-hidden"
+              : isProfile
+                ? "overflow-y-auto xl:overflow-hidden"
+                : "overflow-y-auto"
+          }`}
+        >
           <Outlet />
         </main>
       </div>
