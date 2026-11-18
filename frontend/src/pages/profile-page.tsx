@@ -659,18 +659,22 @@ export function ProfilePage() {
                 </Button>
               </div>
 
-              {/* 4. Tarjeta de Enrolamiento Biométrico Facial */}
+              {/* 4. Tarjeta de Verificación de Identidad y Biometría Facial */}
               <div className="rounded-xl border bg-card p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="size-4 text-primary" />
                     <span className="text-xs font-bold text-foreground">
-                      ROSTRO TESTIGO BIOMÉTRICO
+                      IDENTIDAD OFICIAL (CI/DNI)
                     </span>
                   </div>
-                  {profile?.has_biometric_enrollment ? (
+                  {profile?.identity_status === "VERIFIED" ? (
                     <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] px-2 py-0.5">
-                      Vinculado ✓
+                      CI Verificado ✓
+                    </Badge>
+                  ) : profile?.has_biometric_enrollment ? (
+                    <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-300 text-[10px] px-2 py-0.5">
+                      Rostro (Falta Carnet)
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-[10px] px-2 py-0.5">
@@ -679,9 +683,9 @@ export function ProfilePage() {
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  {profile?.has_biometric_enrollment
-                    ? `Hash SHA-256: ${profile.biometric_face_hash?.slice(0, 18)}...`
-                    : "Requerido para verificar tu identidad en evaluaciones prácticas con cámara."}
+                  {profile?.identity_status === "VERIFIED"
+                    ? `CI: ${profile.id_document_number} • ${Math.round((profile.id_face_similarity_score ?? 1) * 100)}% Similitud Facial`
+                    : "Requerido para certificar habilidades: vinculá tu carnet oficial y tu rostro en vivo para evitar suplantaciones."}
                 </p>
 
                 <Dialog
@@ -691,24 +695,24 @@ export function ProfilePage() {
                   <DialogTrigger asChild>
                     <Button
                       variant={
-                        profile?.has_biometric_enrollment ? "outline" : "default"
+                        profile?.identity_status === "VERIFIED" ? "outline" : "default"
                       }
                       size="sm"
                       className="w-full h-8 text-xs gap-1.5"
                     >
                       <Camera className="size-3.5" />
-                      {profile?.has_biometric_enrollment
-                        ? "Recalibrar Rostro Testigo"
-                        : "Enrolar Rostro con Cámara"}
+                      {profile?.identity_status === "VERIFIED"
+                        ? "Verificar Otro Documento"
+                        : "Verificar con Carnet (CI/DNI)"}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-3xl">
                     <DialogHeader>
                       <DialogTitle>
-                        Enrolamiento Biométrico Facial Asistido
+                        Verificación de Identidad con Carnet (CI/DNI) y Biometría Facial
                       </DialogTitle>
                       <DialogDescription>
-                        Centrá tu rostro en el óvalo guía para extraer tu vector facial de 128 dimensiones localmente.
+                        Cotejo 100% automático y local entre tu documento de identidad oficial y tu rostro en vivo para erradicar el fraude de suplantación.
                       </DialogDescription>
                     </DialogHeader>
                     <BiometricEnrollmentCard />

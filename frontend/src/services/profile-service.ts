@@ -3,6 +3,7 @@ import type {
   AvailabilityMatrixPayload,
   AvailabilitySlot,
   BiometricEnrollPayload,
+  IdentityVerifyPayload,
   UserProfileData,
   UserProfilePatchPayload,
   UserProfileUpdatePayload,
@@ -10,6 +11,7 @@ import type {
 
 const profileEndpoint = "/users/me/profile"
 const biometricsEndpoint = "/users/me/biometrics/enroll"
+const identityVerifyEndpoint = "/users/me/identity/verify"
 const availabilityEndpoint = "/users/me/availability"
 
 const mutationOptions = {
@@ -51,6 +53,17 @@ export async function enrollMyBiometrics(
 ): Promise<UserProfileData> {
   const response = await apiClient.post<UserProfileData>(
     biometricsEndpoint,
+    payload,
+    mutationOptions
+  )
+  return response.data
+}
+
+export async function verifyMyIdentity(
+  payload: IdentityVerifyPayload
+): Promise<UserProfileData> {
+  const response = await apiClient.post<UserProfileData>(
+    identityVerifyEndpoint,
     payload,
     mutationOptions
   )

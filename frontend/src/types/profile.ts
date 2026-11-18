@@ -28,6 +28,12 @@ export interface UserProfileData {
   biometric_enrolled_at: string | null
   biometric_face_hash: string | null
   embedding_dimensions?: number | null
+  identity_status?: "NOT_VERIFIED" | "VERIFIED" | "REJECTED"
+  id_document_number?: string | null
+  id_document_type?: string | null
+  id_face_similarity_score?: number | null
+  identity_verified_at?: string | null
+  identity_rejection_reason?: string | null
 }
 
 export interface UserProfileUpdatePayload {
@@ -52,6 +58,15 @@ export interface BiometricEnrollPayload {
   frames?: string[]
   lighting_score: number
   face_centered: boolean
+}
+
+export interface IdentityVerifyPayload {
+  id_card_base64: string
+  selfie_base64: string
+  id_number: string
+  full_name: string
+  lighting_score?: number
+  face_centered?: boolean
 }
 
 export interface AvailabilitySlot {
