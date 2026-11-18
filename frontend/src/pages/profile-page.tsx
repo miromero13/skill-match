@@ -170,8 +170,7 @@ export function ProfilePage() {
       .slice(0, 2)
       .toUpperCase() || "MS"
 
-  const primarySkillName =
-    teachingSkills[0]?.skill_name || "Python Backend (Nivel 5)"
+  const primarySkillName = teachingSkills[0]?.skill_name
 
   const weekLabel = useMemo(() => {
     const base = new Date()
@@ -620,31 +619,35 @@ export function ProfilePage() {
                 </div>
               )}
 
-              {/* 3. QR_Habilidad_Seleccionada_Card (Idéntico a nodo n4483 de OpenPencil) */}
+              {/* 3. QR_Habilidad_Seleccionada_Card */}
               <div className="rounded-xl border border-primary/25 bg-primary/10 p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 text-primary font-bold text-xs">
                     <QrCode className="size-4 shrink-0" />
                     <span className="truncate">
-                      QR PÚBLICO: {primarySkillName}
+                      {primarySkillName ? `QR PÚBLICO: ${primarySkillName}` : "ENLACE PÚBLICO DE PERFIL"}
                     </span>
                   </div>
                   <span className="text-[11px] font-semibold text-primary shrink-0">
-                    Generado ✓
+                    Disponible ✓
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3.5">
                   <div className="flex size-20 shrink-0 flex-col items-center justify-center rounded-lg bg-zinc-900 text-white font-mono text-xs font-bold shadow-xs">
                     <QrCode className="size-8 mb-1 text-emerald-400" />
-                    <span>QR PY-5</span>
+                    <span>{primarySkillName ? "QR SKILL" : "QR PERFIL"}</span>
                   </div>
                   <div className="space-y-1 text-xs">
                     <p className="font-semibold text-foreground leading-snug">
-                      QR generado a demanda para esta habilidad específica.
+                      {primarySkillName
+                        ? `QR generado para ${primarySkillName}.`
+                        : "Código QR y enlace para compartir tu perfil verificado."}
                     </p>
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Al escanearlo, el reclutador audita la prueba de código (Pytest 4/4) y la respuesta oral GIL.
+                      {primarySkillName
+                        ? "Permite a otros miembros o reclutadores auditar tu nivel y credenciales."
+                        : "Comparte tu enlace público para recibir solicitudes de intercambio y conectar con la comunidad."}
                     </p>
                   </div>
                 </div>
@@ -904,53 +907,39 @@ export function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-2">
-              {/* Tarjetas destacadas estilo OpenPencil n4617 cuando aún no hay habilidades o como acceso rápido */}
-              <div className="space-y-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="size-4 text-primary shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold text-primary">
-                        Python Backend & FastAPI
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Nivel 5: Master · Score: 98/100
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={handleCopyAuditLink}
-                    className="h-7 text-xs gap-1.5"
-                  >
-                    <QrCode className="size-3.5" />
-                    QR Activo en Perfil ✓
-                  </Button>
+              {/* Tarjetas destacadas de habilidades verificadas reales (si existen) */}
+              {teachingSkills.filter((s) => s.status === "VERIFICADA").length > 0 && (
+                <div className="space-y-2.5">
+                  {teachingSkills
+                    .filter((s) => s.status === "VERIFICADA")
+                    .map((skill) => (
+                      <div
+                        key={skill.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-4 py-3"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <CheckCircle2 className="size-4 text-primary shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold text-primary">
+                              {skill.skill_name}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {skill.declared_level} · {skill.years_of_experience} {skill.years_of_experience === 1 ? "año" : "años"} exp.
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={handleCopyAuditLink}
+                          className="h-7 text-xs gap-1.5"
+                        >
+                          <QrCode className="size-3.5" />
+                          QR Activo en Perfil ✓
+                        </Button>
+                      </div>
+                    ))}
                 </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted/60 px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <CheckCircle2 className="size-4 text-primary shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold text-primary">
-                        Docker & Cloud Architecture
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Nivel 4: Avanzado · Score: 94/100
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCopyAuditLink}
-                    className="h-7 text-xs gap-1.5 text-primary"
-                  >
-                    <QrCode className="size-3.5" />
-                    Generar QR Público
-                  </Button>
-                </div>
-              </div>
+              )}
 
               {/* Secciones interactivas de Habilidades y Demandas de Aprendizaje */}
               <TeachingSkillsSection />

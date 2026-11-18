@@ -286,6 +286,10 @@ class FakeDatabase:
     async def scalar(self, _statement):
         return self.user
 
+    async def close(self):
+        """Match the session lifecycle used during the WebSocket handshake."""
+        pass
+
 
 def websocket_test_client(user):
     from fastapi import FastAPI
