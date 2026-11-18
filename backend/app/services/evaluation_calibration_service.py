@@ -13,6 +13,10 @@ from app.services.calibration_vision_service import CalibrationVisionService
 
 
 class EvaluationCalibrationService:
+    REQUIRED_CHECKS = {"lighting", "framing", "single_face", "microphone", "background_quiet",
+                       "identity", "liveness", "passive_screen_check", "single_speaker",
+                       "no_overlap", "mouth_audio_sync", "speech_pause"}
+
     @staticmethod
     async def owned(db, user, evaluation_id, *, lock=False):
         statement = select(Evaluation).where(Evaluation.id == evaluation_id, Evaluation.user_id == user.id)
@@ -41,7 +45,7 @@ class EvaluationCalibrationService:
         ).values(consumed_at=now))
         challenge = CalibrationChallenge(
             evaluation_id=evaluation.id, action=secrets.choice(("TURN_LEFT", "TURN_RIGHT")),
-            enrollment_hash=user.biometric_face_hash, expires_at=now + timedelta(seconds=5),
+            enrollment_hash=user.biometric_face_hash, expires_at=now + timedelta(seconds=45),
         )
         evaluation.status = "PENDING_CALIBRATION"
         db.add(challenge)
@@ -57,7 +61,8 @@ class EvaluationCalibrationService:
         ).order_by(CalibrationChallenge.created_at.desc(), CalibrationChallenge.id.desc()).limit(1))
         enrollment_matches = latest is not None and latest.enrollment_hash == user.biometric_face_hash
         checks = latest.checks if enrollment_matches and latest.checks else {}
-        ready = evaluation.status == "READY_FOR_THEORY" and bool(checks) and all(checks.values())
+        ready = (evaluation.status == "READY_FOR_THEORY"
+                 and set(checks) == cls.REQUIRED_CHECKS and all(value is True for value in checks.values()))
         return CalibrationStateResponse(
             evaluation_id=evaluation.id, ready=ready,
             status="READY_FOR_THEORY" if ready else "PENDING_CALIBRATION",
@@ -78,10 +83,10 @@ class EvaluationCalibrationService:
             raise SkillMatchException(statuscode=409, message="Tu enrolamiento cambió. Solicitá un nuevo reto.")
         checks = await run_in_threadpool(
             CalibrationVisionService.assess, payload.frames, payload.audio_samples,
-            payload.camera_label, challenge.action, user.biometric_embedding,
+            payload.camera_label, challenge.action, user.biometric_embedding, payload.ambient_audio_samples,
+            payload.spoken_frames,
         )
-        required = {"lighting", "framing", "single_face", "microphone", "identity", "liveness", "passive_screen_check"}
-        if set(checks) != required or not all(value is True for value in checks.values()):
+        if set(checks) != cls.REQUIRED_CHECKS or not all(value is True for value in checks.values()):
             raise SkillMatchException(statuscode=400, message="La calibración no completó todas las comprobaciones.")
         challenge.consumed_at = datetime.now(timezone.utc)
         challenge.checks = checks

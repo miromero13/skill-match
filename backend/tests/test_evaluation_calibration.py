@@ -8,7 +8,9 @@ from app.core.exceptions import SkillMatchException
 
 
 PAYLOAD = {"frames": ["frame-a", "frame-b", "frame-c"],
-           "audio_samples": [0.1] * 32, "camera_label": "Physical webcam"}
+           "audio_samples": [0.1] * 128000, "ambient_audio_samples": [0.0] * 48000,
+           "spoken_frames": [{"time_ms": index * 100, "image": "mock-jpeg"} for index in range(80)],
+           "camera_label": "Physical webcam"}
 
 
 async def prepare(scenario):
@@ -38,7 +40,7 @@ async def test_challenge_is_expiring_and_does_not_start_or_consume(scenario):
     data = response.json()["data"]
     assert data["action"] in ("TURN_LEFT", "TURN_RIGHT")
     expires = datetime.fromisoformat(data["expires_at"])
-    assert 0 < (expires - datetime.now(timezone.utc)).total_seconds() <= 5
+    assert 30 < (expires - datetime.now(timezone.utc)).total_seconds() <= 45
     state = await client.get(f"/api/evaluations/{evaluation_id}/environment/verify")
     assert state.json()["data"]["ready"] is False
     quota = (await client.get(endpoint(offer, "preflight"))).json()["data"]
@@ -50,8 +52,9 @@ async def test_success_is_single_use_and_never_starts_exam(scenario, monkeypatch
     from app.services.calibration_vision_service import CalibrationVisionService
     monkeypatch.setattr(CalibrationVisionService, "assess", lambda *args: {
         "lighting": True, "framing": True, "single_face": True,
-        "microphone": True, "identity": True, "liveness": True,
-        "passive_screen_check": True,
+        "microphone": True, "background_quiet": True, "identity": True, "liveness": True,
+        "passive_screen_check": True, "single_speaker": True, "no_overlap": True,
+        "mouth_audio_sync": True, "speech_pause": True,
     })
     client, _, _, offer = scenario
     evaluation_id = await prepare(scenario)
