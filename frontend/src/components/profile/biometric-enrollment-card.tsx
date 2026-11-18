@@ -19,40 +19,34 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { useProfileStore } from "@/stores/profile-store"
+import { useAuthStore } from "@/stores/auth-store"
 import { toast } from "sonner"
 
-export function BiometricEnrollmentCard() {
+export function BiometricEnrollmentCard({ onVerified }: { onVerified?: () => void } = {}) {
   const profile = useProfileStore((state) => state.profile)
   const isVerifying = useProfileStore((state) => state.isVerifyingIdentity)
   const verifyIdentity = useProfileStore((state) => state.verifyIdentity)
+  const authUser = useAuthStore((state) => state.user)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const animFrameRef = useRef<number | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const fileInputFrontRef = useRef<HTMLInputElement | null>(null)
+  const fileInputBackRef = useRef<HTMLInputElement | null>(null)
 
   const [activeStep, setActiveStep] = useState<1 | 2>(1)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [lightingScore, setLightingScore] = useState<number>(0)
 
-  // Datos del Carnet CI / DNI
-  const [idNumber, setIdNumber] = useState("")
-  const [fullName, setFullName] = useState(profile?.full_name ?? "")
-  const [cardImageBase64, setCardImageBase64] = useState<string | null>(null)
-  const [reverifyOpen, setReverifyOpen] = useState(false)
+  // Datos del Carnet CI / DNI (Anverso y Reverso)
+  const [frontImageBase64, setFrontImageBase64] = useState<string | null>(null)
+  const [backImageBase64, setBackImageBase64] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (profile?.full_name && !fullName) {
-      setFullName(profile.full_name)
-    }
-    if (profile?.id_document_number && !idNumber) {
-      setIdNumber(profile.id_document_number)
-    }
-  }, [profile, fullName, idNumber])
+  const accountName = profile?.full_name || authUser?.fullName || "Titular Registrado"
 
   // Medición continua de iluminación real leyendo píxeles del <video>
   const updateRealLighting = useCallback(() => {
@@ -139,7 +133,10 @@ export function BiometricEnrollmentCard() {
     }
   }
 
-  const handleCardFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    side: "front" | "back"
+  ) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -149,15 +146,20 @@ export function BiometricEnrollmentCard() {
     }
 
     if (file.size > 8 * 1024 * 1024) {
-      toast.error("La imagen del carnet supera el límite máximo de 8 MB.")
+      toast.error("La imagen supera el límite máximo de 8 MB.")
       return
     }
 
     const reader = new FileReader()
     reader.onload = () => {
       if (typeof reader.result === "string") {
-        setCardImageBase64(reader.result)
-        toast.success("Fotografía del carnet cargada correctamente.")
+        if (side === "front") {
+          setFrontImageBase64(reader.result)
+          toast.success("Anverso del carnet cargado correctamente.")
+        } else {
+          setBackImageBase64(reader.result)
+          toast.success("Reverso del carnet cargado correctamente.")
+        }
       }
     }
     reader.onerror = () => {
@@ -167,16 +169,12 @@ export function BiometricEnrollmentCard() {
   }
 
   const handleGoToCameraStep = () => {
-    if (!idNumber.trim()) {
-      toast.error("Ingresá el número de carnet de identidad o DNI.")
+    if (!frontImageBase64) {
+      toast.error("Cargá la fotografía del anverso de tu carnet de identidad.")
       return
     }
-    if (!fullName.trim()) {
-      toast.error("Ingresá el nombre completo tal como figura en el carnet.")
-      return
-    }
-    if (!cardImageBase64) {
-      toast.error("Cargá o capturá la fotografía del anverso de tu carnet de identidad.")
+    if (!backImageBase64) {
+      toast.error("Cargá la fotografía del reverso de tu carnet de identidad.")
       return
     }
     setActiveStep(2)
@@ -197,8 +195,8 @@ export function BiometricEnrollmentCard() {
       return
     }
 
-    if (!cardImageBase64) {
-      toast.error("Falta la fotografía del carnet de identidad.")
+    if (!frontImageBase64 || !backImageBase64) {
+      toast.error("Se requieren ambas fotografías (anverso y reverso del carnet).")
       setActiveStep(1)
       return
     }
@@ -216,19 +214,21 @@ export function BiometricEnrollmentCard() {
     const selfieDataUrl = canvas.toDataURL("image/jpeg", 0.95)
 
     const ok = await verifyIdentity({
-      id_card_base64: cardImageBase64,
+      id_card_base64: frontImageBase64,
+      id_card_back_base64: backImageBase64,
       selfie_base64: selfieDataUrl,
-      id_number: idNumber.trim(),
-      full_name: fullName.trim(),
+      id_number: profile?.id_document_number || "CI-AUTO",
+      full_name: accountName,
       lighting_score: Number((lightingScore / 100).toFixed(2)),
       face_centered: true,
     })
 
     if (ok) {
       stopCamera()
-      setReverifyOpen(false)
       setActiveStep(1)
-      setCardImageBase64(null)
+      setFrontImageBase64(null)
+      setBackImageBase64(null)
+      onVerified?.()
     }
   }
 
@@ -249,16 +249,16 @@ export function BiometricEnrollmentCard() {
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-lg">
               <IdCard className="size-5 text-primary" />
-              Verificación de Identidad con Carnet (CI/DNI) y Biometría Facial
+              Verificación de Identidad con Carnet (CI/DNI)
             </CardTitle>
             <CardDescription>
-              Cotejo 100% automático y local con OpenCV (YuNet + SFace). Compara la fotografía de tu carnet oficial contra tu rostro en vivo para erradicar cualquier intento de suplantación.
+              Cotejo automático entre las dos caras de tu documento oficial y tu rostro en vivo para validar tu identidad.
             </CardDescription>
           </div>
           {isVerified ? (
             <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 gap-1.5 px-3 py-1">
               <CheckCircle2 className="size-3.5" />
-              Identidad y Biometría Verificada
+              Identidad Verificada
             </Badge>
           ) : isEnrolled ? (
             <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 gap-1.5 px-3 py-1">
@@ -275,7 +275,7 @@ export function BiometricEnrollmentCard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {isVerified && !reverifyOpen ? (
+        {isVerified ? (
           <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-500/15 pb-2.5">
               <div className="flex items-center gap-2">
@@ -289,15 +289,7 @@ export function BiometricEnrollmentCard() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-muted-foreground pt-1">
-              <div>
-                <span className="block font-medium text-foreground">Similitud Facial 1:1</span>
-                <span>
-                  {profile?.id_face_similarity_score !== null && profile?.id_face_similarity_score !== undefined
-                    ? `${Math.round(profile.id_face_similarity_score * 100)}% de coincidencia`
-                    : "100% verificado"}
-                </span>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground pt-1">
               <div>
                 <span className="block font-medium text-foreground">Fecha de Verificación</span>
                 <span>
@@ -307,26 +299,21 @@ export function BiometricEnrollmentCard() {
                 </span>
               </div>
               <div>
-                <span className="block font-medium text-foreground">Rostro Testigo Activo</span>
-                <span>Vector local OpenCV SFace ({profile?.embedding_dimensions ?? 128}-d)</span>
+                <span className="block font-medium text-foreground">Estado</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Identidad Oficial Verificada ✓</span>
               </div>
             </div>
 
-            {profile?.biometric_face_hash && (
-              <p className="font-mono text-[10px] text-muted-foreground/80 break-all pt-1 border-t border-emerald-500/10">
-                Firma Criptográfica SHA-256: {profile.biometric_face_hash}
-              </p>
-            )}
-
-            <div className="pt-2 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setReverifyOpen(true)}
-                className="text-xs"
-              >
-                Actualizar Documento o Reverificar
-              </Button>
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-emerald-500/10">
+              <div className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+                <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>Documento e identidad vinculados de forma inmutable</span>
+              </div>
+              {onVerified && (
+                <Button size="sm" onClick={onVerified} className="text-xs h-7">
+                  Cerrar
+                </Button>
+              )}
             </div>
           </div>
         ) : (
@@ -350,7 +337,7 @@ export function BiometricEnrollmentCard() {
                     : "text-muted-foreground"
                 }`}
               >
-                1. Carnet de Identidad (CI/DNI)
+                1. Carnet (Anverso y Reverso)
               </span>
               <span className="text-muted-foreground">→</span>
               <span
@@ -364,101 +351,172 @@ export function BiometricEnrollmentCard() {
               </span>
             </div>
 
-            {/* PASO 1: Captura de Carnet */}
+            {/* PASO 1: Captura de Carnet (Anverso y Reverso) */}
             {activeStep === 1 && (
               <div className="space-y-4 pt-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ci-number" className="text-xs">
-                      Número de Carnet de Identidad o DNI *
-                    </Label>
-                    <Input
-                      id="ci-number"
-                      placeholder="Ej. 8472910"
-                      value={idNumber}
-                      onChange={(e) => setIdNumber(e.target.value)}
-                      className="text-sm font-mono"
-                    />
+                {/* Banner informativo del titular sin inputs manuales */}
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                      Titular Oficial de la Cuenta a Contrastar
+                    </span>
+                    <p className="text-sm font-bold text-foreground">
+                      {accountName}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      El número de carnet y tu nombre se contrastarán automáticamente desde las fotografías del documento sin necesidad de escribirlos a mano.
+                    </p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ci-fullname" className="text-xs">
-                      Nombre Completo en el Carnet *
-                    </Label>
-                    <Input
-                      id="ci-fullname"
-                      placeholder="Nombres y Apellidos"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="text-sm"
-                    />
-                  </div>
+                  <Badge variant="outline" className="text-[11px] bg-background shrink-0 gap-1 font-medium">
+                    <CheckCircle2 className="size-3 text-primary" />
+                    Cuenta Verificada
+                  </Badge>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Fotografía del Anverso del Carnet (CI/DNI) *</Label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleCardFileChange}
-                    className="hidden"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* ANVERSO */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold flex items-center gap-1.5">
+                        <IdCard className="size-4 text-primary" />
+                        1. Anverso (Frontal) *
+                      </Label>
+                      {frontImageBase64 ? (
+                        <Badge variant="default" className="text-[10px] bg-emerald-600 hover:bg-emerald-600 px-1.5 py-0">
+                          Cargado ✓
+                        </Badge>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">Obligatorio</span>
+                      )}
+                    </div>
+                    <input
+                      ref={fileInputFrontRef}
+                      type="file"
+                      accept="image/*"
+                      data-testid="input-front-card"
+                      onChange={(e) => handleFileUpload(e, "front")}
+                      className="hidden"
+                    />
 
-                  {cardImageBase64 ? (
-                    <div className="relative rounded-xl border bg-muted/20 p-3 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={cardImageBase64}
-                          alt="Carnet CI"
-                          className="h-14 w-24 object-cover rounded-md border shadow-xs"
-                        />
-                        <div className="text-xs">
-                          <p className="font-medium text-foreground">Carnet de identidad cargado</p>
+                    {frontImageBase64 ? (
+                      <div className="relative rounded-xl border bg-muted/20 p-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={frontImageBase64}
+                            alt="Anverso carnet"
+                            className="h-14 w-20 object-cover rounded-md border shadow-xs shrink-0"
+                          />
+                          <div className="text-xs min-w-0">
+                            <p className="font-medium text-foreground truncate">Anverso cargado</p>
+                            <p className="text-muted-foreground text-[11px] truncate">
+                              Fotografía oficial y datos
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setFrontImageBase64(null)}
+                          className="shrink-0"
+                          aria-label="Eliminar anverso"
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => fileInputFrontRef.current?.click()}
+                        className="cursor-pointer border-2 border-dashed border-border/80 hover:border-primary/50 rounded-xl p-5 text-center space-y-2 bg-muted/10 transition-colors"
+                      >
+                        <Upload className="size-6 mx-auto text-muted-foreground" />
+                        <div className="text-xs space-y-0.5">
+                          <p className="font-semibold text-foreground">
+                            Cargar anverso del carnet
+                          </p>
                           <p className="text-muted-foreground text-[11px]">
-                            Listo para la detección facial con YuNet
+                            Debe apreciarse la foto del titular y el documento
                           </p>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setCardImageBase64(null)}
-                      >
-                        <X className="size-4" />
-                      </Button>
+                    )}
+                  </div>
+
+                  {/* REVERSO */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold flex items-center gap-1.5">
+                        <FileCheck2 className="size-4 text-primary" />
+                        2. Reverso (Posterior) *
+                      </Label>
+                      {backImageBase64 ? (
+                        <Badge variant="default" className="text-[10px] bg-emerald-600 hover:bg-emerald-600 px-1.5 py-0">
+                          Cargado ✓
+                        </Badge>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">Obligatorio</span>
+                      )}
                     </div>
-                  ) : (
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="cursor-pointer border-2 border-dashed border-border/80 hover:border-primary/50 rounded-xl p-6 text-center space-y-2 bg-muted/10 transition-colors"
-                    >
-                      <Upload className="size-7 mx-auto text-muted-foreground" />
-                      <div className="text-xs space-y-0.5">
-                        <p className="font-semibold text-foreground">
-                          Hacé clic para cargar la foto de tu carnet de identidad
-                        </p>
-                        <p className="text-muted-foreground text-[11px]">
-                          Formatos admitidos: JPG, PNG. Debe verse la foto del titular y el documento nítido.
-                        </p>
+                    <input
+                      ref={fileInputBackRef}
+                      type="file"
+                      accept="image/*"
+                      data-testid="input-back-card"
+                      onChange={(e) => handleFileUpload(e, "back")}
+                      className="hidden"
+                    />
+
+                    {backImageBase64 ? (
+                      <div className="relative rounded-xl border bg-muted/20 p-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={backImageBase64}
+                            alt="Reverso carnet"
+                            className="h-14 w-20 object-cover rounded-md border shadow-xs shrink-0"
+                          />
+                          <div className="text-xs min-w-0">
+                            <p className="font-medium text-foreground truncate">Reverso cargado</p>
+                            <p className="text-muted-foreground text-[11px] truncate">
+                              Código de barras / MRZ y sellos
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setBackImageBase64(null)}
+                          className="shrink-0"
+                          aria-label="Eliminar reverso"
+                        >
+                          <X className="size-4" />
+                        </Button>
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div
+                        onClick={() => fileInputBackRef.current?.click()}
+                        className="cursor-pointer border-2 border-dashed border-border/80 hover:border-primary/50 rounded-xl p-5 text-center space-y-2 bg-muted/10 transition-colors"
+                      >
+                        <Upload className="size-6 mx-auto text-muted-foreground" />
+                        <div className="text-xs space-y-0.5">
+                          <p className="font-semibold text-foreground">
+                            Cargar reverso del carnet
+                          </p>
+                          <p className="text-muted-foreground text-[11px]">
+                            Debe apreciarse el código de barras o MRZ
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex justify-between items-center pt-2">
-                  {reverifyOpen && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setReverifyOpen(false)}
-                      className="text-xs"
-                    >
-                      Cancelar
-                    </Button>
-                  )}
+                <div className="flex flex-wrap justify-between items-center gap-3 pt-2">
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                    <ShieldAlert className="size-3.5 text-amber-500 shrink-0" />
+                    <span>Se requieren ambas caras del documento físico para validar autenticidad.</span>
+                  </div>
                   <Button
                     onClick={handleGoToCameraStep}
-                    disabled={!idNumber.trim() || !fullName.trim() || !cardImageBase64}
+                    disabled={!frontImageBase64 || !backImageBase64}
                     className="ml-auto gap-2"
                   >
                     Siguiente: Cotejo Facial en Vivo
@@ -534,7 +592,8 @@ export function BiometricEnrollmentCard() {
                       <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5 text-xs text-muted-foreground leading-relaxed">
                         <p className="font-medium text-foreground">Reglas de verificación automática:</p>
                         <ul className="list-disc pl-4 space-y-1 text-[11px]">
-                          <li>Tu rostro en vivo debe coincidir con la foto del carnet (CI: {idNumber}).</li>
+                          <li>Tu rostro en vivo debe coincidir con la foto del anverso del carnet.</li>
+                          <li>El nombre del documento debe coincidir con {accountName}.</li>
                           <li>Mirá a la cámara dentro de la guía oval con buena luz frontal.</li>
                           <li>La IA rechazará automáticamente cualquier intento de suplantación.</li>
                         </ul>

@@ -33,17 +33,18 @@ export function FeedPage() {
   const isLoading = isTeachingLoading || isLearningLoading
 
   return (
-    <div className="flex-1 p-4 lg:p-6 bg-muted/20 min-h-screen">
-      <div className="mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* CENTER COLUMN: Main Feed (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
+    <div className="flex-1 flex flex-col lg:flex-row h-full overflow-y-auto lg:overflow-hidden bg-muted/20">
+      {/* CENTER COLUMN: Main Feed (Independent scroll) */}
+      <div className="flex-1 min-w-0 h-full lg:overflow-y-auto p-4 lg:p-6">
+        <div className="mx-auto max-w-3xl space-y-6">
           <MatchSuggestions preview />
         </div>
+      </div>
 
-        {/* RIGHT COLUMN: User Widgets & Next Session (4 cols) */}
-        <div className="lg:col-span-4 space-y-5">
-          {/* Card 1: Tus Habilidades */}
-          <Card className="rounded-xl border shadow-xs bg-card">
+      {/* RIGHT COLUMN: User Widgets & Next Session (Independent scroll) */}
+      <div className="w-full lg:w-80 xl:w-96 shrink-0 h-full lg:overflow-y-auto p-4 lg:p-6 space-y-5 border-t lg:border-t-0 lg:border-l border-border/60 bg-card/20 pb-12 lg:pb-6">
+        {/* Card 1: Tus Habilidades */}
+        <Card className="rounded-xl border shadow-xs bg-card">
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between pb-1">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -163,6 +164,5 @@ export function FeedPage() {
           </Card>
         </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
