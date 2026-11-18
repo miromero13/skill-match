@@ -71,23 +71,104 @@ async def migrated_schema():
                 await connection.commit()
                 await migrate(connection, schema, PARENT)
                 # Data predates the new revision, testing an actual HU-14 upgrade.
-                async with AsyncSession(bind=connection, expire_on_commit=False) as db:
-                    user = User(id=uuid4(), email="migration@example.invalid", full_name="Migration", role="MEMBER")
-                    category = Category(id=uuid4(), name="Migration", slug="migration", is_active=True)
-                    db.add_all([user, category])
-                    await db.flush()
-                    skill = Skill(id=uuid4(), category_id=category.id, name="Migration", slug="migration", is_active=True)
-                    db.add(skill)
-                    await db.flush()
-                    offers = [TeachingSkill(
-                        id=uuid4(), user_id=user.id, skill_id=skill.id,
-                        declared_level="BEGINNER", years_of_experience=1, accepts_points=False,
-                    ) for _ in range(2)]
-                    # HU-14 has no UNIQUE in the real schema. Do not silently repair it here.
-                    db.add_all(offers)
-                    await db.commit()
+                now = datetime.now(timezone.utc)
+                user_id = uuid4()
+                cat_id = uuid4()
+                skill_1_id = uuid4()
+                skill_2_id = uuid4()
+                offer_ids = [uuid4(), uuid4()]
+
+                await connection.execute(
+                    text("""
+                        INSERT INTO users (id, email, full_name, role, is_active, is_locked, failed_login_attempts, created_at, updated_at)
+                        VALUES (:id, :email, :full_name, :role, :is_active, :is_locked, :failed_login_attempts, :created_at, :updated_at)
+                    """),
+                    {
+                        "id": user_id,
+                        "email": "migration@example.invalid",
+                        "full_name": "Migration",
+                        "role": "MEMBER",
+                        "is_active": True,
+                        "is_locked": False,
+                        "failed_login_attempts": 0,
+                        "created_at": now,
+                        "updated_at": now,
+                    },
+                )
+                await connection.execute(
+                    text("""
+                        INSERT INTO categories (id, name, slug, description, is_active, created_at, updated_at)
+                        VALUES (:id, :name, :slug, :description, :is_active, :created_at, :updated_at)
+                    """),
+                    {
+                        "id": cat_id,
+                        "name": "Migration",
+                        "slug": "migration",
+                        "description": None,
+                        "is_active": True,
+                        "created_at": now,
+                        "updated_at": now,
+                    },
+                )
+                await connection.execute(
+                    text("""
+                        INSERT INTO skills (id, category_id, name, slug, description, min_approval_threshold, is_ready_to_publish, is_active, created_at, updated_at)
+                        VALUES (:id, :category_id, :name, :slug, :description, :min_approval_threshold, :is_ready_to_publish, :is_active, :created_at, :updated_at)
+                    """),
+                    {
+                        "id": skill_1_id,
+                        "category_id": cat_id,
+                        "name": "Migration Skill 1",
+                        "slug": "migration-skill-1",
+                        "description": None,
+                        "min_approval_threshold": 70.0,
+                        "is_ready_to_publish": True,
+                        "is_active": True,
+                        "created_at": now,
+                        "updated_at": now,
+                    },
+                )
+                await connection.execute(
+                    text("""
+                        INSERT INTO skills (id, category_id, name, slug, description, min_approval_threshold, is_ready_to_publish, is_active, created_at, updated_at)
+                        VALUES (:id, :category_id, :name, :slug, :description, :min_approval_threshold, :is_ready_to_publish, :is_active, :created_at, :updated_at)
+                    """),
+                    {
+                        "id": skill_2_id,
+                        "category_id": cat_id,
+                        "name": "Migration Skill 2",
+                        "slug": "migration-skill-2",
+                        "description": None,
+                        "min_approval_threshold": 70.0,
+                        "is_ready_to_publish": True,
+                        "is_active": True,
+                        "created_at": now,
+                        "updated_at": now,
+                    },
+                )
+                for oid, sid in zip(offer_ids, [skill_1_id, skill_2_id]):
+                    await connection.execute(
+                        text("""
+                            INSERT INTO user_teaching_skills (id, user_id, skill_id, declared_level, years_of_experience, description, accepts_points, hourly_points_rate, status, created_at, updated_at)
+                            VALUES (:id, :user_id, :skill_id, :declared_level, :years_of_experience, :description, :accepts_points, :hourly_points_rate, :status, :created_at, :updated_at)
+                        """),
+                        {
+                            "id": oid,
+                            "user_id": user_id,
+                            "skill_id": sid,
+                            "declared_level": "BEGINNER",
+                            "years_of_experience": 1,
+                            "description": None,
+                            "accepts_points": False,
+                            "hourly_points_rate": None,
+                            "status": "DECLARADA",
+                            "created_at": now,
+                            "updated_at": now,
+                        },
+                    )
+                await connection.commit()
                 await migrate(connection, schema, REVISION)
-                yield connection, schema, [offer.id for offer in offers]
+                yield connection, schema, offer_ids
             finally:
                 await connection.rollback()
                 await connection.execute(text("SET search_path TO public"))
@@ -250,9 +331,11 @@ async def test_concurrent_api_requests_return_created_and_conflict(migrated_sche
     from httpx import ASGITransport, AsyncClient
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
+    from app.core.deps import get_current_user
     from app.core.security import create_access_token
     from app.db.session import get_db
     from app.main import create_application
+    from app.models.user import UserRole
 
     connection, schema, offers = migrated_schema
     owner_id = await connection.scalar(select(TeachingSkill.user_id).where(TeachingSkill.id == offers[0]))
@@ -273,7 +356,18 @@ async def test_concurrent_api_requests_return_created_and_conflict(migrated_sche
                 await db.rollback()
                 raise
 
+    dummy_user = User(
+        id=owner_id,
+        email="migration@example.invalid",
+        full_name="Migration",
+        role=UserRole.MEMBER,
+        is_active=True,
+    )
+    async def override_current_user():
+        return dummy_user
+
     app.dependency_overrides[get_db] = isolated_db
+    app.dependency_overrides[get_current_user] = override_current_user
     token = create_access_token(str(owner_id), "MEMBER", timedelta(minutes=5))
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
