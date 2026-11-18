@@ -528,6 +528,8 @@ export function AdminDatasetCapturePage() {
         lastUploadMessage: `¡Lote procesado exitosamente! Se subieron ${uploadedCount} de ${batchFiles.length} muestras reales al bucket Garage S3.`,
       })
 
+      setBatchFiles((prev) => prev.filter((f) => f.status !== "done"))
+      setBatchProgress(null)
       await fetchSamples(discipline === "all" ? undefined : discipline)
       return
     }

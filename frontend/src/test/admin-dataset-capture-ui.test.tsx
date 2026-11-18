@@ -212,6 +212,108 @@ describe("AdminDatasetCapturePage", () => {
     )
   })
 
+  it("never reuses the same auto participant id across consecutive single-file uploads", async () => {
+    // Reproduces the real bug: uploading one file at a time (not a multi-file
+    // batch) must still yield a unique anon-pNN per upload, derived from how
+    // many football samples already exist, not from the position within the
+    // current (always-length-1) batch.
+    const user = userEvent.setup()
+    const { uploadDatasetSample, getDatasetSamples } = await import(
+      "@/services/dataset-sample-service"
+    )
+
+    let storedSamples: Array<{ id: string; discipline: string; participant_id: string }> = []
+    vi.mocked(uploadDatasetSample).mockImplementation(async (payload: any) => {
+      storedSamples.push({
+        id: `sample-${storedSamples.length + 1}`,
+        discipline: payload.discipline,
+        participant_id: payload.participant_id,
+      })
+      return { statuscode: 201, message: "Muestra subida.", data: null }
+    })
+    vi.mocked(getDatasetSamples).mockImplementation(async () => ({
+      statuscode: 200,
+      message: "OK",
+      data: storedSamples.map((s) => ({
+        id: s.id,
+        discipline: s.discipline,
+        participant_id: s.participant_id,
+        challenge: "Dominadas de Balón",
+        hardware_info: "Auto",
+        signed_consent: true,
+        file_format: "mp4",
+        file_size_bytes: 1024,
+        file_hash_sha256: "a".repeat(64),
+        storage_path: `datasets/futbol/${s.id}.mp4`,
+        created_at: "2026-11-18T00:00:00Z",
+        updated_at: "2026-11-18T00:00:00Z",
+      })),
+      count: storedSamples.length,
+    }))
+
+    render(
+      <MemoryRouter>
+        <AdminDatasetCapturePage />
+      </MemoryRouter>
+    )
+
+    await user.click(
+      screen.getByRole("switch", { name: /Consentimiento Informado Firmado/i })
+    )
+    await user.click(screen.getByRole("combobox", { name: /Nivel real del participante/i }))
+    await user.click(await screen.findByRole("option", { name: "Intermedio" }))
+
+    const { waitFor } = await import("@testing-library/react")
+
+    for (const name of ["clip-a.mp4", "clip-b.mp4", "clip-c.mp4"]) {
+      const input = screen.getByLabelText(/Carga Múltiple de Archivos Reales/i)
+      await user.upload(input, [new File(["clip"], name, { type: "video/mp4" })])
+
+      const uploadBtn = screen.getByRole("button", {
+        name: /Subir Muestra al Dataset de IA/i,
+      })
+      await user.click(uploadBtn)
+
+      await waitFor(() => {
+        expect(storedSamples.length).toBeGreaterThanOrEqual(
+          ["clip-a.mp4", "clip-b.mp4", "clip-c.mp4"].indexOf(name) + 1
+        )
+      })
+    }
+
+    const participantIds = storedSamples.map((s) => s.participant_id)
+    expect(participantIds).toEqual(["anon-p01", "anon-p02", "anon-p03"])
+    expect(new Set(participantIds).size).toBe(3)
+
+    // mockImplementation (unlike the factory's mockResolvedValue) survives
+    // vi.clearAllMocks() in the next test's beforeEach; restore the default.
+    vi.mocked(getDatasetSamples).mockResolvedValue({
+      statuscode: 200,
+      message: "OK",
+      data: [
+        {
+          id: "sample-1",
+          discipline: "futbol",
+          challenge: "Dominadas de Balón",
+          hardware_info: "Logitech C920",
+          signed_consent: true,
+          file_format: "mp4",
+          file_size_bytes: 5242880,
+          file_hash_sha256: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          storage_path: "datasets/futbol/sample-1.mp4",
+          created_at: "2026-11-15T12:00:00Z",
+          updated_at: "2026-11-15T12:00:00Z",
+        },
+      ],
+      count: 1,
+    })
+    vi.mocked(uploadDatasetSample).mockResolvedValue({
+      statuscode: 201,
+      message: "Muestra multimedia subida y procesada exitosamente.",
+      data: null,
+    })
+  })
+
   it("blocks football batch upload without an explicit level, then allows it once selected", async () => {
     const user = userEvent.setup()
     const { uploadDatasetSample } = await import("@/services/dataset-sample-service")
