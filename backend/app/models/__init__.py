@@ -3,6 +3,7 @@ from app.models.user import User, UserRole, ExchangeModality
 from app.models.wallet import Wallet
 from app.models.revoked_token import RevokedToken
 from app.models.evaluation import Evaluation
+from app.models.theory_question import TheoryQuestion
 from app.models.browser_supervision import BrowserTrial, BrowserIncident
 from app.models.calibration import CalibrationChallenge
 from app.models.catalog import Category, ChallengeType, Skill, SkillLevel, Rubric
@@ -33,7 +34,7 @@ from app.models.user_block import UserBlock
 from app.models.user_report import ReportReason, ReportStatus, UserReport
 
 __all__ = [
-    "BrowserTrial", "BrowserIncident",
+    "TheoryQuestion", "BrowserTrial", "BrowserIncident",
     "Base", "TimestampMixin", "User", "UserRole", "ExchangeModality", "Wallet", "RevokedToken", "Evaluation", "CalibrationChallenge", "Category", "ChallengeType",
     "Skill", "SkillLevel", "Rubric", "UserLearningSkill", "UrgencyLevel", "TeachingSkill", 
     "EvidenceType", "SkillEvidence", "DatasetSample",

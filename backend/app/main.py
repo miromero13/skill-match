@@ -17,6 +17,7 @@ from app.api.health import health_router
 from app.api.admin.auth import admin_auth_router
 from app.api.admin.router import router as admin_management_router
 from app.api.admin.catalog import router as admin_catalog_router
+from app.api.admin.theory_questions import router as theory_question_router
 from app.api.auth import auth_router
 from app.api.evaluations import router as evaluation_preflight_router
 from app.api.browser_supervision import router as browser_supervision_router
@@ -94,6 +95,7 @@ def create_application() -> FastAPI:
     app.include_router(admin_auth_router, prefix="/api")
     app.include_router(admin_management_router, prefix="/api")
     app.include_router(admin_catalog_router, prefix="/api")
+    app.include_router(theory_question_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
     app.include_router(evaluation_preflight_router, prefix="/api")
     app.include_router(browser_supervision_router, prefix="/api")
