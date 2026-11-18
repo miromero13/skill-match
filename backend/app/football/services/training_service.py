@@ -5,6 +5,7 @@ import sys
 import tempfile
 import time
 import uuid
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -123,6 +124,7 @@ async def train_football_level_model(
     sample_ids: list[uuid.UUID] | None = None,
     skill_id: uuid.UUID | None = None,
     seed: int = 2026,
+    on_progress: Callable[[int, int, str], None] | None = None,
 ) -> dict[str, Any]:
     """
     Train an L2-regularized multinomial level classifier exclusively on real football
@@ -130,6 +132,10 @@ async def train_football_level_model(
     export a self-contained `.onnx` artifact, and register the version in `model_versions`.
     There is no synthetic data path: training fails explicitly (400) when there are no
     usable real samples, instead of ever mixing in code-generated data.
+
+    `on_progress(processed, total, message)` is called once per candidate sample,
+    before feature extraction, so a caller (e.g. the Celery task) can report live
+    progress. It never affects which samples are used for training.
     """
     # 1. Fetch available samples from dataset_samples
     stmt = (
@@ -152,8 +158,11 @@ async def train_football_level_model(
     # Build dataset from database records and extract real vision features
     dataset: list[dict[str, Any]] = []
     skipped_extraction_failures = 0
+    total_candidates = len(filtered_db_samples)
 
-    for s in filtered_db_samples:
+    for idx, s in enumerate(filtered_db_samples, start=1):
+        if on_progress is not None:
+            on_progress(idx, total_candidates, f"Extrayendo features de muestra {idx}/{total_candidates}")
         if not s.level_label or s.level_label not in LEVELS:
             continue
         level_idx = LEVELS.index(s.level_label)

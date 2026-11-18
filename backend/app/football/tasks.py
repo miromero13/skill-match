@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import uuid
+from collections.abc import Coroutine
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
-from celery import Celery
+from celery import Celery, Task
 
 from app.core.config import settings
 from app.football.config import load_football_config
@@ -27,6 +31,26 @@ from app.football.pipeline.touch_events import detect_video_touch_events
 
 logger = logging.getLogger("skillmatch.football.tasks")
 
+_T = TypeVar("_T")
+
+
+def _run_coroutine_sync(coro: Coroutine[Any, Any, _T]) -> _T:
+    """
+    Run an async DB-bound coroutine from a sync Celery task. A real Celery worker
+    has no running event loop, so `asyncio.run` works directly. `task_always_eager`
+    (used in tests) executes the task inline inside the caller's own event loop,
+    where `asyncio.run` would raise; in that case run it on a dedicated thread
+    with its own loop instead.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        return executor.submit(asyncio.run, coro).result()
+
+
 celery_app = Celery(
     "skillmatch_football",
     broker=settings.REDIS_URL,
@@ -42,6 +66,9 @@ celery_app.conf.update(
     task_track_started=True,
     task_always_eager=settings.CELERY_TASK_ALWAYS_EAGER,
     task_eager_propagates=True,
+    # In eager mode (dev/tests) also persist the outcome in the result backend so
+    # `AsyncResult(task_id)` (the training status endpoint) can find it.
+    task_store_eager_result=True,
 )
 
 
@@ -239,3 +266,57 @@ def process_session(
         "fraud": fraud_payload,
         "processed_at": datetime.now(UTC).isoformat(),
     }
+
+
+@celery_app.task(name="football.train_level_model", bind=True)
+def train_level_model_task(
+    self: Task,
+    version_tag: str | None = None,
+    activate: bool = True,
+    dataset_source: str = "all",
+    sample_ids: list[str] | None = None,
+    skill_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Celery entrypoint for training the football level classifier. Opens its own
+    async DB engine/session (training is not request-scoped once queued) and reports
+    `processed`/`total`/`message` via `self.update_state` as each dataset_sample
+    is processed, so the Training Studio can poll real progress instead of
+    blocking on a single HTTP call.
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    from app.football.services.training_service import train_football_level_model
+
+    # `self.request` is thread-local; the coroutine may run on a helper thread
+    # (see `_run_coroutine_sync`), so capture the id here instead of reading it there.
+    task_id = self.request.id
+
+    def on_progress(processed: int, total: int, message: str) -> None:
+        self.update_state(
+            task_id=task_id,
+            state="PROGRESS",
+            meta={"processed": processed, "total": total, "message": message},
+        )
+
+    async def _run() -> dict[str, Any]:
+        # Each task run executes in its own event loop (`asyncio.run`), so it can't
+        # reuse the app-wide pooled engine whose connections are bound to another
+        # loop. A throwaway NullPool engine keeps connections loop-local.
+        engine = create_async_engine(settings.async_database_url, poolclass=NullPool)
+        try:
+            async with AsyncSession(engine, expire_on_commit=False) as db:
+                return await train_football_level_model(
+                    db=db,
+                    version_tag=version_tag,
+                    activate=activate,
+                    dataset_source=dataset_source,
+                    sample_ids=[uuid.UUID(s) for s in sample_ids] if sample_ids else None,
+                    skill_id=uuid.UUID(skill_id) if skill_id else None,
+                    on_progress=on_progress,
+                )
+        finally:
+            await engine.dispose()
+
+    return _run_coroutine_sync(_run())
