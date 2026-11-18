@@ -46,6 +46,8 @@ export interface CalibrationEvidence {
   challenge_id: string
   frames: string[]
   audio_samples: number[]
+  ambient_audio_samples: number[]
+  spoken_frames: { time_ms: number; image: string }[]
   camera_label: string
 }
 
