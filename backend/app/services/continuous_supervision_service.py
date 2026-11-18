@@ -609,11 +609,10 @@ class ContinuousSupervisionService:
     def _detect_multi_speaker_or_background_media(
         cls,
         audio: np.ndarray,
-        chunk_rms: np.ndarray,
         voiced_flags: list[bool],
         trial_key: Optional[str],
     ) -> bool:
-        """Detects multiple speakers, overlapping voices, or background TV/media alongside speech."""
+        """Detects multiple speakers or overlapping voices using Sherpa-ONNX Pyannote diarization."""
         state: dict[str, Any] = {}
         if trial_key:
             state = cls._trial_audio_state.get(trial_key, {})
@@ -624,103 +623,35 @@ class ContinuousSupervisionService:
                     cls._trial_audio_state.popitem(last=False)
                 cls._trial_audio_state[trial_key] = state
 
-        prev_audio = state.get("prev_audio")
+        # Only store and concatenate windows where real voice activity was detected
+        prev_audio = state.get("prev_voiced_audio")
         if prev_audio is not None and isinstance(prev_audio, np.ndarray) and prev_audio.size > 0:
             combined_audio = np.concatenate([prev_audio[-38400:], audio])
         else:
             combined_audio = audio
-        if trial_key:
-            state["prev_audio"] = audio[-38400:].copy()
 
-        # 1. Continuous background floor check (TV series / radio / background dialogue fills inter-word pauses)
-        total_chunks = len(chunk_rms)
-        voiced_count = sum(1 for v in voiced_flags if v)
-        voiced_ratio = voiced_count / max(total_chunks, 1)
-        if total_chunks >= 20:
-            p15 = float(np.percentile(chunk_rms, 15))
-            p25 = float(np.percentile(chunk_rms, 25))
-            p85 = float(np.percentile(chunk_rms, 85))
-            if voiced_ratio >= 0.78 and p25 >= 0.008 and (p25 / max(p85, 1e-4)) >= 0.20:
-                return True
-            if p15 >= 0.011 and (p15 / max(p85, 1e-4)) >= 0.24:
-                return True
+        if trial_key and sum(1 for v in voiced_flags if v) >= 6:
+            state["prev_voiced_audio"] = audio[-38400:].copy()
 
-        # 2. Sherpa-ONNX Pyannote speaker segmentation + 512-d speaker embedding divergence
-        if combined_audio.size >= 24000:
+        # Require at least 1.5s of audio with sufficient speech before running Pyannote diarization
+        if combined_audio.size >= 24000 and sum(1 for v in voiced_flags if v) >= 8:
             try:
-                import sherpa_onnx
-                from app.services.calibration_speaker_service import (
-                    EMBEDDING_MODEL,
-                    SEGMENTATION_MODEL,
-                )
+                from app.services.calibration_speaker_service import CalibrationSpeakerService
 
-                if SEGMENTATION_MODEL.is_file() and EMBEDDING_MODEL.is_file():
-                    peak = float(np.percentile(np.abs(combined_audio), 98))
-                    gain = min(14.0, 0.55 / max(peak, 1e-4))
-                    diar_audio = np.clip(combined_audio * gain, -1.0, 1.0).astype(np.float32)
-
-                    config = sherpa_onnx.OfflineSpeakerDiarizationConfig(
-                        segmentation=sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
-                            pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(
-                                model=str(SEGMENTATION_MODEL),
-                                window_shift_ratio=0.1,
-                            ),
-                            num_threads=1,
-                        ),
-                        embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(
-                            model=str(EMBEDDING_MODEL), num_threads=1
-                        ),
-                        clustering=sherpa_onnx.FastClusteringConfig(
-                            num_clusters=-1, threshold=0.38
-                        ),
-                        min_duration_on=0.15,
-                        min_duration_off=0.15,
-                    )
-                    if config.validate():
-                        diarizer = sherpa_onnx.OfflineSpeakerDiarization(config)
-                        segments = list(diarizer.process(diar_audio).sort_by_start_time())
-                        speakers = {
-                            item.speaker
-                            for item in segments
-                            if (item.end - item.start) >= 0.15
-                        }
-                        if len(speakers) > 1:
-                            return True
-                        for i, first in enumerate(segments):
-                            for second in segments[i + 1 :]:
-                                if (
-                                    first.speaker != second.speaker
-                                    and min(first.end, second.end) - max(first.start, second.start) >= 0.06
-                                ):
-                                    return True
-
-                    # Sub-window 512-d speaker embedding divergence check (0.8s slices)
-                    ext_cfg = sherpa_onnx.SpeakerEmbeddingExtractorConfig(
-                        model=str(EMBEDDING_MODEL), num_threads=1
-                    )
-                    extractor = sherpa_onnx.SpeakerEmbeddingExtractor(ext_cfg)
-                    slice_len = 12800  # 0.8s at 16kHz
-                    step_len = 8000    # 0.5s step
-                    embeddings: list[np.ndarray] = []
-                    for start in range(0, diar_audio.size - slice_len + 1, step_len):
-                        sub = diar_audio[start : start + slice_len]
-                        if float(np.sqrt(np.mean(np.square(sub)))) >= 0.020:
-                            stream = extractor.create_stream()
-                            stream.accept_waveform(16000, sub.tolist())
-                            stream.input_finished()
-                            if extractor.is_ready(stream):
-                                vec = np.asarray(extractor.compute(stream), dtype=np.float32)
-                                norm = float(np.linalg.norm(vec))
-                                if norm > 1e-6:
-                                    embeddings.append(vec / norm)
-
-                    if len(embeddings) >= 2:
-                        min_sim = 1.0
-                        for i in range(len(embeddings)):
-                            for j in range(i + 1, len(embeddings)):
-                                sim = float(np.dot(embeddings[i], embeddings[j]))
-                                min_sim = min(min_sim, sim)
-                        if min_sim < 0.48:
+                segments = list(CalibrationSpeakerService.segments(combined_audio))
+                speakers = {
+                    item.speaker
+                    for item in segments
+                    if (item.end - item.start) >= 0.25 and item.speaker >= 0
+                }
+                if len(speakers) > 1:
+                    return True
+                for i, first in enumerate(segments):
+                    for second in segments[i + 1 :]:
+                        if (
+                            first.speaker != second.speaker
+                            and min(first.end, second.end) - max(first.start, second.start) >= 0.12
+                        ):
                             return True
             except Exception as exc:
                 logger.debug("Error en diarización continua: %s", exc)
@@ -733,7 +664,7 @@ class ContinuousSupervisionService:
         samples: Optional[list[float]],
         trial_key: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Analyzes 16kHz audio samples for RMS energy, gain-normalized VAD speech activity and multi-speaker."""
+        """Analyzes 16kHz audio samples using strict WebRTC VAD(3) and CalibrationSpeakerService."""
         if not samples or len(samples) < 160:
             return {
                 "noise_level": 0.0,
@@ -756,54 +687,47 @@ class ContinuousSupervisionService:
         chunk_rms = np.zeros(0, dtype=np.float32)
         voiced_flags: list[bool] = []
 
-        if total_chunks > 0 and rms >= 0.0028:
+        # Only run VAD when signal RMS is above ambient silence floor (>= 0.005)
+        # Never amplify quiet room noise before feeding WebRTC VAD
+        if total_chunks > 0 and rms >= 0.005:
             chunks = audio[: total_chunks * chunk_size].reshape(total_chunks, chunk_size)
             chunk_rms = np.sqrt(np.mean(np.square(chunks), axis=1))
-            noise_floor = float(np.percentile(chunk_rms, 15)) if total_chunks >= 4 else 0.002
-            effective_floor = min(noise_floor, 0.007)
-            active_threshold = max(0.0030, effective_floor * 1.50)
-
-            peak = float(np.percentile(np.abs(audio), 98))
-            gain = min(18.0, 0.48 / max(peak, 1e-4))
-            norm_audio = np.clip(audio * gain, -1.0, 1.0)
-            pcm = (norm_audio * 32767).astype("<i2")
+            pcm = (audio * 32767).astype("<i2")
 
             try:
                 import webrtcvad
 
-                vad = webrtcvad.Vad(2)
-                speech_chunks = 0
+                # Mode 3 is the strictest WebRTC VAD mode (same as CalibrationAudioService)
+                vad = webrtcvad.Vad(3)
                 for i in range(total_chunks):
                     is_voiced = False
-                    if chunk_rms[i] >= active_threshold:
+                    if chunk_rms[i] >= 0.005:
                         raw_bytes = pcm[i * chunk_size : (i + 1) * chunk_size].tobytes()
                         if vad.is_speech(raw_bytes, 16000):
                             is_voiced = True
-                            speech_chunks += 1
                     voiced_flags.append(is_voiced)
 
-                freqs = np.fft.rfftfreq(audio.size, d=1.0 / 16000.0)
-                spectrum = np.abs(np.fft.rfft(audio)) ** 2
-                total_energy = float(np.sum(spectrum)) + 1e-9
-                voice_band_energy = float(
-                    np.sum(spectrum[(freqs >= 200.0) & (freqs <= 3600.0)])
-                )
-                voice_band_ratio = voice_band_energy / total_energy
+                # Require both total voiced chunks >= 6 (180ms) AND a contiguous run >= 3 (90ms)
+                run = max_run = 0
+                for v in voiced_flags:
+                    run = run + 1 if v else 0
+                    max_run = max(max_run, run)
 
-                if (speech_chunks >= 3 or (speech_chunks / total_chunks >= 0.08)) and voice_band_ratio >= 0.25:
+                if sum(voiced_flags) >= 6 and max_run >= 3:
                     speech_detected = True
             except Exception as exc:
                 logger.debug("VAD no disponible o error en procesamiento: %s", exc)
-                voiced_flags = [bool(c >= active_threshold) for c in chunk_rms]
-                if sum(voiced_flags) >= 4:
-                    speech_detected = True
+
+        # Clear rolling speech buffer when window is silent so stale speech is not carried over
+        if not speech_detected and trial_key and trial_key in cls._trial_audio_state:
+            cls._trial_audio_state[trial_key].pop("prev_voiced_audio", None)
 
         high_noise = rms > 0.22 or (rms > 0.14 and not speech_detected)
 
         multiple_speakers = False
         if speech_detected:
             multiple_speakers = cls._detect_multi_speaker_or_background_media(
-                audio, chunk_rms, voiced_flags, trial_key
+                audio, voiced_flags, trial_key
             )
 
         return {
@@ -867,9 +791,9 @@ class ContinuousSupervisionService:
             if any(s > 0.0 for s in mouth_open_scores):
                 max_open = max(mouth_open_scores)
                 min_open = min(mouth_open_scores)
-                open_frames = sum(1 for s in mouth_open_scores if s >= 0.046)
+                open_frames = sum(1 for s in mouth_open_scores if s >= 0.035)
                 dynamic_range = max_open - min_open
-                mouth_moving = max_open >= 0.052 and (dynamic_range >= 0.020 or open_frames >= 2)
+                mouth_moving = max_open >= 0.038 and (dynamic_range >= 0.014 or open_frames >= 2)
             else:
                 mouth_moving, mouth_movements = cls.compute_mouth_trace(mouth_patches)
 
@@ -907,51 +831,15 @@ class ContinuousSupervisionService:
         audio_res = cls.analyze_audio(audio_samples, trial_key=trial_id)
         speech_detected = audio_res["speech_detected"]
         multiple_speakers = audio_res["multiple_speakers"]
-        chunk_rms = audio_res["chunk_rms"]
-        voiced_flags = audio_res["voiced_flags"]
         mouth_sync: Optional[bool] = None
 
         if audio_res["high_noise"]:
             anomalies.append("HIGH_NOISE")
 
-        # Per-frame closed-mouth audio check:
-        # Using MediaPipe jawOpen/MAR, if in any frame k the user's mouth is physically closed
-        # (< 0.036) while the corresponding 400ms audio slice has strong active speech,
-        # external audio (TV series / background speaker) is playing during closed-mouth frames!
-        unmatched_voiced_frames = 0
-        if (
-            speech_detected
-            and len(mouth_open_scores) >= 3
-            and any(s > 0.0 for s in mouth_open_scores)
-            and len(voiced_flags) >= len(mouth_open_scores) * 2
-        ):
-            num_frames = len(mouth_open_scores)
-            chunks_per_frame = len(voiced_flags) // num_frames
-            max_chunk_rms = float(np.max(chunk_rms)) if chunk_rms.size > 0 else 0.01
-            for k, score in enumerate(mouth_open_scores):
-                c_start = k * chunks_per_frame
-                c_end = (k + 1) * chunks_per_frame if k < num_frames - 1 else len(voiced_flags)
-                sub_voiced = voiced_flags[c_start:c_end]
-                sub_rms = float(np.mean(chunk_rms[c_start:c_end])) if c_end > c_start else 0.0
-                is_sub_speaking = (
-                    sum(1 for v in sub_voiced if v) >= max(2, len(sub_voiced) // 3)
-                    and sub_rms >= max(0.007, 0.35 * max_chunk_rms)
-                )
-                if is_sub_speaking and score < 0.036:
-                    unmatched_voiced_frames += 1
-
         if speech_detected:
             if multiple_speakers:
                 mouth_sync = False
                 anomalies.append("MULTIPLE_SPEAKERS")
-            elif unmatched_voiced_frames >= 1 and mouth_moving:
-                # User moved their mouth in part of the window, but speech ALSO played while mouth was closed
-                mouth_sync = False
-                multiple_speakers = True
-                anomalies.append("MULTIPLE_SPEAKERS")
-            elif unmatched_voiced_frames >= 2 and not mouth_moving:
-                mouth_sync = False
-                anomalies.append("VOICE_DETECTED")
             elif face_count == 1 and mouth_moving:
                 mouth_sync = True
             else:
