@@ -20,15 +20,10 @@ export interface TheoryProgress {
   deadline_at: string
   question_deadline_at: string | null
   current_question: PublicTheoryQuestion | null
-  grading_state: string
-  grading_score: number | null
-  grading_feedback: { question_id: string; points: number; max_score: number; feedback: string; criteria: { name: string; weight: number; attainment: number; reason: string }[] }[] | null
 }
 export interface OralSubmission { submission_id: string; question_id: string; audio_base64: string }
 export const theoryExam = {
   status: (id: string) => apiClient.get<TheoryProgress>(`/evaluations/${id}/status`, { showToastOnError: false }),
+  start: (id: string, level_number: number) => apiClient.post(`/evaluations/start`, { evaluation_id: id, level_number }, { showToastOnError: false }),
   answer: (id: string, payload: OralSubmission) => apiClient.post<{ transcript: string }>(`/evaluations/${id}/answers`, payload, { showToastOnError: false }),
-  result: (id: string) => apiClient.get(`/evaluations/${id}/result`, { showToastOnError: false }),
-  retryGrading: (id: string) => apiClient.post(`/evaluations/${id}/grading/retry`, {}, { showToastOnError: false }),
-  start: (id: string, level_number: number, text_grading_consent: boolean) => apiClient.post(`/evaluations/start`, { evaluation_id: id, level_number, text_grading_consent }, { showToastOnError: false }),
 }

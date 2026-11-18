@@ -4,7 +4,6 @@ import { theoryExam, type OralSubmission } from "@/services/theory-exam-service"
 import { useTheoryExamStore } from "@/stores/theory-exam-store"
 import { startOralRecording, type OralRecording } from "@/services/oral-recording"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -23,7 +22,6 @@ export function TheoryExamPage() {
   const [notice, setNotice] = useState("")
   const [busy, setBusy] = useState(false)
   const [level, setLevel] = useState("1")
-  const [textConsent, setTextConsent] = useState(false)
   const [recording, setRecording] = useState(false)
   const [cameraReady, setCameraReady] = useState(false)
   const [retryReady, setRetryReady] = useState(false)
@@ -146,11 +144,9 @@ export function TheoryExamPage() {
     {error && <p role="alert" className="text-destructive">{error}</p>}
     {notice && <p role="status">{notice}</p>}
     {!state && <Card><CardHeader><CardTitle>Antes de comenzar</CardTitle></CardHeader><CardContent className="grid gap-4">
-      <p>El inicio consume tu intento una sola vez. Se requieren calibración, preguntas publicadas y transcripción local disponible.</p>
-      <div className="flex items-start gap-3"><Checkbox id="theory-text-consent" checked={textConsent} onCheckedChange={value => setTextConsent(value === true)} />
-        <Label htmlFor="theory-text-consent">Autorizo enviar al proveedor configurado la pregunta, referencia, rúbrica y transcripción de mis respuestas para corregirlas. No se enviará audio, video, nombre ni datos de cuenta.</Label></div>
+      <p>El inicio consume tu intento una sola vez. Se requieren consentimiento, calibración, preguntas publicadas y transcripción local disponible. Revisá estos requisitos antes de confirmar.</p>
       <Label htmlFor="theory-level">Nivel a evaluar</Label><Select value={level} disabled={busy} onValueChange={setLevel}><SelectTrigger id="theory-level"><SelectValue /></SelectTrigger><SelectContent>{levels.map((name, index) => <SelectItem key={name} value={String(index + 1)}>{name}</SelectItem>)}</SelectContent></Select>
-      <Button disabled={busy || !textConsent} onClick={() => void run(async () => { const response = await theoryExam.start(id, Number(level), textConsent); if (alive.current) { setNotice(response.message); await refresh() } })}>Comenzar examen y consumir intento</Button>
+      <Button disabled={busy} onClick={() => void run(async () => { const response = await theoryExam.start(id, Number(level)); if (alive.current) { setNotice(response.message); await refresh() } })}>Comenzar examen y consumir intento</Button>
     </CardContent></Card>}
     {state?.current_question && <div className="grid gap-5 md:grid-cols-[1fr_18rem]">
       <Card><CardHeader><CardTitle>Pregunta {state.position} de {state.question_count}</CardTitle><Progress value={state.answered_count / state.question_count * 100} aria-label="Progreso del examen" /></CardHeader><CardContent className="grid gap-4">
@@ -168,15 +164,7 @@ export function TheoryExamPage() {
         <p className="text-xs">Esta vista previa no acredita supervisión continua. La integración de integridad del examen todavía está pendiente.</p>
       </CardContent></Card>
     </div>}
-    {state && !state.current_question && <Card><CardHeader><CardTitle>{state.grading_state === "COMPLETE" ? "Resultado de la corrección" : "Corrección teórica"}</CardTitle></CardHeader><CardContent className="grid gap-3">
-      <p>{state.answered_count} de {state.question_count} respuestas registradas.</p>
-      {state.grading_state === "COMPLETE" ? <><p>Resultado: {state.grading_score} puntos. La nota ponderada usa la rúbrica publicada.</p>
-        {state.grading_feedback?.map(item => <section key={item.question_id}><h2 className="font-medium">Pregunta · {item.points}/{item.max_score}</h2><p>{item.feedback}</p>
-          {item.criteria.map(criterion => <p key={criterion.name}>{criterion.name}: {criterion.attainment * 100}% — {criterion.reason}</p>)}</section>)}</>
-        : <><p>{state.grading_state === "ERROR" ? "La corrección no pudo completarse; no se asignó nota. Tus respuestas permanecen guardadas." : "Corrección pendiente; todavía no se asignó nota."}</p>
-          <Button disabled={busy} onClick={() => void run(async () => { const response = await theoryExam.retryGrading(id); setNotice(response.message); await refresh() })}>{state.grading_state === "ERROR" ? "Reintentar corrección" : "Solicitar corrección"}</Button></>}
-      <p className="text-sm text-muted-foreground">No se emite sello ni certificado automático.</p>
-    </CardContent></Card>}
+    {state && !state.current_question && <Card><CardHeader><CardTitle>Respuestas recibidas · corrección pendiente</CardTitle></CardHeader><CardContent><p>{state.answered_count} de {state.question_count} respuestas registradas. No se asignó una nota ni un sello automático.</p></CardContent></Card>}
     <Button variant="outline" disabled={busy} onClick={() => void run(refresh)}>Actualizar estado</Button>
   </main>
 }

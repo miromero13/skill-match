@@ -18,6 +18,7 @@ import { AdminRouteGuard } from "@/components/admin-route-guard"
 import { MemberRouteGuard } from "@/components/member-route-guard"
 import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { EvaluationSetupPage } from "@/pages/evaluation-setup-page"
+import { TheoryExamPage } from "@/pages/theory-exam-page"
 import { BrowserSupervisionPage } from "@/pages/browser-supervision-page"
 import { ProfilePage } from "@/pages/profile-page"
 import { AdminDatasetCapturePage } from "@/pages/admin-dataset-capture-page"
@@ -33,6 +34,7 @@ import { NotificationSettingsPage } from "@/pages/notifications/notification-set
 import { PrivacySettingsPage } from "@/pages/settings/privacy-settings-page"
 
 export const router = createBrowserRouter([
+  { path: "/evaluation/:id/theory", element: <MemberRouteGuard><TheoryExamPage /></MemberRouteGuard> },
   {
     path: "/evaluation/:skillId/setup",
     element: <MemberRouteGuard><PlatformLayout /></MemberRouteGuard>,

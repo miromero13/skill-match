@@ -111,6 +111,7 @@ describe("shared calibration panel", () => {
     await act(async () => finish?.({ frames: ["a", "b", "c"], audio_samples: [0.1], ambient_audio_samples: [0], spoken_frames: [{ time_ms: 100, image: "spoken-frame" }] }))
     expect(await screen.findByText("Comprobación superada")).toBeInTheDocument()
     expect(verifyEvaluationCalibration).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("link", { name: "Continuar al examen oral" })).toHaveAttribute("href", "/evaluation/evaluation-1/theory")
   })
 
   it("keeps the requested direction visible after a rejected movement", async () => {
