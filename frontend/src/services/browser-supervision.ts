@@ -53,7 +53,7 @@ export interface AVWindowPayload {
   window_id: string
   observed_at: string
   duration_ms: number
-  mode: "QUIET" | "SPEAKING"
+  mode?: "QUIET" | "SPEAKING" | "UNIFIED"
   frames: string[]
   audio_samples?: number[]
 }
@@ -63,6 +63,8 @@ export interface AVWindowResponse {
   head_orientation: "CENTER" | "DOWN" | "LEFT" | "RIGHT" | "UNKNOWN"
   identity_match: boolean | null
   speech_detected: boolean
+  mouth_moving?: boolean
+  mouth_sync?: boolean | null
   noise_level: number
   anomalies: string[]
   incidents_created: LedgerIncident[]

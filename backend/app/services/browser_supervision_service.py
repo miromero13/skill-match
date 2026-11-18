@@ -133,6 +133,7 @@ class BrowserSupervisionService:
             audio_samples=payload.audio_samples,
             mode=payload.mode,
             biometric_embedding_json=user.biometric_embedding,
+            trial_id=str(trial.id),
         )
 
         created_incidents = []
@@ -166,6 +167,8 @@ class BrowserSupervisionService:
             "head_orientation": result["head_orientation"],
             "identity_match": result["identity_match"],
             "speech_detected": result["speech_detected"],
+            "mouth_moving": result["mouth_moving"],
+            "mouth_sync": result["mouth_sync"],
             "noise_level": result["noise_level"],
             "anomalies": result["anomalies"],
             "incidents_created": [IncidentResponse.model_validate(inc) for inc in created_incidents],

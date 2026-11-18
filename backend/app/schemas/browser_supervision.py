@@ -78,10 +78,10 @@ class BatchResponse(BaseModel):
 class AVWindowRequest(TabRequest):
     window_id: UUID
     observed_at: AwareDatetime
-    duration_ms: int = Field(default=8000, ge=1000, le=30000, strict=True)
-    mode: Literal["QUIET", "SPEAKING"] = "QUIET"
-    frames: list[str] = Field(default_factory=list, max_length=6)
-    audio_samples: Optional[list[float]] = Field(default=None, max_length=150000)
+    duration_ms: int = Field(default=2500, ge=500, le=30000, strict=True)
+    mode: Literal["QUIET", "SPEAKING", "UNIFIED"] = "UNIFIED"
+    frames: list[str] = Field(default_factory=list, max_length=12)
+    audio_samples: Optional[list[float]] = Field(default=None, max_length=160000)
 
 
 class AVWindowResponse(BaseModel):
@@ -90,6 +90,8 @@ class AVWindowResponse(BaseModel):
     head_orientation: Literal["CENTER", "DOWN", "LEFT", "RIGHT", "UNKNOWN"]
     identity_match: Optional[bool]
     speech_detected: bool
+    mouth_moving: bool = False
+    mouth_sync: Optional[bool] = None
     noise_level: float
     anomalies: list[str]
     incidents_created: list[IncidentResponse]

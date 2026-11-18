@@ -15,13 +15,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuthStore } from "@/stores/auth-store"
 import {
@@ -66,7 +59,7 @@ const labels: Record<string, string> = {
   IDENTITY_MISMATCH: "Rostro no coincide con el perfil",
   HEAD_POSE_DOWN: "Cabeza orientada hacia abajo sostenida",
   HEAD_POSE_SIDE: "Cabeza girada a los costados sostenida",
-  VOICE_DETECTED: "Voz / susurro detectado",
+  VOICE_DETECTED: "Voz detectada sin movimiento labial coincidente",
   MULTIPLE_SPEAKERS: "Voces simultáneas / más de un hablante",
   HIGH_NOISE: "Ruido ambiental excesivo",
   DEVICE_DISCONNECTED: "Desconexión de cámara o micrófono",
@@ -89,9 +82,11 @@ export function BrowserSupervisionPage() {
   const streamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
+  const processorRef = useRef<ScriptProcessorNode | null>(null)
+  const audioBufferRef = useRef<number[]>([])
   const avTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const vuAnimationRef = useRef<number | null>(null)
-  const modeRef = useRef<"QUIET" | "SPEAKING">("QUIET")
+  const avInFlightRef = useRef(false)
 
   const [trial, setTrial] = useState<Trial | null>(null)
   const [accepted, setAccepted] = useState(false)
@@ -105,20 +100,17 @@ export function BrowserSupervisionPage() {
 
   // AV State
   const [avActive, setAvActive] = useState(false)
-  const [mode, setMode] = useState<"QUIET" | "SPEAKING">("QUIET")
   const [faceCount, setFaceCount] = useState<number>(1)
   const [headOrientation, setHeadOrientation] = useState<string>("CENTER")
   const [identityMatch, setIdentityMatch] = useState<boolean | null>(null)
   const [speechDetected, setSpeechDetected] = useState(false)
+  const [mouthMoving, setMouthMoving] = useState(false)
+  const [mouthSync, setMouthSync] = useState<boolean | null>(null)
   const [noiseLevel, setNoiseLevel] = useState(0)
   const [vuLevel, setVuLevel] = useState(0)
   const [deviceError, setDeviceError] = useState("")
 
   const lastKey = `sm43:last:${owner}`
-
-  useEffect(() => {
-    modeRef.current = mode
-  }, [mode])
 
   function stopAV() {
     if (vuAnimationRef.current) {
@@ -128,6 +120,15 @@ export function BrowserSupervisionPage() {
     if (avTimerRef.current) {
       clearInterval(avTimerRef.current)
       avTimerRef.current = null
+    }
+    if (processorRef.current) {
+      processorRef.current.onaudioprocess = null
+      try {
+        processorRef.current.disconnect()
+      } catch {
+        // ignore
+      }
+      processorRef.current = null
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop())
@@ -140,6 +141,8 @@ export function BrowserSupervisionPage() {
     if (videoRef.current) {
       videoRef.current.srcObject = null
     }
+    audioBufferRef.current = []
+    avInFlightRef.current = false
     setAvActive(false)
     setVuLevel(0)
   }
@@ -201,8 +204,8 @@ export function BrowserSupervisionPage() {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 480 }, height: { ideal: 360 } },
-        audio: { channelCount: 1, echoCancellation: true },
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+        audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true },
       })
       streamRef.current = stream
       if (videoRef.current) {
@@ -221,6 +224,8 @@ export function BrowserSupervisionPage() {
         })
       })
 
+      audioBufferRef.current = []
+
       try {
         const AudioCtx =
           window.AudioContext ||
@@ -228,28 +233,62 @@ export function BrowserSupervisionPage() {
         if (AudioCtx) {
           const audioCtx = new AudioCtx()
           audioContextRef.current = audioCtx
+          await audioCtx.resume().catch(() => undefined)
+
           const source = audioCtx.createMediaStreamSource(stream)
           const analyser = audioCtx.createAnalyser()
-          analyser.fftSize = 256
+          analyser.fftSize = 1024
           source.connect(analyser)
           analyserRef.current = analyser
 
-          const dataArray = new Uint8Array(analyser.frequencyBinCount)
+          // Continuous 16kHz PCM capture via ScriptProcessorNode
+          if (typeof audioCtx.createScriptProcessor === "function") {
+            const processor = audioCtx.createScriptProcessor(2048, 1, 1)
+            processorRef.current = processor
+            const ratio = audioCtx.sampleRate / 16000
+            processor.onaudioprocess = (event) => {
+              event.outputBuffer.getChannelData(0).fill(0)
+              if (!streamRef.current) return
+              const input = event.inputBuffer.getChannelData(0)
+              const outLen = Math.floor(input.length / ratio)
+              const buf = audioBufferRef.current
+              for (let i = 0; i < outLen; i++) {
+                const start = Math.floor(i * ratio)
+                const end = Math.min(input.length, Math.floor((i + 1) * ratio))
+                let total = 0
+                for (let s = start; s < end; s++) total += input[s]
+                const sample = Math.max(-1, Math.min(1, total / Math.max(1, end - start)))
+                buf.push(sample)
+              }
+              // Keep at most 3.5 seconds at 16kHz (56,000 samples)
+              if (buf.length > 56000) {
+                buf.splice(0, buf.length - 56000)
+              }
+            }
+            source.connect(processor)
+            processor.connect(audioCtx.destination)
+          }
+
+          const timeDomain = new Float32Array(analyser.fftSize)
           const updateVU = () => {
             if (!streamRef.current) return
-            analyser.getByteFrequencyData(dataArray)
-            let sum = 0
-            for (let i = 0; i < dataArray.length; i++) {
-              sum += dataArray[i]
+            if (typeof analyser.getFloatTimeDomainData === "function") {
+              analyser.getFloatTimeDomainData(timeDomain)
+              let sumSq = 0
+              for (let i = 0; i < timeDomain.length; i++) {
+                sumSq += timeDomain[i] * timeDomain[i]
+              }
+              const rms = Math.sqrt(sumSq / timeDomain.length)
+              // Nonlinear perceptual scaling so normal speech (RMS ~0.015-0.08) is clearly visible
+              const level = rms < 0.002 ? 0 : Math.min(100, Math.round(Math.pow(rms * 14, 0.65) * 100))
+              setVuLevel(level)
             }
-            const avg = sum / dataArray.length
-            setVuLevel(Math.min(100, Math.round((avg / 128) * 100)))
             vuAnimationRef.current = requestAnimationFrame(updateVU)
           }
           vuAnimationRef.current = requestAnimationFrame(updateVU)
         }
       } catch {
-        // Audio context optional
+        // Audio context optional in test environments
       }
 
       setAvActive(true)
@@ -258,6 +297,7 @@ export function BrowserSupervisionPage() {
       let collectedFrames: string[] = []
       let sampleCounter = 0
 
+      // Capture 1 frame every 400ms; send window every 6 frames (~2.4 seconds) for fast detection
       const sampleInterval = setInterval(() => {
         if (!streamRef.current || !videoRef.current || !canvasRef.current) return
         sampleCounter++
@@ -277,34 +317,54 @@ export function BrowserSupervisionPage() {
           // ignore frame capture error
         }
 
-        if (sampleCounter >= 4) {
+        // Fallback if ScriptProcessor didn't populate audioBufferRef
+        if (
+          audioBufferRef.current.length < 4000 &&
+          analyserRef.current &&
+          typeof analyserRef.current.getFloatTimeDomainData === "function"
+        ) {
+          const fallbackChunk = new Float32Array(analyserRef.current.fftSize)
+          analyserRef.current.getFloatTimeDomainData(fallbackChunk)
+          for (let i = 0; i < fallbackChunk.length; i++) {
+            audioBufferRef.current.push(Math.max(-1, Math.min(1, fallbackChunk[i])))
+          }
+        }
+
+        if (sampleCounter >= 6 && !avInFlightRef.current) {
           sampleCounter = 0
-          const framesToSend = [...collectedFrames]
-          collectedFrames = []
+          const framesToSend = collectedFrames.splice(0, 8)
+          const audioToSend = audioBufferRef.current.splice(0, 48000)
 
           if (framesToSend.length > 0) {
+            avInFlightRef.current = true
             void sendAVWindow(trialId, {
               tab_id: tabId,
               window_id: crypto.randomUUID(),
               observed_at: new Date().toISOString(),
-              duration_ms: 8000,
-              mode: modeRef.current,
+              duration_ms: 2400,
+              mode: "UNIFIED",
               frames: framesToSend,
+              audio_samples: audioToSend,
             })
               .then((res) => {
                 setFaceCount(res.face_count)
                 setHeadOrientation(res.head_orientation)
                 setIdentityMatch(res.identity_match)
                 setSpeechDetected(res.speech_detected)
+                setMouthMoving(Boolean(res.mouth_moving))
+                setMouthSync(res.mouth_sync ?? null)
                 setNoiseLevel(res.noise_level)
                 if (res.anomalies.length > 0) {
                   void ledger(trialId)
                 }
               })
               .catch(() => undefined)
+              .finally(() => {
+                avInFlightRef.current = false
+              })
           }
         }
-      }, 2000)
+      }, 400)
 
       avTimerRef.current = sampleInterval
     } catch {
@@ -491,33 +551,10 @@ export function BrowserSupervisionPage() {
         <CardContent className="space-y-4 p-5">
           <h2 className="font-semibold">Normas y controles activos</h2>
           <p className="text-sm text-muted-foreground">
-            Se supervisa en tiempo real la presencia facial, orientación sostenida de la cabeza, nivel de audio/voz,
-            pérdida de foco, cambio de pestaña, conectividad y portapapeles dentro del área de prueba.
+            Se supervisa en tiempo real la presencia facial, orientación sostenida de la cabeza (abajo o costados),
+            sincronía entre voz y movimiento de boca (podés hablar en voz alta siempre que tu boca coincida con el audio),
+            pérdida de foco, cambio de pestaña y portapapeles dentro del área de prueba.
           </p>
-
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-lg border bg-muted/30 p-3">
-            <div className="space-y-0.5">
-              <Label className="text-sm font-medium">Modo de evaluación audiovisual</Label>
-              <p className="text-xs text-muted-foreground">
-                {mode === "QUIET"
-                  ? "Modo Silencio: Alerta ante voces o susurros detectados (examen escrito / código)."
-                  : "Modo Habla: Permite una voz activa para preguntas orales o defensas técnicas."}
-              </p>
-            </div>
-            <Select
-              value={mode}
-              disabled={active}
-              onValueChange={(val: "QUIET" | "SPEAKING") => setMode(val)}
-            >
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="Seleccionar modo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="QUIET">Modo Silencio</SelectItem>
-                <SelectItem value="SPEAKING">Modo Habla</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
           <div className="flex items-start gap-3">
             <Checkbox
@@ -588,7 +625,7 @@ export function BrowserSupervisionPage() {
                   autoPlay
                   playsInline
                   muted
-                  className={`w-full h-full object-cover ${avActive ? "block" : "hidden"}`}
+                  className={`w-full h-full object-cover -scale-x-100 ${avActive ? "block" : "hidden"}`}
                 />
                 {!avActive && (
                   <div className="text-center p-4 space-y-2 text-muted-foreground">
@@ -598,7 +635,6 @@ export function BrowserSupervisionPage() {
                     </p>
                   </div>
                 )}
-                {/* Guide overlay */}
                 {avActive && (
                   <div className="absolute inset-0 pointer-events-none border-2 border-emerald-500/30 rounded-xl" />
                 )}
@@ -618,7 +654,7 @@ export function BrowserSupervisionPage() {
                     className={`h-full transition-all duration-75 ${
                       vuLevel > 75
                         ? "bg-rose-500"
-                        : vuLevel > 40
+                        : vuLevel > 35
                         ? "bg-amber-500"
                         : "bg-emerald-500"
                     }`}
@@ -671,15 +707,19 @@ export function BrowserSupervisionPage() {
                         ? "Al centro"
                         : headOrientation === "DOWN"
                         ? "Hacia abajo"
-                        : "Lateral"}
+                        : headOrientation === "LEFT" || headOrientation === "RIGHT"
+                        ? "Lateral"
+                        : "Sin rostro"}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {headOrientation === "CENTER"
-                      ? "Postura centrada normal."
+                      ? "Postura centrada mirando a pantalla."
                       : headOrientation === "DOWN"
-                      ? "Mirada prolongada hacia abajo."
-                      : "Giro lateral pronunciado."}
+                      ? "Alerta: Cabeza inclinada hacia abajo."
+                      : headOrientation === "LEFT" || headOrientation === "RIGHT"
+                      ? "Alerta: Giro lateral pronunciado."
+                      : "Esperando detección facial."}
                   </p>
                 </div>
 
@@ -715,7 +755,7 @@ export function BrowserSupervisionPage() {
                   </p>
                 </div>
 
-                {/* Audio activity */}
+                {/* Audio activity & mouth sync */}
                 <div className="rounded-lg border p-3 bg-card space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -723,33 +763,37 @@ export function BrowserSupervisionPage() {
                     </span>
                     <Badge
                       variant={
-                        mode === "QUIET" && speechDetected
-                          ? "destructive"
-                          : noiseLevel > 0.15
+                        (speechDetected && mouthSync === false) || noiseLevel > 0.22
                           ? "destructive"
                           : "secondary"
                       }
                       className="text-[11px]"
                     >
                       {speechDetected
-                        ? "Voz detectada"
-                        : noiseLevel > 0.15
+                        ? mouthSync
+                          ? "Voz propia (boca activa)"
+                          : "Voz sin boca coincidente"
+                        : noiseLevel > 0.14
                         ? "Ruido alto"
+                        : mouthMoving
+                        ? "Boca en movimiento"
                         : "Silencio"}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {speechDetected
-                      ? mode === "QUIET"
-                        ? "Alerta: Voz accesoria en silencio."
-                        : "Voz registrada dentro de lo esperado."
-                      : "Sin actividad vocal anómala."}
+                      ? mouthSync
+                        ? "Habla detectada coincidente con el movimiento de tu boca."
+                        : "Alerta: Se detectó voz sin movimiento labial coincidente."
+                      : noiseLevel > 0.14
+                      ? "Alerta: Ruido ambiental excesivo."
+                      : "Sin voces externas. Si hablás, se verifica tu movimiento labial."}
                   </p>
                 </div>
               </div>
 
               <p className="text-[11px] text-muted-foreground italic border-t pt-2">
-                * Estimación de orientación basada en landmarks faciales locales (PnP). No realiza seguimiento ocular de precisión ni detección de smartphones.
+                * Orientación cefálica y sincronía labial calculadas localmente con YuNet + WebRTC VAD (ventana cada 2.4s). No realiza eye-tracking ni detección de objetos/smartphones.
               </p>
             </div>
           </div>

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import numpy as np
 import pytest
 
+from app.services.continuous_supervision_service import ContinuousSupervisionService
 from test_evaluation_preflight import isolated_db, scenario, endpoint  # noqa: F401
 
 ROOT = "/api/browser-supervision/trials"
@@ -13,7 +14,6 @@ ROOT = "/api/browser-supervision/trials"
 
 def create_dummy_jpeg():
     """Generates a minimal valid JPEG image bytes in memory."""
-    # 0xFFD8 starts JPEG, 0xFFD9 ends JPEG
     import cv2
     img = np.zeros((120, 160, 3), dtype=np.uint8)
     _, buf = cv2.imencode(".jpg", img)
@@ -36,14 +36,14 @@ async def test_av_window_detection_and_ledger_integration(scenario):
     jpeg_frame = create_dummy_jpeg()
 
     # Window with 1 dummy frame (no face) and quiet audio with high noise
-    noise_audio = [0.25 * ((-1) ** (i % 2)) for i in range(1600)]  # RMS > 0.15
+    noise_audio = [0.25 * ((-1) ** (i % 2)) for i in range(1600)]  # RMS > 0.22
 
     payload = {
         "tab_id": tab,
         "window_id": window_id,
         "observed_at": datetime.now(timezone.utc).isoformat(),
-        "duration_ms": 8000,
-        "mode": "QUIET",
+        "duration_ms": 2400,
+        "mode": "UNIFIED",
         "frames": [jpeg_frame],
         "audio_samples": noise_audio,
     }
@@ -77,8 +77,8 @@ async def test_av_window_idempotency_retry(scenario):
         "tab_id": tab,
         "window_id": window_id,
         "observed_at": datetime.now(timezone.utc).isoformat(),
-        "duration_ms": 8000,
-        "mode": "QUIET",
+        "duration_ms": 2400,
+        "mode": "UNIFIED",
         "frames": [jpeg_frame],
         "audio_samples": [],
     }
@@ -109,11 +109,56 @@ async def test_av_window_rejected_on_unauthorized_tab(scenario):
         "tab_id": other_tab,
         "window_id": str(uuid.uuid4()),
         "observed_at": datetime.now(timezone.utc).isoformat(),
-        "duration_ms": 8000,
-        "mode": "QUIET",
+        "duration_ms": 2400,
+        "mode": "UNIFIED",
         "frames": [],
         "audio_samples": [],
     }
 
     resp = await client.post(f"{ROOT}/{trial['id']}/av-window", json=payload)
     assert resp.status_code == 409
+
+
+def test_head_pose_down_and_lateral_and_mouth_sync():
+    """Verifies downward head tilt, lateral turn, and voice-mouth synchronization."""
+    img = np.full((240, 320, 3), 128, dtype=np.uint8)
+
+    class StubDetector:
+        def __init__(self, face_row):
+            self.face_row = face_row
+
+        def setInputSize(self, _size):
+            pass
+
+        def detect(self, _img):
+            return 1, np.asarray([self.face_row], dtype=np.float32)
+
+    # 1. Neutral centered face: box(80,40,120,150), eyes(115,95) & (165,95), nose(140,126), mouth(120,155) & (160,155)
+    neutral_face = [80, 40, 120, 150, 115, 95, 165, 95, 140, 126, 120, 155, 160, 155, 0.95]
+    res_center = ContinuousSupervisionService.analyze_frame_face(
+        img, StubDetector(neutral_face), None, None, trial_key="trial-pose-test"
+    )
+    assert res_center["orientation"] == "CENTER"
+
+    # 2. Looking down: nose moves closer to mouth (ny=137 vs mouth=153), eyes shift lower in box
+    down_face = [80, 45, 120, 145, 115, 108, 165, 108, 140, 137, 120, 153, 160, 153, 0.92]
+    res_down = ContinuousSupervisionService.analyze_frame_face(
+        img, StubDetector(down_face), None, None, trial_key="trial-pose-test"
+    )
+    assert res_down["orientation"] == "DOWN"
+
+    # 3. Lateral turn: nose shifts horizontally by >= 0.14 * eye_distance
+    side_face = [80, 40, 120, 150, 115, 95, 165, 95, 149, 126, 124, 155, 164, 155, 0.93]
+    res_side = ContinuousSupervisionService.analyze_frame_face(
+        img, StubDetector(side_face), None, None, trial_key="trial-pose-test"
+    )
+    assert res_side["orientation"] in ("LEFT", "RIGHT")
+
+    # 4. Mouth movement detection across patches
+    static_mouth = (np.full((28, 40), 100.0, dtype=np.float32), np.full(1152, 120.0, dtype=np.float32))
+    open_mouth_arr = np.full((28, 40), 100.0, dtype=np.float32)
+    open_mouth_arr[8:20, 10:30] = 25.0  # dark open mouth cavity
+    moving_mouth = (open_mouth_arr, np.full(1152, 120.0, dtype=np.float32))
+
+    assert ContinuousSupervisionService.compute_mouth_movement([static_mouth, static_mouth, static_mouth]) is False
+    assert ContinuousSupervisionService.compute_mouth_movement([static_mouth, moving_mouth, static_mouth]) is True
