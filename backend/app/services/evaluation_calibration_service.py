@@ -55,10 +55,13 @@ class EvaluationCalibrationService:
         latest = await db.scalar(select(CalibrationChallenge).where(
             CalibrationChallenge.evaluation_id == evaluation_id,
         ).order_by(CalibrationChallenge.created_at.desc(), CalibrationChallenge.id.desc()).limit(1))
-        checks = latest.checks if latest and latest.checks else {}
+        enrollment_matches = latest is not None and latest.enrollment_hash == user.biometric_face_hash
+        checks = latest.checks if enrollment_matches and latest.checks else {}
+        ready = evaluation.status == "READY_FOR_THEORY" and bool(checks) and all(checks.values())
         return CalibrationStateResponse(
-            evaluation_id=evaluation.id, ready=evaluation.status == "READY_FOR_THEORY" and bool(checks) and all(checks.values()),
-            status=evaluation.status, started_at=evaluation.started_at, checks=checks,
+            evaluation_id=evaluation.id, ready=ready,
+            status="READY_FOR_THEORY" if ready else "PENDING_CALIBRATION",
+            started_at=evaluation.started_at, checks=checks,
         )
 
     @classmethod

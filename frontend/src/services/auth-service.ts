@@ -52,9 +52,9 @@ export async function loginWithGoogle(idToken: string): Promise<GoogleAuthRespon
       role: authData.user.role,
       avatarUrl: authData.user.avatar_url || undefined,
       skillPointsBalance: authData.user.skill_points_balance,
-      reputationScore: 5.0,
-      trustLevel: 1,
-      isVerified: true,
+      reputationScore: 0,
+      trustLevel: 0,
+      isVerified: false,
     },
     authData.access_token,
     authData.refresh_token
@@ -84,7 +84,9 @@ export async function getMe(): Promise<UserMeDto> {
     role: me.role,
     avatarUrl: me.avatar_url || undefined,
     skillPointsBalance: me.skill_points_balance,
-    isVerified: true,
+    reputationScore: 0,
+    trustLevel: 0,
+    isVerified: false,
   })
 
   return me

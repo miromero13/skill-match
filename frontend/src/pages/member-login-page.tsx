@@ -63,8 +63,12 @@ export function MemberLoginPage() {
           })
           container.current.replaceChildren()
           identity.renderButton(container.current, {
-            theme: "outline", size: "large", width: Math.min(360, container.current.clientWidth || 280),
-            text: "continue_with", shape: "rectangular", locale: "es",
+            theme: "outline",
+            size: "large",
+            width: Math.min(400, container.current.clientWidth || 360),
+            text: "continue_with",
+            shape: "rectangular",
+            locale: "es",
           })
         } catch {
           setSdkUnavailable(true)
@@ -96,23 +100,31 @@ export function MemberLoginPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-background p-4 sm:p-6">
-      <Card className="w-full max-w-[520px]">
-        <CardContent className="flex flex-col items-center gap-5 p-6 text-center sm:p-9">
+      <Card className="w-full max-w-[400px] shadow-sm">
+        <CardContent className="flex flex-col items-center gap-5 p-6 text-center sm:p-8">
           <Link to="/" className="text-2xl font-black tracking-tight text-primary">SkillMatch</Link>
-          <h1 className="text-base font-extrabold uppercase">Crear cuenta o iniciar sesión</h1>
-          <p className="text-sm text-muted-foreground">
-            Accedé sin contraseñas con tu cuenta verificada de Google.
-          </p>
+          <div className="space-y-1">
+            <h1 className="text-base font-extrabold uppercase">Crear cuenta o iniciar sesión</h1>
+            <p className="text-sm text-muted-foreground">
+              Accedé sin contraseñas con tu cuenta verificada de Google.
+            </p>
+          </div>
           {!configured ? (
             <p role="alert" className="text-sm text-destructive">El acceso con Google no está configurado.</p>
           ) : native ? (
-            <Button variant="outline" className="w-full" disabled={isLoading} onClick={() => void authenticateNative()}>Continuar con Google</Button>
+            <Button variant="outline" className="w-full h-10" disabled={isLoading} onClick={() => void authenticateNative()}>Continuar con Google</Button>
           ) : sdkUnavailable ? (
             <p role="alert" className="text-sm text-destructive">No se pudo cargar Google. Revisá la conexión y recargá la página.</p>
           ) : (
-            <div ref={container} className={`w-full min-w-0 ${isLoading ? "pointer-events-none opacity-50" : ""}`} aria-disabled={isLoading} />
+            <div
+              ref={container}
+              className={`w-full flex justify-center [&>div]:!w-full [&_iframe]:!w-full [&_iframe]:!min-w-full ${
+                isLoading ? "pointer-events-none opacity-50" : ""
+              }`}
+              aria-disabled={isLoading}
+            />
           )}
-          {isLoading && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin" />Conectando con Google...</p>}
+          {isLoading && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Conectando con Google...</p>}
           <p className="text-xs text-muted-foreground">Tu billetera se crea con saldo inicial de 0 SkillPoints, sin recargas ni retiros.</p>
         </CardContent>
       </Card>

@@ -20,24 +20,31 @@ export function PlatformSidebar() {
   const path = location.pathname
   const { user } = useAuthStore()
 
-  const menuItems = [
+  const menuItems: Array<{
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+    to: string
+    active: boolean
+    badge?: string
+    value?: string
+  }> = [
     { label: "Mis Coincidencias", icon: Handshake, to: "/matches", active: path === "/matches" },
     { label: "Mi Perfil y Horarios", icon: User, to: "/app/profile", active: path === "/app/profile" || path === "/app" },
     { label: "Explorar Instructores", icon: Compass, to: "/app/search", active: path.startsWith("/app/search") || path === "/search" },
     { label: "Habilidades que enseño", icon: BookOpen, to: "/app/teaching-skills", active: path === "/app/teaching-skills" },
     { label: "Quiero Aprender", icon: BookOpen, to: "/app/learning-skills", active: path === "/app/learning-skills" },
-    { label: "Intercambios Activos", icon: ArrowLeftRight, to: "/app/swaps", active: path === "/app/swaps", badge: "2" },
+    { label: "Intercambios Activos", icon: ArrowLeftRight, to: "/app/swaps", active: path === "/app/swaps" },
     { label: "Billetera", icon: Wallet, to: "/app/wallet", active: path === "/app/wallet", value: `${user?.skillPointsBalance ?? 0} pts` },
     { label: "Disponibilidad y Agenda", icon: Calendar, to: "/app/availability", active: path === "/app/availability" },
     { label: "Certificados de IA", icon: Award, to: "/app/certificates", active: path === "/app/certificates" },
-    { label: "Reputación y Reseñas", icon: Star, to: "/app/reputation", active: path === "/app/reputation", value: "4.9 ★" },
+    { label: "Reputación y Reseñas", icon: Star, to: "/app/reputation", active: path === "/app/reputation" },
     { label: "Centro de Quejas", icon: AlertTriangle, to: "/app/complaints", active: path === "/app/complaints" },
   ]
 
   const shortcuts = [
-    { name: "Sofía Rossi", tag: "Guitarra", initials: "SR" },
-    { name: "Mateo Fernández", tag: "Python", initials: "MF" },
-    { name: "Comunidad Python", tag: "Grupo", initials: "CP" },
+    { name: "Buscar Instructores", tag: "Catálogo", to: "/app/search" },
+    { name: "Mis Coincidencias", tag: "Intercambio", to: "/matches" },
+    { name: "Mis Habilidades", tag: "Perfil", to: "/app/teaching-skills" },
   ]
 
   return (
@@ -97,18 +104,14 @@ export function PlatformSidebar() {
         </span>
         <div className="space-y-1">
           {shortcuts.map((sc) => (
-            <div
+            <Link
               key={sc.name}
+              to={sc.to}
               className="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs text-foreground/80 hover:bg-muted/50 cursor-pointer transition-colors"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-bold">
-                  {sc.initials}
-                </div>
-                <span className="text-xs font-medium truncate">{sc.name}</span>
-              </div>
+              <span className="text-xs font-medium truncate">{sc.name}</span>
               <span className="text-[10px] text-muted-foreground">{sc.tag}</span>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

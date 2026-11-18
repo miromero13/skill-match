@@ -1,16 +1,17 @@
 """Run actual Alembic upgrades and rollback on task-owned PostgreSQL schemas."""
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import insert, text
+from alembic.script import ScriptDirectory
+from sqlalchemy import MetaData, Table, insert, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.catalog_names import catalog_name_key
 from app.core.config import settings
-from app.models.user import User
 
 
 @pytest.mark.asyncio
@@ -30,9 +31,20 @@ async def test_migrations_preserve_members_and_catalog_or_reject_conflicts_atomi
                 command.upgrade(config, target)
             await connection.run_sync(upgrade, "b34c56d7e892")
             member_id, admin_id, category_id, skill_id = [uuid.uuid4() for _ in range(4)]
-            await connection.execute(insert(User), [
-                {"id": member_id, "email": "member@example.com", "full_name": "Member", "role": "MEMBER", "is_active": True, "is_locked": False},
-                {"id": admin_id, "email": "admin@example.com", "full_name": "Admin", "role": "ADMIN", "is_active": True, "is_locked": False},
+            # Reflect the historical schema, not today's ORM with later identity columns.
+            historical_users = await connection.run_sync(
+                lambda sync: Table("users", MetaData(), autoload_with=sync)
+            )
+            defaults = {
+                "is_active": True, "is_locked": False, "failed_login_attempts": 0,
+                "languages": ["Español"], "timezone": "America/La_Paz", "links": {},
+                "exchange_modality": "VIRTUAL", "presencial_radius_km": 10,
+                "buffer_minutes": 15, "gcal_synced": False,
+                "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
+            }
+            await connection.execute(insert(historical_users), [
+                {**defaults, "id": member_id, "email": "member@example.com", "full_name": "Member", "role": "MEMBER"},
+                {**defaults, "id": admin_id, "email": "admin@example.com", "full_name": "Admin", "role": "ADMIN"},
             ])
             await connection.execute(text("INSERT INTO categories (id,name,slug,is_active,created_at,updated_at) VALUES (:id,'Música','musica',true,now(),now())"), {"id": category_id})
             await connection.execute(text("INSERT INTO skills (id,category_id,name,slug,min_approval_threshold,is_ready_to_publish,is_active,created_at,updated_at) VALUES (:id,:cat,'Guitarra clásica','guitarra-clasica',80,false,true,now(),now())"), {"id": skill_id, "cat": category_id})
@@ -50,7 +62,8 @@ async def test_migrations_preserve_members_and_catalog_or_reject_conflicts_atomi
                 assert (await connection.execute(text("SELECT id,name,parent_id,normalized_name FROM categories"))).one() == (category_id, "Música", None, catalog_name_key("Música"))
                 assert (await connection.execute(text("SELECT id,name,normalized_name FROM skills"))).one() == (skill_id, "Guitarra clásica", catalog_name_key("GUITARRA CLASICA"))
                 assert (await connection.execute(text("SELECT count(*) FROM revoked_tokens"))).scalar_one() == 0
-                assert (await connection.execute(text("SELECT version_num FROM alembic_version"))).scalar_one() == "f74e31b8a954"
+                versions = (await connection.execute(text("SELECT version_num FROM alembic_version"))).scalars().all()
+                assert set(versions) == set(ScriptDirectory.from_config(config).get_heads())
         finally:
             await outer.rollback()
     await engine.dispose()

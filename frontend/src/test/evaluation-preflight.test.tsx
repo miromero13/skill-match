@@ -13,6 +13,8 @@ import {
 vi.mock("@/services/evaluation-service", () => ({
   getEvaluationPreflight: vi.fn(),
   registerEvaluationConsent: vi.fn(),
+  requestCalibrationChallenge: vi.fn(),
+  verifyEvaluationCalibration: vi.fn(),
 }))
 
 const preflight: EvaluationPreflight = {
@@ -85,7 +87,7 @@ describe("shared evaluation preparation", () => {
       policy_version: "v1.0",
     })
     expect(await screen.findByText(/El intento todavía no comenzó ni se descontó/)).toBeInTheDocument()
-    expect(screen.getByText(/La comprobación del ambiente se integrará/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Preparar cámara y micrófono" })).toBeInTheDocument()
     expect(screen.getByText(/Habilidades gratuitas disponibles: 3\/3/)).toBeInTheDocument()
     expect(useEvaluationPreflightStore.getState().preflight?.free_evaluations_left).toBe(3)
     expect(useEvaluationPreflightStore.getState().consent?.started_at).toBeNull()

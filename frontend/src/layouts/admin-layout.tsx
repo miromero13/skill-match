@@ -110,9 +110,9 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen w-full flex bg-[#0F1416] text-[#F0FDFA] dark">
-      {/* 1. SIDEBAR DESKTOP (Fiel a OpenPencil n6740: w: 260px, fill: #0F1416, stroke: #1E2629) */}
-      <aside className="hidden lg:flex flex-col w-[260px] bg-[#0F1416] text-[#FFFFFF] border-r border-[#1E2629] shrink-0 justify-between p-[20px_16px]">
+    <div className="h-screen w-full flex overflow-hidden bg-[#0F1416] text-[#F0FDFA] dark">
+      {/* 1. SIDEBAR DESKTOP (Fijo en el lateral izquierdo, no se desplaza con el scroll del contenido) */}
+      <aside className="hidden lg:flex flex-col w-[260px] h-full bg-[#0F1416] text-[#FFFFFF] border-r border-[#1E2629] shrink-0 justify-between p-[20px_16px] overflow-y-auto">
         <div className="flex flex-col gap-5">
           {/* BrandRow (n6742) */}
           <div className="flex items-center gap-2.5">
@@ -179,10 +179,10 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      {/* 2. CONTENIDO PRINCIPAL Y TOPBAR */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#0F1416]">
-        {/* Admin_Topbar (OpenPencil: height: 54px, fill: #0F1416, stroke: #1E2629) */}
-        <header className="h-[54px] px-4 sm:px-6 bg-[#0F1416] border-b border-[#1E2629] flex items-center justify-between sticky top-0 z-30 shadow-2xs">
+      {/* 2. CONTENIDO PRINCIPAL Y TOPBAR (Área con scroll vertical independiente) */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto bg-[#0F1416]">
+        {/* Admin_Topbar (Sticky en la parte superior del contenido) */}
+        <header className="h-[54px] shrink-0 px-4 sm:px-6 bg-[#0F1416] border-b border-[#1E2629] flex items-center justify-between sticky top-0 z-30 shadow-2xs">
           {/* Izquierda: Hamburguesa en mobile + Breadcrumb */}
           <div className="flex items-center gap-3">
             <button
