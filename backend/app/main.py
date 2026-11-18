@@ -25,6 +25,8 @@ from app.db.seed import ensure_initial_admin, ensure_initial_catalog
 from app.api.users.teaching_skills import router as teaching_skills_router
 from app.schemas.response import APIResponse
 from app.api.users.skill_evidences import router as skill_evidences_router
+from app.api.ai.datasets import router as ai_dataset_router
+from app.football.api import router as football_router
 from app.api.notifications.router import router as notifications_router
 from app.api.notifications.websocket import router as notification_websocket_router
 from app.services.notification_connection_manager import notification_connection_manager
@@ -96,6 +98,9 @@ def create_application() -> FastAPI:
     app.include_router(user_learning_skills_router, prefix="/api")
     app.include_router(teaching_skills_router, prefix="/api")
     app.include_router(skill_evidences_router, prefix="/api")
+    app.include_router(ai_dataset_router, prefix="/api")
+    app.include_router(football_router, prefix="/api/football")
+    app.include_router(football_router, prefix="/api/v1/football")
     app.include_router(notifications_router, prefix="/api")
     app.include_router(notification_websocket_router)
     app.include_router(notification_preferences_router, prefix="/api")

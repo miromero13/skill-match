@@ -79,6 +79,54 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = Field(default=False, description="Uso de HTTPS para MinIO")
     MINIO_DEFAULT_BUCKET: str = Field(default="skillmatch-media", description="Bucket por defecto")
 
+    # Almacenamiento Garage S3 (Coolify VPS propio)
+    GARAGE_S3_ENDPOINT_URL: str = Field(
+        default="https://s3.devhooh.com",
+        description="Endpoint S3 de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_ADMIN_URL: Optional[str] = Field(
+        default="https://garage-admin.devhooh.com",
+        description="Endpoint Admin API v2 de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_WEB_URL: Optional[str] = Field(
+        default="https://garage-web.devhooh.com",
+        description="Endpoint Web de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_REGION: str = Field(
+        default="garage",
+        description="Región configurada en Garage S3",
+    )
+    GARAGE_S3_ACCESS_KEY_ID: Optional[str] = Field(
+        default=None,
+        description="Access Key ID de Garage S3",
+    )
+    GARAGE_S3_SECRET_ACCESS_KEY: Optional[SecretStr] = Field(
+        default=None,
+        description="Secret Access Key de Garage S3 (Secreto .env)",
+    )
+    GARAGE_S3_ADMIN_TOKEN: Optional[SecretStr] = Field(
+        default=None,
+        description="Token administrativo de Garage S3 (Secreto .env)",
+    )
+    GARAGE_S3_BUCKET: str = Field(
+        default="skillmatch-football",
+        description="Bucket de Garage S3 para sesiones y evidencias de fútbol",
+    )
+    GARAGE_S3_FORCE_PATH_STYLE: bool = Field(
+        default=True,
+        description="Usar direccionamiento path-style (recomendado para Garage S3)",
+    )
+
+    # Cola de Tareas Asíncronas (Celery + Redis)
+    REDIS_URL: str = Field(
+        default="redis://localhost:6379/0",
+        description="URL de conexión a Redis para broker y backend de Celery",
+    )
+    CELERY_TASK_ALWAYS_EAGER: bool = Field(
+        default=False,
+        description="Ejecutar tareas Celery en proceso (True para pruebas sin broker activo)",
+    )
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:

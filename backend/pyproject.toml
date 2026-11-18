@@ -7,7 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
-    "pydantic>=2.10.0",
+    "pydantic[email]>=2.10.0",
+    "email-validator>=2.2.0",
     "pydantic-settings>=2.6.0",
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30.0",
@@ -16,7 +17,12 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "python-multipart>=0.0.17",
     "httpx>=0.28.0",
+    "celery>=5.4.0",
+    "redis>=5.2.0",
+    "boto3>=1.35.0",
+    "pyyaml>=6.0.2",
     "numpy>=1.26.0",
+    "scipy>=1.14.0",
     "opencv-python-headless>=4.10.0",
 ]
 
@@ -26,6 +32,8 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
     "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "types-PyYAML>=6.0.12",
 ]
 
 [build-system]
@@ -38,7 +46,7 @@ packages = ["app"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", ".."]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 markers = [

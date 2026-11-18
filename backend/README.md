@@ -68,12 +68,26 @@ GOOGLE_CLIENT_ID="tu-google-client-id.apps.googleusercontent.com"
 
 
 
-# --- Almacenamiento de Evidencias y MinIO S3 (Sprint 1 al 4) ---
+# --- Almacenamiento de Evidencias y MinIO / Garage S3 (Coolify VPS) ---
 MINIO_ENDPOINT="localhost:9000"
 MINIO_ROOT_USER="minioadmin"
 MINIO_ROOT_PASSWORD="minioadmin"
 MINIO_SECURE=False
 MINIO_DEFAULT_BUCKET="skillmatch-media"
+
+GARAGE_S3_ENDPOINT_URL="https://s3.devhooh.com"
+GARAGE_S3_ADMIN_URL="https://garage-admin.devhooh.com"
+GARAGE_S3_WEB_URL="https://garage-web.devhooh.com"
+GARAGE_S3_REGION="garage"
+GARAGE_S3_ACCESS_KEY_ID="GK000000000000000000000000"
+GARAGE_S3_SECRET_ACCESS_KEY="0000000000000000000000000000000000000000000000000000000000000000"
+GARAGE_S3_ADMIN_TOKEN=""
+GARAGE_S3_BUCKET="skillmatch-football"
+GARAGE_S3_FORCE_PATH_STYLE=True
+
+# --- Cola de Procesamiento Asíncrono (Celery + Redis) ---
+REDIS_URL="redis://localhost:6379/0"
+CELERY_TASK_ALWAYS_EAGER=False
 ```
 
 ---

@@ -62,6 +62,8 @@ out/
 .env
 .env.*
 !.env.example
+.mcp.json
+.agents/
 *.pem
 *.key
 *.cert

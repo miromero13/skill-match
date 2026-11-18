@@ -198,3 +198,23 @@ async def test_admin_can_list_skills(client):
     assert response.json()["statuscode"] == 200
     assert response.json()["count"] >= 1
     assert len(response.json()["data"][0]["levels"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_admin_cannot_create_non_canonical_category(client):
+    res = await client.post("/api/admin/catalog/categories", json={"name": "Arte y Pintura"})
+    assert res.status_code == 400
+    assert "fijas (Música, Deporte, Programación)" in res.json()["message"]
+
+
+@pytest.mark.asyncio
+async def test_admin_cannot_update_or_delete_category(client):
+    cat_id = uuid.uuid4()
+    update_res = await client.put(f"/api/admin/catalog/categories/{cat_id}", json={"name": "Otra"})
+    assert update_res.status_code == 400
+    assert "no se pueden editar" in update_res.json()["message"]
+
+    delete_res = await client.delete(f"/api/admin/catalog/categories/{cat_id}")
+    assert delete_res.status_code == 400
+    assert "no se pueden eliminar" in delete_res.json()["message"]
+
