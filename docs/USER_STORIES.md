@@ -1,6 +1,6 @@
 # SkillMatch — Backlog de Historias de Usuario (Jira Ready)
 
-*Planificación ágil por Sprints (Sprint 0 al Sprint 4) con cobertura integral de backend y frontend por historia, Landing Page pública, autenticación social/OTP para miembros (Google, WhatsApp, GitHub), login local exclusivo para Administradores, economía de puntos con recargas, propinas y retiros en dinero (Cashout), gestión de quejas con compensación, política de seguridad 404 Not Found y estado inicial **Por hacer**.*
+*Planificación ágil por Sprints (Sprint 0 al Sprint 4) con cobertura integral de backend y frontend por historia, Landing Page pública, autenticación exclusiva con Google para miembros, login local exclusivo para Administradores, economía de puntos con recargas, propinas y retiros en dinero (Cashout), gestión de quejas con compensación, política de seguridad 404 Not Found y estado inicial **Por hacer**.*
 
 ---
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | **EPIC-01** | Preparación, Documentación y Diseño del Sistema | Redacción técnica formal (Capítulos 1 al 3, anexos y bibliografía), backlog en Jira, prototipo Figma y Landing Page pública. |
 | **EPIC-02** | Inicialización y Estructura del Proyecto | Scaffolding modular del Backend (FastAPI, PostgreSQL, Swagger y migraciones Alembic) y Frontend/Mobile (React, Shadcn Mist, Zustand y Capacitor). |
-| **EPIC-03** | Miembros, Proveedores de Autenticación y Administración | Registro rápido con Google, WhatsApp y GitHub, login de administrador por clave, gestión de administradores y sesión JWT. |
+| **EPIC-03** | Miembros, Proveedores de Autenticación y Administración | Registro rápido exclusivo con Google, login de administrador por clave, gestión de administradores y sesión JWT. |
 | **EPIC-04** | Catálogo y Habilidades | Administración de categorías, oferta y demanda de habilidades, niveles declarados y portafolio de evidencias. |
 | **EPIC-05** | Datasets e Ingesta de Datos para IA | Herramienta de captura web/móvil y consola de anotación de muestras gestionada por administradores para entrenar modelos propios. |
 | **EPIC-06** | Búsqueda y Matching | Búsqueda con filtros, motor de compatibilidad bilateral recíproca, cálculo de afinidad y tarjetas de coincidencia. |
@@ -248,7 +248,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   - [x] Aplicación estricta de la paleta **Mist**, bordes/radios del preset y tipografía **Inter**.
   - [x] Diseño 100% responsive adaptable tanto a pantallas de escritorio (Web) como a dispositivos móviles (Capacitor).
   - [x] Cobertura completa de todos los flujos clave:
-    1. Landing Page de presentación y botones de acceso rápido (Google, WhatsApp, GitHub) y acceso login de Administrador.
+    1. Landing Page de presentación y acceso rápido exclusivo con Google y acceso login de Administrador.
     2. Perfil de miembro y catálogo de habilidades (enseñar / aprender).
     3. Flujo de validación: modal de consentimiento biométrico previo, verificación de entorno, liveness, editor de código sandbox con tests, reto con cámara y reporte de resultados.
     4. Búsqueda con filtros facetados, Match Cards interactivas y chat de coincidencia.
@@ -280,7 +280,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
       - `GET /api/platform/stats`: Estadísticas públicas consolidadas de la plataforma (Diferido a tarea técnica de backlog `TASK-BE-01` para implementación al final cuando existan datos reales de producción en los módulos core).
   - **Frontend:**
     - [x] Ruta `/` pública implementada con el preset Shadcn/ui Mist y tipografía Inter.
-    - [x] **Sección Hero:** Encabezado con propuesta de valor de alto impacto (*Skill Swapping colaborativo con validación objetiva por Inteligencia Artificial*) y botones de llamada a la acción (*Call-to-Action*) directos para iniciar con Google, WhatsApp o GitHub.
+    - [x] **Sección Hero:** Encabezado con propuesta de valor de alto impacto (*Skill Swapping colaborativo con validación objetiva por Inteligencia Artificial*) y botones de llamada a la acción (*Call-to-Action*) directos para iniciar con Google.
     - [x] **Sección Cómo Funciona:** Flujo explicativo interactivo en 3 pasos (1. Registrá tus habilidades a enseñar y aprender; 2. Valida tu nivel con IA propia; 3. Hacé match recíproco y coordiná sesiones de clase).
     - [x] **Sección Áreas de Validación IA:** Demostración visual de las tres verticales (Programación con editor y sandbox, Instrumentos con análisis de audio y Fútbol con visión artificial).
     - [x] **Sección Catálogo y Confianza & Escrow:** Secciones dedicadas a pantalla completa con categorías de habilidades y pilares del contrato Escrow con navegación ancla fluida bidireccional.
@@ -290,41 +290,40 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ---
 
-#### HU-07: Registro rápido y autenticación de miembros con Google, WhatsApp y GitHub
+#### HU-07: Registro rápido y autenticación de miembros exclusivamente con Google
 - **Épica:** `EPIC-03: Miembros, Proveedores de Autenticación y Administración`
 - **Actor Principal:** Visitante / Nuevo Miembro de la Comunidad
 - **Roles Permitidos:** Público (Sin autenticación previa)
 - **Sprint:** Sprint 0
-- **Estado:** Por hacer
+- **Estado:** En validación — implementación y pruebas automatizadas locales
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-USR-01`, `RF-USR-02`
 - **Descripción:**
   > **Como** nuevo miembro o miembro existente de la comunidad,  
-  > **quiero** registrarme e iniciar sesión de forma ágil usando mi cuenta de Google, GitHub o verificación de WhatsApp sin contraseñas,  
+  > **quiero** registrarme e iniciar sesión de forma ágil usando mi cuenta verificada de Google sin contraseñas,  
   > **para** acceder de inmediato a la plataforma sin trámites engorrosos ni necesidad de recordar claves.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** `28 - Registro & Autenticación de Miembros (Social & OTP)`
+  - **Web Desktop:** `28 - Registro & Autenticación de Miembros` (adaptada a Google exclusivo)
   - **Mobile Responsive:** `30 - Mobile Registro & Auth Miembros`
-  - **Alcance Visual:** Vista Completa — Auth Card con botones de acceso Google y GitHub, selector de prefijo de país y slots de 6 dígitos para código OTP de WhatsApp
+  - **Alcance Visual:** Vista Completa — Tarjeta Shadcn/ui con botón oficial visible de Google; sin GitHub, WhatsApp, OTP ni acceso simulado de desarrollo
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Endpoints documentados en Swagger UI (`/docs`):
+    - [x] Endpoints documentados en Swagger UI (`/docs`):
       - `POST /api/auth/oauth/google`: Intercambia token OAuth de Google por sesión JWT.
-      - `POST /api/auth/oauth/github`: Intercambia código OAuth de GitHub por sesión JWT.
-      - `POST /api/auth/otp/whatsapp/request`: Envía código de un solo uso por WhatsApp.
-      - `POST /api/auth/otp/whatsapp/verify`: Valida código OTP e inicia/crea sesión de miembro.
-    - [ ] Modelo `User` con campos de proveedor: `provider` (google, github, whatsapp), `provider_user_id`, `email`, `phone_number`, `full_name`, `avatar_url`, `role` (`UserRole.MEMBER`), `is_active = true`.
-    - [ ] Creación de billetera automática (`Wallet`) con saldo inicial de 0 puntos asociada al nuevo miembro.
-    - [ ] Provisionamiento automático (*Just-In-Time*): si el usuario no existe, se crea automáticamente en estado verificado y activo con rol `UserRole.MEMBER`.
-    - [ ] Sin gestión de contraseña para este tipo de usuarios (`password_hash = null`).
-    - [ ] Emisión de Access Token y Refresh Token con el claim `"role": "MEMBER"`.
+    - [x] Modelo `User` con campos de proveedor: `provider` (`google`), `provider_user_id`, `email`, `phone_number`, `full_name`, `avatar_url`, `role` (`UserRole.MEMBER`), `is_active = true`.
+    - [x] Creación transaccional de billetera real (`Wallet`) con saldo inicial de 0 puntos; saldo persistido expuesto en la identidad y mostrado sin bono ficticio. No incluye recargas, pagos, transferencias ni retiros.
+    - [x] Provisionamiento automático (*Just-In-Time*): si el usuario no existe, se crea automáticamente con identidad de Google verificada y cuenta activa con rol `UserRole.MEMBER`.
+    - [x] Sin gestión de contraseña para este tipo de usuarios (`hashed_password = null`).
+    - [x] Verificación obligatoria con Google, audiencia configurada, emisor, expiración, email verificado y sujeto; rechazo de cuentas ADMIN y sujetos de Google que no corresponden. Sin fallback no firmado, incluso en desarrollo.
+    - [x] Emisión de Access Token y Refresh Token con el claim `"role": "MEMBER"`.
   - **Frontend:**
-    - [ ] Pantalla de Login / Registro rápido con botones de acción social estilizados con Shadcn/ui (Google, WhatsApp, GitHub).
-    - [ ] Flujo interactivo de ingreso de número telefónico y diálogo de código OTP para WhatsApp.
-    - [ ] Gestión del estado de autenticación y tokens en store de **Zustand**.
-    - [ ] Despliegue de mensajes informativos y de error con el `message` del backend en toasts.
-    - [ ] Interfaz 100% responsive en mobile, tablet y desktop.
+    - [x] Pantalla de Login / Registro con tarjeta Shadcn/ui y botón oficial de Google; sin proveedores ficticios ni tokens fabricados.
+    - [x] Gestión del estado de autenticación y tokens en store de **Zustand**.
+    - [x] Despliegue de mensajes informativos y de error con el `message` del backend en toasts.
+    - [ ] Interfaz 100% responsive en mobile, tablet y desktop. (validación visual/manual pendiente).
+
+- **Verificación pendiente:** Prueba manual con Google real y/o revisión visual web/móvil según la HU. Las pruebas del plugin nativo usan dobles de las APIs; no acreditan ejecución en dispositivo. Este documento no modifica el estado de Jira.
 
 ---
 
@@ -333,7 +332,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Actor Principal:** Administrador de la Plataforma
 - **Roles Permitidos:** Público para login de administración
 - **Sprint:** Sprint 0
-- **Estado:** Por hacer
+- **Estado:** En validación — implementación y pruebas automatizadas locales
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-USR-04`, `RF-USR-10`
@@ -347,19 +346,22 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   - **Alcance Visual:** Vista Completa — Pantalla sobria `#0F1416` con formulario de correo institucional, contraseña cifrada y aviso de seguridad 404 Not Found
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Endpoint documentado en Swagger UI (`/docs`):
+    - [x] Endpoint documentado en Swagger UI (`/docs`):
       - `POST /api/admin/auth/login`: Autentica credenciales administrativas (`email` y `password`).
-    - [ ] Validación estricta de que el usuario posea rol `UserRole.ADMIN` y cuenta activa (`is_active = true`).
-    - [ ] Verificación de contraseña hasheada con Argon2/Bcrypt.
-    - [ ] Emisión de par de tokens JWT conteniendo el claim `"role": "ADMIN"`.
-    - [ ] Sin flujo de recuperación de clave por correo para cuentas administrativas.
-    - [ ] Bloqueo preventivo tras 5 intentos fallidos consecutivos de acceso.
+    - [x] Validación estricta de que el usuario posea rol `UserRole.ADMIN` y cuenta activa (`is_active = true`).
+    - [x] Verificación de contraseña hasheada con Argon2/Bcrypt.
+    - [x] Emisión de par de tokens JWT conteniendo el claim `"role": "ADMIN"`.
+    - [x] Google nunca autentica cuentas ADMIN; el ingreso administrativo es exclusivamente correo y contraseña.
+    - [x] Sin flujo de recuperación de clave por correo para cuentas administrativas.
+    - [x] Bloqueo preventivo tras 5 intentos fallidos consecutivos de acceso.
   - **Frontend:**
-    - [ ] Vista `/admin/login` independiente con formulario de correo y contraseña (diseño discreto Shadcn Mist).
-    - [ ] Almacenamiento seguro del token y del rol `UserRole.ADMIN` en el store de **Zustand**.
-    - [ ] Redirección automática al panel de administración `/admin/dashboard` tras éxito.
-    - [ ] Avisos de error visuales mostrando textualmente el `message` recibido del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Vista `/admin/login` independiente con formulario de correo y contraseña (diseño discreto Shadcn Mist).
+    - [x] Almacenamiento seguro del token y del rol `UserRole.ADMIN` en el store de **Zustand**.
+    - [x] Redirección automática al panel de administración `/admin/dashboard` tras éxito.
+    - [x] Avisos de error visuales mostrando textualmente el `message` recibido del backend.
+    - [ ] Diseño 100% responsive en mobile, tablet y desktop. (validación visual/manual pendiente).
+
+- **Verificación pendiente:** Prueba manual con Google real y/o revisión visual web/móvil según la HU. Las pruebas del plugin nativo usan dobles de las APIs; no acreditan ejecución en dispositivo. Este documento no modifica el estado de Jira.
 
 ---
 
@@ -368,7 +370,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Actor Principal:** Usuario Autenticado (`MEMBER` o `ADMIN`)
 - **Roles Permitidos:** `UserRole.MEMBER`, `UserRole.ADMIN`
 - **Sprint:** Sprint 0
-- **Estado:** Por hacer
+- **Estado:** En validación — implementación y pruebas automatizadas locales
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-USR-04`
@@ -379,20 +381,25 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `01 - Shell Maestro Web` (y cabecera de todas las vistas autenticadas)
   - **Mobile Responsive:** `01 - Mobile Feed (Home)` (y header de todas las vistas autenticadas)
-  - **Alcance Visual:** Solo una parte de esa vista — Topbar / Mobile Header: Avatar de usuario logueado, saldo de puntos (150 SP), botón de logout y persistencia Zustand
+  - **Alcance Visual:** Solo una parte de esa vista — Topbar / Mobile Header: Avatar de usuario logueado, saldo real de la billetera (0 SP al registrarse), botón de logout y persistencia Zustand
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Endpoints documentados en Swagger UI (`/docs`):
+    - [x] Endpoints documentados en Swagger UI (`/docs`):
       - `POST /api/auth/refresh`: Renueva el token de acceso rotando el Refresh Token y preservando el claim `"role"` (ya sea `MEMBER` o `ADMIN`).
       - `POST /api/auth/logout`: Revoca el token de sesión.
       - `GET /api/auth/me`: Retorna la identidad, perfil y rol del usuario autenticado actual.
-    - [ ] Dependencia de FastAPI `get_current_user` que valida vigencia temporal, algoritmo y firma del JWT.
+    - [x] Rotación atómica de refresh, rol normalizado desde la base de datos y emisión del nuevo par antes de consumir el anterior; solo una solicitud concurrente puede ganar.
+    - [x] Revocaciones durables compartidas en PostgreSQL (`revoked_tokens`), sin guardar los JWT en texto plano. Logout verifica la propiedad del refresh antes de revocar.
+    - [x] Dependencia de FastAPI `get_current_user` que valida vigencia temporal, algoritmo y firma del JWT.
   - **Frontend:**
-    - [ ] Store de **Zustand** que administra el ciclo de vida de la sesión, claims de rol y usuario actual.
-    - [ ] Persistencia segura (localStorage en web y Preferences cifradas en Capacitor móvil).
-    - [ ] Interceptor Axios que refresca el token automáticamente ante respuestas `401 Unauthorized`.
-    - [ ] Redirección al login correspondiente y limpieza completa de estado ante cierre de sesión.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Guardia de rutas que espera la hidratación del almacenamiento y rechaza errores de lectura; respuestas tardías de logout/refresh no alteran una sesión posterior.
+    - [x] Store de **Zustand** que administra el ciclo de vida de la sesión, claims de rol y usuario actual.
+    - [x] Persistencia web en localStorage (no cifrada) y almacenamiento nativo cifrado mediante iOS Keychain / Android Keystore. Migración desde Preferences solo después de guardar la copia cifrada; sin fallback a texto plano.
+    - [x] Cliente Fetch tipado con interceptor que refresca el token automáticamente ante respuestas `401 Unauthorized`.
+    - [x] Redirección al login correspondiente y limpieza completa de estado ante cierre de sesión.
+    - [ ] Diseño 100% responsive en mobile, tablet y desktop. (validación visual/manual pendiente).
+
+- **Verificación pendiente:** Prueba manual con Google real y/o revisión visual web/móvil según la HU. Las pruebas del plugin nativo usan dobles de las APIs; no acreditan ejecución en dispositivo. Este documento no modifica el estado de Jira.
 
 ---
 
@@ -401,7 +408,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Actor Principal:** Administrador de la Plataforma
 - **Roles Permitidos:** `UserRole.ADMIN`
 - **Sprint:** Sprint 0
-- **Estado:** Por hacer
+- **Estado:** En validación — implementación y pruebas automatizadas locales
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-USR-10`, `RF-USR-15`
@@ -412,20 +419,26 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `15A - Gestión de Usuarios, Administradores y Control RBAC` y `15B - Modal Alta de Nuevo Administrador & RBAC`
   - **Mobile Responsive:** `17A - Mobile Gestión de Usuarios & RBAC` y `17B - Mobile Modal Alta Nuevo Administrador`
-  - **Alcance Visual:** Vista Completa — En 15A/17A tabla y control de administradores; en 15B/17B modal formulario de alta con asignación de rol y privilegios RBAC
+  - **Alcance Visual:** Vista Completa — En 15A/17A tabla y control de administradores; en 15B/17B modal de alta con rol ADMIN fijo, sin jerarquía SuperAdmin ni privilegios ficticios
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Endpoints limpios documentados en Swagger UI (`/docs`) y protegidos:
+    - [x] Endpoints limpios documentados en Swagger UI (`/docs`) y protegidos:
       - `GET /api/admin`: Listado de cuentas administrativas con `count`.
       - `POST /api/admin`: Crea un nuevo usuario administrador con contraseña hasheada y `role = UserRole.ADMIN`.
+      - `GET /api/admin/{id}`: Detalle de administrador.
+      - `PATCH /api/admin/{id}`: Actualiza nombre/correo.
+      - `PATCH /api/admin/{id}/password`: Cambia contraseña administrativa.
       - `PATCH /api/admin/{id}/status`: Suspende o reactiva un administrador.
-    - [ ] **Política de seguridad 404:** Si un usuario con rol `MEMBER` o sin token intenta llamar a estos endpoints, el backend responde con `statuscode: 404` y `message: "Recurso no encontrado"`.
+    - [x] Cualquier ADMIN activo puede gestionar administradores, independientemente del correo de seed; no se permite la auto-suspensión.
+    - [x] **Política de seguridad 404:** Si un usuario con rol `MEMBER` o sin token intenta llamar a estos endpoints, el backend responde con `statuscode: 404` y `message: "Recurso no encontrado"`.
   - **Frontend:**
-    - [ ] Vista `/admin/administrators` protegida: si el usuario no tiene rol `UserRole.ADMIN`, la guardia de ruta renderiza directamente la página **404 Not Found**.
-    - [ ] **Restricción en Sidebar:** El apartado "Equipo Administrador" solo es visible para `UserRole.ADMIN`.
-    - [ ] Formulario de alta con validación de contraseña robusta y correo único gestionado en **Zustand**.
-    - [ ] Toasts con el `message` del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Vista `/admin/administrators` protegida: si el usuario no tiene rol `UserRole.ADMIN`, la guardia de ruta renderiza directamente la página **404 Not Found**.
+    - [x] **Restricción en Sidebar:** El apartado "Equipo Administrador" solo es visible para `UserRole.ADMIN`.
+    - [x] Formulario de alta con validación de contraseña robusta y correo único gestionado en **Zustand**.
+    - [x] Toasts con el `message` del backend.
+    - [ ] Diseño 100% responsive en mobile, tablet y desktop. (validación visual/manual pendiente).
+
+- **Verificación pendiente:** Prueba manual con Google real y/o revisión visual web/móvil según la HU. Las pruebas del plugin nativo usan dobles de las APIs; no acreditan ejecución en dispositivo. Este documento no modifica el estado de Jira.
 
 ---
 
@@ -438,7 +451,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   - Consulta: Público / `UserRole.MEMBER`, `UserRole.ADMIN`
   - Mutación: `UserRole.ADMIN`
 - **Sprint:** Sprint 1
-- **Estado:** Por hacer
+- **Estado:** En validación — implementación y pruebas automatizadas locales
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-HAB-01`
@@ -449,25 +462,29 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `16A - Catálogo Maestro de Habilidades & Aprobaciones` y `16B - Modal Crear Nueva Habilidad / Categoría`
   - **Mobile Responsive:** `18A - Mobile Catálogo Maestro de Habilidades` y `18B - Mobile Modal Nueva Habilidad`
-  - **Alcance Visual:** Vista Completa — Árbol jerárquico de Categorías y Subcategorías, Escalera de Niveles 1 al 5, panel de sugerencias comunitarias y modal de creación
+  - **Alcance Visual:** Vista Completa — Árbol jerárquico de Categorías y Subcategorías, Escalera de Niveles 1 al 5 y modal de creación/edición de categorías y subcategorías; las sugerencias comunitarias quedan fuera de este ajuste
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Modelos relacionales `Category` y `Skill` con claves foráneas, slugs y migración Alembic.
-    - [ ] Restricción de unicidad: `name` y `slug` únicos por categoría normalizados a minúsculas.
-    - [ ] Endpoints documentados en Swagger UI (`/docs`):
+    - [x] Modelos relacionales `Category` y `Skill` con claves foráneas, slugs y migración Alembic. `Category.parent_id` representa la jerarquía; se rechazan referencias inexistentes y ciclos, incluso al editar concurrentemente.
+    - [x] Consulta pública limitada a habilidades activas y ramas con todos sus ancestros activos. Filtrar por una categoría incluye sus descendientes; el backoffice sigue mostrando registros inactivos.
+    - [x] Unicidad de nombres por categoría y de categorías hermanas mediante claves normalizadas (mayúsculas, acentos, Unicode y espacios). Los slugs conservan su unicidad global y sufijos entre categorías distintas. La migración rechaza duplicados previos sin fusionar ni borrar registros.
+    - [x] Endpoints documentados en Swagger UI (`/docs`):
       - `GET /api/skills`: Consulta del catálogo público con filtros por categoría y campo `count`.
       - `GET /api/skills/{id}`: Detalle de habilidad puntual.
-      - `POST /api/admin/skills`: Creación de nueva habilidad (requiere `UserRole.ADMIN`).
-      - `PUT /api/admin/skills/{id}`: Actualización integral (requiere `UserRole.ADMIN`).
-      - `PATCH /api/admin/skills/{id}/status`: Activación/desactivación lógica (requiere `UserRole.ADMIN`).
-      - `DELETE /api/admin/skills/{id}`: Baja lógica protegida, rechazada si hay miembros vinculados (requiere `UserRole.ADMIN`).
-    - [ ] **Política 404 en Backend:** Endpoints administrativos devuelven `statuscode: 404` si un miembro común intenta llamarlos.
+      - `POST /api/admin/catalog/skills`: Creación de nueva habilidad (requiere `UserRole.ADMIN`).
+      - `PUT /api/admin/catalog/skills/{id}`: Actualización integral (requiere `UserRole.ADMIN`).
+      - `PATCH /api/admin/catalog/skills/{id}/status`: Activación/desactivación lógica (requiere `UserRole.ADMIN`).
+      - `DELETE /api/admin/catalog/skills/{id}`: Baja lógica protegida (sin borrado físico), rechazada con 409 si hay miembros vinculados; la desactivación por PATCH preserva sus asociaciones (requiere `UserRole.ADMIN`).
+    - [x] Gestión de categorías en `GET/POST /api/admin/catalog/categories`, `PUT /api/admin/catalog/categories/{id}` y `DELETE /api/admin/catalog/categories/{id}` (desactivación de la rama pública sin borrar registros).
+    - [x] **Política 404 en Backend:** Endpoints administrativos devuelven `statuscode: 404` si un miembro común intenta llamarlos.
   - **Frontend:**
-    - [ ] Store de catálogo gestionado con **Zustand** (búsqueda, caché local y filtros).
-    - [ ] Navegador de catálogo con Command/Combobox de Shadcn/ui y buscador autocompletable.
-    - [ ] Panel de administración en `/admin/skills`: si el usuario autenticado tiene rol `MEMBER`, la guardia de ruta renderiza directamente la página **404 Not Found**.
-    - [ ] **Restricción en Sidebar:** El enlace "Administrar Catálogo" se muestra exclusivamente para el rol `UserRole.ADMIN`.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Store de catálogo gestionado con **Zustand** (búsqueda, caché local y filtros).
+    - [x] Selector accesible Shadcn Select con rutas jerárquicas, filtro por categoría/subcategorías y buscador por nombre; edición y estado de categorías desde el backoffice.
+    - [x] Panel de administración en `/admin/catalog` (alias `/admin/skills` conservado): si el usuario autenticado tiene rol `MEMBER`, la guardia de ruta renderiza directamente la página **404 Not Found**.
+    - [x] **Restricción en Sidebar:** El enlace "Administrar Catálogo" se muestra exclusivamente para el rol `UserRole.ADMIN`.
+    - [ ] Diseño 100% responsive en mobile, tablet y desktop. (validación visual/manual pendiente).
+
+- **Verificación pendiente:** Prueba manual con Google real y/o revisión visual web/móvil según la HU. Las pruebas del plugin nativo usan dobles de las APIs; no acreditan ejecución en dispositivo. Este documento no modifica el estado de Jira.
 
 ---
 

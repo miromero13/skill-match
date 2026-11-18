@@ -76,11 +76,12 @@ async def refresh_session_token(
 async def logout(
     authorization: Optional[str] = Header(None, description="Bearer <token>"),
     payload: Optional[TokenRefreshRequest] = None,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> APIResponse[None]:
     """Revoca el token de sesión y finaliza la sesión activa."""
     refresh_token = payload.refresh_token if payload else None
-    AuthService.logout(access_token=authorization or "", refresh_token=refresh_token)
+    await AuthService.logout(db, current_user, access_token=authorization or "", refresh_token=refresh_token)
     return APIResponse.ok(
         data=None,
         message="Sesión cerrada y tokens revocados exitosamente."

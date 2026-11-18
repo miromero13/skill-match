@@ -168,6 +168,9 @@ class ApiClient {
                 this.refreshes.delete(sessionVersion)
             }
 
+            if (!currentSession())
+              throw new ApiError("Solicitud de una sesión anterior descartada.", 0)
+
             // Reintentar la solicitud original con el nuevo Access Token
             const retryHeaders = new Headers(customHeaders)
             retryHeaders.set("Authorization", `Bearer ${newToken}`)
@@ -177,6 +180,9 @@ class ApiClient {
               {
                 ...options,
                 headers: retryHeaders,
+                ...(endpoint === "/auth/logout" ? {
+                  body: { refresh_token: useAuthStore.getState().refreshToken },
+                } : {}),
               },
               true
             )
@@ -239,6 +245,11 @@ class ApiClient {
       }
       if (!currentSession())
         throw new ApiError("Solicitud de una sesión anterior descartada.", 0)
+
+      // Si la petición fue cancelada deliberadamente (AbortController/navegación), no emitir toast de fallo
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new ApiError("Solicitud cancelada.", 0)
+      }
 
       // Errores de red o conexión
       const networkErrorMessage =

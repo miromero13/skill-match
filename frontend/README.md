@@ -10,7 +10,7 @@ Plataforma descentralizada de intercambio recíproco y triangular de habilidades
 - **Estilos & Componentes UI:** [Tailwind CSS v4](https://tailwindcss.com/) + [Shadcn UI](https://ui.shadcn.com/) (Preset **Mist**, tipografía **Inter Variable** y Radix UI)
 - **Tema Visual:** Modo Claro / Modo Oscuro con detección automática del sistema operativo (`system default`) y alternador dinámico
 - **Enrutamiento:** [React Router v7](https://reactrouter.com/) con 3 layouts arquitectónicos (`PublicLayout`, `PlatformLayout`, `ExamLayout`) y pantalla 404 dedicada
-- **Estado Global:** [Zustand](https://github.com/pmndrs/zustand) con persistencia en `localStorage` (`useAuthStore`, `useUiStore`, `useSwapStore`)
+- **Estado Global:** [Zustand](https://github.com/pmndrs/zustand) con persistencia web en `localStorage`; las credenciales nativas usan almacenamiento seguro del dispositivo
 - **Cliente HTTP:** Cliente nativo tipado basado en **Fetch API** con interceptores automáticos de JWT y extracción de mensajes para notificaciones con **Sonner**
 - **Soporte Móvil:** [Capacitor 8](https://capacitorjs.com/) (`@capacitor/android`, `@capacitor/ios`) configurado con `appId: com.skillmatch.app` y permisos de hardware para cámara y micrófono
 
@@ -85,6 +85,8 @@ cp env.template .env
 | `VITE_API_URL` | URL base de la API backend FastAPI. En desarrollo apunta directamente a `http://localhost:8000/api` (autorizado en `ALLOWED_ORIGINS` del backend). | `"http://localhost:8000/api"` |
 | `VITE_APP_ENV` | Entorno de despliegue (`development`, `staging`, `production`). | `"development"` |
 | `VITE_APP_NAME` | Nombre de la plataforma mostrado en la interfaz. | `"SkillMatch"` |
+| `VITE_GOOGLE_CLIENT_ID` | Cliente OAuth Web de Google, idéntico a `GOOGLE_CLIENT_ID` del backend. También es la audiencia de los tokens nativos. Sin configurar, el login queda deshabilitado; no hay cuentas simuladas. | `""` |
+| `VITE_GOOGLE_IOS_CLIENT_ID` | Cliente OAuth de tipo iOS para `com.skillmatch.app`. Requiere configurar su esquema invertido en `ios/App/App/Info.plist`. | `""` |
 | `VITE_APP_VERSION` | Versión semántica del cliente frontend. | `"0.1.0"` |
 
 Plantilla lista para copiar y pegar:
@@ -96,6 +98,8 @@ VITE_API_URL="http://localhost:8000/api"
 VITE_APP_ENV="development"
 VITE_APP_NAME="SkillMatch"
 VITE_APP_VERSION="0.1.0"
+VITE_GOOGLE_CLIENT_ID="tu-google-client-id.apps.googleusercontent.com"
+VITE_GOOGLE_IOS_CLIENT_ID=""
 ```
 
 ---
@@ -131,3 +135,29 @@ npm run cap:ios
 - **iOS (`ios/App/App/Info.plist`):**
   - `NSCameraUsageDescription`: *"SkillMatch requiere acceso a la cámara para la prueba de vida y validación de habilidades."*
   - `NSMicrophoneUsageDescription`: *"SkillMatch requiere acceso al micrófono para la evaluación oral y pruebas de audio."*
+
+
+## 🔐 Autenticación y sesiones (HU-07 a HU-10)
+
+- **Miembros:** solo Google. Web usa el botón oficial de Google Identity Services; Android/iOS usan `@capgo/capacitor-social-login` con únicamente Google habilitado. El perfil del SDK no crea una sesión: el ID token siempre se verifica en el backend.
+- **Administradores:** únicamente correo y contraseña en `/admin/login`. Cualquier ADMIN activo puede gestionar otros administradores; no hay jerarquía por correo de seed ni rol SuperAdmin.
+- **Saldo:** se muestra el saldo persistido de la billetera, inicialmente 0. No se implementan recargas, pagos, transferencias ni retiros.
+- **Web:** los tokens se persisten en localStorage; esto no es almacenamiento cifrado y exige prevenir XSS.
+- **Nativo:** `@aparajita/capacitor-secure-storage@8.0.1`, iOS Keychain sin sincronización/vinculado al dispositivo y almacenamiento protegido en Android. Preferences solo se consulta para migrar credenciales antiguas y eliminarlas después de la escritura cifrada. No hay fallback a texto plano.
+- Las guardias esperan la hidratación. Las renovaciones concurrentes se coordinan y las respuestas tardías de refresh/logout no reemplazan una sesión posterior.
+- Los logs del puente nativo están deshabilitados para no volcar respuestas con credenciales.
+
+### Configurar Google nativo antes de probar con cuentas reales
+
+1. Crear un cliente OAuth **Web** y usar el mismo ID en `VITE_GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_ID` del backend. Autorizar el origen web de desarrollo/producción en Google Cloud.
+2. **Android:** registrar `com.skillmatch.app` y los SHA-1 de las claves de firma correspondientes (debug, release y Play App Signing). Obtener la firma local con `cd android && ./gradlew signingReport`. El ID de cliente Android no reemplaza al ID Web.
+3. **iOS:** crear el cliente OAuth iOS para `com.skillmatch.app` y establecer `VITE_GOOGLE_IOS_CLIENT_ID`. En `ios/App/App/Info.plist`, reemplazar `com.googleusercontent.apps.replace-with-ios-client-id` por el ID iOS invertido, por ejemplo `com.googleusercontent.apps.PREFIX` para `PREFIX.apps.googleusercontent.com`. Mantener el reenvío de URLs de `SceneDelegateProxy`: el plugin registra su observador de callbacks de Google.
+4. Ejecutar `npm run build:mobile`, compilar y probar el ingreso, cierre de sesión y reapertura en un dispositivo/simulador configurado. Una compilación nativa o un doble del SDK no acredita login real ni protección del almacenamiento en un dispositivo.
+
+Referencias: [Google en Android](https://capgo.app/docs/plugins/social-login/google/android/) y [Google en iOS](https://capgo.app/docs/plugins/social-login/google/ios/).
+
+## 🗂️ Catálogo jerárquico (HU-12)
+
+El backoffice permanece en `/admin/catalog` (alias `/admin/skills`). Permite crear/editar categorías y subcategorías, moverlas sin ciclos y activar/desactivar ramas. Los nombres se comparan sin diferencias de mayúsculas, acentos ni espacios repetidos dentro del mismo padre/categoría. La búsqueda por categoría incluye descendientes.
+
+Eliminar una habilidad es lógico; si tiene miembros vinculados, el backend responde 409 y se utiliza la desactivación por PATCH, que conserva asociaciones. Las categorías inactivas ocultan su rama del catálogo público, no del backoffice.

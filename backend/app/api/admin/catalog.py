@@ -36,10 +36,10 @@ async def update_category(category_id: uuid.UUID, request: CategoryUpdateRequest
     return APIResponse(statuscode=200, message="Categoría actualizada exitosamente.", data=item)
 
 
-@router.delete("/categories/{category_id}", response_model=APIResponse[None])
+@router.delete("/categories/{category_id}", response_model=APIResponse[None], summary="Desactivar categoría sin borrar su jerarquía ni asociaciones")
 async def delete_category(category_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin_user)):
     await CatalogService.delete_category(db, category_id)
-    return APIResponse(statuscode=200, message="Categoría eliminada exitosamente.", data=None)
+    return APIResponse(statuscode=200, message="Categoría desactivada exitosamente.", data=None)
 
 
 @router.get("/challenge-types", response_model=ChallengeTypeListResponse)
@@ -90,7 +90,7 @@ async def toggle_status(skill_id: uuid.UUID, request: StatusRequest, db: AsyncSe
     return APIResponse(statuscode=200, message="Estado de habilidad actualizado exitosamente.", data=item)
 
 
-@router.delete("/skills/{skill_id}", response_model=APIResponse[None])
+@router.delete("/skills/{skill_id}", response_model=APIResponse[None], summary="Baja lógica de habilidad; rechaza miembros vinculados con 409")
 async def delete_skill(skill_id: uuid.UUID, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin_user)):
     await CatalogService.delete_skill(db, skill_id)
-    return APIResponse(statuscode=200, message="Habilidad eliminada exitosamente.", data=None)
+    return APIResponse(statuscode=200, message="Habilidad desactivada exitosamente.", data=None)

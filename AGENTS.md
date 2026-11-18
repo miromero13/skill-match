@@ -32,7 +32,7 @@ Todas las respuestas HTTP emitidas por el backend siguen estrictamente el esquem
 
 ### 1.3 Modelo Canónico de Roles y Accesos (RBAC Estricto)
 Se definen únicamente dos roles en todo el ecosistema (backend y frontend):
-- `MEMBER`: Miembro de la comunidad (aprendiz e instructor). Autenticación **exclusiva** vía proveedores sociales y OTP (**Google**, **GitHub**, **WhatsApp**). Sin contraseñas locales ni recuperación de contraseña.
+- `MEMBER`: Miembro de la comunidad (aprendiz e instructor). Autenticación **exclusiva** vía **Google** (identidad verificada, sin GitHub ni WhatsApp/OTP). Sin contraseñas locales ni recuperación de contraseña.
 - `ADMIN`: Administrador de la plataforma. Autenticación **exclusiva** por correo y contraseña (seed inicial + creación manual por otro ADMIN).
 - **Claim dinámico en JWT:** `"role": user.role.value` (`"MEMBER"` o `"ADMIN"`).
 - **Política de Ofuscación 404 (Security by Obfuscation):** Cualquier intento de acceso no autorizado por un `MEMBER` o visitante anónimo a rutas o endpoints administrativos (`/admin/...` o `/api/admin/...`) debe retornar **`statuscode: 404`** ("Recurso no encontrado"), jamás un `403 Forbidden`. El usuario no debe saber que la funcionalidad existe.

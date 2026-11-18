@@ -36,7 +36,7 @@ export function PlatformHeader() {
       .slice(0, 2)
       .toUpperCase() || "MB"
 
-  const balancePoints = user?.skillPointsBalance ?? 150
+  const balancePoints = user?.skillPointsBalance ?? 0
 
 
   const navItems = [

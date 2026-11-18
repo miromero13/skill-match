@@ -69,15 +69,8 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: SecretStr = Field(..., description="Contraseña maestra del Administrador inicial (Secreto .env)")
     ADMIN_FULL_NAME: str = Field(default="Administrador Principal", description="Nombre completo del Administrador inicial")
 
-    # Proveedores de Autenticación Social & OTP (Opcionales / Se cargan de .env)
-    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google OAuth Client ID")
-    GOOGLE_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Google OAuth Client Secret (Secreto .env)")
-
-    GITHUB_CLIENT_ID: Optional[str] = Field(default=None, description="GitHub OAuth Client ID")
-    GITHUB_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="GitHub OAuth Client Secret (Secreto .env)")
-
-    WHATSAPP_API_KEY: Optional[SecretStr] = Field(default=None, description="WhatsApp API Key (Secreto .env)")
-    WHATSAPP_PHONE_NUMBER_ID: Optional[str] = Field(default=None, description="WhatsApp Business Phone Number ID")
+    # Google Identity Services: ID-token flow, no client secret or other providers.
+    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google OAuth Web Client ID; must match the frontend")
 
     # Almacenamiento MinIO / S3
     MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Endpoint de MinIO/S3")
@@ -85,6 +78,54 @@ class Settings(BaseSettings):
     MINIO_ROOT_PASSWORD: Optional[SecretStr] = Field(default=None, description="Contraseña de MinIO (Secreto .env)")
     MINIO_SECURE: bool = Field(default=False, description="Uso de HTTPS para MinIO")
     MINIO_DEFAULT_BUCKET: str = Field(default="skillmatch-media", description="Bucket por defecto")
+
+    # Almacenamiento Garage S3 (Coolify VPS propio)
+    GARAGE_S3_ENDPOINT_URL: str = Field(
+        default="https://s3.devhooh.com",
+        description="Endpoint S3 de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_ADMIN_URL: Optional[str] = Field(
+        default="https://garage-admin.devhooh.com",
+        description="Endpoint Admin API v2 de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_WEB_URL: Optional[str] = Field(
+        default="https://garage-web.devhooh.com",
+        description="Endpoint Web de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_REGION: str = Field(
+        default="garage",
+        description="Región configurada en Garage S3",
+    )
+    GARAGE_S3_ACCESS_KEY_ID: Optional[str] = Field(
+        default=None,
+        description="Access Key ID de Garage S3",
+    )
+    GARAGE_S3_SECRET_ACCESS_KEY: Optional[SecretStr] = Field(
+        default=None,
+        description="Secret Access Key de Garage S3 (Secreto .env)",
+    )
+    GARAGE_S3_ADMIN_TOKEN: Optional[SecretStr] = Field(
+        default=None,
+        description="Token administrativo de Garage S3 (Secreto .env)",
+    )
+    GARAGE_S3_BUCKET: str = Field(
+        default="skillmatch-football",
+        description="Bucket de Garage S3 para sesiones y evidencias de fútbol",
+    )
+    GARAGE_S3_FORCE_PATH_STYLE: bool = Field(
+        default=True,
+        description="Usar direccionamiento path-style (recomendado para Garage S3)",
+    )
+
+    # Cola de Tareas Asíncronas (Celery + Redis)
+    REDIS_URL: str = Field(
+        default="redis://localhost:6379/0",
+        description="URL de conexión a Redis para broker y backend de Celery",
+    )
+    CELERY_TASK_ALWAYS_EAGER: bool = Field(
+        default=False,
+        description="Ejecutar tareas Celery en proceso (True para pruebas sin broker activo)",
+    )
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

@@ -1,4 +1,5 @@
 export interface Category {
+  parent_id?: string | null
   id: string
   name: string
   slug: string
@@ -52,12 +53,14 @@ export interface Skill {
 }
 
 export interface CreateCategoryPayload {
+  parent_id?: string | null
   name: string
   description?: string
   is_active?: boolean
 }
 
 export interface UpdateCategoryPayload {
+  parent_id?: string | null
   name?: string
   description?: string
   is_active?: boolean

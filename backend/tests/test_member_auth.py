@@ -1,5 +1,8 @@
 import pytest
 import uuid
+import time
+from unittest.mock import AsyncMock
+from types import SimpleNamespace
 from httpx import AsyncClient, ASGITransport
 from jose import jwt
 from app.main import app
@@ -31,6 +34,9 @@ class MockDbSession:
             self.added_users.append(entity)
             self.existing_user = entity
 
+    async def flush(self):
+        pass
+
     async def commit(self):
         pass
 
@@ -42,6 +48,20 @@ class MockDbSession:
 
     async def close(self):
         pass
+
+@pytest.fixture(autouse=True)
+def verified_google(monkeypatch):
+    """Mock Google's verifier, not the application's signature-validation path."""
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "test.apps.googleusercontent.com")
+    async def get(url, *, params):
+        claims = jwt.get_unverified_claims(params["id_token"])
+        return SimpleNamespace(status_code=200, json=lambda: claims)
+    client = AsyncMock()
+    client.get.side_effect = get
+    context = AsyncMock()
+    context.__aenter__.return_value = client
+    monkeypatch.setattr("app.services.auth_service.httpx.AsyncClient", lambda **_: context)
+
 
 @pytest.fixture(autouse=True)
 def clean_tokens():
@@ -58,7 +78,8 @@ def create_mock_google_token(email: str, name: str, sub: str = "google-sub-123",
         "email_verified": True,
         "name": name,
         "picture": picture,
-        "aud": settings.GOOGLE_CLIENT_ID or "mock-client-id"
+        "aud": settings.GOOGLE_CLIENT_ID or "mock-client-id",
+        "exp": int(time.time()) + 3600,
     }
     return jwt.encode(payload, "mock-secret-not-verified", algorithm="HS256")
 
@@ -125,7 +146,8 @@ async def test_google_oauth_existing_member_login():
     try:
         token = create_mock_google_token(
             email="laura.dev@skillmatch.io",
-            name="Laura Desarrolladora"
+            name="Laura Desarrolladora",
+            sub="sub-laura-1"
         )
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://testserver") as client:

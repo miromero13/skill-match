@@ -4,6 +4,13 @@ const config: CapacitorConfig = {
   appId: "com.skillmatch.app",
   appName: "SkillMatch",
   webDir: "dist",
+  loggingBehavior: "none",
+  plugins: {
+    SocialLogin: {
+      providers: { google: true, facebook: false, apple: false, twitter: false, telegram: false, oauth2: false },
+      logLevel: 1,
+    },
+  },
   server: {
     androidScheme: "https",
   },

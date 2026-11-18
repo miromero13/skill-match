@@ -73,6 +73,9 @@ class MockAdminDbSession:
 
         return MockResult(self.target_admin or self.current_admin)
 
+    async def get(self, model, key):
+        return None
+
     def add(self, instance):
         self.added_users.append(instance)
 
@@ -82,11 +85,11 @@ class MockAdminDbSession:
     async def refresh(self, instance):
         pass
 
-@pytest.fixture
-def active_admin_user() -> User:
+@pytest.fixture(params=["seed", "another_admin"])
+def active_admin_user(request) -> User:
     return User(
         id=uuid.uuid4(),
-        email=settings.ADMIN_EMAIL,
+        email=settings.ADMIN_EMAIL if request.param == "seed" else "another.admin@skillmatch.io",
         full_name="Gonzalo Administrador Central",
         role=UserRole.ADMIN,
         is_active=True,
@@ -134,7 +137,7 @@ async def test_list_administrators_success(active_admin_user):
         app.dependency_overrides.clear()
 
 @pytest.mark.asyncio
-async def test_non_super_admin_cannot_list_administrators(active_admin_user, monkeypatch):
+async def test_any_admin_can_list_regardless_of_seed_email(active_admin_user, monkeypatch):
     session = MockAdminDbSession(active_admin_user)
     async def override_db():
         yield session
@@ -150,8 +153,9 @@ async def test_non_super_admin_cannot_list_administrators(active_admin_user, mon
                 headers={"Authorization": f"Bearer {token}"}
             )
 
-            assert response.status_code == 404
-            assert response.json()["message"] == "Recurso no encontrado"
+            assert response.status_code == 200
+            assert response.json()["statuscode"] == 200
+            assert any(item["id"] == str(active_admin_user.id) for item in response.json()["data"])
     finally:
         app.dependency_overrides.clear()
 
@@ -299,7 +303,7 @@ async def test_create_administrator_weak_password_returns_422(active_admin_user)
         app.dependency_overrides.clear()
 
 @pytest.mark.asyncio
-async def test_super_admin_can_inspect_and_change_admin_password(active_admin_user):
+async def test_any_admin_can_inspect_and_change_admin_password(active_admin_user):
     target_admin = User(
         id=uuid.uuid4(),
         email="secondary@admin.skillmatch.io",

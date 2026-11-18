@@ -1,5 +1,4 @@
-import base64
-import json
+import time
 import logging
 from typing import Optional
 from uuid import UUID
@@ -16,9 +15,10 @@ from app.core.security import (
     decode_jwt_payload,
     create_access_token,
     create_refresh_token,
-    revoke_token,
 )
 from app.models.user import User, UserRole
+from app.models.wallet import Wallet
+from app.services.session_service import SessionService
 from app.schemas.auth import (
     TokenRefreshResponse,
     UserMeResponse,
@@ -26,6 +26,21 @@ from app.schemas.auth import (
 )
 
 logger = logging.getLogger("skillmatch.services.auth")
+
+
+class _GoogleCredentialRedaction(logging.Filter):
+    """HTTPX logs request URLs at INFO; never expose a Google credential there."""
+    def filter(self, record):
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                value.copy_set_param("id_token", "[redacted]")
+                if isinstance(value, httpx.URL) and value.host == "oauth2.googleapis.com" and "id_token" in value.params
+                else value for value in record.args
+            )
+        return True
+
+
+logging.getLogger("httpx").addFilter(_GoogleCredentialRedaction())
 
 
 class AuthService:
@@ -52,7 +67,7 @@ class AuthService:
         clean_token = refresh_token_str.strip()
 
         try:
-            payload = decode_jwt_payload(clean_token)
+            payload = await SessionService.decode(db, clean_token)
             user_id_str: Optional[str] = payload.get("sub")
             token_type: Optional[str] = payload.get("type")
 
@@ -94,18 +109,13 @@ class AuthService:
                 message="La cuenta de usuario se encuentra bloqueada por motivos de seguridad."
             )
 
-        # ROTACIÓN DE TOKEN: Revocar el Refresh Token anterior para impedir reuso
-        revoke_token(clean_token)
-
-        # Emitir nuevo par de tokens preservando estrictamente el rol dinámico
-        new_access_token = create_access_token(
-            subject=str(user.id),
-            role=user.role.value
-        )
-        new_refresh_token = create_refresh_token(
-            subject=str(user.id),
-            role=user.role.value
-        )
+        # Sign first: an issuance failure must not consume the existing credential.
+        role = UserRole(user.role).value
+        new_access_token = create_access_token(subject=str(user.id), role=role)
+        new_refresh_token = create_refresh_token(subject=str(user.id), role=role)
+        if not await SessionService.revoke(db, clean_token, payload):
+            raise SkillMatchException(statuscode=401, message="Refresh Token inválido o revocado.")
+        await db.commit()
 
         return TokenRefreshResponse(
             access_token=new_access_token,
@@ -115,16 +125,27 @@ class AuthService:
         )
 
     @staticmethod
-    def logout(access_token: str, refresh_token: Optional[str] = None) -> None:
-        """
-        Revoca inmediatamente el token de acceso actual y opcionalmente el token de refresco.
-        """
-        if access_token:
-            clean_access = access_token.replace("Bearer ", "").strip()
-            revoke_token(clean_access)
-
+    async def logout(db: AsyncSession, user: User, access_token: str, refresh_token: Optional[str] = None) -> None:
+        """Validate ownership before atomically revoking either credential."""
+        access = access_token.removeprefix("Bearer ").strip()
+        access_payload = decode_jwt_payload(access)
+        refresh_payload = None
         if refresh_token:
-            revoke_token(refresh_token.strip())
+            refresh_token = refresh_token.strip()
+            try:
+                # An expired refresh cannot renew, but must not prevent access logout.
+                refresh_payload = jwt.decode(
+                    refresh_token, settings.SECRET_KEY.get_secret_value(),
+                    algorithms=[settings.ALGORITHM], options={"verify_exp": False},
+                )
+            except JWTError:
+                raise SkillMatchException(statuscode=401, message="Token de renovación inválido.")
+            if refresh_payload.get("sub") != str(user.id) or refresh_payload.get("type") != "refresh":
+                raise SkillMatchException(statuscode=401, message="El token de renovación no pertenece a esta sesión.")
+        await SessionService.revoke(db, access, access_payload)
+        if refresh_token and refresh_payload:
+            await SessionService.revoke(db, refresh_token, refresh_payload)
+        await db.commit()
 
     @staticmethod
     def get_current_user_profile(user: User) -> UserMeResponse:
@@ -139,7 +160,8 @@ class AuthService:
             is_active=user.is_active,
             avatar_url=user.avatar_url,
             phone_number=user.phone_number,
-            provider=user.provider
+            provider=user.provider,
+            skill_points_balance=user.wallet.balance if user.wallet else 0,
         )
 
     @staticmethod
@@ -159,82 +181,51 @@ class AuthService:
 
         token = id_token_str.strip()
 
-        # Decodificación y validación del Google ID Token
-        google_user_info: dict = {}
-        verified = False
+        client_id = settings.GOOGLE_CLIENT_ID
+        if not client_id or "tu-google-client-id" in client_id:
+            raise SkillMatchException(statuscode=503, message="El acceso con Google no está configurado.")
 
-        # 1. Intentar validar primero con Google tokeninfo oficial (Online)
+        # Only Google's verification endpoint may establish the token's identity.
+        # Never decode an unverified credential, even in debug/development.
         try:
             async with httpx.AsyncClient(timeout=6.0) as client:
-                resp = await client.get(
-                    f"https://oauth2.googleapis.com/tokeninfo?id_token={token}"
+                response = await client.get(
+                    "https://oauth2.googleapis.com/tokeninfo", params={"id_token": token}
                 )
-                if resp.status_code == 200:
-                    payload = resp.json()
-                    # Si GOOGLE_CLIENT_ID está configurado (y no es el placeholder), validar aud
-                    configured_client_id = settings.GOOGLE_CLIENT_ID
-                    if configured_client_id and "tu-google-client-id" not in configured_client_id:
-                        if payload.get("aud") != configured_client_id:
-                            raise SkillMatchException(
-                                statuscode=status.HTTP_401_UNAUTHORIZED,
-                                message="El token de Google no corresponde al Client ID autorizado de SkillMatch."
-                            )
-                    google_user_info = {
-                        "sub": payload.get("sub", ""),
-                        "email": payload.get("email"),
-                        "name": payload.get("name", payload.get("email", "").split("@")[0]),
-                        "picture": payload.get("picture"),
-                    }
-                    verified = True
-                else:
-                    logger.warning(f"Google tokeninfo online rechazó el token (HTTP {resp.status_code}): {resp.text}")
-        except SkillMatchException:
-            raise
-        except httpx.RequestError as exc:
-            logger.warning(f"Error de red contactando Google tokeninfo: {exc}")
+            claims = response.json() if response.status_code == 200 else {}
+            verified = (
+                isinstance(claims, dict)
+                and claims.get("aud") == client_id
+                and claims.get("iss") in ("accounts.google.com", "https://accounts.google.com")
+                and claims.get("email_verified") in (True, "true")
+                and isinstance(claims.get("sub"), str) and bool(claims["sub"].strip())
+                and isinstance(claims.get("email"), str) and "@" in claims["email"]
+                and int(claims.get("exp", 0)) > time.time()
+            )
+        except httpx.RequestError:
+            raise SkillMatchException(statuscode=503, message="No se pudo verificar la identidad con Google. Intentá nuevamente.")
+        except (ValueError, TypeError):
+            verified = False
 
-        # 2. Modo desarrollo / pruebas / token simulado: Si no se pudo verificar online pero estamos en dev
-        if not verified and (settings.ENVIRONMENT == "development" or settings.DEBUG):
-            # Intentar decodificar con base64 seguro tolerando codificaciones UTF-8 / latin-1
-            try:
-                parts = token.split(".")
-                if len(parts) >= 2:
-                    payload_b64 = parts[1]
-                    # Ajustar padding de Base64 si falta
-                    payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
-                    raw_bytes = base64.urlsafe_b64decode(payload_b64.encode("ascii"))
-                    decoded_str = raw_bytes.decode("utf-8", errors="replace")
-                    claims = json.loads(decoded_str)
-
-                    if claims.get("email"):
-                        google_user_info = {
-                            "sub": claims.get("sub", ""),
-                            "email": claims.get("email"),
-                            "name": claims.get("name") or claims.get("email", "").split("@")[0],
-                            "picture": claims.get("picture"),
-                        }
-                        verified = True
-                        logger.info(f"Token de Google verificado en modo desarrollo/simulación para: {claims.get('email')}")
-            except Exception as e:
-                logger.warning(f"Fallo al decodificar token en modo desarrollo: {e}")
-
-
-        if not verified or not google_user_info.get("email"):
+        if not verified:
             raise SkillMatchException(
-                statuscode=status.HTTP_401_UNAUTHORIZED,
+                statuscode=401,
                 message="Token de Google inválido, expirado o no verificable. Por favor intente nuevamente."
             )
 
-        email = google_user_info["email"].lower().strip()
-        sub = google_user_info.get("sub")
-        name = google_user_info.get("name") or email.split("@")[0]
-        picture = google_user_info.get("picture")
+        email = claims["email"].strip().lower()
+        sub = claims["sub"]
+        name = claims.get("name") or email.split("@")[0]
+        picture = claims.get("picture")
 
         # Buscar usuario por correo electrónico
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
 
         if user:
+            role = user.role.value if isinstance(user.role, UserRole) else user.role
+            if role != UserRole.MEMBER.value or (user.provider_user_id and user.provider_user_id != sub):
+                raise SkillMatchException(statuscode=401, message="La identidad de Google no puede acceder a esta cuenta.")
             # Validación de estado
             if not user.is_active:
                 raise SkillMatchException(
@@ -254,8 +245,6 @@ class AuthService:
                 user.provider_user_id = sub
             if picture and not user.avatar_url:
                 user.avatar_url = picture
-            await db.commit()
-            await db.refresh(user)
         else:
             # JIT Provisioning (Just-In-Time) como MEMBER
             user = User(
@@ -268,11 +257,19 @@ class AuthService:
                 provider_user_id=sub,
                 avatar_url=picture,
                 hashed_password=None, # Los miembros no poseen contraseña local
+                wallet=Wallet(balance=0),
             )
             db.add(user)
-            await db.commit()
-            await db.refresh(user)
-            logger.info(f"Nuevo miembro provisionado exitosamente vía Google OAuth: {user.email} (ID: {user.id})")
+            await db.flush()
+            user.wallet.user_id = user.id
+            db.add(user.wallet)
+
+        # Provision atomically with registration; never leave a member without a wallet.
+        if user.wallet is None:
+            user.wallet = Wallet(user_id=user.id, balance=0)
+            db.add(user.wallet)
+        await db.commit()
+        await db.refresh(user)
 
         # Emitir tokens JWT con rol MEMBER
         access_token = create_access_token(

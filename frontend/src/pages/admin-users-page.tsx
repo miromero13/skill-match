@@ -214,7 +214,7 @@ export function AdminUsersPage() {
                     {admin.is_active ? (
                       isCurrent ? (
                         <span className="h-[22px] px-2 rounded-full bg-[#00786F]/20 text-[#2DD4BF] border border-[#00786F]/30 text-[9px] font-[700] inline-flex items-center">
-                          SuperAdmin Activo
+                          ADMIN (tu cuenta)
                         </span>
                       ) : (
                         <span className="h-[22px] px-2 rounded-full bg-[#00786F]/20 text-[#2DD4BF] border border-[#00786F]/30 text-[9px] font-[700] inline-flex items-center">
@@ -321,7 +321,7 @@ export function AdminUsersPage() {
                   <div>
                     {admin.is_active ? (
                       <span className="h-[20px] px-2 rounded-full bg-[#00786F]/20 text-[#2DD4BF] border border-[#00786F]/30 text-[9px] font-[700] inline-flex items-center">
-                        {isCurrent ? "SuperAdmin" : "Activo"}
+                        {isCurrent ? "Tu cuenta" : "Activo"}
                       </span>
                     ) : (
                       <span className="h-[20px] px-2 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 text-[9px] font-[700] inline-flex items-center">

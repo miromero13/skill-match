@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 CANONICAL_LEVELS = {
@@ -10,13 +10,24 @@ CANONICAL_LEVELS = {
 }
 
 
-class CategoryCreateRequest(BaseModel):
+class NamedCatalogRequest(BaseModel):
+    @field_validator("name", mode="before", check_fields=False)
+    @classmethod
+    def nonempty_name(cls, value):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("El nombre no puede estar vacío.")
+        return " ".join(value.split())
+
+
+class CategoryCreateRequest(NamedCatalogRequest):
+    parent_id: Optional[UUID] = None
     name: str = Field(min_length=1, max_length=100)
     description: Optional[str] = None
     is_active: bool = True
 
 
-class CategoryUpdateRequest(BaseModel):
+class CategoryUpdateRequest(NamedCatalogRequest):
+    parent_id: Optional[UUID] = None
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     description: Optional[str] = None
     is_active: Optional[bool] = None
@@ -24,6 +35,7 @@ class CategoryUpdateRequest(BaseModel):
 
 class CategoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    parent_id: Optional[UUID] = None
     id: UUID
     name: str
     slug: str
@@ -85,7 +97,7 @@ class SkillLevelSchema(BaseModel):
     rubric: Optional[RubricSchema] = None
 
 
-class SkillCreateRequest(BaseModel):
+class SkillCreateRequest(NamedCatalogRequest):
     category_id: UUID
     name: str = Field(min_length=1, max_length=150)
     challenge_type_id: Optional[UUID] = None
@@ -95,7 +107,7 @@ class SkillCreateRequest(BaseModel):
     levels: Optional[list[SkillLevelSchema]] = None
 
 
-class SkillUpdateRequest(BaseModel):
+class SkillUpdateRequest(NamedCatalogRequest):
     category_id: UUID
     name: str = Field(min_length=1, max_length=150)
     challenge_type_id: Optional[UUID] = None
