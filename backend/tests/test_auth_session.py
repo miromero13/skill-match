@@ -1,5 +1,6 @@
 import pytest
 import uuid
+from contextlib import asynccontextmanager
 from httpx import AsyncClient, ASGITransport
 from jose import jwt
 from app.main import app
@@ -36,6 +37,11 @@ class MockUserSession:
 
     async def get(self, model, key):
         return self.revocations.get(key)
+
+    @asynccontextmanager
+    async def begin_nested(self):
+        """Support the savepoint used by persistent revocation lookups."""
+        yield
 
     async def commit(self):
         pass
