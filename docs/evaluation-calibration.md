@@ -1,68 +1,74 @@
 # Comprobación compartida del ambiente — SM-44
 
-Después de aceptar el consentimiento de SM-23, el miembro puede preparar cámara y micrófono, realizar un reto breve y consultar el resultado. Esta etapa es común a todas las habilidades y **no inicia ni consume el intento**.
+Después del consentimiento, el miembro completa una secuencia automática de movimiento, fondo silencioso y voz con video simultáneo. **No inicia ni consume el intento.** El backend evalúa el conjunto; no hay una aprobación anticipada del movimiento.
 
-**Estado:** implementación de prototipo con pruebas automatizadas. Prueba real de cámara diferida por el usuario («luego pruebo»). La eficacia biométrica, del reto motor y de las heurísticas de pantalla no está acreditada por esas pruebas; no considerar esta entrega una certificación de seguridad ni una defensa validada contra deepfakes.
+**Estado: prototipo, no certificado anticopia.** Las pruebas de políticas y dos ensayos nativos de audio pasan. Faltan pruebas físicas de cámara/micrófono, evaluación de falsos positivos/negativos y revisión independiente. El movimiento de boca es una heurística visual, no un modelo entrenado de lectura labial ni una prueba PAD.
 
-## Recorrido en la interfaz
+## Cómo se realiza
 
 1. Mis habilidades → Validar habilidad → instrucciones → consentimiento.
-2. Pulsar **Preparar cámara y micrófono**. No se solicitan permisos automáticamente.
-3. Ajustar iluminación y encuadre; debe verse una sola persona. Esperar a que aparezca la imagen.
-4. Pulsar **Comprobar ambiente e identidad**.
-5. Mirar al centro, girar hacia el lado indicado de la vista previa y regresar al centro. Decir «listo» durante la captura para comprobar señal del micrófono.
-6. Corregir el ambiente y repetir si hay un rechazo. No se consume el intento.
-7. Si la comprobación es satisfactoria, se muestra el desglose y se apagan los periféricos. El examen sigue sin comenzar; SM-39 debe implementar su inicio real y SM-49 la supervisión continua.
+2. Pulsar **Preparar cámara y micrófono** y conceder permisos. No se activan automáticamente.
+3. Centrar el rostro, iluminarlo y pausar llamadas, videos y conversaciones.
+4. Pulsar **Comprobar ambiente e identidad** una vez:
+   - **Movimiento, 11 segundos:** centro → lado de la flecha → centro; sin hablar.
+   - **Fondo, 3 segundos:** guardar silencio.
+   - **Voz y pausa, 8 segundos, con video simultáneo:** durante los primeros4 segundos aparece **Decí: «Estoy listo para comenzar».** Después aparece **Ahora guardá silencio y mantené la boca quieta.** por otros4 segundos.
+5. Esperar el resultado del backend. No hay botones entre etapas. La captura dura unos22 segundos, más transporte y procesamiento.
+6. Si se rechaza, se muestra el mensaje exacto del backend y se puede repetir sin gastar el intento.
 
-También se liberan cámara y micrófono al salir o pulsar **Cerrar cámara y micrófono**. La calibración no implementa aún monitoreo continuo después de esta captura.
+La vista previa se refleja por CSS, nunca los JPEG enviados. `TURN_LEFT` de la imagen original corresponde a la derecha del miembro; `TURN_RIGHT`, a su izquierda. Las doce imágenes iniciales se toman durante11 segundos; la guía cambia después de las imágenes cuarta y octava.
 
-## API
+Las imágenes de voz se capturan aproximadamente cada100ms según las muestras PCM recibidas, no según un temporizador independiente. El grabador comprueba continuidad del reloj Web Audio; si faltan bloques o evidencia suficiente, rechaza. Se usa salida muda y se solicitan desactivadas cancelación de eco, supresión de ruido y ganancia automática, sujetos al soporte del navegador. Salir, volver a Normas, cerrar o completar libera dispositivos y cancela buffers/eventos pendientes.
 
-Requiere sesión MEMBER, evaluación propia pendiente de calibración, consentimiento persistido y enrolamiento facial.
+## Contrato y compatibilidad
+
+Requiere MEMBER, evaluación propia, consentimiento y enrolamiento facial.
 
 | Operación | Efecto |
 |---|---|
-| `POST /api/evaluations/{id}/liveness/challenge` | Reto aleatorio TURN_LEFT/TURN_RIGHT válido cinco segundos; reemplaza retos anteriores y deja la evaluación pendiente de comprobación |
-| `POST /api/evaluations/{id}/liveness/verify-identity` | Valida la secuencia, el audio y la identidad; un éxito consume el reto, no el intento de examen |
-| `GET /api/evaluations/{id}/environment/verify` | Consulta el resultado guardado; invalida su preparación si cambió el enrolamiento. No captura ni comprueba de nuevo el ambiente actual |
+| `POST /api/evaluations/{id}/liveness/challenge` | Reto TURN_LEFT/TURN_RIGHT de45 segundos; reemplaza retos anteriores |
+| `POST /api/evaluations/{id}/liveness/verify-identity` | Valida evidencia; consume solo el reto exitoso, nunca el intento |
+| `GET /api/evaluations/{id}/environment/verify` | Consulta la aprobación guardada, no reevalúa el ambiente actual |
 
-El POST de verificación recibe `challenge_id`, `frames` (3–12 JPEG base64 acotados), `audio_samples` (16–4096 valores entre -1 y 1) y `camera_label`. La interfaz captura nueve imágenes durante aproximadamente 2,8 segundos, a un máximo de 640 píxeles de ancho, y envía una muestra de audio con señal. El reto puede expirar por lentitud de captura o transporte: se pide uno nuevo, sin descontar el intento.
+Campos de verificación:
 
-Una respuesta satisfactoria indica `ready: true`, estado `READY_FOR_THEORY`, `started_at: null` y el desglose de comprobaciones. Un reto usado devuelve 409 y uno vencido 410. Los errores usan el sobre APIResponse y la interfaz muestra su `message`.
+| Campo | Límite |
+|---|---|
+| `challenge_id` | Reto vigente |
+| `frames` | 3–12 JPEG base64, hasta200000 caracteres cada uno, movimiento inicial |
+| `camera_label` | Hasta200 caracteres |
+| `ambient_audio_samples` | PCM mono16kHz,32000–64000 valores finitos en[-1,1], fondo2–4s |
+| `audio_samples` | PCM mono16kHz,112000–160000 valores finitos en[-1,1], voz/pausa7–10s; normalmente8s |
+| `spoken_frames` | 20–100 objetos `{time_ms, image}`; JPEG hasta80000 caracteres, tiempos finitos0–10000ms |
 
-## Qué se comprueba y cuáles son sus límites
+Los tiempos deben estar ordenados, cubrir la ventana de audio y no tener huecos mayores de350ms; separación mediana máxima200ms. El video de movimiento no sustituye al video de voz. El servidor valida además JPEG y resolución antes de inferir.
 
-| Control | Implementación | Límite |
-|---|---|---|
-| Imagen | JPEG con dimensiones acotadas antes de decodificar | No acepta cualquier formato de imagen ni valida una cámara física |
-| Iluminación y encuadre | Brillo, enfoque, tamaño y posición del rostro | Umbrales de prototipo pendientes de probar con cámaras reales |
-| Presencia | YuNet local: exactamente un rostro por frame | Solo observa lo visible en cámara, no inspecciona toda la habitación |
-| Identidad | SFace local contra el vector enrolado; umbral propio de SFace | No usar un porcentaje arbitrario de otro modelo; eficacia real pendiente |
-| Prueba de vida | Cambio relativo de posición de nariz/ojos en el sentido aleatorio y regreso al centro | Heurística motora; no demuestra resistencia a videos preparados o deepfakes |
-| Patrones de pantalla | Indicador experimental de periodicidad de textura | No es un modelo PAD entrenado ni prueba que no haya una pantalla |
-| Micrófono | Energía de una muestra capturada por Web Audio | No identifica otras voces ni certifica el hardware; SM-49 es otra tarea |
-| Cámara virtual | Etiquetas conocidas, con enumeración de dispositivos en frontend | Heurística evadible; una etiqueta no garantiza cámara física |
+Un éxito devuelve `ready:true`, `READY_FOR_THEORY`, `started_at:null` y doce comprobaciones: `lighting`, `framing`, `single_face`, `microphone`, `background_quiet`, `identity`, `liveness`, `passive_screen_check`, `single_speaker`, `no_overlap`, `mouth_audio_sync`, `speech_pause`. Aprobaciones antiguas sin las nuevas comprobaciones ya no proyectan preparación. Cambiar el enrolamiento también invalida el resultado. El frontend no muestra éxito si un backend antiguo responde preparado sin los nuevos controles.
 
-Las comprobaciones de calibración usan instancias propias de los modelos y **no recurren al respaldo sintético del servicio de perfil**. Imágenes inválidas se rechazan. Si faltan modelos locales se responde 503; no se autoriza por degradación.
+**Actualizar backend y frontend juntos y reiniciar/recargar.** Los clientes anteriores de voz3s ya no cumplen el contrato. No hay aprobación por RMS ni otro respaldo permisivo. Reto usado409, vencido410; repetir no consume intentos. Si captura/transporte excede45s, pedir otro reto.
 
-Los frames, el audio y los embeddings calculados no se guardan en la tabla de retos ni se escriben como archivos por esta implementación. Se conservan metadatos del reto, referencia de enrolamiento y resultados booleanos. Los procesamientos permanecen en infraestructura propia.
+## Qué se estima localmente
 
-## Persistencia e integración siguiente
+- **Actividad de voz:** WebRTC VAD modo3, `webrtcvad-wheels==2.0.14`, ventanas30ms. En fondo: rechazo con5 ventanas vocales totales o3 consecutivas, o RMS>0.012. En voz: mínimo10 ventanas vocales,3 consecutivas y RMS≥0.003; la comprobación audiovisual exige además≥0.9s de actividad antes de4.3s. Tras4.5s se vuelve a exigir silencio, tolerando el cambio de instrucción.
+- **Hablantes/superposición:** `sherpa-onnx==2.0.1`, Pyannote3.0 y embeddings3D-Speaker locales, CPU/un hilo e instancias por solicitud. Número de hablantes automático, no forzado a uno. Rechazo ante varios grupos, intervalos de hablantes diferentes solapados≥120ms o evidencia insuficiente. Umbral de agrupamiento0.5 y duración vocal mínima1.2s: parámetros experimentales, no calibrados para esta población.
+- **Boca/audio:** YuNet local localiza ojos, nariz y comisuras. Se estabiliza la imagen con ojos/nariz; se compara cambio en una región fija de boca contra mejillas y contra la pausa final. Debe haber movimiento coincidente con actividad vocal por encima del fondo. SFace coteja identidad al comienzo, mitad y final; se exige un rostro en cada imagen. No es identidad continua frame a frame.
+- **Visión previa:** iluminación, enfoque, encuadre, cotejo de enrolamiento, movimiento y heurística experimental de pantalla. No se usa el respaldo sintético del perfil.
 
-La migración `a732bd904c11` agrega `evaluation_calibration_challenges` después del merge `99731898af88` que ya estaba en el árbol de trabajo del usuario. No modifica ni reemplaza las migraciones de identidad ni carga datos.
+Instalación/procedencia/hashes: [`models/audio-integrity/README.md`](models/audio-integrity/README.md). **No se descargan modelos durante solicitudes.** Modelos de hablantes ausentes/corruptos o detector no disponible:503, nunca aprobación degradada.
 
-No se aplican migraciones automáticamente a la base local. Debe revisarse la cadena antes de probar en la aplicación.
+## Límites y privacidad
 
-El futuro inicio de SM-39 debe comprobar la evaluación y su calibración vigente, el enrolamiento correspondiente y los cupos de forma atómica. Solo ese inicio registra `started_at` y consume el intento sin devolución. Consultar un resultado guardado no garantiza que el ambiente actual continúe igual. La vigencia necesaria entre calibración e inicio debe definirse al integrar ese inicio; no convertir el estado guardado en un atajo permanente.
+Los resultados son **indicios**, no certeza. No se identifica WhatsApp, quién habla, las palabras pronunciadas ni la fuente física del sonido. No se valida que la frase sea correcta. Una sola voz remota puede confundirse con una voz local; imitar movimiento, replays/deepfakes, cámara virtual, mezcla débil, auriculares o ruido pueden evadir o confundir los controles. La heurística de boca puede rechazar una persona legítima por compresión, iluminación, encuadre, movilidad facial o sincronización del navegador. El modelo de embeddings elegido se distribuye como `zh-cn`; no hay validación de eficacia con hablantes de español ni de equidad/accesibilidad. No promover a producción sin evaluar estos límites.
 
-## Verificación
+Imágenes, audios y embeddings calculados no se guardan en archivos ni en la tabla de retos. Solo metadatos, referencia de enrolamiento y booleanos. El costo por solicitud está acotado por las ventanas, imágenes y un hilo nativo; esto **no** prueba capacidad bajo concurrencia ni establece un presupuesto de memoria para despliegue.
 
-- API en esquema PostgreSQL aislado: `cd backend && .venv/bin/python -m pytest tests/test_evaluation_calibration.py tests/test_evaluation_preflight.py -q`.
-- Frontend focalizado: `cd frontend && npm test -- --run src/test/calibration-panel.test.tsx src/test/evaluation-preflight.test.tsx src/test/teaching-skill-session.test.ts`.
-- Cadena completa de migraciones verificada en una base PostgreSQL descartable; no aplicada a la base de la aplicación.
-- Frontend completo: 33 archivos / 168 pruebas y build TypeScript/Vite correctos. Permanece la advertencia no fatal de bundle mayor de 500 kB.
-- Regresión focalizada de calibración/pre-embarque/autenticación administrativa: 24 pruebas correctas, incluida invalidación al cambiar el enrolamiento (`tests/test_calibration_enrollment_change.py`).
-- Actualización posterior: correcciones de fixtures y expectativas autorizadas por separado; suite backend completa en copia/base descartables: **648 correctas, 0 fallas, 1 omitida por credenciales Garage S3 no configuradas** (exit 0). Migraciones exit 0 y base temporal eliminada. Ver `docs/backend-test-isolation.md`. Esto resuelve el bloqueo de la suite, no la revisión independiente ni la prueba real de cámara.
-- Evidencia histórica previa: suite backend general en copia y base descartables: 631 correctas, 16 fallidas, 1 omitida (exit 1). El primer intento falló al recolectar por imports relativos de pruebas; se corrigió PYTHONPATH en el runner aislado, no en la aplicación. Las 16 fallas afectan administración, migraciones, sesión, catálogo, WebSocket y moderación; su atribución requiere diagnóstico separado. El runner usa configuración ficticia, por lo que no equivale a demostrar 16 defectos de aplicación ni a declarar fallas preexistentes. La razón de la omisión no fue expuesta por la ejecución `-q`.
-- Los éxitos de visión de las pruebas de ciclo de vida usan dobles. Las pruebas UI simulan dispositivos y captura. No acreditan funcionamiento con una persona real ni eficacia anti-spoofing.
-- La revisión independiente de seguridad/concurrencia permanece pendiente; no se ejecutaron subagentes, de acuerdo con la instrucción del usuario.
+Esta actualización no agrega/aplica migraciones, seeds ni cambios en registros manuales. La migración existente `a732bd904c11` crea la tabla de retos. SM-39 todavía debe implementar inicio/debito atómico e idempotente; SM-49, supervisión continua. Una calibración aprobada no significa examen iniciado.
+
+## Evidencia disponible y pendiente
+
+- 39 pruebas focalizadas backend pasan en copia/PostgreSQL descartables: errores HTTP exactos, estado/cupos intactos y reintento con el mismo reto; migración0/pytest0 y base temporal eliminada. Extracción audiovisual y agrupamiento se simulan en esas pruebas: no son prueba física.
+- 17 pruebas focalizadas frontend y TypeScript/Vite build pasan: orden22s, video en reloj PCM, ventanas separadas, remuestreo48k→16k, salida muda, guía/pausa y cancelación. No sustituyen navegador físico.
+- Inferencia nativa real: grabación pública multihablante56.86s rechazada por varias voces; mezcla local de dos fragmentos en una ventana8s produjo intervalos superpuestos y rechazo específico400. Son dos ensayos puntuales, no validación de eficacia. No se usó audio privado del miembro.
+- Aprovisionador probado con los artefactos oficiales ya descargados en estado temporal aislado, sin red, y verificación SHA256 repetida correctamente. Las licencias/procedencia están preservadas.
+- Suites completas actuales: **backend670 correctas,1 omitida por Garage S3 y1 advertencia Starlette/httpx**, con migración/pytest exit0 y base descartable eliminada. **Frontend177 correctas/1 fallida** en `evidence-navigation.test.tsx:149`, el mismo fallo de catálogo observado antes; no se modificó ese código. No se informa una suite frontend totalmente verde. TypeScript/Vite build correcto, con la advertencia existente de bundle>500kB. Evidencia final en `odd/tasks/audiovisual-calibration.md`.
+- Pendiente prueba manual: silencio real; frase normal seguida de pausa; otra persona hablando; llamada reproducida durante pausa; voz externa con boca quieta; movimientos de cabeza sin hablar; salida/cierre durante captura. Registrar falsos positivos/negativos, sin asumir éxito. Revisión independiente no disponible: el usuario no tiene API keys de subagentes. No se ejecutó ni se atribuye aprobación independiente.
