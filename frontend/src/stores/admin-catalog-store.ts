@@ -4,6 +4,7 @@ import type {
   ChallengeType,
   Skill,
   CreateCategoryPayload,
+  UpdateCategoryPayload,
   CreateChallengeTypePayload,
   CreateSkillPayload,
   UpdateSkillPayload,
@@ -11,6 +12,7 @@ import type {
 import {
   getCategories,
   createCategory as apiCreateCategory,
+  updateCategory as apiUpdateCategory,
   getChallengeTypes,
   createChallengeType as apiCreateChallengeType,
   getSkills,
@@ -62,6 +64,7 @@ interface AdminCatalogState {
   fetchSkills: () => Promise<void>
 
   createCategory: (payload: CreateCategoryPayload) => Promise<Category | null>
+  updateCategory: (id: string, payload: UpdateCategoryPayload) => Promise<Category | null>
   createChallengeType: (payload: CreateChallengeTypePayload) => Promise<ChallengeType | null>
   saveSkill: (payload: CreateSkillPayload | UpdateSkillPayload, skillId?: string) => Promise<boolean>
   toggleReady: (skillId: string, currentReady: boolean) => Promise<boolean>
@@ -192,6 +195,23 @@ export const useAdminCatalogStore = create<AdminCatalogState>((set, get) => ({
     }
   },
 
+  updateCategory: async (id, payload) => {
+    set({ isSubmitting: true, error: null })
+    try {
+      const category = await apiUpdateCategory(id, payload)
+      set((state) => ({
+        categories: state.categories.map((item) => item.id === id ? category : item),
+        isCategoryModalOpen: false,
+        isSubmitting: false,
+      }))
+      await get().fetchSkills()
+      return category
+    } catch (error: unknown) {
+      set({ error: error instanceof Error ? error.message : "Error al actualizar categoría", isSubmitting: false })
+      return null
+    }
+  },
+
   createChallengeType: async (payload) => {
     set({ isSubmitting: true, error: null })
     try {
@@ -270,12 +290,11 @@ export const useAdminCatalogStore = create<AdminCatalogState>((set, get) => ({
     try {
       await apiDeleteSkill(skillId)
       set((state) => ({
-        skills: state.skills.filter((s) => s.id !== skillId),
-        totalSkills: Math.max(0, state.totalSkills - 1),
+        skills: state.skills.map((skill) => skill.id === skillId ? { ...skill, is_active: false } : skill),
       }))
       return true
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Error al eliminar habilidad"
+      const message = err instanceof Error ? err.message : "Error al desactivar habilidad"
       set({ error: message })
       return false
     }

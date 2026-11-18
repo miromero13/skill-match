@@ -3,8 +3,6 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_admin_user
-from app.core.config import settings
-from app.core.exceptions import SkillMatchException
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.response import APIResponse
@@ -17,17 +15,6 @@ from app.schemas.admin import (
     AdminListResponse,
 )
 from app.services.admin_service import AdminService
-
-
-async def get_super_admin_user(
-    current_admin: User = Depends(get_current_admin_user),
-) -> User:
-    if current_admin.email.strip().lower() != settings.ADMIN_EMAIL.strip().lower():
-        raise SkillMatchException(
-            statuscode=status.HTTP_404_NOT_FOUND,
-            message="Recurso no encontrado",
-        )
-    return current_admin
 
 
 router = APIRouter(
@@ -44,7 +31,7 @@ router = APIRouter(
 )
 async def list_administrators(
     db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(get_super_admin_user),
+    current_admin: User = Depends(get_current_admin_user),
 ):
     admins, total_count = await AdminService.list_administrators(db)
     return AdminListResponse(
@@ -63,7 +50,7 @@ async def list_administrators(
 async def get_administrator(
     id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(get_super_admin_user),
+    current_admin: User = Depends(get_current_admin_user),
 ):
     admin = await AdminService.get_administrator(db, id)
     return APIResponse(
@@ -83,7 +70,7 @@ async def update_administrator(
     id: uuid.UUID,
     request: AdminUpdateRequest,
     db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(get_super_admin_user),
+    current_admin: User = Depends(get_current_admin_user),
 ):
     updated_admin = await AdminService.update_administrator(db, id, request, current_admin)
     return APIResponse(
@@ -103,7 +90,7 @@ async def update_administrator_password(
     id: uuid.UUID,
     request: AdminPasswordUpdateRequest,
     db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(get_super_admin_user),
+    current_admin: User = Depends(get_current_admin_user),
 ):
     updated_admin = await AdminService.update_administrator_password(db, id, request, current_admin)
     return APIResponse(
@@ -123,7 +110,7 @@ async def update_administrator_password(
 async def create_administrator(
     request: AdminCreateRequest,
     db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(get_super_admin_user),
+    current_admin: User = Depends(get_current_admin_user),
 ):
     new_admin = await AdminService.create_administrator(db, request, current_admin)
     return APIResponse(
@@ -143,7 +130,7 @@ async def update_administrator_status(
     id: uuid.UUID,
     request: AdminStatusUpdateRequest,
     db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(get_super_admin_user),
+    current_admin: User = Depends(get_current_admin_user),
 ):
     updated_admin = await AdminService.update_administrator_status(
         db=db,

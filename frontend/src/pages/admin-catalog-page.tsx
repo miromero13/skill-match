@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { useAdminCatalogStore } from "@/stores/admin-catalog-store"
-import type { SkillLevel, RubricCriterion } from "@/types/catalog"
+import { categoryPath, isCategoryWithin } from "@/lib/catalog-tree"
+import type { Category, SkillLevel, RubricCriterion } from "@/types/catalog"
 import {
   Sparkles,
   Plus,
@@ -79,6 +80,7 @@ export function AdminCatalogPage() {
     closeChallengeTypeModal,
     fetchInitialData,
     createCategory,
+    updateCategory,
     createChallengeType,
     saveSkill,
     toggleReady,
@@ -99,6 +101,19 @@ export function AdminCatalogPage() {
   // Category in-place form
   const [catName, setCatName] = useState("")
   const [catDescription, setCatDescription] = useState("")
+  const [catParentId, setCatParentId] = useState("none")
+  const [catIsActive, setCatIsActive] = useState(true)
+  const [catEditingId, setCatEditingId] = useState<string | null>(null)
+  const orderedCategories = useMemo(() => [...categories].sort((a, b) => categoryPath(a, categories).localeCompare(categoryPath(b, categories), "es")), [categories])
+
+  const handleOpenCategoryModal = (category?: Category) => {
+    setCatEditingId(category?.id || null)
+    setCatName(category?.name || "")
+    setCatDescription(category?.description || "")
+    setCatParentId(category?.parent_id || "none")
+    setCatIsActive(category?.is_active ?? true)
+    openCategoryModal()
+  }
 
   // Challenge Type in-place form
   const [challengeName, setChallengeName] = useState("")
@@ -230,18 +245,17 @@ export function AdminCatalogPage() {
     await saveSkill(payload, editingSkill ? editingSkill.id : undefined)
   }
 
-  const handleCreateCategory = async (e: React.FormEvent) => {
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!catName.trim()) return
-    const created = await createCategory({
+    const payload = {
       name: catName.trim(),
       description: catDescription.trim() || undefined,
-    })
-    if (created) {
-      setCatName("")
-      setCatDescription("")
-      setSkillFormCategoryId(created.id)
+      parent_id: catParentId === "none" ? null : catParentId,
+      is_active: catIsActive,
     }
+    const saved = catEditingId ? await updateCategory(catEditingId, payload) : await createCategory(payload)
+    if (saved && !catEditingId) setSkillFormCategoryId(saved.id)
   }
 
   const handleCreateChallengeType = async (e: React.FormEvent) => {
@@ -356,7 +370,7 @@ export function AdminCatalogPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={openCategoryModal}
+            onClick={() => handleOpenCategoryModal()}
             className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <FolderPlus className="h-4 w-4 text-[#8B9D9F]" />
@@ -408,9 +422,9 @@ export function AdminCatalogPage() {
           >
             Todas ({totalSkills})
           </Button>
-          {categories.map((cat) => (
+          {orderedCategories.map((cat) => (
+            <div key={cat.id} className="flex items-center gap-1">
             <Button
-              key={cat.id}
               variant={selectedCategoryId === cat.id ? "default" : "outline"}
               size="sm"
               onClick={() => setSelectedCategoryId(cat.id)}
@@ -420,8 +434,12 @@ export function AdminCatalogPage() {
                   : "border-[#1E2629] bg-[#0F1416] text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer"
               }
             >
-              {cat.name}
+              {categoryPath(cat, categories)}{!cat.is_active && " (inactiva)"}
             </Button>
+            <Button variant="ghost" size="icon" aria-label={`Editar categoría ${categoryPath(cat, categories)}`} onClick={() => handleOpenCategoryModal(cat)}>
+              <Edit3 className="h-3.5 w-3.5" />
+            </Button>
+            </div>
           ))}
         </div>
 
@@ -611,10 +629,11 @@ export function AdminCatalogPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() => {
-                        if (confirm(`¿Estás seguro de eliminar la habilidad "${skill.name}"?`)) {
+                        if (confirm(`¿Dar de baja "${skill.name}" sin borrar su historial? Si tiene miembros vinculados, usá el interruptor de publicación para desactivarla.`)) {
                           deleteSkill(skill.id)
                         }
                       }}
+                      aria-label={`Baja lógica de ${skill.name}`}
                       className="text-[#8B9D9F] hover:text-red-400 hover:bg-red-500/10 h-8 w-8 cursor-pointer"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -676,7 +695,7 @@ export function AdminCatalogPage() {
                           type="button"
                           variant="link"
                           size="sm"
-                          onClick={openCategoryModal}
+                          onClick={() => handleOpenCategoryModal()}
                           className="h-auto p-0 text-xs font-semibold text-[#2DD4BF] hover:text-[#2DD4BF]/80"
                         >
                           + Nueva
@@ -691,9 +710,9 @@ export function AdminCatalogPage() {
                           <SelectValue placeholder="Seleccionar categoría..." />
                         </SelectTrigger>
                         <SelectContent className="bg-[#141C1E] border-[#1E2629] text-[#F0FDFA]">
-                          {categories.map((c) => (
+                          {orderedCategories.map((c) => (
                             <SelectItem key={c.id} value={c.id}>
-                              {c.name}
+                              {categoryPath(c, categories)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -999,14 +1018,14 @@ export function AdminCatalogPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[#F0FDFA]">
               <FolderPlus className="h-5 w-5 text-[#2DD4BF]" />
-              Nueva Categoría
+              {catEditingId ? "Editar Categoría" : "Nueva Categoría"}
             </DialogTitle>
             <DialogDescription className="text-[#8B9D9F]">
-              Crea una categoría superior para agrupar habilidades (ej. Música, Programación, Idiomas).
+              Elegí una categoría superior para crear una subcategoría. Desactivarla oculta su rama pública sin borrar asociaciones.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateCategory} className="space-y-4 pt-2">
+          <form onSubmit={handleSaveCategory} className="space-y-4 pt-2">
             <div className="space-y-1.5">
               <Label htmlFor="cat-name" className="text-xs font-semibold text-[#8B9D9F]">
                 Nombre de Categoría *
@@ -1019,6 +1038,23 @@ export function AdminCatalogPage() {
                 required
                 className="bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C]"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cat-parent">Categoría superior</Label>
+              <Select value={catParentId} onValueChange={setCatParentId}>
+                <SelectTrigger id="cat-parent" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin categoría superior</SelectItem>
+                  {orderedCategories.filter((category) => !catEditingId || !isCategoryWithin(category, catEditingId, categories)).map((category) => (
+                    <SelectItem key={category.id} value={category.id}>{categoryPath(category, categories)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch id="cat-active" checked={catIsActive} onCheckedChange={setCatIsActive} />
+              <Label htmlFor="cat-active">Categoría activa</Label>
             </div>
 
             <div className="space-y-1.5">
@@ -1040,7 +1076,7 @@ export function AdminCatalogPage() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={isSubmitting} className="bg-[#00786F] hover:bg-[#00665E] text-white font-bold cursor-pointer">
-                Crear Categoría
+                {catEditingId ? "Guardar Categoría" : "Crear Categoría"}
               </Button>
             </DialogFooter>
           </form>

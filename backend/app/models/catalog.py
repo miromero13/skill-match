@@ -1,15 +1,29 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, JSON, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Float, ForeignKey, Index, Integer, JSON, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.db.base import Base, TimestampMixin
+from app.core.catalog_names import catalog_name_key
 
 
 class Category(Base, TimestampMixin):
     __tablename__ = "categories"
+    __table_args__ = (
+        UniqueConstraint("parent_id", "normalized_name", name="uq_categories_parent_name"),
+        Index("uq_categories_root_name", "normalized_name", unique=True, postgresql_where=text("parent_id IS NULL")),
+        CheckConstraint("parent_id IS NULL OR parent_id <> id", name="ck_categories_not_self_parent"),
+    )
+
+    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id", ondelete="RESTRICT"), nullable=True, index=True)
+    normalized_name: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    @validates("name")
+    def normalize_name(self, key, value):
+        self.normalized_name = catalog_name_key(value)
+        return " ".join(value.split())
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -33,6 +47,14 @@ class ChallengeType(Base, TimestampMixin):
 
 class Skill(Base, TimestampMixin):
     __tablename__ = "skills"
+    __table_args__ = (UniqueConstraint("category_id", "normalized_name", name="uq_skills_category_name"),)
+
+    normalized_name: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    @validates("name")
+    def normalize_name(self, key, value):
+        self.normalized_name = catalog_name_key(value)
+        return " ".join(value.split())
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)

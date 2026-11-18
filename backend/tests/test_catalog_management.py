@@ -152,8 +152,9 @@ async def test_admin_can_create_challenge_type_and_list(client):
 
 @pytest.mark.asyncio
 async def test_admin_skill_creation_provisions_canonical_levels_and_rubrics(client):
+    category = await client.post("/api/admin/catalog/categories", json={"name": "Programación"})
     response = await client.post("/api/admin/catalog/skills", json={
-        "category_id": str(uuid.uuid4()), "name": "Python avanzado"
+        "category_id": category.json()["data"]["id"], "name": "Python avanzado"
     })
     assert response.status_code == 201
     levels = response.json()["data"]["levels"]
@@ -165,7 +166,8 @@ async def test_admin_skill_creation_provisions_canonical_levels_and_rubrics(clie
 
 @pytest.mark.asyncio
 async def test_admin_can_update_skill_rubric_and_toggle_ready(client):
-    category_id = uuid.uuid4()
+    category = await client.post("/api/admin/catalog/categories", json={"name": "Programación"})
+    category_id = category.json()["data"]["id"]
     initial = await client.post("/api/admin/catalog/skills", json={
         "category_id": str(category_id), "name": "Python avanzado"
     })
@@ -186,7 +188,8 @@ async def test_admin_can_update_skill_rubric_and_toggle_ready(client):
 
 @pytest.mark.asyncio
 async def test_admin_can_list_skills(client):
-    category_id = uuid.uuid4()
+    category = await client.post("/api/admin/catalog/categories", json={"name": "Programación"})
+    category_id = category.json()["data"]["id"]
     await client.post("/api/admin/catalog/skills", json={
         "category_id": str(category_id), "name": "Algoritmos y Estructuras"
     })
