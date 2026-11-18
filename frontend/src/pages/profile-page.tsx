@@ -133,7 +133,11 @@ export function ProfilePage() {
   useEffect(() => {
     void loadProfile()
     void loadAvailability()
-  }, [loadProfile, loadAvailability])
+    // Sanear reputación residual de sesiones anteriores
+    if (authUser?.reputationScore === 5.0 && authUser.role === "MEMBER") {
+      useAuthStore.getState().updateProfile({ reputationScore: 0, trustLevel: 0 })
+    }
+  }, [loadProfile, loadAvailability, authUser])
 
   useEffect(() => {
     if (profile) {
@@ -154,12 +158,12 @@ export function ProfilePage() {
     }
   }, [profile, authUser])
 
-  const displayFullName = fullName || authUser?.fullName || "Martín Silva"
+  const displayFullName = fullName || authUser?.fullName || "Miembro de la Comunidad"
   const subtitleLine =
     bio ||
     (locationLabel
       ? `Miembro Activo · ${locationLabel}`
-      : "Senior Backend Architect · Comunidad SkillMatch")
+      : "Miembro de la Comunidad SkillMatch")
 
   const initials =
     displayFullName
@@ -168,7 +172,7 @@ export function ProfilePage() {
       .map((word) => word[0])
       .join("")
       .slice(0, 2)
-      .toUpperCase() || "MS"
+      .toUpperCase() || "MB"
 
   const primarySkillName = teachingSkills[0]?.skill_name
 
@@ -555,7 +559,13 @@ export function ProfilePage() {
               {/* 2. Stats_Pills (Estado real de reputación, sesiones y asistencia) */}
               <div className="grid grid-cols-3 gap-2.5">
                 <div className="rounded-xl bg-muted/60 p-3 text-center">
-                  <span className="block text-sm font-bold text-amber-600">
+                  <span
+                    className={`block text-sm font-bold ${
+                      authUser?.reputationScore && authUser.reputationScore > 0
+                        ? "text-amber-600"
+                        : "text-muted-foreground"
+                    }`}
+                  >
                     {authUser?.reputationScore && authUser.reputationScore > 0
                       ? `★ ${authUser.reputationScore.toFixed(1)}`
                       : "Nuevo"}

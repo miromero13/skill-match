@@ -84,7 +84,9 @@ export async function getMe(): Promise<UserMeDto> {
     role: me.role,
     avatarUrl: me.avatar_url || undefined,
     skillPointsBalance: me.skill_points_balance,
-    isVerified: true,
+    reputationScore: 0,
+    trustLevel: 0,
+    isVerified: false,
   })
 
   return me
