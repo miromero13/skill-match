@@ -19,6 +19,7 @@ from app.api.admin.router import router as admin_management_router
 from app.api.admin.catalog import router as admin_catalog_router
 from app.api.auth import auth_router
 from app.api.evaluations import router as evaluation_preflight_router
+from app.api.browser_supervision import router as browser_supervision_router
 from app.api.skills.router import router as public_skills_router
 from app.api.users.learning_skills import router as user_learning_skills_router
 from app.db.session import AsyncSessionLocal
@@ -95,6 +96,7 @@ def create_application() -> FastAPI:
     app.include_router(admin_catalog_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
     app.include_router(evaluation_preflight_router, prefix="/api")
+    app.include_router(browser_supervision_router, prefix="/api")
     app.include_router(public_skills_router, prefix="/api")
     app.include_router(user_learning_skills_router, prefix="/api")
     app.include_router(teaching_skills_router, prefix="/api")
