@@ -90,7 +90,32 @@ GARAGE_S3_FORCE_PATH_STYLE=True
 # --- Cola de Procesamiento Asíncrono (Celery + Redis) ---
 REDIS_URL="redis://localhost:6379/0"
 CELERY_TASK_ALWAYS_EAGER=False
+
+# --- Correo transaccional SMTP ---
+# Gmail requiere verificación en dos pasos y una contraseña de aplicación.
+EMAIL_ENABLED=False
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USERNAME=""
+SMTP_PASSWORD=""
+SMTP_STARTTLS=True
+SMTP_TIMEOUT_SECONDS=15
+EMAIL_FROM_ADDRESS=""
+EMAIL_FROM_NAME="SkillMatch"
+EMAIL_REPLY_TO=""
+FRONTEND_BASE_URL="http://localhost:5173"
+
+# --- Web Push navegador/PWA (VAPID) ---
+# Genere un par diferente por entorno y conserve la clave privada solo en .env.
+WEB_PUSH_ENABLED=False
+VAPID_PUBLIC_KEY=""
+VAPID_PRIVATE_KEY=""
+VAPID_SUBJECT="mailto:soporte@example.com"
 ```
+
+Las claves VAPID deben generarse fuera del repositorio y ser diferentes por entorno. La clave privada se guarda únicamente en `.env`; nunca se añade a `env.template`, logs, Swagger ni respuestas HTTP. Un miembro autenticado puede consultar la clave pública, registrar varios navegadores y revocar exclusivamente sus propias suscripciones mediante `/api/notifications/push/...`. Las respuestas muestran sólo una huella del endpoint y nunca la capability URL ni las claves del navegador.
+
+El worker Celery procesa entregas Web Push pendientes junto con los recordatorios de sesión. Cada evento se audita por dispositivo; `404/410` desactivan suscripciones expiradas y `429/5xx` se reintentan hasta tres veces. Para habilitar tráfico real deben configurarse las tres variables VAPID y ejecutarse un único Celery Beat más uno o más workers.
 
 ---
 
@@ -263,3 +288,30 @@ La migración de catálogo conserva los registros y rehúsa nombres normalizados
 - `DELETE` de categoría/habilidad desactiva, no borra físicamente. La eliminación de habilidades con miembros vinculados devuelve 409; `PATCH` con `is_active=false` conserva las asociaciones.
 
 Las pruebas HTTP de esta entrega usan PostgreSQL aislado y mocks de Google. No acreditan disponibilidad de Google real, configuración de sus clientes ni ejecución en hardware nativo.
+
+### Agendamiento de sesiones HU-38
+
+La guía operativa para el equipo, incluidos el semillero determinista, los usuarios QA, la limpieza y los comandos de pruebas, está disponible en [`scripts/README_HU38_QA.md`](scripts/README_HU38_QA.md).
+
+- `GET /api/matches/{match_id}/session-options` es el contrato productivo previo a `POST /api/sessions`; no es una ruta de prueba y no reemplaza los cinco endpoints de sesiones.
+- Requiere MEMBER autenticado, pertenencia al match y estado `confirmed`. Un tercero obtiene 404 y un match no confirmado obtiene 409.
+- Devuelve únicamente direcciones de enseñanza respaldadas por `TeachingSkill` y `UserLearningSkill`, junto con `instructor_id`, `learner_id`, `teaching_skill_id`, modalidad y franjas comunes de 30/60 minutos para los próximos 14 días.
+- Las franjas ya consideran timezone IANA, disponibilidad activa de ambos miembros, modalidad, buffers, sesiones `PENDING`/`ACCEPTED` y bloqueos HU-26. Consultarlas no crea una sesión ni consume cupo.
+- El frontend debe usar esos identificadores y una franja devuelta para construir `POST /api/sessions`; nunca debe inferir UUID a partir de nombres.
+- `GET /api/sessions/{session_id}/calendar-export` permite a un participante exportar una sesión `ACCEPTED`. Devuelve en `APIResponse.data` `filename`, `content_type`, `ics_content` y `google_calendar_url`.
+- La exportación usa UTC y no constituye sincronización Google Calendar: no solicita scopes adicionales ni almacena tokens de Calendar.
+
+#### Procesos de recordatorios HU-38
+
+Con Redis disponible y `CELERY_TASK_ALWAYS_EAGER=False`, ejecutar en procesos separados desde `backend/`:
+
+```bash
+celery -A app.core.celery_app.celery_app worker --loglevel=info
+celery -A app.core.celery_app.celery_app beat --loglevel=info
+```
+
+- Beat ejecuta el barrido cada cinco minutos; desplegar una sola instancia de Beat.
+- Cada aviso de 24 h/1 h se persiste una sola vez por sesión, destinatario, umbral e inicio programado.
+- Una reprogramación usa una identidad nueva; sesiones pendientes, rechazadas o canceladas no son elegibles.
+- Redis transporta IDs ya confirmados hacia FastAPI para WebSocket. Una caída del canal no elimina la notificación durable de la bandeja.
+- En pruebas puede usarse `CELERY_TASK_ALWAYS_EAGER=True`; no se añadieron variables ni secretos nuevos.

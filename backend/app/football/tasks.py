@@ -5,9 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from celery import Celery
-
-from app.core.config import settings
+from app.core.celery_app import celery_app
 from app.football.config import load_football_config
 from app.football.pipeline.audio_events import detect_audio_impact_events
 from app.football.pipeline.ball_tracker import BallTrack, track_ball_in_video
@@ -26,24 +24,6 @@ from app.football.pipeline.scoring import score_session_features
 from app.football.pipeline.touch_events import detect_video_touch_events
 
 logger = logging.getLogger("skillmatch.football.tasks")
-
-celery_app = Celery(
-    "skillmatch_football",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
-)
-
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    task_track_started=True,
-    task_always_eager=settings.CELERY_TASK_ALWAYS_EAGER,
-    task_eager_propagates=True,
-)
-
 
 @celery_app.task(name="football.process_session")
 def process_session(
