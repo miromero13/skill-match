@@ -7,13 +7,21 @@ from app.core.deps import get_current_user
 from app.core.exceptions import SkillMatchException
 from app.db.session import get_db
 from app.models.user import User, UserRole
-from app.schemas.match import MatchCompatibilityResponse, MatchResponse
-from app.schemas.response import APIResponse
-from app.services import match_service
-from app.services import match_proposal_service as negotiation
-from app.schemas.match_proposal import (
-    MessageResponse, MessageWrite, ProposalDecision, ProposalResponse, ProposalWrite,
+from app.schemas.match import (
+    MatchCompatibilityResponse,
+    MatchResponse,
+    MatchSessionOptionsResponse,
 )
+from app.schemas.match_proposal import (
+    MessageResponse,
+    MessageWrite,
+    ProposalDecision,
+    ProposalResponse,
+    ProposalWrite,
+)
+from app.schemas.response import APIResponse
+from app.services import exchange_session_service, match_service
+from app.services import match_proposal_service as negotiation
 
 # main.py añade el prefijo /api.
 router = APIRouter(prefix="/matches", tags=["Matches · HU-21"])
@@ -62,6 +70,33 @@ async def get_my_suggestion(
     # El servicio verifica que el solicitante pertenezca a esa coincidencia.
     item = await match_service.get_suggestion(db, user.id, match_id)
     return APIResponse.ok(data=item, message="Coincidencia recuperada correctamente.")
+
+
+@router.get(
+    "/{match_id}/session-options",
+    response_model=APIResponse[MatchSessionOptionsResponse],
+    response_model_exclude={"count"},
+    summary="Opciones seguras de agendamiento para un match confirmado (HU-38)",
+    description=(
+        "Devuelve las direcciones de enseñanza autorizadas y las franjas comunes de los "
+        "próximos 14 días. Aplica disponibilidad, modalidad, timezone, buffers, sesiones "
+        "activas y bloqueos. No crea sesiones ni consume cupos. Un tercero recibe 404."
+    ),
+    responses={
+        404: {"description": "Match inexistente o ajeno al miembro autenticado"},
+        409: {"description": "Match no confirmado o participantes bloqueados"},
+    },
+)
+async def get_session_options(
+    match_id: UUID,
+    user: User = Depends(current_member),
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse[MatchSessionOptionsResponse]:
+    item = await exchange_session_service.get_match_session_options(db, user, match_id)
+    return APIResponse.ok(
+        data=item,
+        message="Opciones de agendamiento recuperadas exitosamente.",
+    )
 
 
 @router.get(

@@ -21,6 +21,8 @@ share/python-wheels/
 *.egg
 MANIFEST
 .env
+celerybeat-schedule
+celerybeat-schedule.*
 .venv
 env/
 venv/
@@ -32,3 +34,4 @@ venv.bak/
 htmlcov/
 .ruff_cache/
 storage/
+logs/
