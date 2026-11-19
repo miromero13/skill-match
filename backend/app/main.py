@@ -1,3 +1,4 @@
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -9,6 +10,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.admin.auth import admin_auth_router
 from app.api.admin.catalog import router as admin_catalog_router
 from app.api.admin.router import router as admin_management_router
+from app.api.admin.theory_questions import router as theory_question_router
 from app.api.ai.datasets import router as ai_dataset_router
 from app.api.auth import auth_router
 from app.api.browser_supervision import router as browser_supervision_router
@@ -21,6 +23,7 @@ from app.api.notifications.websocket import router as notification_websocket_rou
 from app.api.search import search_router
 from app.api.sessions import router as sessions_router
 from app.api.skills.router import router as public_skills_router
+from app.api.theory_exam import router as theory_exam_router
 from app.api.users.availability import router as user_availability_router
 from app.api.users.learning_skills import router as user_learning_skills_router
 from app.api.users.moderation import router as user_moderation_router
@@ -105,8 +108,10 @@ def create_application() -> FastAPI:
     app.include_router(admin_auth_router, prefix="/api")
     app.include_router(admin_management_router, prefix="/api")
     app.include_router(admin_catalog_router, prefix="/api")
+    app.include_router(theory_question_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
     app.include_router(evaluation_preflight_router, prefix="/api")
+    app.include_router(theory_exam_router, prefix="/api")
     app.include_router(browser_supervision_router, prefix="/api")
     app.include_router(public_skills_router, prefix="/api")
     app.include_router(user_learning_skills_router, prefix="/api")

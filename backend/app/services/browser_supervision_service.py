@@ -1,11 +1,14 @@
 """Owned trial ledger with row-serialized leases and all-or-nothing batches."""
 from datetime import datetime, timedelta, timezone
+import uuid
 
 from sqlalchemy import func, select
 
 from app.core.exceptions import SkillMatchException
 from app.models.browser_supervision import BrowserIncident, BrowserTrial
 from app.models.user import User, UserRole
+from app.schemas.browser_supervision import AVWindowRequest, IncidentResponse
+from app.services.continuous_supervision_service import ContinuousSupervisionService
 
 LOCKED = "Esta prueba está activa en otra pestaña o perdió su autorización. Esperá hasta 20 segundos y reintentá."
 
@@ -118,3 +121,56 @@ class BrowserSupervisionService:
             BrowserIncident.trial_id == trial.id, BrowserIncident.sequence > after,
         ).order_by(BrowserIncident.sequence).limit(limit))).scalars().all()
         return events, trial.event_count
+
+    @classmethod
+    async def process_av_window(cls, db, user, trial_id, payload: AVWindowRequest):
+        trial = await cls.owned(db, user, trial_id, lock=True)
+        now = utcnow()
+        cls.leased(trial, payload.tab_id, now)
+
+        result = ContinuousSupervisionService.assess_window(
+            frames_b64=payload.frames,
+            audio_samples=payload.audio_samples,
+            mode=payload.mode,
+            biometric_embedding_json=user.biometric_embedding,
+            trial_id=str(trial.id),
+        )
+
+        created_incidents = []
+        for anomaly in result["anomalies"]:
+            event_id = uuid.uuid5(payload.window_id, anomaly)
+            existing = (await db.execute(select(BrowserIncident).where(
+                BrowserIncident.trial_id == trial.id, BrowserIncident.event_id == event_id,
+            ))).scalar_one_or_none()
+            if existing is None:
+                trial.event_count += 1
+                incident = BrowserIncident(
+                    trial_id=trial.id,
+                    event_id=event_id,
+                    sequence=trial.event_count,
+                    kind=anomaly,
+                    observed_at=payload.observed_at,
+                    received_at=now,
+                    duration_ms=payload.duration_ms,
+                )
+                db.add(incident)
+                created_incidents.append(incident)
+            else:
+                created_incidents.append(existing)
+
+        if created_incidents:
+            await db.commit()
+
+        return {
+            "window_id": payload.window_id,
+            "face_count": result["face_count"],
+            "head_orientation": result["head_orientation"],
+            "identity_match": result["identity_match"],
+            "speech_detected": result["speech_detected"],
+            "mouth_moving": result["mouth_moving"],
+            "mouth_sync": result["mouth_sync"],
+            "multiple_speakers": result["multiple_speakers"],
+            "noise_level": result["noise_level"],
+            "anomalies": result["anomalies"],
+            "incidents_created": [IncidentResponse.model_validate(inc) for inc in created_incidents],
+        }
