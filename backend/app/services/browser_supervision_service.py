@@ -1,19 +1,39 @@
 """Owned trial ledger with row-serialized leases and all-or-nothing batches."""
-from datetime import datetime, timedelta, timezone
+import asyncio
+import functools
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
+from typing import get_args
 
 from sqlalchemy import func, select
 
 from app.core.exceptions import SkillMatchException
 from app.models.browser_supervision import BrowserIncident, BrowserTrial
 from app.models.user import User, UserRole
-from app.schemas.browser_supervision import AVWindowRequest, IncidentResponse
+from app.schemas.browser_supervision import AVWindowRequest, IncidentKind, IncidentResponse
 from app.services.continuous_supervision_service import ContinuousSupervisionService
 
 LOCKED = "Esta prueba está activa en otra pestaña o perdió su autorización. Esperá hasta 20 segundos y reintentá."
 DEFAULT_CADENCE_MS = 2400  # expected spacing of audiovisual windows when the client does not say
 GAP_FACTOR = 3  # no window for more than this many cadences while the lease is active is a gap
 MAX_DURATION_MS = 86_400_000
+BROWSER_EVENTS_PER_MINUTE = 200
+BROWSER_EVENTS_PER_TRIAL = 10_000
+AV_ROWS_PER_MINUTE = 120
+AV_ROWS_PER_TRIAL = 5_000
+AV_INFERENCE_WORKERS = 2
+
+# Kinds produced by server-side audiovisual analysis; every other kind is browser-reported.
+AV_KINDS = (
+    "FACE_ABSENT", "MULTIPLE_FACES", "IDENTITY_MISMATCH", "HEAD_POSE_DOWN", "HEAD_POSE_SIDE",
+    "VOICE_DETECTED", "MULTIPLE_SPEAKERS", "HIGH_NOISE", "MODEL_UNAVAILABLE",
+    "VIDEO_MISSING", "AUDIO_MISSING", "WINDOW_GAP",
+)
+BROWSER_KINDS = tuple(kind for kind in get_args(IncidentKind) if kind not in AV_KINDS)
+
+# Bounded pool: inference is CPU-heavy and native models are shared, so only a few run at once.
+_AV_EXECUTOR = ThreadPoolExecutor(max_workers=AV_INFERENCE_WORKERS, thread_name_prefix="av-inference")
 
 
 def utcnow():
@@ -113,6 +133,14 @@ class BrowserSupervisionService:
         db.add(row)
         return row
 
+    @staticmethod
+    async def kind_counts(db, trial, kinds, now):
+        """(rows received in the last minute, rows in the trial) restricted to the given kinds."""
+        row = (await db.execute(select(
+            func.count().filter(BrowserIncident.received_at > now - timedelta(minutes=1)), func.count(),
+        ).where(BrowserIncident.trial_id == trial.id, BrowserIncident.kind.in_(kinds)))).one()
+        return row[0], row[1]
+
     @classmethod
     async def append(cls, db, user, trial_id, payload):
         trial = await cls.owned(db, user, trial_id, lock=True)
@@ -133,11 +161,15 @@ class BrowserSupervisionService:
                 reject(409, "Un identificador de incidente ya existe con otro contenido.")
         old_ids = {row.event_id for row in stored}
         fresh = [event for key, event in unique.items() if key not in old_ids]
-        recent = await db.scalar(select(func.count()).select_from(BrowserIncident).where(
-            BrowserIncident.trial_id == trial.id, BrowserIncident.received_at > now - timedelta(minutes=1),
-        ))
-        if fresh and (recent + len(fresh) > 200 or trial.event_count + len(fresh) > 10_000):
-            reject(429, "Límite de incidentes de prueba alcanzado. Esperá antes de reenviar.")
+        # Each origin is capped on its own rows so audiovisual incidents never starve browser events.
+        for kinds, per_minute, per_trial in ((BROWSER_KINDS, BROWSER_EVENTS_PER_MINUTE, BROWSER_EVENTS_PER_TRIAL),
+                                             (AV_KINDS, AV_ROWS_PER_MINUTE, AV_ROWS_PER_TRIAL)):
+            incoming = sum(1 for event in fresh if event.kind in kinds)
+            if not incoming:
+                continue
+            recent, total = await cls.kind_counts(db, trial, kinds, now)
+            if recent + incoming > per_minute or total + incoming > per_trial:
+                reject(429, "Límite de incidentes de prueba alcanzado. Esperá antes de reenviar.")
         for event in fresh:
             trial.event_count += 1
             db.add(BrowserIncident(trial_id=trial.id, sequence=trial.event_count, received_at=now,
@@ -153,20 +185,45 @@ class BrowserSupervisionService:
         ).order_by(BrowserIncident.sequence).limit(limit))).scalars().all()
         return events, trial.event_count
 
+    @staticmethod
+    async def open_episode(db, trial, kind, payload):
+        """The same-kind row this window continues (within one cadence), extended in place, else None."""
+        cadence = timedelta(milliseconds=payload.duration_ms)
+        row = (await db.execute(select(BrowserIncident).where(
+            BrowserIncident.trial_id == trial.id, BrowserIncident.kind == kind,
+            BrowserIncident.observed_at <= payload.observed_at + cadence,
+        ).order_by(BrowserIncident.observed_at.desc()).limit(1))).scalar_one_or_none()
+        if row is None or row.observed_at + timedelta(milliseconds=row.duration_ms) + cadence < payload.observed_at:
+            return None
+        window_end = payload.observed_at + cadence
+        extended = int((window_end - row.observed_at).total_seconds() * 1000)
+        row.duration_ms = min(MAX_DURATION_MS, max(row.duration_ms, extended))
+        return row
+
     @classmethod
     async def process_av_window(cls, db, user, trial_id, payload: AVWindowRequest):
+        # Phase 1: authorize under the row lock, then end the transaction so the lock is released.
         trial = await cls.owned(db, user, trial_id, lock=True)
-        now = utcnow()
-        cls.leased(trial, payload.tab_id, now)
+        cls.leased(trial, payload.tab_id, utcnow())
+        trial_key = str(trial.id)
+        embedding = user.biometric_embedding
+        await db.commit()
 
-        result = ContinuousSupervisionService.assess_window(
+        # Phase 2: CPU-heavy inference on a bounded worker pool, off the event loop and without any lock.
+        result = await asyncio.get_running_loop().run_in_executor(_AV_EXECUTOR, functools.partial(
+            ContinuousSupervisionService.assess_window,
             frames_b64=payload.frames,
             audio_samples=payload.audio_samples,
             mode=payload.mode,
-            biometric_embedding_json=user.biometric_embedding,
-            trial_id=str(trial.id),
+            biometric_embedding_json=embedding,
+            trial_id=trial_key,
             duration_ms=payload.duration_ms,
-        )
+        ))
+
+        # Phase 3: the lease may have been lost meanwhile; re-lock, re-verify and only then persist.
+        trial = await cls.owned(db, user, trial_id, lock=True)
+        now = utcnow()
+        cls.leased(trial, payload.tab_id, now)
 
         created_incidents = []
         anomalies = list(result["anomalies"])
@@ -175,26 +232,33 @@ class BrowserSupervisionService:
         if since is not None:
             created_incidents.append(await cls.record_gap(db, trial, since, now))
             anomalies.append("WINDOW_GAP")
+
+        slots = None
         for anomaly in result["anomalies"]:
             event_id = uuid.uuid5(payload.window_id, anomaly)
             existing = (await db.execute(select(BrowserIncident).where(
                 BrowserIncident.trial_id == trial.id, BrowserIncident.event_id == event_id,
             ))).scalar_one_or_none()
-            if existing is None:
-                trial.event_count += 1
-                incident = BrowserIncident(
-                    trial_id=trial.id,
-                    event_id=event_id,
-                    sequence=trial.event_count,
-                    kind=anomaly,
-                    observed_at=payload.observed_at,
-                    received_at=now,
-                    duration_ms=payload.duration_ms,
-                )
-                db.add(incident)
-                created_incidents.append(incident)
-            else:
+            if existing is not None:
                 created_incidents.append(existing)
+                continue
+            episode = await cls.open_episode(db, trial, anomaly, payload)
+            if episode is not None:
+                created_incidents.append(episode)
+                continue
+            if slots is None:
+                recent, total = await cls.kind_counts(db, trial, AV_KINDS, now)
+                slots = max(0, min(AV_ROWS_PER_MINUTE - recent, AV_ROWS_PER_TRIAL - total))
+            if slots == 0:
+                continue  # over the audiovisual cap: still reported to the caller, not stored
+            slots -= 1
+            trial.event_count += 1
+            incident = BrowserIncident(
+                trial_id=trial.id, event_id=event_id, sequence=trial.event_count, kind=anomaly,
+                observed_at=payload.observed_at, received_at=now, duration_ms=payload.duration_ms,
+            )
+            db.add(incident)
+            created_incidents.append(incident)
 
         await db.commit()
 

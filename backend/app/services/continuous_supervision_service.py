@@ -39,6 +39,10 @@ class ContinuousSupervisionService:
     # Monotonic time of the last failed MediaPipe init; a failure is retried after the cooldown.
     _mp_failed_at: Optional[float] = None
     _mp_lock = threading.Lock()
+    # Inference runs on worker threads: the landmarker is a shared native object and the per-trial
+    # dictionaries are mutated concurrently, so both are serialized explicitly.
+    _mp_detect_lock = threading.Lock()
+    _state_lock = threading.RLock()
     MP_RETRY_COOLDOWN_S = 30.0
 
     @staticmethod
@@ -98,6 +102,17 @@ class ContinuousSupervisionService:
     ) -> Optional[dict[str, float]]:
         if not trial_key:
             return None
+        with cls._state_lock:
+            baseline = cls._update_baseline_locked(trial_key, metrics, is_frontal_candidate)
+            return dict(baseline) if baseline is not None else None
+
+    @classmethod
+    def _update_baseline_locked(
+        cls,
+        trial_key: str,
+        metrics: dict[str, float],
+        is_frontal_candidate: bool,
+    ) -> Optional[dict[str, float]]:
         existing = cls._trial_baselines.get(trial_key)
         if existing is None:
             if is_frontal_candidate:
@@ -220,7 +235,8 @@ class ContinuousSupervisionService:
 
             rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-            result = landmarker.detect(mp_image)
+            with cls._mp_detect_lock:
+                result = landmarker.detect(mp_image)
 
             face_count = len(result.face_landmarks) if result.face_landmarks else 0
             if face_count == 0:
@@ -684,24 +700,25 @@ class ContinuousSupervisionService:
     ) -> bool:
         """Detects multiple speakers or overlapping voices using Sherpa-ONNX Pyannote diarization."""
         state: dict[str, Any] = {}
-        if trial_key:
-            state = cls._trial_audio_state.get(trial_key, {})
-            if trial_key in cls._trial_audio_state:
-                cls._trial_audio_state.move_to_end(trial_key)
+        with cls._state_lock:
+            if trial_key:
+                state = cls._trial_audio_state.get(trial_key, {})
+                if trial_key in cls._trial_audio_state:
+                    cls._trial_audio_state.move_to_end(trial_key)
+                else:
+                    if len(cls._trial_audio_state) >= 256:
+                        cls._trial_audio_state.popitem(last=False)
+                    cls._trial_audio_state[trial_key] = state
+
+            # Only store and concatenate windows where real voice activity was detected
+            prev_audio = state.get("prev_voiced_audio")
+            if prev_audio is not None and isinstance(prev_audio, np.ndarray) and prev_audio.size > 0:
+                combined_audio = np.concatenate([prev_audio[-38400:], audio])
             else:
-                if len(cls._trial_audio_state) >= 256:
-                    cls._trial_audio_state.popitem(last=False)
-                cls._trial_audio_state[trial_key] = state
+                combined_audio = audio
 
-        # Only store and concatenate windows where real voice activity was detected
-        prev_audio = state.get("prev_voiced_audio")
-        if prev_audio is not None and isinstance(prev_audio, np.ndarray) and prev_audio.size > 0:
-            combined_audio = np.concatenate([prev_audio[-38400:], audio])
-        else:
-            combined_audio = audio
-
-        if trial_key and sum(1 for v in voiced_flags if v) >= 6:
-            state["prev_voiced_audio"] = audio[-38400:].copy()
+            if trial_key and sum(1 for v in voiced_flags if v) >= 6:
+                state["prev_voiced_audio"] = audio[-38400:].copy()
 
         # Require at least 1.5s of audio with sufficient speech before running Pyannote diarization
         if combined_audio.size >= 24000 and sum(1 for v in voiced_flags if v) >= 8:
@@ -789,8 +806,10 @@ class ContinuousSupervisionService:
                 logger.debug("VAD no disponible o error en procesamiento: %s", exc)
 
         # Clear rolling speech buffer when window is silent so stale speech is not carried over
-        if not speech_detected and trial_key and trial_key in cls._trial_audio_state:
-            cls._trial_audio_state[trial_key].pop("prev_voiced_audio", None)
+        if not speech_detected and trial_key:
+            with cls._state_lock:
+                if trial_key in cls._trial_audio_state:
+                    cls._trial_audio_state[trial_key].pop("prev_voiced_audio", None)
 
         high_noise = rms > 0.22 or (rms > 0.14 and not speech_detected)
 
