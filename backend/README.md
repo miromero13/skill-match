@@ -77,6 +77,8 @@ GEMINI_API_KEY=""                  # [SECRETO] Si provider=gemini
 THEORY_GRADING_TIMEOUT_SECONDS=20
 THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory exams
 # BROWSER_SUPERVISION_TRIAL_ENABLED=true  # Sin definir = activo solo en development/test, nunca en production (production lo fuerza apagado aunque sea true)
+# INTEGRITY_DIAGNOSTICS_ENABLED=false  # Registro numérico por ventana AV para afinar umbrales (nunca imágenes, audio ni huellas); production lo fuerza apagado
+# INTEGRITY_DIAGNOSTICS_DIR="/tmp/skillmatch-integrity-diagnostics"  # Carpeta de los <trial_id>.jsonl; por defecto bajo el directorio temporal del SO
 
 
 

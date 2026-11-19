@@ -207,6 +207,8 @@ class AVWindowRequest(TabRequest):
     frame_times_ms: Optional[list[Annotated[int, Field(ge=0, le=30000, strict=True)]]] = Field(
         default=None, max_length=12)
     gaze_samples: list[GazeSampleRequest] = Field(default_factory=list, max_length=60)
+    # Tuning label (T11): only used by the opt-in diagnostics log, never stored in the ledger.
+    label: Optional[str] = Field(default=None, min_length=1, max_length=40, pattern=r"^[a-z0-9_-]+$")
 
     @model_validator(mode="after")
     def timestamps_are_coherent(self):

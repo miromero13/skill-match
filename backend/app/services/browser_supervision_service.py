@@ -8,6 +8,7 @@ from typing import get_args
 
 from sqlalchemy import func, select
 
+from app.core.config import settings
 from app.core.exceptions import SkillMatchException
 from app.models.browser_supervision import BrowserIncident, BrowserTrial
 from app.models.user import User, UserRole
@@ -16,7 +17,7 @@ from app.schemas.browser_supervision import (
 )
 from app.services.continuous_supervision_service import ContinuousSupervisionService
 from app.services.evaluation_calibration_service import EvaluationCalibrationService
-from app.services.integrity import messages
+from app.services.integrity import diagnostics, messages
 from app.services.integrity.gaze import GazeCalibrationError, compute_zone
 from app.services.integrity.voiceprint import EnrollmentError, SpeakerModelUnavailable
 
@@ -232,8 +233,10 @@ class BrowserSupervisionService:
         await db.commit()
 
         # Phase 2: CPU-heavy inference on a bounded worker pool, off the event loop and without any lock.
+        record_diagnostics = settings.integrity_diagnostics_enabled
+        assess = diagnostics.assess_observed if record_diagnostics else ContinuousSupervisionService.assess_window
         result = await asyncio.get_running_loop().run_in_executor(_AV_EXECUTOR, functools.partial(
-            ContinuousSupervisionService.assess_window,
+            assess,
             frames_b64=payload.frames,
             audio_samples=payload.audio_samples,
             mode=payload.mode,
@@ -246,6 +249,9 @@ class BrowserSupervisionService:
             observed_at_ms=int(payload.observed_at.timestamp() * 1000),
             voiceprint=voiceprint,
         ))
+        observation = None
+        if record_diagnostics:
+            result, observation = result
 
         # Phase 3: the lease may have been lost meanwhile; re-lock, re-verify and only then persist.
         trial = await cls.owned(db, user, trial_id, lock=True)
@@ -288,6 +294,10 @@ class BrowserSupervisionService:
             created_incidents.append(incident)
 
         await db.commit()
+
+        if observation is not None:
+            await diagnostics.write_window(settings.INTEGRITY_DIAGNOSTICS_DIR, trial_key, diagnostics.window_record(
+                observation, anomalies, payload.window_id, payload.label, now.timestamp()))
 
         return {
             "window_id": payload.window_id,

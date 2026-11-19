@@ -1,3 +1,5 @@
+import os
+import tempfile
 from pathlib import Path
 from typing import List, Optional, Self, Union
 
@@ -88,6 +90,16 @@ class Settings(BaseSettings):
             "Expose the browser supervision trial routes. Unset = on only in development/test; "
             "always off in production, even if set to true"
         ),
+    )
+
+    # Integrity tuning diagnostics (T11): numeric per-window measurements, never reachable in production.
+    INTEGRITY_DIAGNOSTICS_ENABLED: bool = Field(
+        default=False,
+        description="Append one numeric JSON line per audiovisual window to INTEGRITY_DIAGNOSTICS_DIR; off in production",
+    )
+    INTEGRITY_DIAGNOSTICS_DIR: str = Field(
+        default_factory=lambda: os.path.join(tempfile.gettempdir(), "skillmatch-integrity-diagnostics"),
+        description="Directory of the <trial_id>.jsonl diagnostics files (only created when enabled)",
     )
 
     # Almacenamiento MinIO / S3
@@ -216,6 +228,11 @@ class Settings(BaseSettings):
         if not self.VAPID_SUBJECT.startswith(("mailto:", "https://")):
             raise ValueError("VAPID_SUBJECT debe usar mailto: o https://")
         return self
+
+    @property
+    def integrity_diagnostics_enabled(self) -> bool:
+        """Hard deny in production; otherwise the explicit flag (default off)."""
+        return self.ENVIRONMENT.strip().lower() != "production" and self.INTEGRITY_DIAGNOSTICS_ENABLED
 
     @property
     def browser_supervision_trial_enabled(self) -> bool:
