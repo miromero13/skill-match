@@ -217,7 +217,9 @@ export function AvailabilityPage() {
     )
     setDayActiveMap(nextDayMap)
     setDraftSlots(nextDraft)
-    toast.success("Franja agregada a la vista previa. Guardá los cambios para confirmar.")
+    toast.success(
+      "Franja agregada a la vista previa. Guardá los cambios para confirmar."
+    )
   }
 
   const handleToggleDayRow = (dayIdx: number, enabled: boolean) => {
@@ -299,21 +301,22 @@ export function AvailabilityPage() {
   return (
     <div className="mx-auto w-full max-w-[1380px] p-4 md:p-6">
       {/* LAYOUT DE 2 COLUMNAS DENTRO DEL SHELL (Columna_Central_Editor + Columna_Derecha_Widgets de Vista 21 OpenPencil) */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 items-start">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
         {/* COLUMNA CENTRAL EDITOR (n8175 - 810px en Web) */}
         <div className="space-y-5 xl:col-span-8">
           {/* 1. EdHead (n8176) */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-base md:text-lg font-bold tracking-tight uppercase text-foreground">
+              <h1 className="text-base font-bold tracking-tight text-foreground uppercase md:text-lg">
                 GESTIÓN Y EDICIÓN DE DISPONIBILIDAD HORARIA
               </h1>
-              <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
-                Configurá tus franjas laborales, agregá o eliminá intervalos de 30 minutos y sincronizá con tu calendario personal.
+              <p className="mt-0.5 max-w-xl text-xs text-muted-foreground">
+                Configurá tus franjas laborales, agregá o eliminá intervalos de
+                30 minutos y sincronizá con tu calendario personal.
               </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex shrink-0 items-center gap-2">
               <Button
                 type="button"
                 variant="secondary"
@@ -339,9 +342,9 @@ export function AvailabilityPage() {
 
           {/* 2. Card_Editor_Nueva_Franja (n8187 en Web / n8350 AddCardM en Mobile — Fondo #E6F4F2 / bg-primary/10) */}
           <Card className="border-primary/25 bg-primary/10 shadow-none">
-            <CardContent className="p-4 space-y-3.5">
+            <CardContent className="space-y-3.5 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-bold uppercase tracking-wide text-primary">
+                <span className="text-xs font-bold tracking-wide text-primary uppercase">
                   NUEVA FRANJA HORARIA DISPONIBLE
                 </span>
                 <span className="text-[11px] font-medium text-primary">
@@ -351,7 +354,7 @@ export function AvailabilityPage() {
 
               {/* DaysRow (Días: Lun Mar Mié Jue Vie Sáb Dom) */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-foreground mr-1">
+                <span className="mr-1 text-xs font-semibold text-foreground">
                   Días:
                 </span>
                 {DAYS.map((d) => {
@@ -377,39 +380,43 @@ export function AvailabilityPage() {
               </div>
 
               {/* TimeInputsRow (Desde: 09:00 hs ▾ | Hasta: 13:00 hs ▾ | ☑ Virtual | ☑ Presencial | + Agregar a la Agenda) */}
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between pt-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Label className="text-xs font-semibold">Desde:</Label>
-                  <Select value={fromTime} onValueChange={setFromTime}>
-                    <SelectTrigger className="h-8 w-[108px] bg-background text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {HALF_HOUR_TIMES.map((t) => (
-                        <SelectItem key={`from-${t}`} value={t}>
-                          {t} hs
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <div className="flex flex-col gap-3 pt-1 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Label className="text-xs font-semibold">Desde:</Label>
+                    <Select value={fromTime} onValueChange={setFromTime}>
+                      <SelectTrigger className="h-8 w-[108px] bg-background text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {HALF_HOUR_TIMES.map((t) => (
+                          <SelectItem key={`from-${t}`} value={t}>
+                            {t} hs
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <Label className="text-xs font-semibold ml-1">Hasta:</Label>
-                  <Select value={toTime} onValueChange={setToTime}>
-                    <SelectTrigger className="h-8 w-[108px] bg-background text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {HALF_HOUR_TIMES.map((t) => (
-                        <SelectItem key={`to-${t}`} value={t}>
-                          {t} hs
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Label className="text-xs font-semibold">Hasta:</Label>
+                    <Select value={toTime} onValueChange={setToTime}>
+                      <SelectTrigger className="h-8 w-[108px] bg-background text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {HALF_HOUR_TIMES.map((t) => (
+                          <SelectItem key={`to-${t}`} value={t}>
+                            {t} hs
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-primary cursor-pointer">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary">
                     <Checkbox
                       checked={virtualChecked}
                       onCheckedChange={(v) => setVirtualChecked(Boolean(v))}
@@ -417,7 +424,7 @@ export function AvailabilityPage() {
                     <span>Virtual (WebRTC)</span>
                   </label>
 
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-blue-800 dark:text-blue-300 cursor-pointer">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-blue-800 dark:text-blue-300">
                     <Checkbox
                       checked={presencialChecked}
                       onCheckedChange={(v) => setPresencialChecked(Boolean(v))}
@@ -441,7 +448,7 @@ export function AvailabilityPage() {
           {/* 3. Card_Dias_Configurados (n8220 HORARIOS SEMANALES ACTIVOS (FRANJAS EDITABLES):) */}
           <Card className="border-border/80 shadow-2xs">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-bold uppercase tracking-wide text-foreground">
+              <CardTitle className="text-xs font-bold tracking-wide text-foreground uppercase">
                 HORARIOS SEMANALES ACTIVOS (FRANJAS EDITABLES):
               </CardTitle>
             </CardHeader>
@@ -460,7 +467,7 @@ export function AvailabilityPage() {
                     }`}
                   >
                     {/* Toggle + Nombre del Día */}
-                    <div className="flex items-center justify-between sm:w-36 shrink-0">
+                    <div className="flex shrink-0 items-center justify-between sm:w-36">
                       <div className="flex items-center gap-2.5">
                         <Switch
                           checked={isDayEnabled}
@@ -500,7 +507,7 @@ export function AvailabilityPage() {
                             </span>
                             <Badge
                               variant="secondary"
-                              className={`text-[10px] px-1.5 py-0 ${
+                              className={`px-1.5 py-0 text-[10px] ${
                                 slot.modality === "BOTH" ||
                                 slot.modality === "PRESENCIAL"
                                   ? "text-blue-700 dark:text-blue-300"
@@ -541,7 +548,7 @@ export function AvailabilityPage() {
                     </div>
 
                     {/* Acción Derecha (+ Intervalo / Habilitar) */}
-                    <div className="flex justify-end shrink-0">
+                    <div className="flex shrink-0 justify-end">
                       {isDayEnabled ? (
                         <Button
                           type="button"
@@ -574,7 +581,7 @@ export function AvailabilityPage() {
           <Card className="border-border/80 shadow-2xs">
             <CardContent className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <Label className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
                   DURACIÓN DE SESIÓN
                 </Label>
                 <Select
@@ -593,7 +600,7 @@ export function AvailabilityPage() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <Label className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
                   BUFFER DE DESCANSO
                 </Label>
                 <Select value={bufferMinutes} onValueChange={setBufferMinutes}>
@@ -611,7 +618,7 @@ export function AvailabilityPage() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <Label className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
                   ANTICIPACIÓN MÍNIMA
                 </Label>
                 <Select value={minNotice} onValueChange={setMinNotice}>
@@ -621,13 +628,15 @@ export function AvailabilityPage() {
                   <SelectContent>
                     <SelectItem value="2h">2 horas de aviso previo</SelectItem>
                     <SelectItem value="6h">6 horas de aviso previo</SelectItem>
-                    <SelectItem value="24h">24 horas de aviso previo</SelectItem>
+                    <SelectItem value="24h">
+                      24 horas de aviso previo
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <Label className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
                   VENTANA MÁXIMA FUTURA
                 </Label>
                 <Select value={maxWindow} onValueChange={setMaxWindow}>
@@ -651,7 +660,7 @@ export function AvailabilityPage() {
           <Card className="border-border/80 shadow-2xs">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-xs font-bold uppercase tracking-wide text-primary flex items-center gap-1.5">
+                <CardTitle className="flex items-center gap-1.5 text-xs font-bold tracking-wide text-primary uppercase">
                   <CalendarCheck className="size-4" />
                   SINCRONIZACIÓN DE CALENDARIO
                 </CardTitle>
@@ -662,7 +671,7 @@ export function AvailabilityPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3 text-xs">
-              <p className="text-muted-foreground leading-relaxed">
+              <p className="leading-relaxed text-muted-foreground">
                 Google Calendar sincronizado con{" "}
                 <span className="font-medium text-foreground">
                   {profile?.gcal_calendar_email ||
@@ -686,7 +695,7 @@ export function AvailabilityPage() {
           {/* 2. BlockCard (n8333: BLOQUEOS Y FERIADOS) */}
           <Card className="border-border/80 shadow-2xs">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-bold uppercase tracking-wide text-foreground flex items-center gap-1.5">
+              <CardTitle className="flex items-center gap-1.5 text-xs font-bold tracking-wide text-foreground uppercase">
                 <CalendarOff className="size-4 text-primary" />
                 BLOQUEOS Y FERIADOS
               </CardTitle>
@@ -703,7 +712,7 @@ export function AvailabilityPage() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-5 text-destructive hover:text-destructive shrink-0"
+                      className="size-5 shrink-0 text-destructive hover:text-destructive"
                       onClick={() =>
                         setHolidays((prev) =>
                           prev.filter((h) => h.id !== item.id)
@@ -722,7 +731,7 @@ export function AvailabilityPage() {
                 variant="secondary"
                 size="sm"
                 onClick={handleAddHolidayBlock}
-                className="w-full h-8 text-xs font-medium"
+                className="h-8 w-full text-xs font-medium"
               >
                 + Bloquear Rango de Fechas
               </Button>

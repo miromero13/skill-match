@@ -1,15 +1,29 @@
-import { Outlet } from "react-router-dom"
+import { Outlet, useLocation } from "react-router-dom"
 import { PlatformHeader } from "@/components/navigation/platform-header"
 import { PlatformSidebar } from "@/components/navigation/platform-sidebar"
 import { MobileBottomBar } from "@/components/navigation/mobile-bottom-bar"
 
 export function PlatformLayout() {
+  const location = useLocation()
+  const showSidebar =
+    location.pathname === "/app" ||
+    location.pathname === "/app/"
+  const isProfile = location.pathname.startsWith("/app/profile")
+
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="flex h-screen flex-col bg-background text-foreground overflow-hidden">
       <PlatformHeader />
-      <div className="flex flex-1">
-        <PlatformSidebar />
-        <main className="min-w-0 flex-1 overflow-y-auto pb-[54px] md:pb-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {showSidebar && <PlatformSidebar />}
+        <main
+          className={`min-w-0 flex-1 h-full pb-[54px] md:pb-0 ${
+            showSidebar
+              ? "overflow-hidden"
+              : isProfile
+                ? "overflow-y-auto xl:overflow-hidden"
+                : "overflow-y-auto"
+          }`}
+        >
           <Outlet />
         </main>
       </div>

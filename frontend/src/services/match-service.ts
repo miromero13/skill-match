@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/api-client"
-import type { MatchCompatibility, MatchSuggestion } from "@/types/match"
+import type { MatchCompatibility, MatchSessionOptions, MatchSuggestion } from "@/types/match"
 
 export function getMatchSuggestions(page: number, signal?: AbortSignal) {
     // apiClient agrega el JWT. signal permite cancelar al salir de la pantalla.
@@ -20,6 +20,13 @@ export function getMatchCompatibility(matchId: string, signal?: AbortSignal) {
     return apiClient.get<MatchCompatibility>(`/matches/${encodeURIComponent(matchId)}/compatibility`, {
         signal,
     })
+}
+
+export function getMatchSessionOptions(matchId: string, signal?: AbortSignal) {
+    return apiClient.get<MatchSessionOptions>(
+        `/matches/${encodeURIComponent(matchId)}/session-options`,
+        { signal },
+    )
 }
 
 export function getUserCompatibility(userId: string, signal?: AbortSignal) {
