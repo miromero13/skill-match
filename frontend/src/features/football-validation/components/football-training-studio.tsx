@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Card,
   CardContent,
@@ -30,7 +30,10 @@ import {
   Trophy,
   Eye,
 } from "lucide-react"
-import { footballValidationApi } from "../api/football-validation-api"
+import {
+  footballValidationApi,
+  type TrainedModelVersion,
+} from "../api/football-validation-api"
 
 interface DatasetPreviewSample {
   id: string
@@ -42,32 +45,9 @@ interface DatasetPreviewSample {
   created_at: string | null
 }
 
-interface ModelVersionItem {
-  id: string
-  nombre: string
-  version: string
-  ruta_onnx: string
-  activa: boolean
-  metricas: {
-    test_samples?: number
-    train_participants?: number
-    test_participants?: number
-    rule_baseline_accuracy?: number
-    trained_exact_accuracy?: number
-    trained_within_one_level_accuracy?: number
-    beats_rule_baseline?: boolean
-    confusion_matrix?: number[][]
-    loss_history?: Array<{ epoch: number; loss: number }>
-    dataset_source?: string
-    real_samples_count?: number
-    synthetic_samples_count?: number
-    total_samples_count?: number
-    latency_ms_per_inference?: number
-    touch_mae?: number
-    skill_id?: string | null
-  }
-  created_at: string
-}
+type ModelVersionItem = TrainedModelVersion
+
+const TRAINING_POLL_INTERVAL_MS = 1500
 
 const LEVEL_NAMES = ["Principiante", "Intermedio", "Avanzado", "Experto"]
 
@@ -83,11 +63,17 @@ export function FootballTrainingStudio({
   const [models, setModels] = useState<ModelVersionItem[]>([])
   const [selectedModel, setSelectedModel] = useState<ModelVersionItem | null>(null)
   const [isLoadingModels, setIsLoadingModels] = useState(false)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Training state (100% Real Data)
   const [versionTag, setVersionTag] = useState<string>("")
   const [autoActivate, setAutoActivate] = useState<boolean>(true)
   const [isTraining, setIsTraining] = useState(false)
+  const [trainingProgress, setTrainingProgress] = useState<{
+    processed: number | null
+    total: number | null
+    message: string | null
+  } | null>(null)
   const [trainingMessage, setTrainingMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -123,6 +109,52 @@ export function FootballTrainingStudio({
     return () => clearTimeout(timer)
   }, [])
 
+  const pollTrainingStatus = (taskId: string) => {
+    const interval = setInterval(() => {
+      void (async () => {
+        try {
+          const res = await footballValidationApi.getTrainingStatus(taskId)
+          if (res.statuscode !== 200 || !res.data) return
+          const { status: taskStatus, processed, total, message, result } = res.data
+
+          if (taskStatus === "running" || taskStatus === "queued") {
+            setTrainingProgress({ processed, total, message })
+            return
+          }
+
+          clearInterval(interval)
+          setIsTraining(false)
+          setTrainingProgress(null)
+
+          if (taskStatus === "done" && result) {
+            setTrainingMessage(
+              `Modelo ${result.version} entrenado${result.activa ? " y activado" : ""}.`
+            )
+            setVersionTag("")
+            await fetchModels()
+          } else if (taskStatus === "failed") {
+            setErrorMessage(message || "Error en el entrenamiento.")
+          }
+        } catch (err: unknown) {
+          clearInterval(interval)
+          setIsTraining(false)
+          setTrainingProgress(null)
+          const msg = err instanceof Error ? err.message : "Error consultando el entrenamiento."
+          setErrorMessage(msg)
+        }
+      })()
+    }, TRAINING_POLL_INTERVAL_MS)
+    return interval
+  }
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+    }
+  }, [])
+
   const handleTrainModel = async () => {
     if (!skillId) {
       setErrorMessage("Seleccioná una habilidad primero.")
@@ -131,24 +163,24 @@ export function FootballTrainingStudio({
     setIsTraining(true)
     setErrorMessage(null)
     setTrainingMessage(null)
+    setTrainingProgress({ processed: null, total: null, message: "Encolando entrenamiento..." })
     try {
-      const res = await footballValidationApi.trainLevelModel({
+      const res = await footballValidationApi.enqueueTraining({
         version_tag: versionTag.trim() || undefined,
         activate: autoActivate,
         skill_id: skillId,
       })
-      if (res.statuscode === 200 && res.data) {
-        setTrainingMessage(
-          `Modelo ${res.data.version} entrenado${res.data.activa ? " y activado" : ""}.`
-        )
-        setVersionTag("")
-        await fetchModels()
+      if (res.statuscode === 202 && res.data) {
+        pollIntervalRef.current = pollTrainingStatus(res.data.task_id)
+      } else {
+        setIsTraining(false)
+        setTrainingProgress(null)
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error en el entrenamiento."
       setErrorMessage(msg)
-    } finally {
       setIsTraining(false)
+      setTrainingProgress(null)
     }
   }
 
@@ -353,6 +385,27 @@ export function FootballTrainingStudio({
                   </>
                 )}
               </Button>
+
+              {trainingProgress && (
+                <div className="space-y-1.5" data-testid="training-progress">
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 transition-all"
+                      style={{
+                        width:
+                          trainingProgress.processed != null && trainingProgress.total
+                            ? `${Math.min(100, (trainingProgress.processed / trainingProgress.total) * 100)}%`
+                            : "100%",
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {trainingProgress.processed != null && trainingProgress.total
+                      ? `Muestra ${trainingProgress.processed}/${trainingProgress.total}`
+                      : trainingProgress.message || "Procesando..."}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -98,32 +98,49 @@ describe("FootballTrainingStudio UI Component", () => {
     expect(trainBtn).toBeDisabled()
   })
 
+  const DONE_RESULT = {
+    id: "mod-3",
+    nombre: "level_classifier",
+    version: "2.0.0-onnx",
+    ruta_onnx: "s3://skillmatch-football/models/football/level_classifier_v3.onnx",
+    activa: true,
+    metricas: {
+      test_samples: 16,
+      train_participants: 20,
+      test_participants: 8,
+      rule_baseline_accuracy: 0.875,
+      trained_exact_accuracy: 1.0,
+      trained_within_one_level_accuracy: 1.0,
+      beats_rule_baseline: true,
+      confusion_matrix: [],
+      loss_history: [],
+    },
+    created_at: "2026-11-16T00:10:00Z",
+  }
+
   it("triggers training with 100% real data and refreshes models catalog", async () => {
-    const user = userEvent.setup()
-    const trainSpy = vi
-      .spyOn(footballValidationApi, "trainLevelModel")
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({
+      advanceTimers: (ms) => vi.advanceTimersByTime(ms),
+    })
+    const enqueueSpy = vi
+      .spyOn(footballValidationApi, "enqueueTraining")
       .mockResolvedValue({
+        statuscode: 202,
+        message: "Entrenamiento encolado.",
+        data: { task_id: "task-abc" },
+      })
+    const statusSpy = vi
+      .spyOn(footballValidationApi, "getTrainingStatus")
+      .mockResolvedValueOnce({
         statuscode: 200,
-        message: "Trained",
-        data: {
-          id: "mod-3",
-          nombre: "level_classifier",
-          version: "2.0.0-onnx",
-          ruta_onnx: "s3://skillmatch-football/models/football/level_classifier_v3.onnx",
-          activa: true,
-          metricas: {
-            test_samples: 16,
-            train_participants: 20,
-            test_participants: 8,
-            rule_baseline_accuracy: 0.875,
-            trained_exact_accuracy: 1.0,
-            trained_within_one_level_accuracy: 1.0,
-            beats_rule_baseline: true,
-            confusion_matrix: [],
-            loss_history: [],
-          },
-          created_at: "2026-11-16T00:10:00Z",
-        },
+        message: "Estado del entrenamiento recuperado.",
+        data: { status: "running", processed: 1, total: 4, message: "Extrayendo features de muestra 1/4", result: null },
+      })
+      .mockResolvedValueOnce({
+        statuscode: 200,
+        message: "Estado del entrenamiento recuperado.",
+        data: { status: "done", processed: null, total: null, message: null, result: DONE_RESULT },
       })
 
     render(<FootballTrainingStudio skillId="skill-fb-1" />)
@@ -133,15 +150,57 @@ describe("FootballTrainingStudio UI Component", () => {
     })
     await user.click(trainBtn)
 
-    await waitFor(() => {
-      expect(trainSpy).toHaveBeenCalledWith({
-        activate: true,
-        skill_id: "skill-fb-1",
-        version_tag: undefined,
-      })
+    expect(enqueueSpy).toHaveBeenCalledWith({
+      activate: true,
+      skill_id: "skill-fb-1",
+      version_tag: undefined,
     })
 
+    await vi.advanceTimersByTimeAsync(1500)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(statusSpy).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Muestra 1\/4/i)).toBeInTheDocument()
+
+    await vi.advanceTimersByTimeAsync(1500)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(statusSpy).toHaveBeenCalledTimes(2)
+
     expect(screen.getByText(/Modelo 2\.0\.0-onnx entrenado/i)).toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  it("shows the backend error message when a queued training fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({
+      advanceTimers: (ms) => vi.advanceTimersByTime(ms),
+    })
+    vi.spyOn(footballValidationApi, "enqueueTraining").mockResolvedValue({
+      statuscode: 202,
+      message: "Entrenamiento encolado.",
+      data: { task_id: "task-fail" },
+    })
+    vi.spyOn(footballValidationApi, "getTrainingStatus").mockResolvedValue({
+      statuscode: 200,
+      message: "Estado del entrenamiento recuperado.",
+      data: {
+        status: "failed",
+        processed: null,
+        total: null,
+        message: "No se encontraron muestras reales de fútbol para entrenar.",
+        result: null,
+      },
+    })
+
+    render(<FootballTrainingStudio skillId="skill-fb-1" />)
+    await user.click(screen.getByRole("button", { name: /Entrenar Modelo/i }))
+
+    await vi.advanceTimersByTimeAsync(1500)
+    await waitFor(() => {
+      expect(
+        screen.getByText(/No se encontraron muestras reales de fútbol/i)
+      ).toBeInTheDocument()
+    })
+    vi.useRealTimers()
   })
 
   it("shows the real dataset samples that would train the model on preview", async () => {

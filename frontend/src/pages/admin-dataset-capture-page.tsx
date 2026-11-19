@@ -22,6 +22,12 @@ import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Table,
   TableBody,
   TableCell,
@@ -37,6 +43,7 @@ import {
   Play,
   Square,
   Trash2,
+  Eye,
   ShieldCheck,
   Hash,
   Cpu,
@@ -58,6 +65,7 @@ import { getSkills, getCategories } from "@/services/admin-catalog-service"
 import {
   calculateFileSha256,
   uploadDatasetSample,
+  getDatasetSamplePreviewUrl,
 } from "@/services/dataset-sample-service"
 import type { Skill, Category } from "@/types/catalog"
 
@@ -135,6 +143,31 @@ export function AdminDatasetCapturePage() {
   const [filterDiscipline, setFilterDiscipline] = useState<string>("all")
   const [categories, setCategories] = useState<Category[]>([])
   const [activeCategorySlug, setActiveCategorySlug] = useState<string>("deporte")
+  const [previewSample, setPreviewSample] = useState<{
+    url: string
+    format: string
+  } | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null)
+
+  const handlePreviewSample = async (sampleId: string) => {
+    setLoadingPreviewId(sampleId)
+    setPreviewError(null)
+    try {
+      const res = await getDatasetSamplePreviewUrl(sampleId)
+      if (res.statuscode === 200 && res.data) {
+        setPreviewSample({ url: res.data.preview_url, format: res.data.file_format })
+      } else {
+        setPreviewError(res.message)
+      }
+    } catch (err: unknown) {
+      setPreviewError(
+        err instanceof Error ? err.message : "No se pudo generar la vista previa."
+      )
+    } finally {
+      setLoadingPreviewId(null)
+    }
+  }
   const [catalogSkills, setCatalogSkills] = useState<Skill[]>([])
   const [selectedSkillId, setSelectedSkillId] = useState<string>("")
   const [selectedSkillName, setSelectedSkillName] = useState<string>("Dominadas y Control de Balón")
@@ -402,9 +435,24 @@ export function AdminDatasetCapturePage() {
         })
         return
       }
+      if ((discipline === "futbol" || activeCategorySlug === "deporte") && !levelLabel) {
+        useDatasetCaptureStore.setState({
+          error: "Seleccioná el nivel real del participante antes de subir las muestras.",
+        })
+        return
+      }
 
       useDatasetCaptureStore.setState({ isUploading: true, error: null })
       let uploadedCount = 0
+
+      const autoParticipantNumbers = samples
+        .filter((s) => s.discipline.toLowerCase() === "futbol" && s.participant_id)
+        .map((s) => {
+          const match = /^anon-p(\d+)/.exec(s.participant_id || "")
+          return match ? Number.parseInt(match[1], 10) : 0
+        })
+      const nextAutoParticipantNumber =
+        (autoParticipantNumbers.length > 0 ? Math.max(...autoParticipantNumbers) : 0) + 1
 
       for (let i = 0; i < batchFiles.length; i++) {
         const item = batchFiles[i]
@@ -437,7 +485,7 @@ export function AdminDatasetCapturePage() {
 
           const itemParticipant = participantId.trim()
             ? (batchFiles.length > 1 ? `${participantId}-${i + 1}` : participantId)
-            : `anon-p${String(i + 1).padStart(2, "0")}`
+            : `anon-p${String(nextAutoParticipantNumber + i).padStart(2, "0")}`
 
           const targetDiscipline =
             discipline === "futbol" || activeCategorySlug === "deporte"
@@ -456,7 +504,7 @@ export function AdminDatasetCapturePage() {
             signed_consent: signedConsent,
             file_hash_sha256: hash,
             participant_id: itemParticipant,
-            level_label: levelLabel || "Intermedio",
+            level_label: levelLabel,
             manual_touch_count: manualTouchCount !== null ? manualTouchCount : undefined,
             noise_level: noiseLevel || "bajo",
             surface: targetSurface,
@@ -480,6 +528,8 @@ export function AdminDatasetCapturePage() {
         lastUploadMessage: `¡Lote procesado exitosamente! Se subieron ${uploadedCount} de ${batchFiles.length} muestras reales al bucket Garage S3.`,
       })
 
+      setBatchFiles((prev) => prev.filter((f) => f.status !== "done"))
+      setBatchProgress(null)
       await fetchSamples(discipline === "all" ? undefined : discipline)
       return
     }
@@ -961,8 +1011,18 @@ export function AdminDatasetCapturePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {(discipline === "futbol" || activeCategorySlug === "deporte") && !levelLabel && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Falta elegir el nivel real del participante, abajo en “Opciones avanzadas”.</span>
+                </div>
+              )}
+
               {/* Acordeón Opcional para Investigadores / Configuración Manual */}
-              <details className="group border border-border/50 rounded-lg p-3 bg-card/40 transition-all">
+              <details
+                className="group border border-border/50 rounded-lg p-3 bg-card/40 transition-all"
+                open={discipline === "futbol" || activeCategorySlug === "deporte" ? true : undefined}
+              >
                 <summary className="text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer flex items-center justify-between select-none">
                   <span className="flex items-center gap-1.5">
                     <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
@@ -1046,15 +1106,18 @@ export function AdminDatasetCapturePage() {
                         </div>
                         <div className="space-y-1">
                           <Label htmlFor="level-label-select" className="text-xs">
-                            Nivel Provisional
+                            Nivel real del participante *
                           </Label>
                           <Select value={levelLabel} onValueChange={setLevelLabel}>
-                            <SelectTrigger id="level-label-select">
-                              <SelectValue placeholder="Nivel" />
+                            <SelectTrigger
+                              id="level-label-select"
+                              className={!levelLabel ? "border-amber-500/50" : undefined}
+                            >
+                              <SelectValue placeholder="Seleccioná un nivel..." />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Principiante">Principiante</SelectItem>
-                              <SelectItem value="Intermedio">Intermedio (Predeterminado)</SelectItem>
+                              <SelectItem value="Intermedio">Intermedio</SelectItem>
                               <SelectItem value="Avanzado">Avanzado</SelectItem>
                               <SelectItem value="Experto">Experto</SelectItem>
                             </SelectContent>
@@ -1237,6 +1300,17 @@ export function AdminDatasetCapturePage() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => handlePreviewSample(sample.id)}
+                              disabled={loadingPreviewId === sample.id}
+                              aria-label="Ver muestra"
+                              title="Ver muestra"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                               onClick={() => deleteSampleById(sample.id)}
                               title="Eliminar muestra defectuosa"
@@ -1256,6 +1330,32 @@ export function AdminDatasetCapturePage() {
       </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={previewSample !== null} onOpenChange={(open) => !open && setPreviewSample(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Vista previa de la muestra</DialogTitle>
+          </DialogHeader>
+          {previewSample?.format === "mp4" ? (
+            <video src={previewSample.url} controls autoPlay className="w-full rounded-lg" />
+          ) : previewSample?.format === "wav" ? (
+            <audio src={previewSample.url} controls autoPlay className="w-full" />
+          ) : previewSample ? (
+            <pre className="text-xs bg-neutral-950 text-emerald-400 p-4 rounded-lg overflow-auto max-h-[60vh]">
+              <a href={previewSample.url} target="_blank" rel="noreferrer" className="underline">
+                Abrir archivo
+              </a>
+            </pre>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {previewError && (
+        <Alert variant="destructive" className="fixed bottom-4 right-4 w-auto max-w-sm z-50">
+          <AlertTitle>No se pudo previsualizar</AlertTitle>
+          <AlertDescription className="text-sm">{previewError}</AlertDescription>
+        </Alert>
+      )}
     </div>
   )
 }

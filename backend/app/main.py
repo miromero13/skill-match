@@ -33,7 +33,7 @@ from app.api.users.profile import router as user_profile_router
 from app.api.users.skill_evidences import router as skill_evidences_router
 from app.api.users.teaching_skills import router as teaching_skills_router
 from app.api.wallet.router import router as wallet_router
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.exceptions import (
     SkillMatchException,
     http_exception_handler,
@@ -48,6 +48,7 @@ from app.football.api import router as football_router
 from app.schemas.response import APIResponse
 from app.services.notification_connection_manager import notification_connection_manager
 from app.services.realtime_notification_broker import consume_notification_events
+from app.services.vision_models import report_vision_models_readiness
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -70,12 +71,21 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.error(f"Fallo crítico durante el seed del administrador inicial: {exc}")
 
+    # Modelos de visión locales: se informa en ERROR si faltan, pero la app sigue sirviendo el resto.
+    await report_vision_models_readiness()
+
     broker_listener = asyncio.create_task(consume_notification_events())
     yield
     broker_listener.cancel()
     await asyncio.gather(broker_listener, return_exceptions=True)
     await notification_connection_manager.close_all()
     logger.info("Cerrando conexiones y apagando servicios de SkillMatch API...")
+
+
+def register_browser_supervision_router(app: FastAPI, app_settings: Settings) -> None:
+    """Mount the SM-43 trial only when allowed; otherwise the routes do not exist (404)."""
+    if app_settings.browser_supervision_trial_enabled:
+        app.include_router(browser_supervision_router, prefix="/api")
 
 
 def create_application() -> FastAPI:
@@ -116,7 +126,7 @@ def create_application() -> FastAPI:
     app.include_router(evaluation_preflight_router, prefix="/api")
     app.include_router(theory_exam_router, prefix="/api")
     app.include_router(programming_router, prefix="/api")
-    app.include_router(browser_supervision_router, prefix="/api")
+    register_browser_supervision_router(app, settings)
     app.include_router(public_skills_router, prefix="/api")
     app.include_router(user_learning_skills_router, prefix="/api")
     app.include_router(teaching_skills_router, prefix="/api")

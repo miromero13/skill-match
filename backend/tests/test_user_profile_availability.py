@@ -178,16 +178,29 @@ async def test_put_and_patch_my_profile(hu13_setup):
         assert patch_body["data"]["exchange_modality"] == "BOTH"
 
 
+def _decodable_jpeg_b64() -> str:
+    import cv2
+    import numpy as np
+
+    ok, buf = cv2.imencode(".jpg", np.full((240, 320, 3), 180, dtype=np.uint8))
+    assert ok
+    return base64.b64encode(buf).decode()
+
+
 @pytest.mark.asyncio
-async def test_enroll_biometrics_success_and_rejections(hu13_setup):
+async def test_enroll_biometrics_success_and_rejections(hu13_setup, monkeypatch):
+    from app.services.biometric_service import BiometricService
+
     transport = ASGITransport(app=app)
-    synthetic_face = base64.b64encode(b"SKILLMATCH_CENTERED_FACE_SAMPLE_PIXELS_2026_128D_TEST" * 4).decode()
+    # Bytes that are not an image: they used to be accepted through a synthetic embedding fallback.
+    undecodable = base64.b64encode(b"SKILLMATCH_CENTERED_FACE_SAMPLE_PIXELS_2026_128D_TEST" * 4).decode()
+    user = hu13_setup["user"]
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         bad_center = await client.post(
             "/api/users/me/biometrics/enroll",
             json={
-                "image_base64": f"data:image/jpeg;base64,{synthetic_face}",
+                "image_base64": f"data:image/jpeg;base64,{undecodable}",
                 "lighting_score": 0.9,
                 "face_centered": False,
             },
@@ -199,7 +212,7 @@ async def test_enroll_biometrics_success_and_rejections(hu13_setup):
         bad_light = await client.post(
             "/api/users/me/biometrics/enroll",
             json={
-                "image_base64": f"data:image/jpeg;base64,{synthetic_face}",
+                "image_base64": f"data:image/jpeg;base64,{undecodable}",
                 "lighting_score": 0.10,
                 "face_centered": True,
             },
@@ -207,10 +220,32 @@ async def test_enroll_biometrics_success_and_rejections(hu13_setup):
         )
         assert bad_light.status_code == 400
 
+        undecodable_ok_params = await client.post(
+            "/api/users/me/biometrics/enroll",
+            json={
+                "image_base64": f"data:image/jpeg;base64,{undecodable}",
+                "lighting_score": 0.92,
+                "face_centered": True,
+            },
+            headers=hu13_setup["headers"],
+        )
+        assert undecodable_ok_params.status_code == 400
+        assert undecodable_ok_params.json()["statuscode"] == 400
+        assert "decodificar" in undecodable_ok_params.json()["message"]
+        assert user.biometric_embedding is None
+        assert user.biometric_face_hash is None
+        assert user.biometric_enrolled_at is None
+
+        # Injected stand-in for the neural extractor (never a production fallback).
+        monkeypatch.setattr(
+            BiometricService,
+            "_process_frame_with_opencv",
+            classmethod(lambda cls, image_bytes, lighting_score=0.85, face_centered=True: [0.25] * 4 + [0.0] * 124),
+        )
         ok_resp = await client.post(
             "/api/users/me/biometrics/enroll",
             json={
-                "image_base64": f"data:image/jpeg;base64,{synthetic_face}",
+                "image_base64": f"data:image/jpeg;base64,{_decodable_jpeg_b64()}",
                 "lighting_score": 0.92,
                 "face_centered": True,
             },
@@ -223,6 +258,38 @@ async def test_enroll_biometrics_success_and_rejections(hu13_setup):
         assert len(ok_body["data"]["biometric_face_hash"]) == 64
         assert ok_body["data"]["embedding_dimensions"] == 128
         assert ok_body["data"]["biometric_enrolled_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_enroll_biometrics_without_models_is_503_envelope(hu13_setup, monkeypatch, tmp_path):
+    from app.services import vision_models
+    from app.services.biometric_service import BiometricService
+
+    monkeypatch.setattr(vision_models, "YUNET_MODEL_PATH", tmp_path / "yunet.onnx")
+    monkeypatch.setattr(vision_models, "SFACE_MODEL_PATH", tmp_path / "sface.onnx")
+    monkeypatch.setattr(BiometricService, "_init_failed_at", None)
+    monkeypatch.setattr(BiometricService, "_detector", None)
+    monkeypatch.setattr(BiometricService, "_recognizer", None)
+    user = hu13_setup["user"]
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            "/api/users/me/biometrics/enroll",
+            json={
+                "image_base64": f"data:image/jpeg;base64,{_decodable_jpeg_b64()}",
+                "lighting_score": 0.92,
+                "face_centered": True,
+            },
+            headers=hu13_setup["headers"],
+        )
+    body = resp.json()
+    assert resp.status_code == 503
+    assert body["statuscode"] == 503
+    assert body["message"].startswith("Servicio biométrico no disponible")
+    assert body["data"] is None
+    assert user.biometric_embedding is None
+    assert user.biometric_face_hash is None
+    assert user.biometric_enrolled_at is None
 
 
 @pytest.mark.asyncio

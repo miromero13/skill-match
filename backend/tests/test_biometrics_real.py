@@ -6,10 +6,18 @@ import pytest
 from fastapi import status
 
 from app.core.exceptions import SkillMatchException
+from app.services import vision_models
 from app.services.biometric_service import (
     BiometricService,
     EMBEDDING_DIMENSIONS,
     SFACE_COSINE_THRESHOLD,
+)
+
+
+# Real-model assertions need the weights provisioned by scripts/install_vision_models.py.
+requires_face_models = pytest.mark.skipif(
+    not vision_models.vision_models_status().identity_ready,
+    reason="YuNet/SFace weights not installed (run scripts/install_vision_models.py)",
 )
 
 
@@ -38,6 +46,7 @@ def test_reject_dark_image():
     assert "Iluminación insuficiente" in exc_info.value.message
 
 
+@requires_face_models
 def test_reject_blank_image_without_face():
     # Imagen clara pero sin rostro humano
     blank_img = np.full((480, 640, 3), 200, dtype=np.uint8)

@@ -10,7 +10,22 @@ from app.core.exceptions import SkillMatchException
 PAYLOAD = {"frames": ["frame-a", "frame-b", "frame-c"],
            "audio_samples": [0.1] * 128000, "ambient_audio_samples": [0.0] * 48000,
            "spoken_frames": [{"time_ms": index * 100, "image": "mock-jpeg"} for index in range(80)],
+           "gaze_points": [{"target": target, "frames": [f"{target}-a"]}
+                           for target in ("CENTER", "TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT")],
+           "mouth_samples": [{"t_ms": index * 100, "mouth_open": 0.1} for index in range(70)],
            "camera_label": "Physical webcam"}
+
+
+def passing_output(**changes):
+    """What the engine returns for a calibration that passed every check (only the vision boundary is simulated)."""
+    from app.services.integrity.calibration import REQUIRED_CHECKS, CalibrationOutput
+    from app.services.integrity.models import GazeZone
+    base = dict(checks={name: True for name in REQUIRED_CHECKS},
+                gaze_zone=GazeZone(-14, 14, -14, 14, -0.6, 0.6, -0.5, 0.5),
+                voiceprint={"version": 1, "embedding": [0.6, 0.8], "ambient_rms": 0.002, "voiced_s": 4.0},
+                occlusion_ref={"n": 4.0, "skin_cr": 150.0})
+    base.update(changes)
+    return CalibrationOutput(**base)
 
 
 async def prepare(scenario):
@@ -50,12 +65,7 @@ async def test_challenge_is_expiring_and_does_not_start_or_consume(scenario):
 @pytest.mark.asyncio
 async def test_success_is_single_use_and_never_starts_exam(scenario, monkeypatch):
     from app.services.calibration_vision_service import CalibrationVisionService
-    monkeypatch.setattr(CalibrationVisionService, "assess", lambda *args: {
-        "lighting": True, "framing": True, "single_face": True,
-        "microphone": True, "background_quiet": True, "identity": True, "liveness": True,
-        "passive_screen_check": True, "single_speaker": True, "no_overlap": True,
-        "mouth_audio_sync": True, "speech_pause": True,
-    })
+    monkeypatch.setattr(CalibrationVisionService, "assess", lambda *args: passing_output())
     client, _, _, offer = scenario
     evaluation_id = await prepare(scenario)
     challenge = (await client.post(f"/api/evaluations/{evaluation_id}/liveness/challenge")).json()["data"]
@@ -110,14 +120,17 @@ async def test_environment_rejection_does_not_authorize_or_consume(scenario, mon
 @pytest.mark.asyncio
 async def test_invalid_images_never_use_profile_synthetic_fallback(scenario):
     import base64
-    client, _, _, offer = scenario
+    import json
+    client, db, user, offer = scenario
+    user.biometric_embedding = json.dumps([1.0] + [0.0] * 127)  # a valid reference: the images are what is rejected
+    await db.commit()
     evaluation_id = await prepare(scenario)
     challenge = (await client.post(f"/api/evaluations/{evaluation_id}/liveness/challenge")).json()["data"]
     body = {**PAYLOAD, "challenge_id": challenge["id"],
             "frames": [base64.b64encode(b"not-an-image" * 10).decode()] * 3}
     response = await client.post(f"/api/evaluations/{evaluation_id}/liveness/verify-identity", json=body)
     assert response.status_code == 400
-    assert response.json()["data"] is None
+    assert response.json() == {"statuscode": 400, "message": "La captura de calibración no es una imagen JPEG válida.", "data": None}
     state = (await client.get(f"/api/evaluations/{evaluation_id}/environment/verify")).json()["data"]
     assert state["ready"] is False
     quota = (await client.get(endpoint(offer, "preflight"))).json()["data"]
@@ -130,11 +143,11 @@ async def test_missing_models_fail_closed_without_consuming(scenario, monkeypatc
     import json
     import cv2
     import numpy as np
-    import app.services.calibration_vision_service as vision
+    from app.services import vision_models
     client, db, user, offer = scenario
     user.biometric_embedding = json.dumps([1.0] + [0.0] * 127)
     await db.commit()
-    monkeypatch.setattr(vision, "YUNET_MODEL_PATH", tmp_path / "missing.onnx")
+    monkeypatch.setattr(vision_models, "YUNET_MODEL_PATH", tmp_path / "missing.onnx")  # read at call time
     frames = []
     for value in (100, 110, 120):
         ok, encoded = cv2.imencode(".jpg", np.full((240, 320, 3), value, dtype=np.uint8))

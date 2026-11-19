@@ -117,6 +117,28 @@ class DatasetStorageService:
             return relative_storage_path, calculated_hash, total_size, ext
 
     @classmethod
+    def get_preview_url(cls, storage_path: str) -> str:
+        """
+        Build a short-lived URL to play back an uploaded sample. Only objects that
+        were actually replicated to Garage S3 (storage_path starting with s3://)
+        can be previewed; local-only fallback copies have no public URL to serve
+        from, since no static file route is mounted for `storage/datasets`.
+        """
+        if not storage_path.startswith("s3://"):
+            raise SkillMatchException(
+                statuscode=404,
+                message="Esta muestra no tiene una URL de vista previa disponible (no se replicó a Garage S3).",
+            )
+        parts = storage_path.replace("s3://", "", 1).split("/", 1)
+        object_key = parts[1] if len(parts) > 1 else ""
+        if not object_key:
+            raise SkillMatchException(
+                statuscode=404,
+                message="Esta muestra no tiene una URL de vista previa disponible.",
+            )
+        return garage_s3_storage.generate_signed_url(object_key)
+
+    @classmethod
     def delete_file(cls, relative_storage_path: str) -> None:
         """Elimina el archivo del almacenamiento local y de Garage S3 si existe."""
         if not relative_storage_path:

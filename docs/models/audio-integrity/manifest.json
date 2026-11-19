@@ -6,8 +6,8 @@
   },
   "speaker_embedding.onnx": {
     "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
-    "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
-    "bytes": 39593761
+    "sha256": "f1ee61be04000b50392a63442e5dd9feaea7e81dddd494d3647cf1c3d88a1498",
+    "bytes": 39593762
   },
   "3DSPEAKER-LICENSE": {
     "url": "https://raw.githubusercontent.com/modelscope/3D-Speaker/main/LICENSE",
@@ -21,6 +21,6 @@
   },
   "extracted_models": {
     "speaker_segmentation.onnx": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
-    "speaker_embedding.onnx": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b"
+    "speaker_embedding.onnx": "f1ee61be04000b50392a63442e5dd9feaea7e81dddd494d3647cf1c3d88a1498"
   }
 }

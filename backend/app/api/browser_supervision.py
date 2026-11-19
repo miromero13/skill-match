@@ -11,11 +11,15 @@ from app.schemas.browser_supervision import (
     AVWindowRequest,
     AVWindowResponse,
     BatchResponse,
+    GazeCalibrationRequest,
+    GazeCalibrationResponse,
     IncidentBatch,
     IncidentResponse,
     TabRequest,
     TrialRequest,
     TrialResponse,
+    VoiceCalibrationRequest,
+    VoiceCalibrationResponse,
 )
 from app.schemas.response import APIResponse
 from app.services.browser_supervision_service import BrowserSupervisionService as Service
@@ -80,3 +84,21 @@ async def ledger(trial_id: UUID, after: int = Query(0, ge=0), limit: int = Query
 async def av_window(trial_id: UUID, payload: AVWindowRequest, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     result = await Service.process_av_window(db, user, trial_id, payload)
     return APIResponse.ok(data=AVWindowResponse.model_validate(result), message="Ventana audiovisual procesada.")
+
+
+@router.post("/{trial_id}/gaze-calibration", response_model=APIResponse[GazeCalibrationResponse],
+             response_model_exclude={"count"},
+             summary="Calibrar la zona de pantalla (centro y cuatro esquinas) para la mirada de esta prueba")
+async def gaze_calibration(trial_id: UUID, payload: GazeCalibrationRequest, db: AsyncSession = Depends(get_db),
+                           user: User = Depends(get_current_user)):
+    result = await Service.calibrate_gaze(db, user, trial_id, payload)
+    return APIResponse.ok(data=GazeCalibrationResponse.model_validate(result), message="Zona de mirada calibrada.")
+
+
+@router.post("/{trial_id}/voice-calibration", response_model=APIResponse[VoiceCalibrationResponse],
+             response_model_exclude={"count"},
+             summary="Calibrar la huella de voz (silencio y frase de control, con movimiento de labios) de esta prueba")
+async def voice_calibration(trial_id: UUID, payload: VoiceCalibrationRequest, db: AsyncSession = Depends(get_db),
+                            user: User = Depends(get_current_user)):
+    result = await Service.calibrate_voice(db, user, trial_id, payload)
+    return APIResponse.ok(data=VoiceCalibrationResponse.model_validate(result), message="Voz calibrada.")
