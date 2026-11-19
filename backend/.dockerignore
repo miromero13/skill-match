@@ -1,0 +1,47 @@
+# Build context for backend/Dockerfile. The image copies only app/, alembic/, alembic.ini,
+# pyproject.toml, uv.lock, docker/entrypoint.sh and the two model installers in scripts/.
+
+# VCS / editor / OS
+.git
+.gitignore
+.DS_Store
+.idea
+.vscode
+
+# Local environments and tool caches
+.venv
+venv
+env
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+logs
+
+# Secrets and local configuration (never baked into the image)
+.env
+.env.*
+**/.env
+**/.env.*
+env.template
+**/*.pem
+**/*.key
+
+# Tests and local runtime data
+tests
+storage
+celerybeat-schedule
+celerybeat-schedule.*
+
+# Models are downloaded and SHA-256 verified in the build stage, never taken from a developer disk
+app/models/weights
+**/*.onnx
+**/*.task
+
+# Docs and build files not needed inside the image (pyproject's readme is unused with --no-install-project)
+**/*.md
+Dockerfile
+.dockerignore
