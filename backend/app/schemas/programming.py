@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class ProgrammingTestCaseInput(BaseModel):
+class ChallengeTestCaseInput(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     name: str = Field(min_length=1, max_length=120)
@@ -15,21 +15,23 @@ class ProgrammingTestCaseInput(BaseModel):
     order_index: int = Field(ge=0, le=10_000)
 
 
-class ProgrammingChallengeCreateRequest(BaseModel):
+class ChallengeCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     skill_id: UUID
+    challenge_type_id: UUID | None = None
     level_number: int = Field(ge=1, le=5)
     title: str = Field(min_length=3, max_length=160)
     statement: str = Field(min_length=10, max_length=20_000)
-    language: Literal["python"] = "python"
+    evaluation_modality: Literal["SANDBOX", "SPREADSHEET"] = "SANDBOX"
+    execution_profile: str = Field(default="PYTHON_3_12", min_length=1, max_length=40)
     starter_code: str = Field(default="", max_length=50_000)
     time_limit_ms: int = Field(default=2_000, ge=100, le=30_000)
     memory_limit_mb: int = Field(default=128, ge=16, le=1_024)
     max_output_bytes: int = Field(default=65_536, ge=1_024, le=1_048_576)
     allowed_imports: list[str] = Field(default_factory=list, max_length=100)
     blocked_imports: list[str] = Field(default_factory=list, max_length=100)
-    tests: list[ProgrammingTestCaseInput] = Field(min_length=1, max_length=100)
+    tests: list[ChallengeTestCaseInput] = Field(min_length=1, max_length=100)
 
     @field_validator("allowed_imports", "blocked_imports")
     @classmethod
@@ -40,15 +42,17 @@ class ProgrammingChallengeCreateRequest(BaseModel):
         return sorted(set(values))
 
 
-class ProgrammingChallengeSummary(BaseModel):
+class ChallengeSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     skill_id: UUID
+    challenge_type_id: UUID | None
     level_number: int
     version: int
     title: str
-    language: str
+    evaluation_modality: str
+    execution_profile: str
     status: str
     time_limit_ms: int
     memory_limit_mb: int
@@ -56,20 +60,20 @@ class ProgrammingChallengeSummary(BaseModel):
     published_at: datetime | None
 
 
-class ProgrammingChallengeResponse(ProgrammingChallengeSummary):
+class ChallengeResponse(ChallengeSummary):
     statement: str
     starter_code: str
     allowed_imports: list[str]
-    tests: list[ProgrammingTestCaseInput]
+    tests: list[ChallengeTestCaseInput]
 
 
-class ProgrammingRunRequest(BaseModel):
+class ChallengeRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     code: str = Field(min_length=1, max_length=100_000)
 
 
-class ProgrammingTestResult(BaseModel):
+class ChallengeTestResult(BaseModel):
     name: str
     passed: bool
     stdout: str
@@ -78,14 +82,14 @@ class ProgrammingTestResult(BaseModel):
     timed_out: bool
 
 
-class ProgrammingRunResponse(BaseModel):
+class ChallengeRunResponse(BaseModel):
     challenge_id: UUID
     passed_tests: int
     total_tests: int
     status: Literal["PASSED", "FAILED", "REJECTED", "ERROR"]
-    results: list[ProgrammingTestResult]
+    results: list[ChallengeTestResult]
 
 
-class ProgrammingSubmissionResponse(ProgrammingRunResponse):
+class ChallengeSubmissionResponse(ChallengeRunResponse):
     submission_id: UUID
     submitted_at: datetime

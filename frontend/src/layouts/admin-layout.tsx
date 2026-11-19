@@ -82,8 +82,8 @@ export function AdminLayout() {
       visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-17 / RF-IA-18)
     },
     {
-      label: "Retos de Programación",
-      to: "/admin/programming",
+      label: "Retos",
+      to: "/admin/challenges",
       icon: Code2,
       visible: user?.role === "ADMIN",
     },
@@ -120,8 +120,8 @@ export function AdminLayout() {
     if (location.pathname.includes("/admin/capture") || location.pathname.includes("/admin/ai-datasets")) {
       return "Ingesta y Captura de Muestras Multimedia"
     }
-    if (location.pathname.includes("/admin/programming")) {
-      return "Retos de Programación"
+    if (location.pathname.includes("/admin/challenges")) {
+      return "Retos"
     }
     return "Panel Central de Control"
   }

@@ -286,7 +286,7 @@ export const router = createBrowserRouter([
   },
 
   {
-    path: "/admin/programming",
+    path: "/admin/challenges",
     element: <AdminRouteGuard><AdminLayout /></AdminRouteGuard>,
     children: [{ index: true, element: <AdminProgrammingPage /> }],
   },

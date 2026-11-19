@@ -3,20 +3,21 @@ import uuid
 import pytest
 
 from app.core.exceptions import SkillMatchException
-from app.models.programming import ProgrammingChallenge, ProgrammingTestCase
-from app.services.programming_service import ProgrammingService
+from app.models.programming import Challenge, ChallengeTestCase
+from app.services.programming_service import ChallengeService
 from app.services.programming_sandbox_runner import SandboxRunResult
 
 
-def challenge() -> ProgrammingChallenge:
-    item = ProgrammingChallenge(
+def challenge() -> Challenge:
+    item = Challenge(
         id=uuid.uuid4(),
         skill_id=uuid.uuid4(),
         level_number=1,
         version=1,
         title="Sum",
         statement="Read two integers and print their sum.",
-        language="python",
+        evaluation_modality="SANDBOX",
+        execution_profile="PYTHON_3_12",
         starter_code="",
         time_limit_ms=1000,
         memory_limit_mb=128,
@@ -27,8 +28,8 @@ def challenge() -> ProgrammingChallenge:
         created_by_id=uuid.uuid4(),
     )
     item.tests = [
-        ProgrammingTestCase(name="basic", stdin_data="2 3\n", expected_stdout="5\n", visibility="PUBLIC", order_index=0),
-        ProgrammingTestCase(name="hidden", stdin_data="-1 4\n", expected_stdout="3\n", visibility="HIDDEN", order_index=1),
+        ChallengeTestCase(name="basic", stdin_data="2 3\n", expected_stdout="5\n", visibility="PUBLIC", order_index=0),
+        ChallengeTestCase(name="hidden", stdin_data="-1 4\n", expected_stdout="3\n", visibility="HIDDEN", order_index=1),
     ]
     return item
 
@@ -45,9 +46,9 @@ async def test_public_run_uses_only_public_tests(monkeypatch):
         assert kwargs["stdin_data"] == "2 3\n"
         return SandboxRunResult(stdout="5\n", stderr="", exit_code=0, timed_out=False, output_limited=False)
 
-    monkeypatch.setattr(ProgrammingService, "get_challenge", fake_get)
-    monkeypatch.setattr(ProgrammingService.runner, "run", fake_run)
-    result = await ProgrammingService.run_public_tests(object(), item.id, "a, b = map(int, input().split()); print(a + b)")
+    monkeypatch.setattr(ChallengeService, "get_challenge", fake_get)
+    monkeypatch.setattr(ChallengeService.runner, "run", fake_run)
+    result = await ChallengeService.run_public_tests(object(), item.id, "a, b = map(int, input().split()); print(a + b)")
     assert result.status == "PASSED"
     assert result.passed_tests == 1
     assert result.total_tests == 1
@@ -56,19 +57,19 @@ async def test_public_run_uses_only_public_tests(monkeypatch):
 def test_static_validation_rejects_syntax_and_dangerous_imports():
     item = challenge()
     with pytest.raises(SkillMatchException) as syntax_error:
-        ProgrammingService._validate_code("def broken(:", item)
+        ChallengeService._validate_code("def broken(:", item)
     assert syntax_error.value.statuscode == 400
 
     with pytest.raises(SkillMatchException) as import_error:
-        ProgrammingService._validate_code("import os\nprint('no')", item)
+        ChallengeService._validate_code("import os\nprint('no')", item)
     assert "no está permitido" in import_error.value.message
 
 
 def test_static_validation_rejects_dynamic_execution():
     with pytest.raises(SkillMatchException) as error:
-        ProgrammingService._validate_code("eval('1 + 1')", challenge())
+        ChallengeService._validate_code("eval('1 + 1')", challenge())
     assert error.value.message == "El uso de 'eval' no está permitido en el sandbox."
 
     with pytest.raises(SkillMatchException) as attribute_error:
-        ProgrammingService._validate_code("import builtins\nbuiltins.open('x')", challenge())
+        ChallengeService._validate_code("import builtins\nbuiltins.open('x')", challenge())
     assert attribute_error.value.message == "El uso de 'open' no está permitido en el sandbox."
