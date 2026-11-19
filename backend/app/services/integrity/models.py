@@ -50,6 +50,19 @@ class GazeSample:
     gaze_v: Optional[float] = None
     blink: bool = False
     orientation: Optional[str] = None
+    # Mouth aperture score (the ``mouth_open_score`` formula, jawOpen + inner-lip MAR); None when not measured.
+    mouth_open: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class LipSyncResult:
+    """How well the voice's energy follows the mouth aperture over one window (``lipsync.evaluate``)."""
+
+    verdict: Literal["synced", "unsynced", "insufficient"] = "insufficient"
+    correlation: Optional[float] = None  # best normalized cross-correlation over the tolerated lags
+    overlap: Optional[float] = None  # fraction of voiced time during which the mouth aperture varies
+    lag_ms: Optional[int] = None  # the mouth-vs-audio offset of the best correlation
+    source: Optional[str] = None  # "telemetry" (trusted browser samples) or "server" (sampled JPEG frames)
 
 
 @dataclass(frozen=True)

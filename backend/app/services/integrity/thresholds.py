@@ -193,3 +193,19 @@ VOICEPRINT_ENROLL_MIN_CONSISTENCY = 0.35  # lowest cosine between two enrollment
 VOICEPRINT_MATCH_THRESHOLD = 0.45  # similarity at or above this is the enrolled voice
 VOICEPRINT_CLUSTER_MIN_VOICED_S = 1.0  # a diarized cluster needs this much speech to be compared with the voiceprint
 VOICE_CONFIRM_EVALUATIONS = 2  # consecutive evaluations that make VOICE_MISMATCH / VOICE_UNVERIFIED
+
+# ---- lip-sync correlation (T8 / S3, S11) -------------------------------------------------------
+# Speech energy (RMS per 30 ms chunk, voiced chunks only) against mouth aperture over the same timeline.
+LIPSYNC_MIN_VOICED_MS = 900  # less voiced speech in the window: not enough to judge ("insufficient")
+LIPSYNC_MIN_MOUTH_SAMPLES = 8  # fewer mouth readings: insufficient (a few sparse JPEG frames cannot show syllables)
+LIPSYNC_MIN_MOUTH_SPAN_MS = 1000  # the mouth readings must cover at least this much time
+LIPSYNC_LAGS_MS = tuple(range(-90, 301, 30))  # tolerated mouth-vs-audio offset, ~ -100 ... +300 ms in 30 ms steps
+LIPSYNC_SMOOTH_CHUNKS = 5  # moving average of the speech envelope (150 ms): the jaw is slower than the voice
+LIPSYNC_MIN_CORRELATION = 0.30  # best normalized cross-correlation over the lags; below: voice and mouth unrelated
+LIPSYNC_ACTIVITY_HALF_WINDOW_MS = 210  # the mouth "varies" at a voiced instant when its aperture moves within this
+LIPSYNC_ACTIVITY_MIN_RANGE = 0.02  # ...by at least this much (aperture score units, jitter is ~0.005)
+LIPSYNC_MIN_ACTIVITY_OVERLAP = 0.30  # fraction of voiced time with a varying mouth; below: voice with a still mouth
+LIPSYNC_MIN_VALID_FRACTION = 0.6  # share of the audio timeline a lag must still have mouth readings for
+LIPSYNC_CONFIRM_EVALUATIONS = 2  # consecutive unsynced evaluations that make LIP_SYNC_MISMATCH
+MOUTH_OPEN_MAX = 2.0  # the aperture score is bounded for telemetry validation
+CLIENT_MISMATCH_MOUTH = 0.30  # browser vs server mouth aperture difference on the same frame that is a disagreement

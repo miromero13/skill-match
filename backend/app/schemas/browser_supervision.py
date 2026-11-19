@@ -139,6 +139,8 @@ class GazeSampleRequest(BaseModel):
     gaze_v: Optional[float] = Field(default=None, ge=-2, le=2)
     blink: bool
     face_count: int = Field(ge=0, le=10, strict=True)
+    # Mouth aperture score, same formula as the server's ``mouth_open_score`` (see gaze-tracking.ts).
+    mouth_open: Optional[float] = Field(default=None, ge=0, le=2)
 
 
 class AVWindowRequest(TabRequest):

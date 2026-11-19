@@ -178,6 +178,7 @@ def sample_from_frame(frame: FrameObservation, t_ms: int) -> GazeSample:
     return GazeSample(
         t_ms=t_ms, face_count=frame.face_count, head_pitch=frame.pitch_deg, head_yaw=frame.yaw_deg,
         gaze_h=frame.gaze_h, gaze_v=frame.gaze_v, blink=frame.blink, orientation=frame.orientation,
+        mouth_open=frame.mouth_open_score if (frame.blendshapes or frame.mouth_open_score > 0.0) else None,
     )
 
 
@@ -259,6 +260,9 @@ def _disagree(server: GazeSample, client: GazeSample) -> bool:
     assert client.head_pitch is not None and client.head_yaw is not None
     if (abs(server.head_pitch - client.head_pitch) > t.CLIENT_MISMATCH_HEAD_DEG
             or abs(server.head_yaw - client.head_yaw) > t.CLIENT_MISMATCH_HEAD_DEG):
+        return True
+    if (server.mouth_open is not None and client.mouth_open is not None
+            and abs(server.mouth_open - client.mouth_open) > t.CLIENT_MISMATCH_MOUTH):
         return True
     if server.blink or client.blink or client.gaze_h is None or client.gaze_v is None or server.gaze_v is None:
         return False

@@ -201,6 +201,7 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
                 GazeSample(
                     t_ms=sample.t_ms, face_count=sample.face_count, head_pitch=sample.head_pitch,
                     head_yaw=sample.head_yaw, gaze_h=sample.gaze_h, gaze_v=sample.gaze_v, blink=sample.blink,
+                    mouth_open=getattr(sample, "mouth_open", None),
                 )
                 for sample in gaze_samples
             ],
