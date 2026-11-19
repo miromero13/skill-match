@@ -83,7 +83,8 @@ export function AdminProgrammingPage() {
       tests: tests.map((test, index) => ({ ...test, order_index: index })),
     })
 
-  const canTest = Boolean(selectedSkill && title.trim() && statement.trim() && testCode.trim() && tests.every((test) => test.name.trim() && test.expected_stdout.trim()))
+  const canSave = Boolean(selectedSkill && title.trim() && statement.trim() && tests.every((test) => test.name.trim() && test.expected_stdout.trim()))
+  const canTest = Boolean(canSave && testCode.trim())
 
   const testDraft = async () => {
     if (!canTest) return
@@ -97,7 +98,7 @@ export function AdminProgrammingPage() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!canTest) return
+    if (!canSave) return
     const payload = buildPayload()
     setSaving(true)
     try {
@@ -132,7 +133,7 @@ export function AdminProgrammingPage() {
               <div className="space-y-2"><Label htmlFor="programming-starter">Código inicial</Label><Textarea id="challenge-starter" value={starterCode} onChange={(event) => { setStarterCode(event.target.value); if (!testCode.trim()) setTestCode(event.target.value) }} rows={7} className="font-mono text-xs" /></div>
               <div className="space-y-2 rounded-md border border-[#1E2629] p-3"><div><Label htmlFor="challenge-test-code">Código para probar</Label><p className="text-xs text-[#8B9D9F]">Ejecuta todos los casos sin guardar ni publicar el reto.</p></div><Textarea id="challenge-test-code" value={testCode} onChange={(event) => setTestCode(event.target.value)} rows={8} className="font-mono text-xs" /><Button type="button" variant="secondary" onClick={testDraft} disabled={testing || !canTest}>{testing ? "Probando..." : "Probar reto"}</Button>{testResult && <div className="space-y-1 text-sm"><Badge variant={testResult.status === "PASSED" ? "default" : "destructive"}>{testResult.status} · {testResult.passed_tests}/{testResult.total_tests}</Badge>{testResult.results.map((result) => <p key={result.name} className={result.passed ? "text-emerald-300" : "text-red-300"}>{result.name}: {result.passed ? "correcto" : "falló"}</p>)}</div>}</div>
               <div className="space-y-3"><div className="flex items-center justify-between"><Label>Tests</Label><Button type="button" variant="outline" size="sm" onClick={addTest}><Plus className="mr-1 h-4 w-4" />Agregar caso</Button></div>{tests.map((test, index) => <div key={index} className="space-y-2 rounded-md border border-[#1E2629] p-3"><div className="flex items-center justify-between gap-2"><Input value={test.name} onChange={(event) => updateTest(index, { name: event.target.value })} aria-label={`Nombre del test ${index + 1}`} /><div className="flex items-center gap-2"><Select value={test.visibility} onValueChange={(value: "PUBLIC" | "HIDDEN") => updateTest(index, { visibility: value })}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PUBLIC">Público</SelectItem><SelectItem value="HIDDEN">Oculto</SelectItem></SelectContent></Select><Button type="button" variant="ghost" size="icon" disabled={tests.length === 1} onClick={() => removeTest(index)} aria-label={`Eliminar test ${index + 1}`}><Trash2 className="h-4 w-4" /></Button></div></div><Textarea value={test.stdin_data} onChange={(event) => updateTest(index, { stdin_data: event.target.value })} placeholder="Entrada stdin" aria-label={`Entrada del test ${index + 1}`} /><Textarea value={test.expected_stdout} onChange={(event) => updateTest(index, { expected_stdout: event.target.value })} placeholder="Salida esperada" aria-label={`Salida del test ${index + 1}`} /></div>)}</div>
-              <div className="flex justify-end"><Button type="submit" disabled={saving || loading || !selectedSkill}>{saving ? "Guardando..." : "Guardar borrador"}</Button></div>
+              <div className="flex justify-end"><Button type="submit" disabled={saving || loading || !canSave}>{saving ? "Guardando..." : "Guardar borrador"}</Button></div>
             </form>
           </CardContent>
         </Card>
