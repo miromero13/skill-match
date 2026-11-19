@@ -13,9 +13,15 @@ from app.core.exceptions import SkillMatchException
 MODEL_ROOT = Path(__file__).resolve().parents[1] / "models" / "weights" / "audio-integrity"
 SEGMENTATION_MODEL = MODEL_ROOT / "speaker_segmentation.onnx"
 EMBEDDING_MODEL = MODEL_ROOT / "speaker_embedding.onnx"
-MODEL_HASHES = {
-    "speaker_segmentation.onnx": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
-    "speaker_embedding.onnx": "f1ee61be04000b50392a63442e5dd9feaea7e81dddd494d3647cf1c3d88a1498",
+MODEL_HASHES: dict[str, frozenset[str]] = {
+    "speaker_segmentation.onnx": frozenset({
+        "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
+    }),
+    # Upstream republished this release artifact; pin both known-good SHA-256 digests so existing checkouts still verify.
+    "speaker_embedding.onnx": frozenset({
+        "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+        "f1ee61be04000b50392a63442e5dd9feaea7e81dddd494d3647cf1c3d88a1498",
+    }),
 }
 
 
@@ -25,7 +31,7 @@ class CalibrationSpeakerService:
         for model in (SEGMENTATION_MODEL, EMBEDDING_MODEL):
             if not model.is_file():
                 raise SkillMatchException(statuscode=503, message="Los modelos locales de hablantes no están disponibles.")
-            if hashlib.sha256(model.read_bytes()).hexdigest() != MODEL_HASHES[model.name]:
+            if hashlib.sha256(model.read_bytes()).hexdigest() not in MODEL_HASHES[model.name]:
                 raise SkillMatchException(statuscode=503, message="Los modelos locales de hablantes no superaron la verificación de integridad.")
         try:
             import sherpa_onnx

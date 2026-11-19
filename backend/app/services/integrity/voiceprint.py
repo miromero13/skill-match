@@ -63,7 +63,7 @@ def _check_model() -> None:
         if _VERIFIED_MODELS.get(key) == fingerprint:
             return
         digest = hashlib.sha256(EMBEDDING_MODEL.read_bytes()).hexdigest()
-        if digest != MODEL_HASHES["speaker_embedding.onnx"]:
+        if digest not in MODEL_HASHES["speaker_embedding.onnx"]:
             raise SpeakerModelUnavailable("speaker embedding model failed its integrity check")
         _VERIFIED_MODELS[key] = fingerprint
 
