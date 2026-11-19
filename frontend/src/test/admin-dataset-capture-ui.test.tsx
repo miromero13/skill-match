@@ -39,6 +39,37 @@ vi.mock("@/services/dataset-sample-service", () => ({
     message: "Muestra eliminada exitosamente.",
     data: null,
   }),
+  getDatasetSampleContent: vi.fn().mockResolvedValue({
+    statuscode: 200,
+    message: "OK",
+    data: {
+      id: "sample-1",
+      file_format: "mp4",
+      mime_type: "video/mp4",
+      data_url: "data:video/mp4;base64,AAAA",
+      text_preview: null,
+    },
+  }),
+  getFluteDatasetPreview: vi.fn().mockResolvedValue({
+    statuscode: 200,
+    message: "OK",
+    data: {
+      samples: [],
+      total_count: 0,
+      notes_count: { DO: 0, RE: 0, MI: 0, FA: 0, SOL: 0, LA: 0, SI: 0 },
+      variations_count: { sostenida: 0, rapida: 0, angulo_suave: 0, transicion: 0 },
+      notes_covered: 0,
+      total_notes_required: 7,
+    },
+  }),
+  listFluteModels: vi.fn().mockResolvedValue({
+    statuscode: 200,
+    message: "OK",
+    data: [],
+    count: 0,
+  }),
+  trainFluteModel: vi.fn(),
+  activateFluteModel: vi.fn(),
 }))
 
 vi.mock("@/services/admin-catalog-service", () => ({
@@ -193,6 +224,25 @@ describe("AdminDatasetCapturePage", () => {
     await waitFor(() => {
       expect(uploadDatasetSample).toHaveBeenCalledTimes(2)
     })
+  })
+
+  it("switches to Flute Guided Capture when Música category is selected", async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AdminDatasetCapturePage />
+      </MemoryRouter>
+    )
+
+    const musicBtn = screen.getByRole("button", { name: /Música/i })
+    await user.click(musicBtn)
+
+    expect(
+      screen.getByText(/Capturador de Notas y Posición de Manos/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /Grabar Toma Guiada: SI \(4s\)/i })
+    ).toBeInTheDocument()
   })
 })
 
