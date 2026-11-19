@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.programming import (
     ChallengeCreateRequest,
+    ChallengePreviewRequest,
     ChallengeResponse,
     ChallengeSummary,
     ChallengeRunRequest,
@@ -18,7 +19,7 @@ from app.schemas.response import APIResponse
 from app.services.programming_service import ChallengeService
 
 admin_router = APIRouter(
-    prefix="/admin/challenges",
+    prefix="/admin",
     tags=["admin-challenges"],
     dependencies=[Depends(get_current_admin_user)],
 )
@@ -33,6 +34,15 @@ async def list_challenges(
 ):
     items = await ChallengeService.list_challenges(db, skill_id)
     return APIResponse(statuscode=200, message="Retos recuperados exitosamente.", data=items, count=len(items))
+
+
+@admin_router.post("/challenges/test", response_model=APIResponse[ChallengeRunResponse])
+async def preview_challenge(
+    payload: ChallengePreviewRequest,
+    admin: User = Depends(get_current_admin_user),
+):
+    result = await ChallengeService.preview_challenge(payload)
+    return APIResponse(statuscode=200, message="Prueba del reto ejecutada exitosamente.", data=result)
 
 
 @admin_router.post("/challenges", response_model=APIResponse[ChallengeResponse], status_code=status.HTTP_201_CREATED)
@@ -65,7 +75,7 @@ async def get_evaluation_challenge(
     return APIResponse(statuscode=200, message="Reto recuperado exitosamente.", data=item)
 
 
-@member_router.get("/challenges/{challenge_id}", response_model=APIResponse[ChallengeResponse])
+@member_router.get("/{challenge_id}", response_model=APIResponse[ChallengeResponse])
 async def get_member_challenge(
     challenge_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -75,7 +85,7 @@ async def get_member_challenge(
     return APIResponse(statuscode=200, message="Reto recuperado exitosamente.", data=item)
 
 
-@member_router.post("/challenges/{challenge_id}/run", response_model=APIResponse[ChallengeRunResponse])
+@member_router.post("/{challenge_id}/run", response_model=APIResponse[ChallengeRunResponse])
 async def run_public_tests(
     challenge_id: UUID,
     payload: ChallengeRunRequest,

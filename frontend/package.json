@@ -4,6 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "prepare:hand-assets": "node scripts/prepare-hand-assets.mjs",
+    "predev": "npm run prepare:hand-assets",
+    "prebuild": "npm run prepare:hand-assets",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

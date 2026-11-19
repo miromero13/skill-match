@@ -133,7 +133,7 @@ def upgrade() -> None:
                existing_type=postgresql.TIMESTAMP(timezone=True),
                comment='Fecha en que la moderación resolvió el reporte',
                existing_nullable=True)
-    op.create_unique_constraint('uq_teaching_user_skill', 'user_teaching_skills', ['user_id', 'skill_id'])
+    # op.create_unique_constraint('uq_teaching_user_skill', 'user_teaching_skills', ['user_id', 'skill_id'])
     op.alter_column('users', 'provider',
                existing_type=sa.VARCHAR(length=50),
                comment='google | institutional',
@@ -250,7 +250,7 @@ def downgrade() -> None:
                comment='google | github | whatsapp | institutional',
                existing_comment='google | institutional',
                existing_nullable=True)
-    op.drop_constraint('uq_teaching_user_skill', 'user_teaching_skills', type_='unique')
+    # op.drop_constraint('uq_teaching_user_skill', 'user_teaching_skills', type_='unique')
     op.alter_column('user_reports', 'resolved_at',
                existing_type=postgresql.TIMESTAMP(timezone=True),
                comment=None,

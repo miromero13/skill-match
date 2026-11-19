@@ -42,6 +42,10 @@ class ChallengeCreateRequest(BaseModel):
         return sorted(set(values))
 
 
+class ChallengePreviewRequest(ChallengeCreateRequest):
+    code: str = Field(min_length=1, max_length=100_000)
+
+
 class ChallengeSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
