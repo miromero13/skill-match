@@ -4,6 +4,11 @@ export const realtimeNotificationTypes = [
   "MATCH_RECEIVED",
   "MATCH_CONFIRMED",
   "SESSION_PROPOSED",
+  "SESSION_ACCEPTED",
+  "SESSION_REJECTED",
+  "SESSION_RESCHEDULED",
+  "SESSION_CANCELLED",
+  "SESSION_REMINDER",
   "POINTS_RECEIVED",
 ] as const satisfies readonly NotificationType[]
 

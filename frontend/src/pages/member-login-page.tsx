@@ -110,9 +110,18 @@ export function MemberLoginPage() {
           ) : sdkUnavailable ? (
             <p role="alert" className="text-sm text-destructive">No se pudo cargar Google. Revisá la conexión y recargá la página.</p>
           ) : (
-            <div ref={container} className={`w-full min-w-0 ${isLoading ? "pointer-events-none opacity-50" : ""}`} aria-disabled={isLoading} />
+            <div className="flex w-full justify-center">
+              <div
+                ref={container}
+                className={`flex w-full max-w-[360px] min-w-0 justify-center ${isLoading ? "pointer-events-none opacity-50" : ""}`}
+                aria-disabled={isLoading}
+              />
+            </div>
           )}
           {isLoading && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin" />Conectando con Google...</p>}
+          <p className="text-xs text-muted-foreground">
+            ¿Es tu primera vez? Tu cuenta se crea automáticamente al continuar con Google.
+          </p>
           <p className="text-xs text-muted-foreground">Tu billetera se crea con saldo inicial de 0 SkillPoints, sin recargas ni retiros.</p>
         </CardContent>
       </Card>

@@ -3,7 +3,6 @@ import { useAuthStore } from "@/stores/auth-store"
 import {
   User,
   Compass,
-  ArrowLeftRight,
   Handshake,
   Wallet,
   Calendar,
@@ -26,7 +25,7 @@ export function PlatformSidebar() {
     { label: "Explorar Instructores", icon: Compass, to: "/app/search", active: path.startsWith("/app/search") || path === "/search" },
     { label: "Habilidades que enseño", icon: BookOpen, to: "/app/teaching-skills", active: path === "/app/teaching-skills" },
     { label: "Quiero Aprender", icon: BookOpen, to: "/app/learning-skills", active: path === "/app/learning-skills" },
-    { label: "Intercambios Activos", icon: ArrowLeftRight, to: "/app/swaps", active: path === "/app/swaps", badge: "2" },
+    { label: "Mis Sesiones", icon: Calendar, to: "/app/sessions", active: path === "/app/sessions" || path === "/app/swaps" },
     { label: "Billetera", icon: Wallet, to: "/app/wallet", active: path === "/app/wallet", value: `${user?.skillPointsBalance ?? 0} pts` },
     { label: "Disponibilidad y Agenda", icon: Calendar, to: "/app/availability", active: path === "/app/availability" },
     { label: "Certificados de IA", icon: Award, to: "/app/certificates", active: path === "/app/certificates" },
@@ -75,11 +74,6 @@ export function PlatformSidebar() {
                 <Icon className={`h-4 w-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                 <span>{item.label}</span>
               </div>
-              {item.badge && (
-                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
-                  {item.badge}
-                </span>
-              )}
               {item.value && (
                 <span className="text-[11px] font-semibold text-primary">
                   {item.value}

@@ -22,6 +22,7 @@ import { FootballValidationWizard } from "@/features/football-validation"
 import { AvailabilityPage } from "@/pages/availability-page"
 import { MatchesPage } from "@/pages/matches-page"
 import { SearchPage } from "@/pages/search-page"
+import { SessionsPage } from "@/pages/sessions-page"
 
 import { NotificationLayout } from "@/components/notifications/notification-layout"
 import { NotificationInboxPage } from "@/pages/notifications/notification-inbox-page"
@@ -96,7 +97,11 @@ export const router = createBrowserRouter([
       },
       {
         path: "swaps",
-        element: <FeedPage />, // Placeholder para Vista 20
+        element: <Navigate to="/app/sessions" replace />,
+      },
+      {
+        path: "sessions",
+        element: <SessionsPage />,
       },
       {
         path: "profile",
