@@ -17,18 +17,22 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { GazeCalibrationStep } from "@/components/integrity/gaze-calibration-step"
+import { startFaceTracker, type FaceTracker, type GazeZone } from "@/services/gaze-tracking"
 import { useAuthStore } from "@/stores/auth-store"
 import {
   AVFailureTracker,
   BrowserMonitor,
   IncidentQueue,
   avWindowDurationMs,
+  calibrateGaze,
   readBrowserLedger,
   readBrowserTrial,
   sendAVWindow,
   sendBrowserIncidents,
   startBrowserTrial,
   trialAction,
+  type GazeCalibrationPoint,
   type IncidentKind,
   type LedgerIncident,
   type Trial,
@@ -62,6 +66,9 @@ const labels: Record<string, string> = {
   IDENTITY_MISMATCH: "Rostro no coincide con el perfil",
   HEAD_POSE_DOWN: "Cabeza orientada hacia abajo sostenida",
   HEAD_POSE_SIDE: "Cabeza girada a los costados sostenida",
+  HEAD_POSE_UP: "Cabeza orientada hacia arriba sostenida",
+  GAZE_AWAY: "Mirada fuera de la pantalla sostenida",
+  CLIENT_MISMATCH: "El navegador contradice la medición del servidor",
   VOICE_DETECTED: "Voz detectada sin movimiento labial coincidente",
   MULTIPLE_SPEAKERS: "Voces simultáneas / más de un hablante",
   HIGH_NOISE: "Ruido ambiental excesivo",
@@ -95,6 +102,8 @@ export function BrowserSupervisionPage() {
   const vuAnimationRef = useRef<number | null>(null)
   const avInFlightRef = useRef(false)
   const avFailuresRef = useRef(new AVFailureTracker())
+  const trackerRef = useRef<FaceTracker | null>(null)
+  const gazeZoneRef = useRef<GazeZone | null>(null)
 
   const [trial, setTrial] = useState<Trial | null>(null)
   const [accepted, setAccepted] = useState(false)
@@ -119,6 +128,8 @@ export function BrowserSupervisionPage() {
   const [vuLevel, setVuLevel] = useState(0)
   const [deviceError, setDeviceError] = useState("")
   const [avStatus, setAvStatus] = useState("")
+  const [lookingAway, setLookingAway] = useState(false)
+  const [gazeNotice, setGazeNotice] = useState("")
 
   const lastKey = `sm43:last:${owner}`
 
@@ -154,6 +165,12 @@ export function BrowserSupervisionPage() {
     audioBufferRef.current = []
     avInFlightRef.current = false
     avFailuresRef.current = new AVFailureTracker()
+    if (trackerRef.current) {
+      trackerRef.current.stop()
+      trackerRef.current = null
+    }
+    setLookingAway(false)
+    setGazeNotice("")
     setAvStatus("")
     setAvActive(false)
     setVuLevel(0)
@@ -306,7 +323,27 @@ export function BrowserSupervisionPage() {
       setAvActive(true)
       setDeviceError("")
 
-      let collectedFrames: string[] = []
+      // Browser-side gaze tracking (~15 fps) is a live hint and telemetry; the server re-measures the frames.
+      if (videoRef.current) {
+        void startFaceTracker(videoRef.current, { onAway: setLookingAway })
+          .then((tracker) => {
+            if (streamRef.current !== stream) {
+              tracker.stop()
+              return
+            }
+            tracker.setZone(gazeZoneRef.current)
+            trackerRef.current = tracker
+          })
+          .catch(() =>
+            setGazeNotice(
+              "El seguimiento de mirada en tu navegador no está disponible. El servidor igual controla la mirada.",
+            ),
+          )
+      }
+
+      const collectedFrames: string[] = []
+      const frameStamps: number[] = []
+      let windowStart = Date.now()
       let sampleCounter = 0
 
       // Capture 1 frame every 400ms; send window every 6 frames (~2.4 seconds) for fast detection
@@ -323,6 +360,7 @@ export function BrowserSupervisionPage() {
             if (ctx) {
               ctx.drawImage(video, 0, 0, 320, 240)
               collectedFrames.push(canvas.toDataURL("image/jpeg", 0.6))
+              frameStamps.push(Date.now())
             }
           }
         } catch {
@@ -345,18 +383,25 @@ export function BrowserSupervisionPage() {
         if (sampleCounter >= 6 && !avInFlightRef.current) {
           sampleCounter = 0
           const framesToSend = collectedFrames.splice(0, 8)
+          const stampsToSend = frameStamps.splice(0, 8)
           const audioToSend = audioBufferRef.current.splice(0, 48000)
+          const durationMs = avWindowDurationMs(audioToSend.length)
+          // The window starts where the previous one ended; frame times and telemetry are offsets from it.
+          const startedAt = windowStart
+          windowStart = Date.now()
 
           // A window without frames or audio is still sent: the server records the missing evidence.
           avInFlightRef.current = true
           void sendAVWindow(trialId, {
             tab_id: tabId,
             window_id: crypto.randomUUID(),
-            observed_at: new Date().toISOString(),
-            duration_ms: avWindowDurationMs(audioToSend.length),
+            observed_at: new Date(startedAt).toISOString(),
+            duration_ms: durationMs,
             mode: "UNIFIED",
             frames: framesToSend,
             audio_samples: audioToSend,
+            frame_times_ms: stampsToSend.map((at) => Math.min(durationMs, Math.max(0, at - startedAt))),
+            gaze_samples: trackerRef.current?.takeSamples(startedAt, durationMs) ?? [],
           })
             .then((res) => {
               avFailuresRef.current.success()
@@ -418,6 +463,7 @@ export function BrowserSupervisionPage() {
       }
       if (performance.now() - requestedAt >= 15000)
         throw new Error("La activación llegó tarde. Reactivá la prueba para confirmar autorización.")
+      gazeZoneRef.current = result.trial.gaze_zone ?? null
       const resumed = localStorage.getItem(lastKey) === claimed
       localStorage.setItem(lastKey, claimed)
       setTrial(result.trial)
@@ -553,6 +599,28 @@ export function BrowserSupervisionPage() {
     }
   }
 
+  /** One 320x240 JPEG of the camera, the same size the supervision windows use. */
+  function captureJpeg(): string | null {
+    const canvas = canvasRef.current
+    const video = videoRef.current
+    if (!canvas || !video || video.videoWidth === 0 || video.videoHeight === 0) return null
+    canvas.width = 320
+    canvas.height = 240
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return null
+    ctx.drawImage(video, 0, 0, 320, 240)
+    return canvas.toDataURL("image/jpeg", 0.6)
+  }
+
+  async function submitGazeCalibration(points: GazeCalibrationPoint[]) {
+    if (!trial) throw new Error("La prueba no está activa.")
+    const { result, message: serverMessage } = await calibrateGaze(trial.id, tab.current, points)
+    gazeZoneRef.current = result.zone
+    trackerRef.current?.setZone(result.zone)
+    setTrial((previous) => (previous ? { ...previous, gaze_zone: result.zone } : previous))
+    return { message: serverMessage }
+  }
+
   async function fullscreen() {
     try {
       if (!area.current?.requestFullscreen)
@@ -576,7 +644,8 @@ export function BrowserSupervisionPage() {
         <CardContent className="space-y-4 p-5">
           <h2 className="font-semibold">Normas y controles activos</h2>
           <p className="text-sm text-muted-foreground">
-            Se supervisa en tiempo real la presencia facial, orientación sostenida de la cabeza (abajo o costados),
+            Se supervisa en tiempo real la presencia facial, orientación sostenida de la cabeza y de la mirada (no podés
+            mirar abajo, arriba ni a los costados fuera de la pantalla por más de un segundo),
             sincronía entre voz y movimiento de boca (podés hablar en voz alta siempre que tu boca coincida con el audio),
             pérdida de foco, cambio de pestaña y portapapeles dentro del área de prueba.
           </p>
@@ -672,6 +741,17 @@ export function BrowserSupervisionPage() {
               </div>
               <canvas ref={canvasRef} className="hidden" />
 
+              {avActive && lookingAway && (
+                <Alert data-testid="gaze-away" className="mt-3 border-amber-500/50 text-amber-700 dark:text-amber-400">
+                  <AlertCircle />
+                  <AlertDescription>
+                    Mirá a la pantalla. Tu cabeza o tu mirada están fuera de la zona de pantalla; es solo un aviso, la
+                    decisión es del servidor.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {gazeNotice && <p className="mt-3 text-xs text-muted-foreground">{gazeNotice}</p>}
+
               {/* VU Meter */}
               <div className="w-full mt-3 space-y-1">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -738,6 +818,8 @@ export function BrowserSupervisionPage() {
                         ? "Al centro"
                         : headOrientation === "DOWN"
                         ? "Hacia abajo"
+                        : headOrientation === "UP"
+                        ? "Hacia arriba"
                         : headOrientation === "LEFT" || headOrientation === "RIGHT"
                         ? "Lateral"
                         : "Sin rostro"}
@@ -748,6 +830,8 @@ export function BrowserSupervisionPage() {
                       ? "Postura centrada mirando a pantalla."
                       : headOrientation === "DOWN"
                       ? "Alerta: Cabeza inclinada hacia abajo."
+                      : headOrientation === "UP"
+                      ? "Alerta: Cabeza inclinada hacia arriba."
                       : headOrientation === "LEFT" || headOrientation === "RIGHT"
                       ? "Alerta: Giro lateral pronunciado."
                       : "Esperando detección facial."}
@@ -836,6 +920,10 @@ export function BrowserSupervisionPage() {
           </div>
         </CardContent>
       </Card>
+
+      {avActive && active && trial && !trial.closed_at && (
+        <GazeCalibrationStep captureFrame={captureJpeg} submit={submitGazeCalibration} />
+      )}
 
       {/* Supervised Text Area */}
       <div ref={area} className="space-y-3 rounded-xl border bg-card p-5">
