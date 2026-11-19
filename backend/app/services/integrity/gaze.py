@@ -79,6 +79,25 @@ def measure_gaze(points: Any, blendshapes: Mapping[str, float]) -> GazeMeasureme
     return GazeMeasurement(geo_h, geo_v, blink)
 
 
+def mouth_open_score(points: Any, blendshapes: Mapping[str, float]) -> float:
+    """Mouth aperture: the largest of the (close-softened) jawOpen blendshape, the inner-lip aspect ratio (MAR,
+    landmarks 13/14 over the mouth width 78/308, x1.4) and the funnel/pucker blendshapes (x0.55).
+
+    The browser computes the same score in ``gaze-tracking.ts`` (``mouthOpenScore``); both sides are pinned by the
+    same fixtures, and lip-sync compares the browser's readings with the server's on the same frames.
+    """
+    pts = np.asarray(points, dtype=np.float64)
+    jaw_open = blendshapes.get("jawOpen", 0.0)
+    mouth_close = blendshapes.get("mouthClose", 0.0)
+    funnel = blendshapes.get("mouthFunnel", 0.0) + 0.5 * blendshapes.get("mouthPucker", 0.0)
+    ratio = 0.0
+    if pts.ndim == 2 and pts.shape[0] > 308 and pts.shape[1] >= 2:
+        lip_vert = float(np.hypot(pts[14, 0] - pts[13, 0], pts[14, 1] - pts[13, 1]))
+        mouth_width = max(float(np.hypot(pts[308, 0] - pts[78, 0], pts[308, 1] - pts[78, 1])), 1e-4)
+        ratio = lip_vert / mouth_width
+    return float(max(jaw_open * max(0.2, 1.0 - 0.55 * mouth_close), ratio * 1.4, funnel * 0.55))
+
+
 def _has_gaze_blendshapes(blendshapes: Mapping[str, float]) -> bool:
     return any(name.startswith("eyeLook") for name in blendshapes)
 

@@ -24,7 +24,7 @@ from app.schemas.browser_supervision import MAX_FRAME_B64_CHARS
 from app.services import vision_models
 from app.services.integrity import camera, occlusion
 from app.services.integrity import thresholds as t
-from app.services.integrity.gaze import measure_gaze
+from app.services.integrity.gaze import measure_gaze, mouth_open_score as mouth_open_score_of
 from app.services.integrity.models import FrameBatch, FrameObservation, FrameOcclusion, MouthPatch
 from app.services.integrity.state import SessionStateStore
 
@@ -468,23 +468,8 @@ class FrameAnalyzer:
                 for cat in result.face_blendshapes[index]:
                     bs_map[cat.category_name] = float(cat.score)
 
-            # 1. Mouth opening: neural blendshapes + 3D inner-lip aspect ratio (MAR)
-            jaw_open = bs_map.get("jawOpen", 0.0)
-            mouth_close = bs_map.get("mouthClose", 0.0)
-            mouth_funnel = bs_map.get("mouthFunnel", 0.0) + 0.5 * bs_map.get("mouthPucker", 0.0)
-
-            # Inner lip vertical distance (#13 upper, #14 lower) normalized by mouth width (#78, #308)
-            lip_vert = float(np.hypot(lm[14].x - lm[13].x, lm[14].y - lm[13].y))
-            mouth_width = max(float(np.hypot(lm[308].x - lm[78].x, lm[308].y - lm[78].y)), 1e-4)
-            inner_mar = lip_vert / mouth_width
-
-            mouth_open_score = float(
-                max(
-                    jaw_open * max(0.2, 1.0 - 0.55 * mouth_close),
-                    inner_mar * 1.4,
-                    mouth_funnel * 0.55,
-                )
-            )
+            # 1. Mouth opening: neural blendshapes + 3D inner-lip aspect ratio (MAR), shared with the browser
+            mouth_open_score = mouth_open_score_of(np.asarray([[p.x, p.y] for p in lm], dtype=np.float64), bs_map)
 
             # 2. 3D head pose (pitch & yaw in degrees) from the 4x4 transformation matrix and the 3D mesh
             # Landmarks: forehead(#10), chin(#152), nose_tip(#1), left_eye(#33), right_eye(#263)
