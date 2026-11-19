@@ -18,10 +18,10 @@ def fake_vad(monkeypatch):
     install_fake_vad(monkeypatch)
 
 
-def run(audio, mouth, segments=None, extractor=None):
+def run(audio, mouth, segments=None, extractor=None, server=None):
     provider = segments or (lambda a: [Segment(0.0, len(a) / SR, 0)])
     return enrollment.enroll_voice(
-        audio, AMBIENT_MS, mouth, analyzer=audio_analyzer.AudioAnalyzer(
+        audio, AMBIENT_MS, mouth, mouth if server is None else server, analyzer=audio_analyzer.AudioAnalyzer(
             enrollment.InMemoryStateStore(), speaker_segments=provider, extractor=extractor or LevelExtractor()),
         extractor=extractor or LevelExtractor())
 
@@ -51,7 +51,7 @@ def test_rejections_carry_a_code(code, build):
 
 def test_a_recording_shorter_than_its_silence_segment_is_insufficient():
     with pytest.raises(enrollment.EnrollmentError) as error:
-        enrollment.enroll_voice(silence(0.5), AMBIENT_MS, [])
+        enrollment.enroll_voice(silence(0.5), AMBIENT_MS, [], [])
     assert error.value.code == "INSUFFICIENT_SPEECH"
 
 
@@ -75,3 +75,31 @@ def test_a_missing_model_raises_unavailable():
 
     with pytest.raises(vp.SpeakerModelUnavailable):
         run(audio, mouth_of(env), segments=broken)
+
+
+# ---- T9 / S11: the browser's mouth telemetry must agree with the frames the server measured --------------------
+
+
+def test_telemetry_that_contradicts_the_server_frames_rejects_the_enrollment():
+    audio, env = phrase()
+    mouth = mouth_of(env)
+    wrong = [(at, value + 0.6) for at, value in mouth]  # the server saw a very different aperture on every frame
+    with pytest.raises(enrollment.EnrollmentError) as error:
+        run(audio, mouth, server=wrong)
+    assert error.value.code == "UNTRUSTED_TELEMETRY"
+
+
+def test_telemetry_that_the_server_frames_cannot_verify_rejects_the_enrollment():
+    audio, env = phrase()
+    mouth = mouth_of(env)
+    for server in ([], mouth[:3], [(at + 5000, value) for at, value in mouth]):  # none, too few, never at the same time
+        with pytest.raises(enrollment.EnrollmentError) as error:
+            run(audio, mouth, server=server)
+        assert error.value.code == "UNTRUSTED_TELEMETRY"
+
+
+def test_telemetry_with_occasional_noise_is_still_trusted():
+    audio, env = phrase()
+    mouth = mouth_of(env)
+    server = [(at, value + (0.5 if index % 10 == 0 else 0.0)) for index, (at, value) in enumerate(mouth)]  # 10 % off
+    assert run(audio, mouth, server=server)["voiced_s"] >= 3.0

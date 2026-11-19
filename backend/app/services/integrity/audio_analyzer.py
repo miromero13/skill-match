@@ -9,10 +9,11 @@ by LIP_SYNC_MISMATCH / VOICE_DETECTED (a voice with no matching mouth movement) 
 adds a voice). Played non-speech (music, tones, TV) is caught by BACKGROUND_AUDIO: audio the VAD does not call
 speech, above the ambient floor measured at voice calibration, for >= 2 s. HIGH_NOISE stays for very loud audio.
 
-Calibration mapping (T9): ``CalibrationAudioService`` (RMS + VAD speech checks) maps to ``AudioAnalyzer.analyze``;
-``CalibrationSpeakerService.assess`` (single speaker, no overlap) maps to ``AudioAnalyzer.detect_multiple_speakers``.
+Calibration (T9) measures its recordings with this same analyzer, built with two knobs: ``vad_floor`` (0 feeds every
+chunk to the VAD, as the pre-exam silence check always did) and ``min_speaker_s`` (a speaker counts from 0.2 s).
 """
 import logging
+import math
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
@@ -43,6 +44,21 @@ class SpeakerReport:
         return self.speakers > 1 or self.overlap_s >= t.SPEAKER_OVERLAP_MIN_S
 
 
+def run_stats(flags: Sequence[Optional[bool]]) -> tuple[int, int]:
+    """(voiced chunks, longest run of consecutive voiced chunks) of a VAD flag series."""
+    run = longest = 0
+    for flag in flags:
+        run = run + 1 if flag else 0
+        longest = max(longest, run)
+    return sum(1 for flag in flags if flag), longest
+
+
+def signal_rms(samples: Sequence[float]) -> float:
+    """Plain RMS of the samples (no DC removal): the loudness the pre-exam checks have always used."""
+    audio = np.asarray(samples, dtype=np.float32)
+    return float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
+
+
 def voiced_audio(audio: np.ndarray, voiced_flags: Sequence[bool]) -> np.ndarray:
     """The samples of the chunks the VAD called speech, in order."""
     size = t.VAD_CHUNK_SAMPLES
@@ -65,8 +81,12 @@ class AudioAnalyzer:
         state: SessionStateStore,
         speaker_segments: Optional[SegmentsProvider] = None,
         extractor: Optional[vp.EmbeddingExtractor] = None,
+        vad_floor: float = t.SILENCE_RMS_FLOOR,
+        min_speaker_s: float = t.SPEAKER_MIN_DURATION_S,
     ) -> None:
         self.state = state
+        self.vad_floor = vad_floor
+        self.min_speaker_s = min_speaker_s
         self.speaker_segments: SegmentsProvider = speaker_segments or _default_segments
         self.extractor: vp.EmbeddingExtractor = extractor or vp.default_extractor()
 
@@ -96,8 +116,12 @@ class AudioAnalyzer:
         except Exception as exc:
             logger.warning("Diarización continua no disponible: %s", exc)
             return SpeakerReport(model_unavailable=True)
+        if any(not (math.isfinite(item.start) and math.isfinite(item.end)) or item.start < 0 or item.end <= item.start
+               for item in segments):
+            logger.warning("Diarización con intervalos inválidos: se descarta (nunca una sola voz).")
+            return SpeakerReport(model_unavailable=True)
         usable = [item for item in segments if item.speaker >= 0]
-        kept = [item for item in usable if (item.end - item.start) >= t.SPEAKER_MIN_DURATION_S]
+        kept = [item for item in usable if (item.end - item.start) >= self.min_speaker_s]
         speakers = {item.speaker for item in kept}
         overlap = max(
             (
@@ -181,6 +205,7 @@ class AudioAnalyzer:
         """Measures RMS, strict WebRTC VAD(3) speech, speakers over the voiced buffer and background audio."""
         if samples is None or len(samples) < t.AUDIO_MIN_SAMPLES:
             return AudioObservation()
+        vad_unavailable = False
 
         audio = np.asarray(samples, dtype=np.float32)
         audio = np.nan_to_num(audio, nan=0.0, posinf=1.0, neginf=-1.0)
@@ -195,7 +220,7 @@ class AudioAnalyzer:
         voiced_flags: list[bool] = []
 
         # Only run VAD above the ambient silence floor; quiet room noise is never amplified for the VAD
-        if total_chunks > 0 and rms >= t.SILENCE_RMS_FLOOR:
+        if total_chunks > 0 and rms >= self.vad_floor:
             chunks = audio[: total_chunks * chunk_size].reshape(total_chunks, chunk_size)
             chunk_rms = np.sqrt(np.mean(np.square(chunks), axis=1))
             pcm = (audio * 32767).astype("<i2")
@@ -206,7 +231,7 @@ class AudioAnalyzer:
                 vad = webrtcvad.Vad(t.VAD_AGGRESSIVENESS)
                 for i in range(total_chunks):
                     is_voiced = False
-                    if chunk_rms[i] >= t.SILENCE_RMS_FLOOR:
+                    if chunk_rms[i] >= self.vad_floor:
                         raw_bytes = pcm[i * chunk_size : (i + 1) * chunk_size].tobytes()
                         if vad.is_speech(raw_bytes, t.AUDIO_SAMPLE_RATE):
                             is_voiced = True
@@ -221,6 +246,7 @@ class AudioAnalyzer:
                 if sum(voiced_flags) >= t.VAD_MIN_VOICED_CHUNKS and max_run >= t.VAD_MIN_CONTIGUOUS_CHUNKS:
                     speech_detected = True
             except Exception as exc:
+                vad_unavailable = True
                 logger.debug("VAD no disponible o error en procesamiento: %s", exc)
 
         high_noise = rms > t.HIGH_NOISE_RMS or (rms > t.HIGH_NOISE_NON_SPEECH_RMS and not speech_detected)
@@ -257,4 +283,5 @@ class AudioAnalyzer:
             voiced_chunks=sum(1 for v in voiced_flags if v),
             voice_reset=voice_reset,
             background_flags=self.background_flags(chunk_rms, voiced_flags, ambient),
+            vad_unavailable=vad_unavailable,
         )

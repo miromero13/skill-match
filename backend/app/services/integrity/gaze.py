@@ -10,7 +10,7 @@ Head ``pitch`` is positive looking down and ``yaw`` positive toward the image ri
 """
 from dataclasses import dataclass
 from statistics import median
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 import numpy as np
 
@@ -289,6 +289,18 @@ def _disagree(server: GazeSample, client: GazeSample) -> bool:
             or abs(server.gaze_v - client.gaze_v) > t.CLIENT_MISMATCH_GAZE)
 
 
+def _comparable_pairs(
+    server: Sequence[GazeSample], client: Sequence[GazeSample], informative: Callable[[GazeSample], bool]
+) -> list[tuple[GazeSample, GazeSample]]:
+    """Each server frame with the browser sample nearest in time, when that one is close enough to compare."""
+    pairs = []
+    for frame in server:
+        nearest = min(client, key=lambda c: abs(c.t_ms - frame.t_ms))
+        if abs(nearest.t_ms - frame.t_ms) <= t.CLIENT_MATCH_MAX_DT_MS and informative(nearest):
+            pairs.append((frame, nearest))
+    return pairs
+
+
 def check_telemetry(server: Sequence[GazeSample], client: Sequence[GazeSample]) -> TelemetryCheck:
     """Compares each server frame with the browser sample nearest in time.
 
@@ -297,16 +309,37 @@ def check_telemetry(server: Sequence[GazeSample], client: Sequence[GazeSample]) 
     """
     if not server or not client:
         return TelemetryCheck(False, False)
-    comparable = disagreements = 0
-    for frame in server:
-        nearest = min(client, key=lambda c: abs(c.t_ms - frame.t_ms))
-        if abs(nearest.t_ms - frame.t_ms) > t.CLIENT_MATCH_MAX_DT_MS or not _informative(nearest):
-            continue
-        comparable += 1
-        if _disagree(frame, nearest):
-            disagreements += 1
+    pairs = _comparable_pairs(server, client, _informative)
+    comparable = len(pairs)
+    disagreements = sum(1 for frame, nearest in pairs if _disagree(frame, nearest))
     mismatch = disagreements > 0 and disagreements >= min(t.CLIENT_MISMATCH_MIN_FRAMES, comparable)
     trusted = not mismatch and comparable >= min(t.CLIENT_MIN_COMPARABLE, len(server))
+    return TelemetryCheck(trusted, mismatch, comparable, disagreements)
+
+
+def check_mouth_telemetry(server: Sequence[GazeSample], client: Sequence[GazeSample]) -> TelemetryCheck:
+    """The voice calibration's cross-check of the browser's mouth readings against the JPEG frames the server measured.
+
+    The same mechanism as ``check_telemetry`` (nearest sample within ``CLIENT_MATCH_MAX_DT_MS``, a disagreement is
+    ``CLIENT_MISMATCH_MOUTH``), applied to the mouth aperture only and stricter, because the readings become the
+    series the voice is correlated with: at least ``CAL_TELEMETRY_MIN_COMPARABLE`` frames must be comparable and no
+    more than ``CAL_TELEMETRY_MAX_DISAGREE_FRACTION`` of them may disagree. Anything else is untrusted: the
+    enrollment is rejected, never accepted on telemetry nobody could verify.
+    """
+    def has_mouth(sample: GazeSample) -> bool:
+        return sample.mouth_open is not None
+
+    measured = [frame for frame in server if frame.face_count == 1 and has_mouth(frame)]
+    if not measured or not client:
+        return TelemetryCheck(False, False)
+    pairs = _comparable_pairs(measured, client, has_mouth)
+    comparable = len(pairs)
+    disagreements = sum(
+        1 for frame, nearest in pairs
+        if abs(float(frame.mouth_open or 0.0) - float(nearest.mouth_open or 0.0)) > t.CLIENT_MISMATCH_MOUTH
+    )
+    mismatch = comparable > 0 and disagreements / comparable > t.CAL_TELEMETRY_MAX_DISAGREE_FRACTION
+    trusted = not mismatch and comparable >= t.CAL_TELEMETRY_MIN_COMPARABLE
     return TelemetryCheck(trusted, mismatch, comparable, disagreements)
 
 
