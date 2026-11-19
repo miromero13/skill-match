@@ -19,6 +19,7 @@ from app.football.models import (
 from app.models.browser_supervision import BrowserIncident, BrowserTrial
 from app.models.calibration import CalibrationChallenge
 from app.models.catalog import Category, ChallengeType, Rubric, Skill, SkillLevel
+from app.models.complaint import Complaint, ComplaintReason, ComplaintStatus
 from app.models.dataset_sample import DatasetSample
 from app.models.evaluation import Evaluation
 from app.models.exchange_session import (
@@ -69,6 +70,9 @@ __all__ = [
     "ChallengeSegment",
     "ChallengeSegmentType",
     "ChallengeType",
+    "Complaint",
+    "ComplaintReason",
+    "ComplaintStatus",
     "DatasetSample",
     "DetectedEvent",
     "DetectedEventStatus",

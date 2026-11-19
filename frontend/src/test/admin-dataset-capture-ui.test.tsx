@@ -229,7 +229,7 @@ describe("AdminDatasetCapturePage", () => {
         discipline: payload.discipline,
         participant_id: payload.participant_id,
       })
-      return { statuscode: 201, message: "Muestra subida.", data: null }
+      return { statuscode: 201, message: "Muestra subida.", data: null as any }
     })
     vi.mocked(getDatasetSamples).mockImplementation(async () => ({
       statuscode: 200,
@@ -310,7 +310,7 @@ describe("AdminDatasetCapturePage", () => {
     vi.mocked(uploadDatasetSample).mockResolvedValue({
       statuscode: 201,
       message: "Muestra multimedia subida y procesada exitosamente.",
-      data: null,
+      data: null as any,
     })
   })
 

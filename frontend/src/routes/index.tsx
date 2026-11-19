@@ -37,6 +37,8 @@ import { NotificationLayout } from "@/components/notifications/notification-layo
 import { NotificationInboxPage } from "@/pages/notifications/notification-inbox-page"
 import { NotificationSettingsPage } from "@/pages/notifications/notification-settings-page"
 import { PrivacySettingsPage } from "@/pages/settings/privacy-settings-page"
+import { ComplaintsPage } from "@/pages/complaints/complaints-page"
+import { AdminComplaintsPage } from "@/pages/admin/admin-complaints-page"
 
 export const router = createBrowserRouter([
   { path: "/evaluation/:id/theory", element: <MemberRouteGuard><TheoryExamPage /></MemberRouteGuard> },
@@ -71,6 +73,10 @@ export const router = createBrowserRouter([
   {
     path: "/wallet",
     element: <Navigate to="/app/wallet" replace />,
+  },
+  {
+    path: "/complaints",
+    element: <Navigate to="/app/complaints" replace />,
   },
   // 1. Public Layout (Landing Page, Institucional)
   {
@@ -195,14 +201,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "complaints",
-        element: (
-          <ComingSoonPage
-            featureKey="complaints"
-            title="Centro de Quejas y Mediación"
-            subtitle="Resolución de disputas e incumplimientos"
-            description="Próximamente podrás abrir quejas formales de trueques incumplidos y solicitar mediación o compensación arbitral de SkillPoints."
-          />
-        ),
+        element: <ComplaintsPage />,
       },
       {
         path: "settings/privacy",
@@ -338,7 +337,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // 6.5 Admin Backoffice - Disputas & Quejas (Próximamente)
+  // 6.5 Admin Backoffice - Disputas & Quejas (HU-43)
   {
     path: "/admin/disputes",
     element: (
@@ -349,16 +348,13 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: (
-          <ComingSoonPage
-            featureKey="complaints"
-            title="Disputas & Mediación Comunitaria"
-            subtitle="Arbitraje de trueques incumplidos y compensación de SkillPoints"
-            description="Este módulo permitirá al equipo administrador mediar en quejas reportadas por miembros, evaluar grabaciones y ordenar restituciones de saldo de puntos."
-          />
-        ),
+        element: <AdminComplaintsPage />,
       },
     ],
+  },
+  {
+    path: "/admin/complaints",
+    element: <Navigate to="/admin/disputes" replace />,
   },
 
   // 6. Admin Direct Redirection (Protección preventiva)
