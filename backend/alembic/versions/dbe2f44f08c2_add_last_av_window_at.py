@@ -1,15 +1,13 @@
-"""Merge the open heads and track the last audiovisual window per trial.
-
-c3bea441869b is the head that carries the browser-supervision tables.
+"""Track the last audiovisual window per trial.
 
 Revision ID: dbe2f44f08c2
-Revises: c3bea441869b, ce51f995031a, f6a39d2c801b
+Revises: a7c19e3b5d20
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "dbe2f44f08c2"
-down_revision = ("c3bea441869b", "ce51f995031a", "f6a39d2c801b")
+down_revision = "a7c19e3b5d20"
 branch_labels = None
 depends_on = None
 

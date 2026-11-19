@@ -195,5 +195,8 @@ def test_alembic_has_a_single_head_that_adds_last_av_window_at():
     config.set_main_option("script_location", str(Path(__file__).parents[1] / "alembic"))
     script = ScriptDirectory.from_config(config)
     assert len(script.get_heads()) == 1
-    merged = script.get_revision(script.get_heads()[0])
-    assert set(merged.down_revision) == {"c3bea441869b", "ce51f995031a", "f6a39d2c801b"}
+    head = script.get_revision(script.get_heads()[0])
+    assert head.revision == "dbe2f44f08c2"
+    # The merge lives in its own empty revision so `downgrade -1` stays unambiguous.
+    merge = script.get_revision(head.down_revision)
+    assert set(merge.down_revision) == {"c3bea441869b", "ce51f995031a", "f6a39d2c801b"}
