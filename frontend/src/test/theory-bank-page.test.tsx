@@ -4,14 +4,24 @@ import { beforeEach, expect, it, vi } from "vitest"
 import { TheoryBankPage } from "@/pages/theory-bank-page"
 
 const calls = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), edit: vi.fn(), publish: vi.fn(), archive: vi.fn(), history: vi.fn() }))
+const getSkillsMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    items: [{ id: "skill", name: "Python", levels: [{ level_number: 1, name: "Principiante" }] }],
+    count: 1,
+  }))
+)
 vi.mock("@/services/theory-bank-service", () => ({ theoryBank: calls }))
-vi.mock("@/services/admin-catalog-service", () => ({ getSkills: async () => ({ items: [{ id: "skill", name: "Python", levels: [{ level_number: 1, name: "Principiante" }] }], count: 1 }) }))
+vi.mock("@/services/admin-catalog-service", () => ({ getSkills: getSkillsMock }))
 const item = { id: "question", version: 1, skill_id: "skill", level_number: 1, status: "DRAFT", content: {
   kind: "OPEN", prompt: "Explain mutability", choices: [], correct_choice: null,
   reference_answer: "Lists are mutable", criteria: [], time_limit_seconds: 90, max_score: 20,
 } }
 beforeEach(() => {
   vi.resetAllMocks()
+  getSkillsMock.mockResolvedValue({
+    items: [{ id: "skill", name: "Python", levels: [{ level_number: 1, name: "Principiante" }] }],
+    count: 1,
+  })
   calls.list.mockResolvedValue({ data: [item], count: 1 })
   calls.history.mockResolvedValue({ data: [item], message: "Historial recuperado" })
   calls.create.mockResolvedValue({ data: item, message: "Borrador creado por el servidor" })
@@ -61,4 +71,24 @@ it("edits with optimistic version and archives without deleting history", async 
   await user.click(screen.getByRole("button", { name: "Archivar" }))
   expect(calls.archive).toHaveBeenCalledWith("question", 1)
   expect(await screen.findByText("Archivo confirmado por el servidor")).toBeInTheDocument()
+})
+
+it("enables question creation with canonical level ladder even when skill arrives with empty levels", async () => {
+  const user = userEvent.setup()
+  getSkillsMock.mockResolvedValueOnce({
+    items: [{ id: "skill-empty", name: "Python", levels: [] }],
+    count: 1,
+  })
+  render(<TheoryBankPage />)
+  await screen.findByText("Explain mutability")
+  const createBtn = screen.getByRole("button", { name: "Nueva pregunta" })
+  expect(createBtn).not.toBeDisabled()
+  await user.click(createBtn)
+  await user.type(screen.getByLabelText("Enunciado"), "Explain generators")
+  await user.click(screen.getByRole("button", { name: "Guardar borrador" }))
+  await waitFor(() =>
+    expect(calls.create).toHaveBeenCalledWith(
+      expect.objectContaining({ skill_id: "skill-empty", level_number: 1, prompt: "Explain generators" })
+    )
+  )
 })

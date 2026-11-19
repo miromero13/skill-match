@@ -5,8 +5,9 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import SkillMatchException
-from app.models.catalog import SkillLevel
+from app.models.catalog import Rubric, Skill, SkillLevel
 from app.models.theory_question import TheoryQuestion
+from app.schemas.catalog import CANONICAL_LEVELS
 from app.schemas.theory_question import QuestionCreate
 
 
@@ -17,7 +18,18 @@ class TheoryQuestionService:
             SkillLevel.skill_id == payload.skill_id, SkillLevel.level_number == payload.level_number,
         ))
         if level is None:
-            raise SkillMatchException(statuscode=404, message="Habilidad o nivel no encontrado")
+            skill_exists = await db.scalar(select(Skill.id).where(Skill.id == payload.skill_id))
+            has_any_levels = await db.scalar(
+                select(SkillLevel.id).where(SkillLevel.skill_id == payload.skill_id).limit(1)
+            )
+            if skill_exists is not None and has_any_levels is None and payload.level_number in CANONICAL_LEVELS:
+                for number, name in CANONICAL_LEVELS.items():
+                    sl = SkillLevel(skill_id=payload.skill_id, level_number=number, name=name)
+                    sl.rubric = Rubric(min_score=70.0, criteria=[])
+                    db.add(sl)
+                await db.flush()
+            else:
+                raise SkillMatchException(statuscode=404, message="Habilidad o nivel no encontrado")
         item = TheoryQuestion(
             skill_id=payload.skill_id, level_number=payload.level_number,
             content=payload.model_dump(mode="json", exclude={"skill_id", "level_number"}),

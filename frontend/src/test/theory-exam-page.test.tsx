@@ -6,7 +6,7 @@ import { TheoryExamPage } from "@/pages/theory-exam-page"
 import { useTheoryExamStore } from "@/stores/theory-exam-store"
 import { startOralRecording } from "@/services/oral-recording"
 
-const api = vi.hoisted(() => ({ status: vi.fn(), start: vi.fn(), answer: vi.fn() }))
+const api = vi.hoisted(() => ({ status: vi.fn(), start: vi.fn(), answer: vi.fn(), retryGrading: vi.fn() }))
 vi.mock("@/services/theory-exam-service", () => ({ theoryExam: api }))
 vi.mock("@/services/oral-recording", () => ({ startOralRecording: vi.fn() }))
 const question = { id: "question", version: 1, position: 1, kind: "OPEN", prompt: "Explain mutability", choices: [], time_limit_seconds: 90, max_score: 20 }
@@ -25,7 +25,7 @@ it("shows the server question and oral justification instruction without typed a
   expect(await screen.findByText("Explain mutability")).toBeInTheDocument()
   expect(screen.getByText(/Respondé hablando y justificá/)).toBeInTheDocument()
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Grabar respuesta" })).toBeDisabled()
+  expect(screen.getByRole("button", { name: "Grabar respuesta" })).toBeEnabled()
 })
 it("preserves exact backend errors and does not claim an exam started", async () => {
   const user = userEvent.setup()
@@ -33,17 +33,40 @@ it("preserves exact backend errors and does not claim an exam started", async ()
   api.start.mockRejectedValue(new Error("La transcripción local no está disponible. Tu respuesta no fue registrada."))
   mount()
   expect(await screen.findByRole("alert")).toHaveTextContent("El examen teórico todavía no comenzó.")
-  await user.click(screen.getByRole("button", { name: "Comenzar examen y consumir intento" }))
-  expect(api.start).toHaveBeenCalledWith("exam", 1)
+  expect(screen.getByText(/No se enviará audio, video, nombre ni datos de cuenta/)).toBeInTheDocument()
+  expect(screen.getByLabelText("Nivel a evaluar (declarado en tu perfil)")).toBeDisabled()
+  const start = screen.getByRole("button", { name: "Comenzar examen y consumir intento" })
+  expect(start).toBeDisabled()
+  await user.click(screen.getByRole("checkbox"))
+  await user.click(start)
+  expect(api.start).toHaveBeenCalledWith("exam", 1, true)
   expect(await screen.findByText("La transcripción local no está disponible. Tu respuesta no fue registrada.")).toBeInTheDocument()
   expect(screen.queryByText("Explain mutability")).not.toBeInTheDocument()
 })
 it("shows pending review, not a fabricated score or certification", async () => {
   api.status.mockResolvedValue({ data: { ...state, status: "THEORY_PENDING_REVIEW", current_question: null, question_deadline_at: null, answered_count: 5 } })
   mount()
-  expect(await screen.findByText("Respuestas recibidas · corrección pendiente")).toBeInTheDocument()
+  expect(await screen.findByText("Corrección teórica")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Grabar respuesta" })).not.toBeInTheDocument()
   expect(screen.queryByText(/Aprobado|100 puntos|Sello otorgado/)).not.toBeInTheDocument()
+})
+
+it("shows rubric feedback on a final result and preserves exact retry errors", async () => {
+  const user = userEvent.setup()
+  api.status.mockResolvedValue({ data: { ...state, current_question: null, question_deadline_at: null, answered_count: 5,
+    grading_state: "COMPLETE", grading_score: 75, grading_feedback: [{ question_id: "q", points: 15, max_score: 20,
+      feedback: "Mostly correct", criteria: [{ name: "Mutability", weight: 100, attainment: 0.75, reason: "Explains the difference" }] }] } })
+  const finalView = mount()
+  expect(await screen.findByText("Resultado de la corrección")).toBeInTheDocument()
+  expect(screen.getByText(/Explains the difference/)).toBeInTheDocument()
+  finalView.unmount()
+  api.status.mockResolvedValue({ data: { ...state, current_question: null, question_deadline_at: null, answered_count: 5, grading_state: "ERROR", grading_score: null } })
+  const view = mount()
+  expect(await screen.findByText(/no se asignó nota/)).toBeInTheDocument()
+  api.retryGrading.mockRejectedValue(new Error("El proveedor no está disponible."))
+  await user.click(screen.getByRole("button", { name: "Reintentar corrección" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("El proveedor no está disponible.")
+  view.unmount()
 })
 
 it("keeps the same oral submission ID and audio for a network retry", async () => {
@@ -58,7 +81,6 @@ it("keeps the same oral submission ID and audio for a network retry", async () =
     .mockResolvedValueOnce({ data: { transcript: "Lists are mutable" }, message: "Respuesta oral registrada exitosamente." })
   const view = mount()
   await screen.findByText("Explain mutability")
-  await user.click(screen.getByRole("button", { name: "Activar cámara" }))
   await waitFor(() => expect(screen.getByRole("button", { name: "Grabar respuesta" })).toBeEnabled())
   await user.click(screen.getByRole("button", { name: "Grabar respuesta" }))
   await user.click(screen.getByRole("button", { name: "Terminar y enviar respuesta" }))
@@ -69,5 +91,4 @@ it("keeps the same oral submission ID and audio for a network retry", async () =
   expect(api.answer.mock.calls[0]).toEqual(api.answer.mock.calls[1])
   expect(api.answer.mock.calls[0][1]).toEqual(expect.objectContaining({ question_id: "question", audio_base64: "PCM_WAV_PAYLOAD" }))
   view.unmount()
-  expect(track.stop).toHaveBeenCalled()
 })

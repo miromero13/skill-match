@@ -16,6 +16,9 @@ class EvaluationConsentRequest(BaseModel):
 class EvaluationPreflightResponse(BaseModel):
     teaching_skill_id: UUID
     skill_name: str
+    declared_level: str | None = None
+    declared_level_label: str | None = None
+    target_level_number: int = 1
     syllabus: str
     requirements: list[str]
     stages: list[str]
