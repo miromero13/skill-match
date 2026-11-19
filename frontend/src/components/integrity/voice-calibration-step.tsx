@@ -34,6 +34,8 @@ export interface VoiceCalibrationStepProps {
   /** Called once the server accepted the voiceprint. */
   onCalibrated?: (message: string) => void
   disabled?: boolean
+  /** Starts the recording as soon as the step is shown (no click), for flows bound by a server deadline. */
+  autoStart?: boolean
   /** Silence before the phrase; the server measures the ambient noise floor from it (500-3000 ms). */
   ambientMs?: number
   /** Time given to read the phrase aloud. */
@@ -65,6 +67,7 @@ export function VoiceCalibrationStep({
   submit,
   onCalibrated,
   disabled = false,
+  autoStart = false,
   ambientMs = 2000,
   phraseMs = 7000,
   pauseMs = 0,
@@ -145,6 +148,14 @@ export function VoiceCalibrationStep({
       running.current = false
     }
   }
+
+  const runner = useRef(run)
+  useEffect(() => {
+    runner.current = run
+  })
+  useEffect(() => {
+    if (autoStart) void runner.current()
+  }, [autoStart])
 
   const busy = phase.name === "silence" || phase.name === "reading" || phase.name === "pause" || phase.name === "sending"
   const totalMs = ambientMs + phraseMs + pauseMs

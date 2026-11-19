@@ -5,6 +5,7 @@ import { CalibrationPanel } from "@/components/evaluations/calibration-panel"
 import { CHECK_LABELS } from "@/components/evaluations/calibration-checks"
 import { requestCalibrationChallenge, verifyEvaluationCalibration, type CalibrationState } from "@/services/evaluation-service"
 import { createMicrophoneRecorder } from "@/services/av-capture"
+import { ApiError } from "@/types/api"
 import { startFaceTracker } from "@/services/gaze-tracking"
 
 vi.mock("@/services/evaluation-service", () => ({
@@ -136,8 +137,7 @@ async function runGuidedFlow() {
   expect(requestCalibrationChallenge).not.toHaveBeenCalled()
   await press("Empezar giro de cabeza")
   await tick(11_500)
-  await press("Empezar calibración de voz")
-  await tick(11_500)
+  await tick(11_500) // the silence and phrase start by themselves: the challenge lives only 45 s
 }
 
 describe("guided flow on the engine contract", () => {
@@ -154,8 +154,7 @@ describe("guided flow on the engine contract", () => {
     await tick(11_500)
     expect(screen.getByTestId("voice-calibration")).toBeInTheDocument()
     expect(verifyEvaluationCalibration).not.toHaveBeenCalled()
-    await press("Empezar calibración de voz")
-    await tick(11_500)
+    await tick(11_500) // no idle wait: the voice step starts on its own
     expect(verifyEvaluationCalibration).toHaveBeenCalledTimes(1)
     const [id, evidence] = vi.mocked(verifyEvaluationCalibration).mock.calls[0]
     expect(id).toBe("evaluation-1")
@@ -250,11 +249,63 @@ describe("failures", () => {
 describe("shared integrity units (S9)", () => {
   it("uses the same gaze and voice steps as the trial page", async () => {
     const panel = (await import("@/components/evaluations/calibration-panel.tsx?raw")).default
-    const trial = (await import("@/pages/browser-supervision-page.tsx?raw")).default
+    const trial = (await import("@/components/integrity/calibration-gate.tsx?raw")).default // the trial page's gate
     for (const source of [panel, trial]) {
       expect(source).toContain('from "@/components/integrity/gaze-calibration-step"')
       expect(source).toContain('from "@/components/integrity/voice-calibration-step"')
     }
     expect(panel).toContain('from "@/services/av-capture"')
+  })
+})
+
+describe("challenge expiry (the server issues it for 45 s)", () => {
+  async function throughGaze() {
+    await prepared()
+    await press("Empezar calibración")
+    await tick(9_500)
+  }
+
+  it("starts the silence and phrase by itself as soon as the head turn is captured", async () => {
+    await throughGaze()
+    await press("Empezar giro de cabeza")
+    await tick(11_500)
+    expect(screen.getByTestId("voice-calibration-status")).toHaveTextContent(/silencio/i)
+    expect(screen.queryByRole("button", { name: "Empezar calibración de voz" })).not.toBeInTheDocument()
+  })
+
+  it("restarts from a new challenge, keeping the gaze, when too little time is left for the voice step", async () => {
+    await throughGaze()
+    await press("Empezar giro de cabeza")
+    await tick(4_000)
+    vi.setSystemTime(Date.now() + 35_000) // the capture stalled: ~35 s of the 45 s are gone
+    await tick(7_500)
+    expect(screen.getByRole("alert")).toHaveTextContent(/El reto del giro de cabeza venció/)
+    expect(screen.getByTestId("head-turn")).toBeInTheDocument()
+    expect(screen.queryByTestId("gaze-calibration")).not.toBeInTheDocument() // the completed gaze step is kept
+    expect(screen.queryByTestId("voice-calibration")).not.toBeInTheDocument()
+    expect(verifyEvaluationCalibration).not.toHaveBeenCalled()
+
+    vi.mocked(requestCalibrationChallenge).mockResolvedValue({ id: "challenge-2", action: "TURN_RIGHT", expires_at: "2026-11-18T00:00:05Z" })
+    await press("Empezar giro de cabeza")
+    expect(requestCalibrationChallenge).toHaveBeenCalledTimes(2)
+    await tick(11_500)
+    await tick(11_500)
+    expect(verifyEvaluationCalibration).toHaveBeenCalledTimes(1)
+    const evidence = vi.mocked(verifyEvaluationCalibration).mock.calls[0][1]
+    expect(evidence.challenge_id).toBe("challenge-2")
+    expect(evidence.gaze_points).toHaveLength(5)
+  })
+
+  it("shows the server's 410 message verbatim and restarts from the challenge without losing the gaze", async () => {
+    const expired = "El reto venció. Solicitá uno nuevo; tu intento no se descontó."
+    vi.mocked(verifyEvaluationCalibration).mockRejectedValueOnce(new ApiError(expired, 410))
+    await throughGaze()
+    await press("Empezar giro de cabeza")
+    await tick(11_500)
+    await tick(11_500)
+    expect(screen.getByRole("alert")).toHaveTextContent(expired)
+    expect(screen.getByTestId("head-turn")).toBeInTheDocument()
+    expect(screen.queryByTestId("gaze-calibration")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("voice-calibration")).not.toBeInTheDocument()
   })
 })

@@ -12,10 +12,18 @@ import type { GazeCalibrationPoint, VoiceCalibrationRequest } from "@/services/b
 import { buildCalibrationEvidence } from "@/services/calibration-capture"
 import { requestCalibrationChallenge, verifyEvaluationCalibration, type CalibrationState } from "@/services/evaluation-service"
 import { startFaceTracker, type FaceTracker } from "@/services/gaze-tracking"
+import { ApiError } from "@/types/api"
 
 /** Short enough to be read before second 4.5 of the speech segment, after which nothing may be said. */
 const CALIBRATION_PHRASE = "Hoy rindo esta prueba yo solo, y mi voz es la que se escucha."
 const STEPS = ["Mirada", "Giro de cabeza", "Silencio y frase", "Verificación"] as const
+/** The server issues a liveness challenge for 45 s (backend `evaluation_calibration_service`). */
+const CHALLENGE_TTL_MS = 45_000
+/** Silence (3 s) + phrase (4 s) + pause (4 s) of the voice step, plus time to send and verify. */
+const VOICE_STEP_MS = 11_000
+const VERIFY_MARGIN_MS = 4_000
+const EXPIRED_MESSAGE =
+  "El reto del giro de cabeza venció (dura 45 segundos). Tu mirada ya está lista: repetí el giro de cabeza y la frase. No se descontó tu intento."
 const MIN_WIDTH = 320
 const MIN_HEIGHT = 240
 
@@ -30,6 +38,7 @@ export function CalibrationPanel({ evaluationId, onBack }: { evaluationId: strin
   const cameraLabel = useRef("")
   const alive = useRef(false)
   const generation = useRef(0)
+  const challengeDeadline = useRef(0)
   const [devices, setDevices] = useState<Devices | null>(null)
   const [videoReady, setVideoReady] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -51,10 +60,30 @@ export function CalibrationPanel({ evaluationId, onBack }: { evaluationId: strin
     if (video.current) video.current.srcObject = null
   }, [])
 
+  const invalidate = useCallback(() => { generation.current++ }, [])
   useEffect(() => {
     alive.current = true
-    return () => { alive.current = false; generation.current++; release() }
-  }, [evaluationId, release])
+    return () => { alive.current = false; invalidate(); release() }
+  }, [evaluationId, release, invalidate])
+
+  /** Drops the head turn and the voice take (their challenge is gone) but keeps the completed gaze step. */
+  function restartFromChallenge(text: string) {
+    setMovement(null); setVoice(null); setResult(null); setVerifying(false); setError(text)
+    setRound(value => value + 1)
+  }
+
+  /** Remembers when the challenge dies: 45 s from receipt, or the server's own `expires_at` if that is sooner. */
+  async function issueChallenge() {
+    const challenge = await requestCalibrationChallenge(evaluationId)
+    const remaining = Date.parse(challenge.expires_at) - Date.now()
+    challengeDeadline.current = Date.now() + (remaining > 0 ? Math.min(CHALLENGE_TTL_MS, remaining) : CHALLENGE_TTL_MS)
+    return challenge
+  }
+
+  function headTurnCaptured(captured: HeadTurnResult) {
+    if (challengeDeadline.current - Date.now() < VOICE_STEP_MS + VERIFY_MARGIN_MS) { restartFromChallenge(EXPIRED_MESSAGE); return }
+    setMovement(captured)
+  }
 
   function resetEvidence() {
     setGaze(null); setMovement(null); setVoice(null); setResult(null); setError(null); setRound(value => value + 1)
@@ -135,6 +164,7 @@ export function CalibrationPanel({ evaluationId, onBack }: { evaluationId: strin
 
   async function verify(recording: VoiceCalibrationRequest) {
     if (!gaze || !movement) return
+    if (challengeDeadline.current - Date.now() < 1_500) { restartFromChallenge(EXPIRED_MESSAGE); return }
     const current = ++generation.current
     setVerifying(true); setError(null)
     try {
@@ -148,7 +178,9 @@ export function CalibrationPanel({ evaluationId, onBack }: { evaluationId: strin
       if (state.ready && Object.values(state.checks).every(Boolean)) { release(); setDevices(null); setVideoReady(false) }
     } catch (cause) {
       if (alive.current && current === generation.current) {
-        setError(cause instanceof Error ? cause.message : "No se pudo completar la calibración.")
+        const text = cause instanceof Error ? cause.message : "No se pudo completar la calibración."
+        if (cause instanceof ApiError && cause.statuscode === 410) restartFromChallenge(text) // the server's own message
+        else setError(text)
       }
     } finally {
       if (alive.current && current === generation.current) setVerifying(false)
@@ -189,8 +221,8 @@ export function CalibrationPanel({ evaluationId, onBack }: { evaluationId: strin
       {!gaze && <GazeCalibrationStep key={`gaze-${round}`} disabled={stepsDisabled} captureFrame={() => grab(640, .65)}
         submit={async points => { setGaze(points); return { message: "Puntos de mirada capturados." } }} />}
       {gaze && !movement && <HeadTurnStep key={`turn-${round}`} disabled={stepsDisabled} captureFrame={() => grab(640, .65)}
-        requestChallenge={() => requestCalibrationChallenge(evaluationId)} onCaptured={setMovement} />}
-      {gaze && movement && !voice && <VoiceCalibrationStep key={`voice-${round}`} disabled={stepsDisabled} recorder={devices.recorder}
+        requestChallenge={issueChallenge} onCaptured={headTurnCaptured} />}
+      {gaze && movement && !voice && <VoiceCalibrationStep key={`voice-${round}`} disabled={stepsDisabled} autoStart recorder={devices.recorder}
         captureFrame={() => grab(480, .55)} readMouth={(startedAt, durationMs) => devices.tracker.takeMouthSamples(startedAt, durationMs)}
         ambientMs={3000} phraseMs={4000} pauseMs={4000} phrase={CALIBRATION_PHRASE}
         submit={async recording => { setVoice(recording); void verify(recording); return { message: "Captura de voz lista. Verificando…" } }} />}
