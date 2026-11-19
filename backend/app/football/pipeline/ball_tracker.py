@@ -10,6 +10,12 @@ import numpy as np
 
 from app.football.config import BallTrackerConfig, load_football_config
 
+# Width (px) the built-in detector works at. Wider videos are downscaled before
+# detection (MOG2 / contours / HoughCircles cost grows with pixel count) and the
+# detections are mapped back to the original resolution. `config.yaml`
+# (`min_radius_px` / `max_radius_px`) is tuned for this scale of frame.
+DETECTION_TARGET_WIDTH = 640
+
 
 @dataclass
 class BallFramePoint:
@@ -267,10 +273,6 @@ def track_ball_in_video(
     video -> `BallTrack` (`t_ms, x, y, radius, confidence, height_diameters`).
     """
     cfg = config or load_football_config().ball_tracker
-    active_detector = detector or ClassicalMOG2HoughDetector(
-        min_radius_px=cfg.min_radius_px,
-        max_radius_px=cfg.max_radius_px,
-    )
 
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -282,6 +284,28 @@ def track_ball_in_video(
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 640)
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 360)
 
+    # Detection-space downscale (only for the built-in detector; an injected
+    # detector owns its own preprocessing and receives original frames). The
+    # detector sees `scale`-sized frames with radius limits scaled accordingly;
+    # everything it returns is mapped back to ORIGINAL resolution right after
+    # `detect()`, so Kalman, gap filling and height metrics are unchanged.
+    scale = 1.0
+    if detector is None and width > DETECTION_TARGET_WIDTH:
+        scale = DETECTION_TARGET_WIDTH / float(width)
+
+    if detector is not None:
+        active_detector: BallDetectorProtocol = detector
+    elif scale < 1.0:
+        active_detector = ClassicalMOG2HoughDetector(
+            min_radius_px=max(1, round(cfg.min_radius_px * scale)),
+            max_radius_px=max(2, round(cfg.max_radius_px * scale)),
+        )
+    else:
+        active_detector = ClassicalMOG2HoughDetector(
+            min_radius_px=cfg.min_radius_px,
+            max_radius_px=cfg.max_radius_px,
+        )
+
     kalman = ConstantVelocityKalman2D(dt=1.0 / fps)
     raw_detections: list[BallFramePoint | None] = []
     frame_idx = 0
@@ -292,11 +316,19 @@ def track_ball_in_video(
             break
 
         kalman.predict()
-        detection = active_detector.detect(frame, frame_idx)
+        if scale < 1.0:
+            detect_frame = cv2.resize(
+                frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA
+            )
+        else:
+            detect_frame = frame
+        detection = active_detector.detect(detect_frame, frame_idx)
         t_ms = round((frame_idx * 1000.0) / fps)
 
         if detection is not None:
             dx, dy, dr, dconf = detection
+            if scale < 1.0:
+                dx, dy, dr = dx / scale, dy / scale, dr / scale
             kx, ky = kalman.update(dx, dy)
             # Blend measurement with Kalman state to preserve sharp touch rebounds
             fx = 0.75 * dx + 0.25 * kx
