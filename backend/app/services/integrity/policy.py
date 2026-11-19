@@ -7,9 +7,9 @@ only the aggregation rules (how many frames make a sustained pose, when a face i
 from typing import Any, Callable, Optional, Protocol
 
 from app.services.integrity import thresholds as t
-from app.services.integrity.confirm import FlagSample, RunTracker
+from app.services.integrity.confirm import FlagSample, RunTracker, StreakTracker
 from app.services.integrity.gaze import GazeRunTracker, normalize_frame_times, sample_from_frame
-from app.services.integrity.models import FrameObservation, FrameOcclusion, GazeEvidence, Orientation, WindowAssessment, WindowObservation
+from app.services.integrity.models import AudioObservation, FrameObservation, FrameOcclusion, GazeEvidence, Orientation, WindowAssessment, WindowObservation
 from app.services.integrity.sync_analyzer import SyncVerdict, voice_mouth_coexistence
 
 Coexistence = Callable[[bool, bool, bool, int, bool], SyncVerdict]
@@ -34,6 +34,7 @@ class SupervisionProfile:
         self.coexistence = coexistence
         self.gaze = GazeRunTracker(gaze_runs)
         self.runs = RunTracker(gaze_runs)
+        self.streaks = StreakTracker(gaze_runs)
         self.store = gaze_runs
 
     @staticmethod
@@ -151,6 +152,27 @@ class SupervisionProfile:
         confirmed = streak >= t.IDENTITY_CONFIRM_WINDOWS
         return (False, True) if confirmed else (None, False)
 
+    def _multiple_speakers(self, audio: AudioObservation, session_key: Optional[str]) -> bool:
+        """S2: voices overlapping >= 0.3 s or a foreign cluster next to the enrolled voice are confirmed at once;
+        several speakers otherwise need two diarizations in a row (a window without speech resets the count)."""
+        if audio.foreign_voice or audio.overlap_s >= t.MULTI_SPEAKER_IMMEDIATE_OVERLAP_S:
+            self.streaks.update("multi_speakers", session_key, True)
+            return True
+        if not audio.speech_detected:
+            flag: Optional[bool] = False
+        elif not audio.diarized:
+            flag = None  # no diarization ran (too little speech yet): neither extends nor resets
+        else:
+            flag = audio.multiple_speakers
+        return self.streaks.update("multi_speakers", session_key, flag) >= t.MULTI_SPEAKER_CONFIRM_EVALUATIONS
+
+    def _background_audio(self, audio: AudioObservation, session_key: Optional[str], base: Optional[int]) -> bool:
+        """S4: non-speech audio above the calibrated ambient floor, continuously for >= 2 s (across windows too)."""
+        samples = [FlagSample(round((i + 0.5) * 1000 * t.VAD_CHUNK_SAMPLES / t.AUDIO_SAMPLE_RATE), flag)
+                   for i, flag in enumerate(audio.background_flags)]
+        return any(run.duration_ms >= t.BACKGROUND_MIN_MS
+                   for run in self.runs.evaluate("background_audio", session_key, base, samples))
+
     def evaluate(self, window: WindowObservation) -> WindowAssessment:
         anomalies: list[str] = []
         face_count = 1
@@ -210,12 +232,19 @@ class SupervisionProfile:
             anomalies.append("AUDIO_MISSING")
         if audio.high_noise:
             anomalies.append("HIGH_NOISE")
+        audio_key = window.gaze.session_key if window.gaze else None
+        audio_base = window.gaze.window_start_ms if window.gaze else None
+        if self._background_audio(audio, audio_key, audio_base):
+            anomalies.append("BACKGROUND_AUDIO")
+        multiple_speakers = self._multiple_speakers(audio, audio_key)
 
         verdict = self.coexistence(
-            audio.speech_detected, audio.multiple_speakers, visual_unavailable, face_count, window.mouth_moving
+            audio.speech_detected, multiple_speakers, visual_unavailable, face_count, window.mouth_moving
         )
         if verdict.anomaly:
             anomalies.append(verdict.anomaly)
+        if audio.speaker_model_unavailable and "MODEL_UNAVAILABLE" not in anomalies:
+            anomalies.append("MODEL_UNAVAILABLE")  # speech that could not be checked is never a clean audio verdict
 
         return WindowAssessment(
             face_count=face_count,
@@ -224,7 +253,7 @@ class SupervisionProfile:
             speech_detected=audio.speech_detected,
             mouth_moving=window.mouth_moving,
             mouth_sync=verdict.mouth_sync,
-            multiple_speakers=audio.multiple_speakers,
+            multiple_speakers=multiple_speakers,
             noise_level=audio.noise_level,
             anomalies=anomalies,
             occlusion_face=occlusion_face,

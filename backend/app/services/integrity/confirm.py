@@ -121,3 +121,28 @@ class RunTracker:
 
 def longest(runs: Sequence[RunSummary]) -> int:
     return max((run.duration_ms for run in runs), default=0)
+
+
+class StreakTracker:
+    """Consecutive evaluations of something per session (T8: VOICE_MISMATCH, MULTIPLE_SPEAKERS, LIP_SYNC_MISMATCH).
+
+    ``update`` counts a flagged evaluation, resets on an unflagged one and leaves the count alone for ``None``
+    (an evaluation that could not judge). Without a store or a session key nothing is remembered: a lone
+    evaluation counts as one, so count-based confirmation can never fire from a single stateless window.
+    """
+
+    def __init__(self, store: Optional[Any] = None) -> None:
+        self.store = store
+
+    def _stateful(self, session_key: Optional[str]) -> bool:
+        return self.store is not None and bool(session_key) and hasattr(self.store, "get_track")
+
+    def update(self, name: str, session_key: Optional[str], flag: Optional[bool]) -> int:
+        if not self._stateful(session_key) or self.store is None:
+            return 1 if flag else 0
+        carried = int((self.store.get_track(session_key, name) or {}).get("count", 0))
+        if flag is None:
+            return carried
+        count = carried + 1 if flag else 0
+        self.store.set_track(session_key, name, {"count": count} if count else None)
+        return count

@@ -11,7 +11,7 @@ Calibration reuse map (T9 migrates these services; nothing here depends on them 
     CalibrationSpeakerService  -> AudioAnalyzer.detect_multiple_speakers (diarization via .segments)
     CalibrationAVService       -> sync_analyzer.voice_mouth_coexistence / SyncAnalyzer.mouth_movement
 """
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 import numpy as np
 
@@ -60,6 +60,7 @@ class IntegrityEngine:
         frame_times_ms: Optional[Sequence[int]] = None,
         gaze_samples: Sequence[GazeSample] = (),
         window_start_ms: Optional[int] = None,
+        voiceprint: Optional[Mapping[str, Any]] = None,
     ) -> WindowObservation:
         """Measures a window: ``frames`` are base64 JPEGs, ``audio`` 16 kHz mono samples in [-1, 1].
 
@@ -81,7 +82,7 @@ class IntegrityEngine:
             frames=batch.frames,
             video_missing=batch.video_missing,
             model_unavailable=batch.model_unavailable,
-            audio=self.audio.analyze(audio, session_key),
+            audio=self.audio.analyze(audio, session_key, voiceprint),
             audio_missing=audio_missing,
             mouth_moving=mouth_moving,
             mouth_movements=tuple(movements),
@@ -102,6 +103,7 @@ class IntegrityEngine:
         frame_times_ms: Optional[Sequence[int]] = None,
         gaze_samples: Sequence[GazeSample] = (),
         window_start_ms: Optional[int] = None,
+        voiceprint: Optional[Mapping[str, Any]] = None,
     ) -> WindowAssessment:
         """Measures a window and judges it with ``profile`` (default: ``SupervisionProfile``).
 
@@ -112,6 +114,6 @@ class IntegrityEngine:
         observation = self.observe_window(
             frames, audio, duration_ms, reference_embedding, session_key,
             gaze_zone=gaze_zone, frame_times_ms=frame_times_ms, gaze_samples=gaze_samples,
-            window_start_ms=window_start_ms,
+            window_start_ms=window_start_ms, voiceprint=voiceprint,
         )
         return (profile or SupervisionProfile()).evaluate(observation)

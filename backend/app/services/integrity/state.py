@@ -39,6 +39,15 @@ class SessionStateStore(Protocol):
     def clear_voiced_audio(self, session_key: Optional[str]) -> None:
         """Forgets the session's buffered voiced audio (stale speech must not carry over a silent window)."""
 
+    def append_voiced(self, session_key: Optional[str], voiced: np.ndarray, max_samples: int) -> np.ndarray:
+        """Adds voiced samples to the session's rolling buffer (newest ``max_samples`` kept) and returns a copy of it.
+
+        Without a session key nothing is remembered and ``voiced`` itself is returned.
+        """
+
+    def note_silence(self, session_key: Optional[str], samples: int, clear_after: int) -> None:
+        """Counts non-speech samples; the rolling voiced buffer is forgotten once ``clear_after`` accumulate."""
+
     def get_gaze_run(self, session_key: Optional[str]) -> Optional[dict[str, Any]]:
         """The out-of-zone run still open at the end of the session's previous window, if any."""
 
@@ -152,6 +161,37 @@ class InMemoryStateStore:
         with self.lock:
             if session_key in self.audio_state:
                 self.audio_state[session_key].pop("prev_voiced_audio", None)
+                self.audio_state[session_key].pop("voiced_buffer", None)
+
+    def _audio_entry_locked(self, session_key: str) -> dict[str, Any]:
+        entry = self.audio_state.get(session_key)
+        if entry is None:
+            if len(self.audio_state) >= self.max_sessions:
+                self.audio_state.popitem(last=False)
+            entry = self.audio_state[session_key] = {}
+        else:
+            self.audio_state.move_to_end(session_key)
+        return entry
+
+    def append_voiced(self, session_key: Optional[str], voiced: np.ndarray, max_samples: int) -> np.ndarray:
+        if not session_key:
+            return voiced
+        with self.lock:
+            entry = self._audio_entry_locked(session_key)
+            previous = entry.get("voiced_buffer")
+            joined = np.concatenate([previous, voiced]) if isinstance(previous, np.ndarray) else voiced
+            entry["voiced_buffer"] = joined[-max_samples:].copy()
+            entry["silent_samples"] = 0
+            return entry["voiced_buffer"].copy()
+
+    def note_silence(self, session_key: Optional[str], samples: int, clear_after: int) -> None:
+        if not session_key:
+            return
+        with self.lock:
+            entry = self._audio_entry_locked(session_key)
+            entry["silent_samples"] = int(entry.get("silent_samples", 0)) + max(0, samples)
+            if entry["silent_samples"] >= clear_after:
+                entry.pop("voiced_buffer", None)
 
     def get_gaze_run(self, session_key: Optional[str]) -> Optional[dict[str, Any]]:
         if not session_key:

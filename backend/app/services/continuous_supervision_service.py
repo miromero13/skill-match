@@ -174,13 +174,15 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
         frame_times_ms: Optional[Sequence[int]] = None,
         gaze_samples: Sequence[Any] = (),
         observed_at_ms: Optional[int] = None,
+        voiceprint: Optional[Mapping[str, Any]] = None,
     ) -> dict[str, Any]:
         """Evaluates an audiovisual supervision window and determines anomalies.
 
         ``gaze_zone`` is the trial's calibrated screen zone (None: conservative defaults), ``frame_times_ms``
         the capture offset of each frame from the window start (``observed_at_ms``, epoch ms) and
         ``gaze_samples`` the browser's ~15 fps readings, which the server only trusts when they agree with
-        its own measurement of the frames (S5 / S12).
+        its own measurement of the frames (S5 / S12). ``voiceprint`` is the trial's enrolled voiceprint record
+        (None: speech is reported as unverified, S3 / S11).
 
         Fails closed: when no vision model is usable the window reports ``MODEL_UNAVAILABLE`` with
         ``face_count`` 0 and no identity verdict instead of a clean face. Missing evidence is never clean
@@ -206,5 +208,6 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
                 for sample in gaze_samples
             ],
             window_start_ms=observed_at_ms,
+            voiceprint=voiceprint,
         )
         return assessment.to_dict()

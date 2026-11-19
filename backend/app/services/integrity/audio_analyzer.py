@@ -7,17 +7,41 @@ Calibration mapping (T9): ``CalibrationAudioService`` (RMS + VAD speech checks) 
 ``CalibrationSpeakerService.assess`` (single speaker, no overlap) maps to ``AudioAnalyzer.detect_multiple_speakers``.
 """
 import logging
-from typing import Any, Callable, Iterable, Optional, Sequence
+from dataclasses import dataclass
+from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
 import numpy as np
 
 from app.services.integrity import thresholds as t
+from app.services.integrity import voiceprint as vp
 from app.services.integrity.models import AudioObservation
 from app.services.integrity.state import SessionStateStore
 
 logger = logging.getLogger("skillmatch.continuous_supervision")
 
 SegmentsProvider = Callable[[np.ndarray], Iterable[Any]]
+
+
+@dataclass(frozen=True)
+class SpeakerReport:
+    """What diarization of the voiced buffer found; ``model_unavailable`` means it could not run (fail closed)."""
+
+    diarized: bool = False
+    speakers: int = 0
+    overlap_s: float = 0.0
+    foreign_voice: bool = False
+    model_unavailable: bool = False
+
+    @property
+    def multiple(self) -> bool:
+        return self.speakers > 1 or self.overlap_s >= t.SPEAKER_OVERLAP_MIN_S
+
+
+def voiced_audio(audio: np.ndarray, voiced_flags: Sequence[bool]) -> np.ndarray:
+    """The samples of the chunks the VAD called speech, in order."""
+    size = t.VAD_CHUNK_SAMPLES
+    parts = [audio[i * size:(i + 1) * size] for i, flag in enumerate(voiced_flags) if flag]
+    return np.concatenate(parts).astype(np.float32) if parts else np.zeros(0, dtype=np.float32)
 
 
 def _default_segments(audio: np.ndarray) -> Iterable[Any]:
@@ -30,9 +54,15 @@ def _default_segments(audio: np.ndarray) -> Iterable[Any]:
 class AudioAnalyzer:
     """Analyzes 16 kHz mono windows; the rolling buffer of voiced audio lives in the injected state store."""
 
-    def __init__(self, state: SessionStateStore, speaker_segments: Optional[SegmentsProvider] = None) -> None:
+    def __init__(
+        self,
+        state: SessionStateStore,
+        speaker_segments: Optional[SegmentsProvider] = None,
+        extractor: Optional[vp.EmbeddingExtractor] = None,
+    ) -> None:
         self.state = state
         self.speaker_segments: SegmentsProvider = speaker_segments or _default_segments
+        self.extractor: vp.EmbeddingExtractor = extractor or vp.default_extractor()
 
     @staticmethod
     def is_missing(samples: Optional[Sequence[float]], duration_ms: Optional[int]) -> bool:
@@ -44,42 +74,90 @@ class AudioAnalyzer:
         expected = duration_ms * t.AUDIO_SAMPLE_RATE / 1000.0
         return abs(len(samples) - expected) > t.AUDIO_LENGTH_TOLERANCE * expected
 
+    def diarize(
+        self, buffer: np.ndarray, window_voiced_chunks: int, voiceprint: Optional[Mapping[str, Any]] = None
+    ) -> SpeakerReport:
+        """Diarizes the trial's rolling voiced buffer (S2) with the existing minimum-duration filters.
+
+        With an enrolled voiceprint, a cluster that is not that voice next to one that is makes ``foreign_voice``.
+        A diarization that cannot run (models missing, inference error) is ``model_unavailable``, not "one voice".
+        """
+        # Require at least 1.5 s of buffered speech and a window with real speech before running diarization
+        if buffer.size < t.DIARIZATION_MIN_SAMPLES or window_voiced_chunks < t.DIARIZATION_MIN_VOICED_CHUNKS:
+            return SpeakerReport()
+        try:
+            segments = list(self.speaker_segments(buffer))
+        except Exception as exc:
+            logger.warning("Diarización continua no disponible: %s", exc)
+            return SpeakerReport(model_unavailable=True)
+        usable = [item for item in segments if item.speaker >= 0]
+        kept = [item for item in usable if (item.end - item.start) >= t.SPEAKER_MIN_DURATION_S]
+        speakers = {item.speaker for item in kept}
+        overlap = max(
+            (
+                min(first.end, second.end) - max(first.start, second.start)
+                for i, first in enumerate(usable)
+                for second in usable[i + 1:]
+                if first.speaker != second.speaker
+            ),
+            default=0.0,
+        )
+        foreign = False
+        if voiceprint is not None and len(speakers) > 1:
+            try:
+                foreign = self._has_foreign_cluster(buffer, kept, voiceprint)
+            except vp.SpeakerModelUnavailable as exc:
+                logger.warning("Huella de voz no disponible para comparar hablantes: %s", exc)
+                return SpeakerReport(True, len(speakers), max(0.0, overlap), model_unavailable=True)
+        return SpeakerReport(True, len(speakers), max(0.0, overlap), foreign)
+
+    def _has_foreign_cluster(self, buffer: np.ndarray, kept: Sequence[Any], voiceprint: Mapping[str, Any]) -> bool:
+        """True when one diarized cluster matches the voiceprint and another one clearly does not."""
+        by_speaker: dict[int, list[np.ndarray]] = {}
+        for item in kept:
+            piece = buffer[max(0, int(item.start * t.AUDIO_SAMPLE_RATE)):int(item.end * t.AUDIO_SAMPLE_RATE)]
+            by_speaker.setdefault(item.speaker, []).append(piece)
+        statuses = []
+        for pieces in by_speaker.values():
+            statuses.append(vp.match_voice(
+                self.extractor, voiceprint, np.concatenate(pieces), min_voiced_s=t.VOICEPRINT_CLUSTER_MIN_VOICED_S,
+            ).status)
+        return "match" in statuses and "mismatch" in statuses
+
     def detect_multiple_speakers(
         self, audio: np.ndarray, voiced_flags: list[bool], session_key: Optional[str]
     ) -> bool:
-        """Detects several speakers or overlapping voices over the window plus the buffered voiced audio."""
+        """Detects several speakers or overlapping voices over the trial's buffered voiced audio (unconfirmed)."""
         voiced_chunks = sum(1 for v in voiced_flags if v)
-        # Only windows with real voice activity are remembered and concatenated
-        combined = self.state.combine_with_previous(
-            session_key, audio, remember=voiced_chunks >= t.DIARIZATION_REMEMBER_MIN_VOICED_CHUNKS
+        buffer = self.state.append_voiced(
+            session_key, voiced_audio(audio, voiced_flags), t.VOICE_BUFFER_MAX_SAMPLES
         )
+        return self.diarize(buffer, voiced_chunks).multiple
 
-        # Require at least 1.5 s of audio with sufficient speech before running diarization
-        if combined.size >= t.DIARIZATION_MIN_SAMPLES and voiced_chunks >= t.DIARIZATION_MIN_VOICED_CHUNKS:
-            try:
-                segments = list(self.speaker_segments(combined))
-                speakers = {
-                    item.speaker
-                    for item in segments
-                    if (item.end - item.start) >= t.SPEAKER_MIN_DURATION_S and item.speaker >= 0
-                }
-                if len(speakers) > 1:
-                    return True
-                for i, first in enumerate(segments):
-                    for second in segments[i + 1:]:
-                        if (
-                            first.speaker != second.speaker
-                            and min(first.end, second.end) - max(first.start, second.start)
-                            >= t.SPEAKER_OVERLAP_MIN_S
-                        ):
-                            return True
-            except Exception as exc:
-                logger.debug("Error en diarización continua: %s", exc)
+    @staticmethod
+    def background_flags(
+        chunk_rms: np.ndarray, voiced_flags: Sequence[bool], ambient_rms: Optional[float]
+    ) -> list[Optional[bool]]:
+        """Per chunk: non-speech audible above the ambient floor but short of very loud (that is HIGH_NOISE).
 
-        return False
+        Speech and very loud chunks give no verdict (they neither extend nor end a run); quiet ones end it.
+        """
+        floor = max(t.BACKGROUND_MIN_RMS, t.BACKGROUND_AMBIENT_FACTOR * (ambient_rms or 0.0))
+        flags: list[Optional[bool]] = []
+        for rms, voiced in zip(chunk_rms, voiced_flags):
+            if voiced or rms >= t.HIGH_NOISE_NON_SPEECH_RMS:
+                flags.append(None)
+            else:
+                flags.append(bool(rms >= floor))
+        return flags
 
-    def analyze(self, samples: Optional[Sequence[float]], session_key: Optional[str] = None) -> AudioObservation:
-        """Measures RMS, strict WebRTC VAD(3) speech and (when speech is present) multiple speakers."""
+    def analyze(
+        self,
+        samples: Optional[Sequence[float]],
+        session_key: Optional[str] = None,
+        voiceprint: Optional[Mapping[str, Any]] = None,
+    ) -> AudioObservation:
+        """Measures RMS, strict WebRTC VAD(3) speech, speakers over the voiced buffer and background audio."""
         if not samples or len(samples) < t.AUDIO_MIN_SAMPLES:
             return AudioObservation()
 
@@ -124,21 +202,30 @@ class AudioAnalyzer:
             except Exception as exc:
                 logger.debug("VAD no disponible o error en procesamiento: %s", exc)
 
-        # A silent window clears the rolling buffer so stale speech is not carried over
-        if not speech_detected and session_key:
-            self.state.clear_voiced_audio(session_key)
-
         high_noise = rms > t.HIGH_NOISE_RMS or (rms > t.HIGH_NOISE_NON_SPEECH_RMS and not speech_detected)
 
-        multiple_speakers = False
+        report = SpeakerReport()
         if speech_detected:
-            multiple_speakers = self.detect_multiple_speakers(audio, voiced_flags, session_key)
+            buffer = self.state.append_voiced(
+                session_key, voiced_audio(audio, voiced_flags), t.VOICE_BUFFER_MAX_SAMPLES
+            )
+            report = self.diarize(buffer, sum(1 for v in voiced_flags if v), voiceprint)
+        else:
+            # Stale speech is forgotten after a long enough silence
+            self.state.note_silence(session_key, audio.size, t.VOICE_BUFFER_SILENCE_CLEAR_SAMPLES)
 
+        ambient = vp.ambient_rms_of(voiceprint) if voiceprint is not None else None
         return AudioObservation(
             rms=rms,
             speech_detected=speech_detected,
-            multiple_speakers=multiple_speakers,
+            multiple_speakers=report.multiple,
             high_noise=high_noise,
             chunk_rms=chunk_rms,
             voiced_flags=voiced_flags,
+            diarized=report.diarized,
+            speakers=report.speakers,
+            overlap_s=report.overlap_s,
+            foreign_voice=report.foreign_voice,
+            speaker_model_unavailable=report.model_unavailable,
+            background_flags=self.background_flags(chunk_rms, voiced_flags, ambient),
         )

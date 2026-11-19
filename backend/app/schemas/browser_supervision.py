@@ -42,6 +42,10 @@ IncidentKind = Literal[
     "FACE_OCCLUDED",
     "MOUTH_OCCLUDED",
     "CAMERA_BLOCKED",
+    "VOICE_MISMATCH",
+    "VOICE_UNVERIFIED",
+    "LIP_SYNC_MISMATCH",
+    "BACKGROUND_AUDIO",
 ]
 
 

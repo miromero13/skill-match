@@ -265,14 +265,17 @@ def test_voice_with_the_camera_unavailable_cannot_be_lip_sync_checked(run, monke
 def test_multiple_speakers(run, monkeypatch):
     fake_vad(monkeypatch, True)
     with_segments(monkeypatch, [Segment(0.0, 1.0, 0), Segment(1.0, 2.0, 1)])
-    res = run(frames(2), speech(), detector=SequenceDetector([[NEUTRAL]]))
+    # T8 / S2: several speakers are confirmed by two diarizations in a row (the first one is only pending).
+    first = run(frames(2), speech(), detector=SequenceDetector([[NEUTRAL]]), key="two-voices")
+    assert "MULTIPLE_SPEAKERS" not in first["anomalies"] and first["multiple_speakers"] is False
+    res = run(frames(2), speech(), detector=SequenceDetector([[NEUTRAL]]), key="two-voices")
     assert res["anomalies"] == ["MULTIPLE_SPEAKERS"]
     assert (res["multiple_speakers"], res["mouth_sync"]) == (True, False)
 
 
 def test_overlapping_voices_count_as_multiple_speakers(run, monkeypatch):
     fake_vad(monkeypatch, True)
-    with_segments(monkeypatch, [Segment(0.0, 0.2, 0), Segment(0.05, 0.2, 1)])
+    with_segments(monkeypatch, [Segment(0.0, 1.0, 0), Segment(0.6, 1.5, 1)])  # 0.4 s of overlap: no waiting (T8)
     res = run(frames(2), speech(), detector=SequenceDetector([[NEUTRAL]]))
     assert res["anomalies"] == ["MULTIPLE_SPEAKERS"]
 
@@ -447,8 +450,9 @@ def test_engine_matches_facade_for_a_window_with_everything_wrong(monkeypatch):
     monkeypatch.setattr(Facade, "get_mediapipe_landmarker", classmethod(lambda cls: None))
     legacy = Facade.assess_window(images, loud(), trial_id="everything", duration_ms=2400,
                                   biometric_embedding_json="[" + ",".join(map(str, REFERENCE.tolist())) + "]")
-    # The first window of an identity mismatch is only pending (confirmed by a second one), so it is not listed.
-    assert legacy["anomalies"] == ["HEAD_POSE_DOWN", "HIGH_NOISE", "MULTIPLE_SPEAKERS"]
+    # The first window of an identity mismatch is only pending (confirmed by a second one), so it is not listed;
+    # the two speakers are pending too (T8: two diarizations in a row), so the mouth rule reports the voice.
+    assert legacy["anomalies"] == ["HEAD_POSE_DOWN", "HIGH_NOISE", "VOICE_DETECTED"]
     assert legacy["identity_match"] is None
 
     from app.services.integrity.audio_analyzer import AudioAnalyzer

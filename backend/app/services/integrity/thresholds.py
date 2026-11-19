@@ -209,3 +209,12 @@ LIPSYNC_MIN_VALID_FRACTION = 0.6  # share of the audio timeline a lag must still
 LIPSYNC_CONFIRM_EVALUATIONS = 2  # consecutive unsynced evaluations that make LIP_SYNC_MISMATCH
 MOUTH_OPEN_MAX = 2.0  # the aperture score is bounded for telemetry validation
 CLIENT_MISMATCH_MOUTH = 0.30  # browser vs server mouth aperture difference on the same frame that is a disagreement
+
+# ---- continuous voiced buffer, confirmed speakers and background audio (T8 / S2, S4) ----------
+VOICE_BUFFER_MAX_SAMPLES = 96_000  # ~6 s of voiced samples kept per trial (diarization and voiceprint run on it)
+VOICE_BUFFER_SILENCE_CLEAR_SAMPLES = 48_000  # ~3 s without speech forget the buffered voice
+MULTI_SPEAKER_CONFIRM_EVALUATIONS = 2  # consecutive diarizations with several speakers that make MULTIPLE_SPEAKERS
+MULTI_SPEAKER_IMMEDIATE_OVERLAP_S = 0.3  # voices overlapping this long are confirmed without waiting
+BACKGROUND_MIN_RMS = 0.015  # a non-speech chunk quieter than this is never background audio
+BACKGROUND_AMBIENT_FACTOR = 3.0  # ...and neither is one under this multiple of the calibrated ambient floor
+BACKGROUND_MIN_MS = 2000  # sustained non-speech audio above the floor for this long is BACKGROUND_AUDIO

@@ -167,6 +167,14 @@ class AudioObservation:
     high_noise: bool = False
     chunk_rms: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.float32))
     voiced_flags: list[bool] = field(default_factory=list)
+    # Diarization over the trial's rolling voiced buffer (S2): the policy confirms ``multiple_speakers`` over time.
+    diarized: bool = False  # diarization actually ran on this window's buffer
+    speakers: int = 0
+    overlap_s: float = 0.0  # the longest overlap between two different speakers
+    foreign_voice: bool = False  # a cluster is not the enrolled voice while another one is
+    speaker_model_unavailable: bool = False  # the speaker models could not run: never a clean audio verdict
+    # Per 30 ms chunk: True = sustained-audio candidate (non-speech above the ambient floor), None = no verdict.
+    background_flags: list[Optional[bool]] = field(default_factory=list)
 
     @property
     def noise_level(self) -> float:
