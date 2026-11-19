@@ -334,12 +334,12 @@ def engine_for(results, state=None):
 def frame():
     from test_integrity_engine import frame_b64
 
-    return frame_b64()
+    return frame_b64()  # a different noisy image on every call: a live camera
 
 
 def assess(engine, profile, kinds, *, zone=None, times=None, samples=(), start=1_000_000, key=None):
     return engine.assess_window(
-        [frame()] * len(kinds), [0.0] * 38_400, duration_ms=2400, session_key=key or f"t-{uuid.uuid4()}",
+        [frame() for _ in kinds], [0.0] * 38_400, duration_ms=2400, session_key=key or f"t-{uuid.uuid4()}",
         profile=profile, gaze_zone=zone, frame_times_ms=times, gaze_samples=list(samples), window_start_ms=start,
     )
 

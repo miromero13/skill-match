@@ -20,6 +20,12 @@ from app.services.integrity.state import InMemoryStateStore
 WIDTH, HEIGHT = 320, 240
 BASE_MS = 1_700_000_000_000
 QUIET = [0.0] * 38_400
+
+
+def quiet(duration_ms):
+    return [0.0] * (duration_ms * 16)
+
+
 REFERENCE = np.zeros(128, dtype=np.float32)
 REFERENCE[0] = 1.0
 
@@ -57,6 +63,46 @@ def scene(seed, noise=6.0):
 
 def textured_b64(seed):
     return b64(scene(seed))
+
+
+SKIN = (105, 150, 200)  # BGR; Cr ~157, Cb ~97
+DARK_SKIN = (60, 95, 140)
+PALE_SKIN = (170, 190, 235)
+
+
+def face_image(seed, skin=SKIN, cover=None):
+    """A synthetic frontal face on the geometry of ``row()``: skin ellipse, brows, eyes, nose shading, red lips.
+
+    ``cover``: ``mouth_hand`` / ``mouth_mask`` over the lower face, ``face_hand`` / ``face_black`` over the whole face.
+    Sensor noise and a small lighting drift change from frame to frame, like a live camera.
+    """
+    img = scene(seed, noise=4.0)
+    cv2.ellipse(img, (140, 115), (62, 82), 0, 0, 360, skin, -1)
+    for cx in (115, 165):
+        cv2.ellipse(img, (cx, 95), (11, 5), 0, 0, 360, (235, 235, 235), -1)
+        cv2.circle(img, (cx, 95), 4, (30, 25, 20), -1)
+        cv2.line(img, (cx - 12, 83), (cx + 12, 81), (25, 30, 40), 3)
+    cv2.line(img, (140, 100), (138, 124), tuple(int(c * 0.7) for c in skin), 3)
+    cv2.circle(img, (133, 128), 2, (40, 40, 60), -1)
+    cv2.circle(img, (147, 128), 2, (40, 40, 60), -1)
+    cv2.ellipse(img, (140, 155), (20, 6), 0, 0, 360, (80, 70, 180), -1)
+    cv2.line(img, (122, 155), (158, 155), (50, 40, 90), 2)
+    covers = {
+        "mouth_hand": ((98, 138), (182, 180), tuple(min(255, c + 6) for c in skin)),
+        "mouth_mask": ((98, 138), (182, 180), (235, 225, 200)),
+        "face_hand": ((72, 50), (208, 184), tuple(min(255, c + 6) for c in skin)),
+        "face_black": ((72, 50), (208, 184), (8, 8, 8)),
+    }
+    if cover:
+        top, bottom, color = covers[cover]
+        cv2.rectangle(img, top, bottom, color, -1)
+    rng = np.random.default_rng(seed + 7)
+    drift = 1.0 + 0.02 * np.sin(seed)
+    return np.clip(img.astype(np.float32) * drift + rng.normal(0, 3.0, img.shape), 0, 255).astype(np.uint8)
+
+
+def face_b64(seed, **kwargs):
+    return b64(face_image(seed, **kwargs))
 
 
 class Scripted:
@@ -111,6 +157,7 @@ class Harness:
         self.profile = SupervisionProfile(gaze_runs=self.state if stateful else None)
         self.stateful = stateful
         self.windows = 0
+        self.clock = 0  # ms elapsed since the first window
 
     def _mediapipe(self, _image, _key, _landmarker):
         value = self.mediapipe[min(self.mp_calls, len(self.mediapipe) - 1)]
@@ -126,11 +173,12 @@ class Harness:
             self.mediapipe, self.mp_calls = mediapipe, 0
         frames = images if images is not None else [textured_b64(1000 * self.windows + i) for i in range(count)]
         result = self.engine.assess_window(
-            frames, QUIET, duration_ms=duration_ms, reference_embedding=self.reference, session_key="trial",
+            frames, quiet(duration_ms), duration_ms=duration_ms, reference_embedding=self.reference, session_key="trial",
             profile=self.profile, frame_times_ms=times, gaze_samples=gaze_samples,
-            window_start_ms=BASE_MS + self.windows * duration_ms,
+            window_start_ms=BASE_MS + self.clock,
         )
         self.windows += 1
+        self.clock += duration_ms
         return result.to_dict()
 
 

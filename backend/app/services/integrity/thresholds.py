@@ -152,3 +152,31 @@ CLIENT_MISMATCH_MIN_FRAMES = 2  # disagreeing frames that make the browser a mis
 CLIENT_MIN_COMPARABLE = 2  # frames that must be comparable before the telemetry is trusted
 TELEMETRY_MIN_SPACING_MS = 30  # telemetry faster than ~33 fps is not credible
 TELEMETRY_MAX_SAMPLES = 60
+
+# ---- face and mouth occlusion (T7 / S7) --------------------------------------------------------
+# MediaPipe hallucinates landmarks on a covered face, so occlusion is judged on pixels (YCrCb chroma and edge energy
+# of the eye, nose and mouth patches against the forehead/cheek skin of the same frame) relative to the trial's own
+# reference, plus detector and identity evidence. A frame is occluded; an incident needs a continuous run.
+OCC_MIN_RUN_MS = 1000  # a continuous stretch of occluded frames at least this long is an incident
+OCC_REF_MIN_SAMPLES = 3  # clean frontal frames the trial's reference is built from before anything is judged
+OCC_REF_ALPHA = 0.10  # how fast the reference follows lighting changes (only from frames with no anomaly)
+OCC_REF_MIN_YUNET_SCORE = 0.80  # YuNet confidence a frame needs to feed the reference
+OCC_MIN_EYE_DISTANCE_PX = 14.0  # smaller faces have patches too small to measure
+OCC_PATCH_SIZE = (32, 16)  # every patch is resized to this (w, h) so edge energy does not depend on distance
+OCC_EDGE_MIN_REF = 1.5  # a region whose reference edge energy is below this has no texture to lose
+OCC_EDGE_COLLAPSE = 0.35  # edge energy at or below this share of the reference: the texture is gone...
+OCC_EDGE_COLLAPSE_STRONG = 0.20  # ...and this low it is gone even if the colour looks the same (a hand)
+OCC_CHROMA_DELTA = 12.0  # change of the region's chroma distance to the skin that goes with a lost texture
+OCC_CHROMA_STRONG = 30.0  # a change this large is a cover by itself (mask, paper)
+OCC_SKIN_SHIFT = 18.0  # the skin patches themselves moved this far in (Cr, Cb): the whole face is covered
+OCC_YUNET_COLLAPSE_SCORE = 0.60  # MediaPipe sees a face but YuNet's confidence fell below this...
+OCC_YUNET_COLLAPSE_DROP = 0.25  # ...and this far under the trial's usual YuNet confidence (or YuNet found nothing)
+OCC_SIM_DROP = 0.20  # SFace similarity this far under the trial's matching level supports an occlusion
+
+# ---- camera health (T7 / S8) -------------------------------------------------------------------
+CAMERA_DARK_MEAN = 12.0  # mean gray level (0-255) below this is a covered or switched-off lens
+CAMERA_UNIFORM_STD = 4.0  # gray standard deviation below this is a flat image (lens against a cloth, blank feed)
+CAMERA_BLOCKED_MIN_MS = 1000  # dark or flat frames for at least this long are a blocked camera
+CAMERA_FROZEN_MAX_DIFF = 0.30  # mean abs difference of consecutive thumbnails at or below this: the same image
+CAMERA_FROZEN_MIN_MS = 1500  # the same image for at least this long is a frozen or looped camera
+CAMERA_THUMB_SIZE = (64, 48)

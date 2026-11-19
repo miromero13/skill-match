@@ -4,6 +4,7 @@ Every window case runs through BOTH the legacy ``ContinuousSupervisionService`` 
 ``IntegrityEngine`` with the same injected stubs, so the extraction is proven behavior-preserving.
 """
 import base64
+import itertools
 import sys
 import types
 import uuid
@@ -25,14 +26,23 @@ REFERENCE = np.zeros(128, dtype=np.float32)
 REFERENCE[0] = 1.0
 WINDOW_KEYS = {
     "face_count", "head_orientation", "identity_match", "speech_detected", "mouth_moving",
-    "mouth_sync", "multiple_speakers", "noise_level", "anomalies",
+    "mouth_sync", "multiple_speakers", "noise_level", "anomalies", "occlusion", "camera_blocked",
 }
 
 
+_frame_counter = itertools.count()
+
+
 def frame_b64() -> str:
-    ok, buf = cv2.imencode(".jpg", np.full((240, 320, 3), 128, dtype=np.uint8))
+    """A different noisy image on every call: a live camera, never a covered, flat or frozen one (T7 / S8)."""
+    rng = np.random.default_rng(next(_frame_counter))
+    ok, buf = cv2.imencode(".jpg", rng.integers(40, 200, (240, 320, 3), dtype=np.uint8))
     assert ok
     return "data:image/jpeg;base64," + base64.b64encode(buf).decode("ascii")
+
+
+def frames(count: int) -> list[str]:
+    return [frame_b64() for _ in range(count)]
 
 
 class SequenceDetector:
@@ -135,7 +145,7 @@ def run(request, monkeypatch):
 # ---- evidence and model availability ----------------------------------------------------------
 
 def test_model_unavailable_is_not_a_clean_face(run):
-    res = run([frame_b64()], quiet(), detector=None)
+    res = run(frames(1), quiet(), detector=None)
     assert set(res) == WINDOW_KEYS
     assert res["anomalies"] == ["MODEL_UNAVAILABLE"]
     assert (res["face_count"], res["head_orientation"], res["identity_match"]) == (0, "UNKNOWN", None)
@@ -155,57 +165,57 @@ def test_undecodable_frames_are_video_missing(run):
 
 
 def test_audio_missing_when_absent_or_inconsistent_with_duration(run):
-    assert run([frame_b64()], None, detector=SequenceDetector([[NEUTRAL]]))["anomalies"] == ["AUDIO_MISSING"]
-    short = run([frame_b64()], quiet(SAMPLES_2400 // 2), detector=SequenceDetector([[NEUTRAL]]))
+    assert run(frames(1), None, detector=SequenceDetector([[NEUTRAL]]))["anomalies"] == ["AUDIO_MISSING"]
+    short = run(frames(1), quiet(SAMPLES_2400 // 2), detector=SequenceDetector([[NEUTRAL]]))
     assert short["anomalies"] == ["AUDIO_MISSING"]
     assert short["speech_detected"] is False
 
 
 def test_clean_window_reports_no_anomalies(run):
-    res = run([frame_b64()], quiet(), detector=SequenceDetector([[NEUTRAL]]))
+    res = run(frames(1), quiet(), detector=SequenceDetector([[NEUTRAL]]))
     assert res == {
         "face_count": 1, "head_orientation": "CENTER", "identity_match": None, "speech_detected": False,
         "mouth_moving": False, "mouth_sync": None, "multiple_speakers": False, "noise_level": 0.0,
-        "anomalies": [],
+        "anomalies": [], "occlusion": {"face": False, "mouth": False}, "camera_blocked": False,
     }
 
 
 # ---- face count and head pose -----------------------------------------------------------------
 
 def test_face_absent(run):
-    res = run([frame_b64()] * 2, quiet(), detector=SequenceDetector([[]]))
+    res = run(frames(2), quiet(), detector=SequenceDetector([[]]))
     assert res["anomalies"] == ["FACE_ABSENT"]
     assert res["face_count"] == 0
 
 
 def test_multiple_faces_in_a_single_frame_are_not_confirmed(run):
-    res = run([frame_b64()] * 3, quiet(), detector=SequenceDetector([[NEUTRAL], [NEUTRAL, SIDE], [NEUTRAL]]))
+    res = run(frames(3), quiet(), detector=SequenceDetector([[NEUTRAL], [NEUTRAL, SIDE], [NEUTRAL]]))
     assert res["anomalies"] == []
     assert res["face_count"] == 1
 
 
 def test_multiple_faces(run):
-    res = run([frame_b64()] * 2, quiet(), detector=SequenceDetector([[NEUTRAL, SIDE]]))
+    res = run(frames(2), quiet(), detector=SequenceDetector([[NEUTRAL, SIDE]]))
     assert res["anomalies"] == ["MULTIPLE_FACES"]
     assert res["face_count"] == 2
     assert res["head_orientation"] == "UNKNOWN"
 
 
 def test_head_pose_down_is_sustained_against_the_session_baseline(run):
-    res = run([frame_b64()] * 3, quiet(), detector=SequenceDetector([[NEUTRAL], [DOWN], [DOWN]]))
+    res = run(frames(3), quiet(), detector=SequenceDetector([[NEUTRAL], [DOWN], [DOWN]]))
     assert res["anomalies"] == ["HEAD_POSE_DOWN"]
     assert res["head_orientation"] == "DOWN"
     assert res["face_count"] == 1
 
 
 def test_head_pose_side(run):
-    res = run([frame_b64()] * 2, quiet(), detector=SequenceDetector([[SIDE]]))
+    res = run(frames(2), quiet(), detector=SequenceDetector([[SIDE]]))
     assert res["anomalies"] == ["HEAD_POSE_SIDE"]
     assert res["head_orientation"] == "RIGHT"
 
 
 def test_a_single_off_axis_frame_in_a_long_window_is_tolerated(run):
-    res = run([frame_b64()] * 4, quiet(), detector=SequenceDetector([[NEUTRAL], [SIDE], [NEUTRAL], [NEUTRAL]]))
+    res = run(frames(4), quiet(), detector=SequenceDetector([[NEUTRAL], [SIDE], [NEUTRAL], [NEUTRAL]]))
     assert res["anomalies"] == []
     assert res["head_orientation"] == "CENTER"
 
@@ -215,22 +225,22 @@ def test_a_single_off_axis_frame_in_a_long_window_is_tolerated(run):
 def test_identity_mismatch_is_confirmed_by_a_second_window(run):
     window = dict(detector=SequenceDetector([[NEUTRAL]]), recognizer=StubRecognizer(one_hot(1)),
                   reference=REFERENCE, key="mismatch")
-    first = run([frame_b64()] * 2, quiet(), **window)
+    first = run(frames(2), quiet(), **window)
     assert (first["anomalies"], first["identity_match"]) == ([], None)
-    second = run([frame_b64()] * 2, quiet(), **window)
+    second = run(frames(2), quiet(), **window)
     assert second["anomalies"] == ["IDENTITY_MISMATCH"]
     assert second["identity_match"] is False
 
 
 def test_identity_match(run):
-    res = run([frame_b64()] * 2, quiet(), detector=SequenceDetector([[NEUTRAL]]),
+    res = run(frames(2), quiet(), detector=SequenceDetector([[NEUTRAL]]),
               recognizer=StubRecognizer(one_hot(0)), reference=REFERENCE)
     assert res["anomalies"] == []
     assert res["identity_match"] is True
 
 
 def test_identity_is_not_judged_without_a_reference(run):
-    res = run([frame_b64()], quiet(), detector=SequenceDetector([[NEUTRAL]]), recognizer=StubRecognizer(one_hot(1)))
+    res = run(frames(1), quiet(), detector=SequenceDetector([[NEUTRAL]]), recognizer=StubRecognizer(one_hot(1)))
     assert res["identity_match"] is None
 
 
@@ -239,7 +249,7 @@ def test_identity_is_not_judged_without_a_reference(run):
 def test_voice_without_mouth_movement_is_voice_detected(run, monkeypatch):
     fake_vad(monkeypatch, True)
     with_segments(monkeypatch, [Segment(0.0, 2.0, 0)])
-    res = run([frame_b64()] * 2, speech(), detector=SequenceDetector([[NEUTRAL]]))
+    res = run(frames(2), speech(), detector=SequenceDetector([[NEUTRAL]]))
     assert res["anomalies"] == ["VOICE_DETECTED"]
     assert (res["speech_detected"], res["mouth_sync"], res["multiple_speakers"]) == (True, False, False)
 
@@ -247,7 +257,7 @@ def test_voice_without_mouth_movement_is_voice_detected(run, monkeypatch):
 def test_voice_with_the_camera_unavailable_cannot_be_lip_sync_checked(run, monkeypatch):
     fake_vad(monkeypatch, True)
     with_segments(monkeypatch, [Segment(0.0, 2.0, 0)])
-    res = run([frame_b64()], speech(), detector=None)
+    res = run(frames(1), speech(), detector=None)
     assert res["anomalies"] == ["MODEL_UNAVAILABLE"]
     assert (res["speech_detected"], res["mouth_sync"]) == (True, None)
 
@@ -255,7 +265,7 @@ def test_voice_with_the_camera_unavailable_cannot_be_lip_sync_checked(run, monke
 def test_multiple_speakers(run, monkeypatch):
     fake_vad(monkeypatch, True)
     with_segments(monkeypatch, [Segment(0.0, 1.0, 0), Segment(1.0, 2.0, 1)])
-    res = run([frame_b64()] * 2, speech(), detector=SequenceDetector([[NEUTRAL]]))
+    res = run(frames(2), speech(), detector=SequenceDetector([[NEUTRAL]]))
     assert res["anomalies"] == ["MULTIPLE_SPEAKERS"]
     assert (res["multiple_speakers"], res["mouth_sync"]) == (True, False)
 
@@ -263,13 +273,13 @@ def test_multiple_speakers(run, monkeypatch):
 def test_overlapping_voices_count_as_multiple_speakers(run, monkeypatch):
     fake_vad(monkeypatch, True)
     with_segments(monkeypatch, [Segment(0.0, 0.2, 0), Segment(0.05, 0.2, 1)])
-    res = run([frame_b64()] * 2, speech(), detector=SequenceDetector([[NEUTRAL]]))
+    res = run(frames(2), speech(), detector=SequenceDetector([[NEUTRAL]]))
     assert res["anomalies"] == ["MULTIPLE_SPEAKERS"]
 
 
 def test_high_noise_without_speech(run, monkeypatch):
     fake_vad(monkeypatch, False)
-    res = run([frame_b64()], loud(), detector=SequenceDetector([[NEUTRAL]]))
+    res = run(frames(1), loud(), detector=SequenceDetector([[NEUTRAL]]))
     assert res["anomalies"] == ["HIGH_NOISE"]
     assert res["noise_level"] == 0.25
     assert res["speech_detected"] is False
@@ -278,10 +288,10 @@ def test_high_noise_without_speech(run, monkeypatch):
 def test_moderate_noise_is_high_only_when_it_is_not_speech(run, monkeypatch):
     moderate = [0.16 * ((-1) ** (i % 2)) for i in range(SAMPLES_2400)]
     fake_vad(monkeypatch, False)
-    assert run([frame_b64()], moderate, detector=SequenceDetector([[NEUTRAL]]))["anomalies"] == ["HIGH_NOISE"]
+    assert run(frames(1), moderate, detector=SequenceDetector([[NEUTRAL]]))["anomalies"] == ["HIGH_NOISE"]
     fake_vad(monkeypatch, True)
     with_segments(monkeypatch, [Segment(0.0, 2.0, 0)])
-    res = run([frame_b64()] * 2, moderate, detector=SequenceDetector([[NEUTRAL]]))
+    res = run(frames(2), moderate, detector=SequenceDetector([[NEUTRAL]]))
     assert "HIGH_NOISE" not in res["anomalies"]
 
 
@@ -431,11 +441,11 @@ def test_engine_matches_facade_for_a_window_with_everything_wrong(monkeypatch):
     """Same inputs, same stubs: engine and facade agree on every field, anomalies included and ordered."""
     fake_vad(monkeypatch, True)
     with_segments(monkeypatch, [Segment(0.0, 1.0, 0), Segment(1.0, 2.0, 1)])
-    frames = [frame_b64()] * 4
+    images = frames(4)
     detector = SequenceDetector([[NEUTRAL], [NEUTRAL], [DOWN], [DOWN]])
     monkeypatch.setattr(Facade, "get_vision_models", staticmethod(lambda: (detector, StubRecognizer(one_hot(1)))))
     monkeypatch.setattr(Facade, "get_mediapipe_landmarker", classmethod(lambda cls: None))
-    legacy = Facade.assess_window(frames, loud(), trial_id="everything", duration_ms=2400,
+    legacy = Facade.assess_window(images, loud(), trial_id="everything", duration_ms=2400,
                                   biometric_embedding_json="[" + ",".join(map(str, REFERENCE.tolist())) + "]")
     # The first window of an identity mismatch is only pending (confirmed by a second one), so it is not listed.
     assert legacy["anomalies"] == ["HEAD_POSE_DOWN", "HIGH_NOISE", "MULTIPLE_SPEAKERS"]
@@ -455,6 +465,6 @@ def test_engine_matches_facade_for_a_window_with_everything_wrong(monkeypatch):
     )
     from app.services.integrity.policy import SupervisionProfile
 
-    modern = engine.assess_window(frames, loud(), duration_ms=2400, reference_embedding=REFERENCE,
+    modern = engine.assess_window(images, loud(), duration_ms=2400, reference_embedding=REFERENCE,
                                   session_key="everything", profile=SupervisionProfile(gaze_runs=state)).to_dict()
     assert modern == legacy

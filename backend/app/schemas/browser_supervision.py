@@ -39,6 +39,9 @@ IncidentKind = Literal[
     "VIDEO_MISSING",
     "AUDIO_MISSING",
     "WINDOW_GAP",
+    "FACE_OCCLUDED",
+    "MOUTH_OCCLUDED",
+    "CAMERA_BLOCKED",
 ]
 
 
@@ -167,6 +170,11 @@ class AVWindowRequest(TabRequest):
         return self
 
 
+class OcclusionResponse(BaseModel):
+    face: bool = False
+    mouth: bool = False
+
+
 class AVWindowResponse(BaseModel):
     window_id: UUID
     face_count: int
@@ -177,5 +185,8 @@ class AVWindowResponse(BaseModel):
     mouth_sync: Optional[bool] = None
     multiple_speakers: bool = False
     noise_level: float
+    # Confirmed (continuous >= 1 s) covered face / covered mouth and blocked or frozen camera (S7, S8).
+    occlusion: OcclusionResponse = Field(default_factory=OcclusionResponse)
+    camera_blocked: bool = False
     anomalies: list[str]
     incidents_created: list[IncidentResponse]

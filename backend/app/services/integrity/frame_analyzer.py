@@ -22,9 +22,10 @@ import numpy as np
 
 from app.schemas.browser_supervision import MAX_FRAME_B64_CHARS
 from app.services import vision_models
+from app.services.integrity import camera, occlusion
 from app.services.integrity import thresholds as t
 from app.services.integrity.gaze import measure_gaze
-from app.services.integrity.models import FrameBatch, FrameObservation, MouthPatch
+from app.services.integrity.models import FrameBatch, FrameObservation, FrameOcclusion, MouthPatch
 from app.services.integrity.state import SessionStateStore
 
 logger = logging.getLogger("skillmatch.continuous_supervision")
@@ -292,17 +293,24 @@ class FrameAnalyzer:
         usable: list[FrameObservation] = []
         usable_times: list[int] = []
         if vision_available:
+            previous = self.state.get_track(session_key, "last_thumbnail") if session_key else None
+            thumb = None if previous is None else np.asarray(previous["pixels"], dtype=np.uint8)
             for index, img in images:
                 obs = self.analyze_frame(
                     img, detector, recognizer, reference_embedding, session_key=session_key,
                     landmarker=landmarker,
                 )
+                health = camera.measure_health(img)
+                delta = camera.thumbnail_delta(thumb, health.thumbnail)
+                thumb = health.thumbnail
                 if obs.model_unavailable:
                     model_unavailable = True
                     continue
-                usable.append(obs)
+                usable.append(dataclasses.replace(obs, camera_blocked=health.blocked, frame_delta=delta))
                 if times_ms is not None and index < len(times_ms):
                     usable_times.append(int(times_ms[index]))
+            if session_key and thumb is not None:
+                self.state.set_track(session_key, "last_thumbnail", {"pixels": thumb.tolist()})
         return FrameBatch(
             frames=tuple(usable), video_missing=not images, model_unavailable=model_unavailable,
             times_ms=tuple(usable_times) if len(usable_times) == len(usable) else (),
@@ -365,16 +373,49 @@ class FrameAnalyzer:
                 and mp_res.orientation == "CENTER"
             ):
                 similarity, match = self._identity(image, primary, recognizer, reference_embedding)
-            return dataclasses.replace(
+            obs = dataclasses.replace(
                 mp_res, face_count=1, identity_similarity=similarity, identity_match=match, mouth_patch=None
             )
-
-        # Fallback to YuNet (MediaPipe saw 0 faces, or only a detector stub was provided)
-        if primary is None:
+        elif primary is None:  # fallback to YuNet: MediaPipe saw 0 faces, or only a detector stub was provided
             return FrameObservation(face_count=0)
-        if multi:
+        elif multi:
             return FrameObservation(face_count=len(credible), faces_agreed=agreed)
-        return self._analyze_yunet(image, primary, recognizer, reference_embedding, session_key, h)
+        else:
+            obs = self._analyze_yunet(image, primary, recognizer, reference_embedding, session_key, h)
+        return self._with_occlusion(
+            obs, image, primary, session_key, mediapipe_saw_face=mp_res is not None and mp_res.face_count > 0,
+            yunet_ran=detector is not None,
+        )
+
+    def _with_occlusion(
+        self, obs: FrameObservation, image: np.ndarray, primary: Optional[np.ndarray], session_key: Optional[str],
+        mediapipe_saw_face: bool, yunet_ran: bool,
+    ) -> FrameObservation:
+        """Adds the per-frame occlusion verdict (S7) of a single frontal face, judged against the trial's reference."""
+        geometry = obs.face_geometry
+        if geometry is None and primary is not None:
+            geometry = tuple(float(v) for v in primary[4:14])
+        if geometry is None or obs.orientation != "CENTER":
+            return obs
+        measured = occlusion.measure(image, geometry)
+        if measured is None:
+            return obs
+        yunet_score = float(primary[14]) if primary is not None else None
+        ref = self.state.get_track(session_key, "occlusion_ref") if session_key else None
+        building = ref is None or ref["n"] < t.OCC_REF_MIN_SAMPLES
+        if building:
+            verdict = FrameOcclusion()  # still learning this person's reference: no verdict yet
+        else:
+            verdict = occlusion.judge(
+                measured, ref, obs.identity_similarity, yunet_score, mediapipe_saw_face, yunet_ran
+            )
+        # Only clean, confidently detected frames teach the reference, so a cover never becomes the norm.
+        confident = (yunet_score or 0.0) >= t.OCC_REF_MIN_YUNET_SCORE if yunet_ran else True
+        if session_key and confident and (building or not verdict.signals):
+            matching = obs.identity_similarity if obs.identity_match else None
+            self.state.set_track(session_key, "occlusion_ref",
+                                 occlusion.fold_reference(ref, measured, matching, yunet_score))
+        return dataclasses.replace(obs, occlusion=verdict)
 
     def _identity(
         self, image: np.ndarray, face: np.ndarray, recognizer: Any, reference_embedding: np.ndarray
@@ -540,8 +581,19 @@ class FrameAnalyzer:
             # 3. Eye gaze (T6): iris vs eye corners/lids blended with the eyeLook* blendshapes
             gaze = measure_gaze(np.asarray([[p.x, p.y] for p in lm], dtype=np.float64), bs_map)
 
+            img_h, img_w = image_bgr.shape[:2]
+
+            def at(*indexes: int) -> tuple[float, float]:
+                return (
+                    float(np.mean([lm[i].x for i in indexes])) * img_w,
+                    float(np.mean([lm[i].y for i in indexes])) * img_h,
+                )
+
+            geometry = (*at(33, 133), *at(362, 263), *at(1), *at(78), *at(308))
+
             return FrameObservation(
                 face_count=1,
+                face_geometry=geometry,
                 orientation=_orientation(is_left, is_right, is_down),
                 pitch_deg=pitch_deg,
                 yaw_deg=yaw_deg,

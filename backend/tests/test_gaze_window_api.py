@@ -38,7 +38,7 @@ async def test_window_carries_times_telemetry_and_zone_to_the_engine(scenario, m
     calls = []
     stub(monkeypatch, calls=calls)
     observed = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
-    frames = [create_dummy_jpeg()] * 3
+    frames = [create_dummy_jpeg() for _ in range(3)]
     response = await post(client, trial, window(
         tab, frames=frames, observed_at=observed.isoformat(), frame_times_ms=[0, 700, 1500],
         gaze_samples=telemetry(3)))
@@ -118,7 +118,7 @@ def scripted(monkeypatch):
 
 
 def eight(tab, observed, **extra):
-    return window(tab, frames=[create_dummy_jpeg()] * 8, observed_at=observed.isoformat(),
+    return window(tab, frames=[create_dummy_jpeg() for _ in range(8)], observed_at=observed.isoformat(),
                   frame_times_ms=[i * 300 for i in range(8)], **extra)
 
 

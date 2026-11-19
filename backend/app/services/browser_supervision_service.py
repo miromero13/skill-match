@@ -31,7 +31,7 @@ AV_INFERENCE_WORKERS = 2
 AV_KINDS = (
     "FACE_ABSENT", "MULTIPLE_FACES", "IDENTITY_MISMATCH", "HEAD_POSE_DOWN", "HEAD_POSE_SIDE", "HEAD_POSE_UP",
     "GAZE_AWAY", "CLIENT_MISMATCH", "VOICE_DETECTED", "MULTIPLE_SPEAKERS", "HIGH_NOISE", "MODEL_UNAVAILABLE",
-    "VIDEO_MISSING", "AUDIO_MISSING", "WINDOW_GAP",
+    "VIDEO_MISSING", "AUDIO_MISSING", "WINDOW_GAP", "FACE_OCCLUDED", "MOUTH_OCCLUDED", "CAMERA_BLOCKED",
 )
 BROWSER_KINDS = tuple(kind for kind in get_args(IncidentKind) if kind not in AV_KINDS)
 
@@ -291,6 +291,8 @@ class BrowserSupervisionService:
             "mouth_sync": result["mouth_sync"],
             "multiple_speakers": result["multiple_speakers"],
             "noise_level": result["noise_level"],
+            "occlusion": result.get("occlusion", {"face": False, "mouth": False}),
+            "camera_blocked": result.get("camera_blocked", False),
             "anomalies": anomalies,
             "incidents_created": [IncidentResponse.model_validate(inc) for inc in created_incidents],
         }

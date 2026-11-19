@@ -9,7 +9,7 @@ from typing import Any, Callable, Optional, Protocol
 from app.services.integrity import thresholds as t
 from app.services.integrity.confirm import FlagSample, RunTracker
 from app.services.integrity.gaze import GazeRunTracker, normalize_frame_times, sample_from_frame
-from app.services.integrity.models import FrameObservation, GazeEvidence, Orientation, WindowAssessment, WindowObservation
+from app.services.integrity.models import FrameObservation, FrameOcclusion, GazeEvidence, Orientation, WindowAssessment, WindowObservation
 from app.services.integrity.sync_analyzer import SyncVerdict, voice_mouth_coexistence
 
 Coexistence = Callable[[bool, bool, bool, int, bool], SyncVerdict]
@@ -95,6 +95,38 @@ class SupervisionProfile:
         return any(run.duration_ms >= t.FACE_ABSENT_MIN_RUN_MS for run in self.runs.evaluate(
             "face_absent", session_key, base, samples))
 
+    def _camera_blocked(
+        self, frames: tuple[FrameObservation, ...], times: list[int], session_key: Optional[str], base: Optional[int]
+    ) -> bool:
+        """S8: near-black or flat frames for >= 1 s, or the same image for >= 1.5 s (a static image or looped feed)."""
+        dark = self.runs.evaluate(
+            "camera_blocked", session_key, base, [FlagSample(at, f.camera_blocked) for f, at in zip(frames, times)])
+        frozen = self.runs.evaluate(
+            "camera_frozen", session_key, base,
+            [FlagSample(at, None if f.frame_delta is None else f.frame_delta <= t.CAMERA_FROZEN_MAX_DIFF)
+             for f, at in zip(frames, times)])
+        return (any(run.duration_ms >= t.CAMERA_BLOCKED_MIN_MS for run in dark)
+                or any(run.duration_ms >= t.CAMERA_FROZEN_MIN_MS for run in frozen))
+
+    def _occlusion(
+        self, frames: tuple[FrameObservation, ...], times: list[int], session_key: Optional[str], base: Optional[int]
+    ) -> tuple[bool, bool]:
+        """S7: a continuous run of covered-face (or covered-mouth) frames of at least 1 s. Frames without a verdict
+        (no reference yet, head turned, no single face) neither extend nor end a run; a face cover includes the mouth."""
+        def verdicts(pick: Callable[[FrameOcclusion], bool]) -> list[FlagSample]:
+            return [
+                FlagSample(at, pick(f.occlusion) if f.occlusion is not None and f.occlusion.measured else None)
+                for f, at in zip(frames, times)
+            ]
+
+        def confirmed(name: str, pick: Callable[[FrameOcclusion], bool]) -> bool:
+            return any(run.duration_ms >= t.OCC_MIN_RUN_MS
+                       for run in self.runs.evaluate(name, session_key, base, verdicts(pick)))
+
+        face = confirmed("occlusion_face", lambda o: o.face)
+        mouth = confirmed("occlusion_mouth", lambda o: o.mouth or o.face)
+        return face, mouth and not face
+
     def _identity(
         self, frames: tuple[FrameObservation, ...], session_key: Optional[str]
     ) -> tuple[Optional[bool], bool]:
@@ -124,6 +156,7 @@ class SupervisionProfile:
         face_count = 1
         head_orientation: Orientation = "CENTER"
         identity_match: Optional[bool] = None
+        camera_blocked = occlusion_face = occlusion_mouth = False
         frames = window.frames
         visual_unavailable = window.visual_unavailable
 
@@ -141,14 +174,25 @@ class SupervisionProfile:
             times = self._frame_times(window)
             session_key = window.gaze.session_key if window.gaze else None
             base = window.gaze.window_start_ms if window.gaze else None
+            camera_blocked = self._camera_blocked(frames, times, session_key, base)
             if self._multiple_faces(window, times, session_key, base):
                 face_count = max(f.face_count for f in frames)
                 anomalies.append("MULTIPLE_FACES")
+            elif camera_blocked:
+                # A covered or frozen camera is reported as such, not also as an absent face.
+                face_count = 0 if all(f.face_count == 0 for f in frames) else 1
             elif self._face_absent(frames, times, session_key, base):
                 face_count = 0
                 anomalies.append("FACE_ABSENT")
             else:
                 face_count = 1
+            if camera_blocked:
+                anomalies.append("CAMERA_BLOCKED")
+            occlusion_face, occlusion_mouth = self._occlusion(frames, times, session_key, base)
+            if occlusion_face:
+                anomalies.append("FACE_OCCLUDED")
+            if occlusion_mouth:
+                anomalies.append("MOUTH_OCCLUDED")
 
             evidence = window.gaze or self._frame_evidence(window)
             verdict = self.gaze.evaluate(evidence)
@@ -183,6 +227,9 @@ class SupervisionProfile:
             multiple_speakers=audio.multiple_speakers,
             noise_level=audio.noise_level,
             anomalies=anomalies,
+            occlusion_face=occlusion_face,
+            occlusion_mouth=occlusion_mouth,
+            camera_blocked=camera_blocked,
         )
 
 

@@ -1,5 +1,6 @@
 """SM-49 continuous audiovisual supervision tests."""
 import base64
+import itertools
 import uuid
 from datetime import datetime, timezone
 
@@ -12,10 +13,15 @@ from test_evaluation_preflight import isolated_db, scenario, endpoint  # noqa: F
 ROOT = "/api/browser-supervision/trials"
 
 
+_dummy_frames = itertools.count()
+
+
 def create_dummy_jpeg():
-    """Generates a minimal valid JPEG image bytes in memory."""
+    """A valid JPEG data URL; each call is a different noisy image, so a window of them is a live camera (not a
+    black or frozen one, which the integrity engine reports as CAMERA_BLOCKED)."""
     import cv2
-    img = np.zeros((120, 160, 3), dtype=np.uint8)
+    rng = np.random.default_rng(next(_dummy_frames))
+    img = rng.integers(40, 200, (120, 160, 3), dtype=np.uint8)
     _, buf = cv2.imencode(".jpg", img)
     return "data:image/jpeg;base64," + base64.b64encode(buf).decode("ascii")
 

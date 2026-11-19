@@ -65,6 +65,16 @@ class GazeEvidence:
 
 
 @dataclass(frozen=True)
+class FrameOcclusion:
+    """Per-frame occlusion verdict (``occlusion.judge``); an incident needs a continuous run of these."""
+
+    face: bool = False
+    mouth: bool = False
+    measured: bool = False  # False: no reference yet or nothing measurable, so no verdict
+    signals: tuple[str, ...] = ()  # what looked wrong: regions (eyes/nose/mouth), skin_shift, detector, identity
+
+
+@dataclass(frozen=True)
 class FrameObservation:
     """Everything measured on one decoded frame."""
 
@@ -86,6 +96,12 @@ class FrameObservation:
     model_unavailable: bool = False
     # With face_count > 1 (extra faces already filtered by size and score): every detector that ran saw them.
     faces_agreed: bool = True
+    # (right eye, left eye, nose, right and left mouth corner) in pixels: where the occlusion patches go.
+    face_geometry: Optional[tuple[float, ...]] = None
+    occlusion: Optional[FrameOcclusion] = None
+    # Camera health (T7 / S8): a near-black or near-uniform image, and the mean abs difference to the previous frame.
+    camera_blocked: bool = False
+    frame_delta: Optional[float] = None
 
     @classmethod
     def unavailable(cls) -> "FrameObservation":
@@ -111,6 +127,7 @@ class FrameObservation:
             blink=bool(raw.get("blink", False)),
             model_unavailable=bool(raw.get("model_unavailable", False)),
             faces_agreed=bool(raw.get("faces_agreed", True)),
+            face_geometry=raw.get("face_geometry"),
         )
 
     def to_legacy_dict(self) -> dict[str, Any]:
@@ -187,6 +204,9 @@ class WindowAssessment:
     multiple_speakers: bool
     noise_level: float
     anomalies: list[str]
+    occlusion_face: bool = False  # a confirmed run of covered-face frames (FACE_OCCLUDED)
+    occlusion_mouth: bool = False  # a confirmed run of covered-mouth frames (MOUTH_OCCLUDED)
+    camera_blocked: bool = False  # a confirmed blocked or frozen camera (CAMERA_BLOCKED)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -199,6 +219,8 @@ class WindowAssessment:
             "multiple_speakers": self.multiple_speakers,
             "noise_level": self.noise_level,
             "anomalies": list(self.anomalies),
+            "occlusion": {"face": self.occlusion_face, "mouth": self.occlusion_mouth},
+            "camera_blocked": self.camera_blocked,
         }
 
 
