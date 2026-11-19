@@ -74,6 +74,7 @@ THEORY_GRADING_MODEL=""            # Identificador explícito, sin modelo por de
 OPENAI_API_KEY=""                  # [SECRETO] Si provider=openai
 GEMINI_API_KEY=""                  # [SECRETO] Si provider=gemini
 THEORY_GRADING_TIMEOUT_SECONDS=20
+THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory exams
 
 
 
