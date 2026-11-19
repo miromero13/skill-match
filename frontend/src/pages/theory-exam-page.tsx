@@ -111,6 +111,9 @@ export function TheoryExamPage() {
     track.addEventListener("ended", lost, { once: true }); track.addEventListener("mute", lost, { once: true })
     setCameraReady(true)
   })
+  useEffect(() => {
+    if (state?.current_question && !cameraReady && !busy) void camera()
+  }, [state?.current_question?.id, cameraReady, busy])
   const record = () => void run(async () => {
     if (!state?.current_question || !cameraReady || remaining <= 0 || pending.current) return
     const controller = new AbortController()
@@ -170,8 +173,7 @@ export function TheoryExamPage() {
         <p className="text-sm text-muted-foreground">Audio en memoria únicamente; máximo90s por grabación. Si falla el envío, reenviá la misma respuesta sin volver a grabar. Salir de esta página descarta audio pendiente, pero no devuelve el intento.</p>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>Cámara</CardTitle></CardHeader><CardContent className="grid gap-3"><video ref={video} muted playsInline autoPlay className="aspect-video w-full rounded bg-black" aria-label="Vista previa de tu cámara" />
-        <Button variant="outline" disabled={busy || cameraReady} onClick={camera}>Activar cámara</Button>
-        <p className="text-xs">Esta vista previa no acredita supervisión continua. La integración de integridad del examen todavía está pendiente.</p>
+        <p className="text-xs">La cámara se activa automáticamente con el permiso del navegador. Esta vista previa no acredita supervisión continua.</p>
       </CardContent></Card>
     </div>}
     {state && !state.current_question && <Card><CardHeader><CardTitle>{state.grading_state === "COMPLETE" ? "Resultado de la corrección" : "Corrección teórica"}</CardTitle></CardHeader><CardContent className="grid gap-3">

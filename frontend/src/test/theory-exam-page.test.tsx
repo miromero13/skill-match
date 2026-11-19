@@ -80,7 +80,6 @@ it("keeps the same oral submission ID and audio for a network retry", async () =
     .mockResolvedValueOnce({ data: { transcript: "Lists are mutable" }, message: "Respuesta oral registrada exitosamente." })
   const view = mount()
   await screen.findByText("Explain mutability")
-  await user.click(screen.getByRole("button", { name: "Activar cámara" }))
   await waitFor(() => expect(screen.getByRole("button", { name: "Grabar respuesta" })).toBeEnabled())
   await user.click(screen.getByRole("button", { name: "Grabar respuesta" }))
   await user.click(screen.getByRole("button", { name: "Terminar y enviar respuesta" }))
