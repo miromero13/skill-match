@@ -1,5 +1,7 @@
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 
@@ -41,3 +43,35 @@ class MatchResponse(BaseModel):
     you_teach: list[str]
     they_teach: list[str]
     compatibility_score: Optional[int] = Field(default=None, description="Score porcentual de compatibilidad precalculado")
+
+
+class CommonSessionSlot(BaseModel):
+    """Franja concreta que cumple disponibilidad, modalidad, buffer y conflictos."""
+
+    starts_at: datetime
+    ends_at: datetime
+    timezone: str
+    modality: str
+    duration_minutes: int = Field(ge=30, le=60)
+
+
+class SessionBookingDirection(BaseModel):
+    """Dirección autorizada de enseñanza dentro de un match confirmado."""
+
+    instructor_id: UUID
+    instructor_name: str
+    learner_id: UUID
+    teaching_skill_id: UUID
+    skill_name: str
+    modalities: list[str]
+    common_slots: list[CommonSessionSlot]
+
+
+class MatchSessionOptionsResponse(BaseModel):
+    """Contexto seguro y completo requerido antes de crear una sesión HU-38."""
+
+    match_id: UUID
+    timezone: str
+    horizon_days: int = 14
+    booking_blocked_until: datetime | None = None
+    directions: list[SessionBookingDirection]

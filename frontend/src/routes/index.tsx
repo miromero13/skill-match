@@ -26,6 +26,7 @@ import { FootballValidationWizard } from "@/features/football-validation"
 import { AvailabilityPage } from "@/pages/availability-page"
 import { MatchesPage } from "@/pages/matches-page"
 import { SearchPage } from "@/pages/search-page"
+import { SessionsPage } from "@/pages/sessions-page"
 import { ComingSoonPage } from "@/pages/coming-soon-page"
 
 import { NotificationLayout } from "@/components/notifications/notification-layout"
@@ -37,7 +38,11 @@ export const router = createBrowserRouter([
   { path: "/evaluation/:id/theory", element: <MemberRouteGuard><TheoryExamPage /></MemberRouteGuard> },
   {
     path: "/evaluation/:skillId/setup",
-    element: <MemberRouteGuard><PlatformLayout /></MemberRouteGuard>,
+    element: (
+      <MemberRouteGuard>
+        <PlatformLayout />
+      </MemberRouteGuard>
+    ),
     children: [{ index: true, element: <EvaluationSetupPage /> }],
   },
   {
@@ -70,7 +75,8 @@ export const router = createBrowserRouter([
     ],
   },
 
-  { path: "/notifications",
+  {
+    path: "/notifications",
     element: <NotificationLayout />,
     children: [
       { index: true, element: <NotificationInboxPage /> },
@@ -78,8 +84,14 @@ export const router = createBrowserRouter([
     ],
   },
   { path: "/search", element: <Navigate to="/app/search" replace /> },
-  { path: "/app/notifications", element: <Navigate to="/notifications" replace /> },
-  { path: "/app/notifications/settings", element: <Navigate to="/notifications/settings" replace /> },
+  {
+    path: "/app/notifications",
+    element: <Navigate to="/notifications" replace />,
+  },
+  {
+    path: "/app/notifications/settings",
+    element: <Navigate to="/notifications/settings" replace />,
+  },
 
   // 2. Member Authentication (HU-07 / Vista 28 Web / Vista 30 Mobile)
   {
@@ -96,7 +108,6 @@ export const router = createBrowserRouter([
       </MemberRouteGuard>
     ),
     children: [
-
       {
         index: true,
         element: <FeedPage />,
@@ -117,6 +128,10 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "sessions",
+        element: <SessionsPage />,
+      },
+      {
         path: "profile",
         element: <ProfilePage />,
       },
@@ -135,7 +150,7 @@ export const router = createBrowserRouter([
       {
         path: "football-validation",
         element: (
-          <div className="p-4 sm:p-6 max-w-6xl mx-auto">
+          <div className="mx-auto max-w-6xl p-4 sm:p-6">
             <FootballValidationWizard />
           </div>
         ),

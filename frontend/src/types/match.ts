@@ -34,3 +34,29 @@ export interface MatchCompatibility {
     factors: CompatibilityFactors
     match_reasons: string[]
 }
+
+export interface CommonSessionSlot {
+    starts_at: string
+    ends_at: string
+    timezone: string
+    modality: "VIRTUAL" | "PRESENCIAL"
+    duration_minutes: 30 | 60
+}
+
+export interface SessionBookingDirection {
+    instructor_id: string
+    instructor_name: string
+    learner_id: string
+    teaching_skill_id: string
+    skill_name: string
+    modalities: Array<"VIRTUAL" | "PRESENCIAL">
+    common_slots: CommonSessionSlot[]
+}
+
+export interface MatchSessionOptions {
+    match_id: string
+    timezone: string
+    horizon_days: number
+    booking_blocked_until: string | null
+    directions: SessionBookingDirection[]
+}

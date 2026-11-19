@@ -31,9 +31,11 @@ it("renders the real Google control within a narrow mobile card", async () => {
   render(<MemoryRouter><MemberLoginPage /></MemoryRouter>)
   await vi.waitFor(() => expect(renderButton).toHaveBeenCalled())
   const [container, options] = renderButton.mock.calls[0]
-  expect(container).toHaveClass("w-full")
+  expect(container).toHaveClass("w-full", "max-w-[360px]", "justify-center")
+  expect(container.parentElement).toHaveClass("justify-center")
   expect(options.width).toBeLessThanOrEqual(240)
   expect(container.closest(".hidden")).toBeNull()
+  expect(screen.getByText(/tu cuenta se crea automáticamente/i)).toBeInTheDocument()
 })
 
 
