@@ -16,12 +16,16 @@ export interface WalletBalance {
 }
 
 export interface PointPackage {
-  id: string
+  package_id?: string
+  id?: string
+  name?: string
+  label?: string
   points: number
   price_usd: number
   bonus_points: number
-  label: string
+  total_points?: number
   is_popular: boolean
+  description?: string
 }
 
 export interface TopupPayload {

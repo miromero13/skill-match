@@ -31,7 +31,19 @@ export async function getPointPackages(): Promise<PointPackage[]> {
   const response = await apiClient.get<PointPackage[]>(`${WALLET_ENDPOINT}/packages`, {
     showToastOnError: true,
   })
-  return response.data || []
+  const list = response.data || []
+  return list.map((pkg) => {
+    const key = pkg.package_id || pkg.id || ''
+    const title = pkg.name || pkg.label || ''
+    return {
+      ...pkg,
+      package_id: key,
+      id: key,
+      name: title,
+      label: title,
+      total_points: pkg.total_points ?? (pkg.points + (pkg.bonus_points || 0)),
+    }
+  })
 }
 
 export async function topupPoints(payload: TopupPayload): Promise<TopupResult> {

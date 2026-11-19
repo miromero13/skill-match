@@ -23,40 +23,56 @@ import {
 
 const DEFAULT_PACKAGES: PointPackage[] = [
   {
-    id: 'sp_100',
+    package_id: 'pkg_basic',
+    id: 'pkg_basic',
     points: 100,
     price_usd: 10,
     bonus_points: 0,
-    label: 'Paquete Inicial',
+    total_points: 100,
+    name: 'Paquete Básico',
+    label: 'Paquete Básico',
     is_popular: false,
   },
   {
-    id: 'sp_250',
+    package_id: 'pkg_student',
+    id: 'pkg_student',
     points: 250,
     price_usd: 25,
-    bonus_points: 15,
-    label: 'Paquete Formativo',
+    bonus_points: 25,
+    total_points: 275,
+    name: 'Paquete Estudiante',
+    label: 'Paquete Estudiante',
     is_popular: true,
   },
   {
-    id: 'sp_500',
+    package_id: 'pkg_pro',
+    id: 'pkg_pro',
     points: 500,
-    price_usd: 48,
-    bonus_points: 40,
-    label: 'Paquete Avanzado',
+    price_usd: 50,
+    bonus_points: 75,
+    total_points: 575,
+    name: 'Paquete Pro',
+    label: 'Paquete Pro',
     is_popular: false,
   },
   {
-    id: 'sp_1000',
+    package_id: 'pkg_master',
+    id: 'pkg_master',
     points: 1000,
-    price_usd: 90,
-    bonus_points: 100,
-    label: 'Paquete Maestro',
+    price_usd: 100,
+    bonus_points: 200,
+    total_points: 1200,
+    name: 'Paquete Master VIP',
+    label: 'Paquete Master VIP',
     is_popular: false,
   },
 ]
 
 type PaymentStep = 'SELECT' | 'PROCESSING' | 'SUCCESS'
+
+function getPackageKey(pkg?: PointPackage): string {
+  return pkg?.package_id || pkg?.id || ''
+}
 
 export function TopupModal() {
   const {
@@ -67,9 +83,11 @@ export function TopupModal() {
     processTopup,
   } = useWalletStore()
 
-  const availablePackages = (packages && packages.length > 0) ? packages : DEFAULT_PACKAGES
+  const availablePackages =
+    packages && packages.length > 0 ? packages : DEFAULT_PACKAGES
+
   const [selectedPackageId, setSelectedPackageId] = React.useState<string>(
-    availablePackages[1]?.id || 'sp_250'
+    getPackageKey(availablePackages[1]) || getPackageKey(availablePackages[0])
   )
   const [paymentMethod, setPaymentMethod] = React.useState<'card' | 'paypal'>('card')
   const [paymentStep, setPaymentStep] = React.useState<PaymentStep>('SELECT')
@@ -84,8 +102,22 @@ export function TopupModal() {
     }
   }, [isTopupModalOpen, loadPackages])
 
+  React.useEffect(() => {
+    if (availablePackages.length > 0) {
+      const exists = availablePackages.some(
+        (p) => getPackageKey(p) === selectedPackageId
+      )
+      if (!exists) {
+        const defaultPkg =
+          availablePackages.find((p) => p.is_popular) || availablePackages[0]
+        setSelectedPackageId(getPackageKey(defaultPkg))
+      }
+    }
+  }, [availablePackages, selectedPackageId])
+
   const selectedPkg =
-    availablePackages.find((p) => p.id === selectedPackageId) || availablePackages[0]
+    availablePackages.find((p) => getPackageKey(p) === selectedPackageId) ||
+    availablePackages[0]
 
   const handlePay = async () => {
     if (!selectedPkg) return
@@ -102,9 +134,11 @@ export function TopupModal() {
       await new Promise((resolve) => setTimeout(resolve, 600))
       setStatusMessage('Acreditando SkillPoints y registrando transacción...')
 
-      const totalPoints = selectedPkg.points + (selectedPkg.bonus_points || 0)
+      const pkgKey = getPackageKey(selectedPkg)
+      const totalPoints =
+        selectedPkg.total_points ?? (selectedPkg.points + (selectedPkg.bonus_points || 0))
       const result = await processTopup({
-        package_id: selectedPkg.id,
+        package_id: pkgKey,
         points: totalPoints,
         amount_usd: selectedPkg.price_usd,
         payment_method: paymentMethod === 'card' ? 'CREDIT_CARD_SIMULATED' : 'PAYPAL_SIMULATED',
@@ -151,17 +185,19 @@ export function TopupModal() {
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {availablePackages.map((pkg) => {
-                    const isSelected = pkg.id === selectedPackageId
-                    const totalPoints = pkg.points + (pkg.bonus_points || 0)
+                    const pkgKey = getPackageKey(pkg)
+                    const isSelected = pkgKey === selectedPackageId
+                    const totalPoints = pkg.total_points ?? (pkg.points + (pkg.bonus_points || 0))
+                    const title = pkg.name || pkg.label
                     return (
                       <Card
-                        key={pkg.id}
+                        key={pkgKey}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelectedPackageId(pkg.id)}
+                        onClick={() => setSelectedPackageId(pkgKey)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
-                            setSelectedPackageId(pkg.id)
+                            setSelectedPackageId(pkgKey)
                           }
                         }}
                         className={`relative p-4 cursor-pointer transition-all border text-left flex flex-col justify-between ${
@@ -180,7 +216,7 @@ export function TopupModal() {
                         <div>
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-muted-foreground">
-                              {pkg.label}
+                              {title}
                             </span>
                             {isSelected && (
                               <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center">
