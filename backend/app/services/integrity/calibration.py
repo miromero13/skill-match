@@ -16,6 +16,7 @@ It produces what supervision needs: the gaze zone, the voiceprint with the ambie
 A missing model fails closed (``CalibrationRejected`` with status 503), never a pass.
 """
 import hashlib
+import logging
 import statistics
 import uuid
 from dataclasses import dataclass, field
@@ -33,6 +34,8 @@ from app.services.integrity.gaze import (
 )
 from app.services.integrity.models import AudioObservation, FrameBatch, FrameObservation, GazeZone
 from app.services.integrity.state import InMemoryStateStore, SessionStateStore
+
+logger = logging.getLogger("skillmatch.continuous_supervision")
 
 # Every check a calibration must pass; READY_FOR_THEORY requires all of them.
 REQUIRED_CHECKS = frozenset({
@@ -185,13 +188,27 @@ class CalibrationProfile:
     # ---- the audio steps ------------------------------------------------------------------------
 
     def ambient(self, quiet: AudioObservation, segment: np.ndarray) -> list[CalibrationCheck]:
-        """The silence segment: no speech (VAD) and a low ambient floor."""
+        """The silence segment: no speech (VAD) and a low ambient floor.
+
+        The first ``CAL_AMBIENT_SETTLE_MS`` are the transition from the previous step (the member is still reacting,
+        the button click is in the audio) and are not judged.
+        """
         if quiet.vad_unavailable:
             return [_fail("background_quiet", m.VAD_UNAVAILABLE, 503)]
-        voiced, run = run_stats(quiet.voiced_flags)
+        settle_chunks = -(-t.CAL_AMBIENT_SETTLE_MS * t.AUDIO_SAMPLE_RATE // 1000 // t.VAD_CHUNK_SAMPLES)
+        judged = np.asarray(segment)[settle_chunks * t.VAD_CHUNK_SAMPLES:]
+        voiced, run = run_stats(quiet.voiced_flags[settle_chunks:])
+        rms = signal_rms(judged)
+        logger.info(
+            "calibration silence segment (after %d ms settle): voiced_chunks=%d (max %d) run=%d (max %d) "
+            "rms=%.5f (max %.3f) voiced_at_ms=%s",
+            t.CAL_AMBIENT_SETTLE_MS, voiced, t.CAL_AMBIENT_MAX_VOICED_CHUNKS, run, t.CAL_AMBIENT_MAX_RUN_CHUNKS,
+            rms, t.CAL_AMBIENT_MAX_RMS,
+            [i * 30 for i, flag in enumerate(quiet.voiced_flags) if flag and i >= settle_chunks],
+        )
         if voiced >= t.CAL_AMBIENT_MAX_VOICED_CHUNKS or run >= t.CAL_AMBIENT_MAX_RUN_CHUNKS:
             return [_fail("background_quiet", m.SPEECH_DURING_SILENCE)]
-        return [_verdict("background_quiet", signal_rms(segment) <= t.CAL_AMBIENT_MAX_RMS, m.BACKGROUND_NOISE)]
+        return [_verdict("background_quiet", rms <= t.CAL_AMBIENT_MAX_RMS, m.BACKGROUND_NOISE)]
 
     def speech(self, measured: AudioObservation, phrase: np.ndarray) -> list[CalibrationCheck]:
         """The speech segment: enough voiced speech, one voice and a silent final pause."""
@@ -205,7 +222,7 @@ class CalibrationProfile:
         pause_from = int(t.CAL_PAUSE_FROM_S * t.AUDIO_SAMPLE_RATE / t.VAD_CHUNK_SAMPLES)
         pause_voiced, pause_run = run_stats(measured.voiced_flags[pause_from:])
         checks = [_ok("microphone"), _verdict(
-            "speech_pause", pause_voiced < t.CAL_AMBIENT_MAX_VOICED_CHUNKS and pause_run < t.CAL_AMBIENT_MAX_RUN_CHUNKS,
+            "speech_pause", pause_voiced < t.CAL_PAUSE_MAX_VOICED_CHUNKS and pause_run < t.CAL_PAUSE_MAX_RUN_CHUNKS,
             m.SPEECH_DURING_PAUSE)]
         if measured.speaker_model_unavailable:
             return [*checks, _fail("single_speaker", m.SPEAKER_MODELS_UNAVAILABLE, 503)]
@@ -268,7 +285,7 @@ class CalibrationEngine:
         return cls(
             FrameAnalyzer(store, vision_provider=models,
                           landmarker_provider=landmarker_provider, identity_any_pose=True),
-            AudioAnalyzer(store, speaker_segments=speaker_segments, extractor=extractor, vad_floor=0.0,
+            AudioAnalyzer(store, speaker_segments=speaker_segments, extractor=extractor, vad_floor=t.SILENCE_RMS_FLOOR,
                           min_speaker_s=t.CAL_SPEAKER_MIN_DURATION_S),
             extractor,
         )
@@ -281,7 +298,11 @@ class CalibrationEngine:
         checks = _Checks()
         self._movement(evidence, session, checks)
         reference_ref = self.state.get_track(session, "occlusion_ref")
-        zone = self._gaze(evidence, checks)
+        if evidence.gaze_points:
+            zone = self._gaze(evidence, checks)
+        else:
+            checks.add([_ok("gaze_zone")])
+            zone = DEFAULT_ZONE
         voiceprint = self._voice(evidence, session, checks)
         if set(checks.results) != REQUIRED_CHECKS or not all(checks.results.values()) or reference_ref is None:
             raise CalibrationRejected("incomplete", m.INCOMPLETE)
@@ -352,8 +373,16 @@ class CalibrationEngine:
     def _timeline_ok(times: Sequence[int], ambient_ms: int, duration_ms: int) -> bool:
         """The spoken frames must be ordered, cover the speech segment and have no large gaps."""
         if not t.CAL_VOICE_FRAME_MIN <= len(times) <= t.CAL_VOICE_FRAME_MAX:
+            logger.info("calibration voice frames: count=%d (allowed %d-%d)", len(times),
+                        t.CAL_VOICE_FRAME_MIN, t.CAL_VOICE_FRAME_MAX)
             return False
         gaps = np.diff(np.asarray(times, dtype=np.float64))
+        logger.info(
+            "calibration voice frames: count=%d first=%d last=%d duration=%d ambient=%d gap_min=%.0f gap_median=%.0f "
+            "gap_max=%.0f (limits: min>%d median<=%d max<=%d)",
+            len(times), times[0], times[-1], duration_ms, ambient_ms, gaps.min(), np.median(gaps), gaps.max(),
+            t.CAL_VOICE_FRAME_MIN_GAP_MS, t.CAL_VOICE_FRAME_MEDIAN_GAP_MAX_MS, t.CAL_VOICE_FRAME_MAX_GAP_MS,
+        )
         return bool(
             times[0] >= 0 and times[0] <= ambient_ms + t.CAL_VOICE_FRAME_FIRST_SLACK_MS
             and times[-1] >= duration_ms - t.CAL_VOICE_FRAME_LAST_SLACK_MS and times[-1] <= duration_ms + 100

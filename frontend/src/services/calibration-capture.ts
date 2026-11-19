@@ -121,16 +121,16 @@ function assertPhrase(parts: PhraseEvidence) {
   }
 }
 
-/** Assembles contract A from the three guided captures, enforcing every server bound before anything is sent. */
+/** Assembles contract A from the guided captures, enforcing every server bound before anything is sent. */
 export function buildCalibrationEvidence(input: {
   challengeId: string
   frames: string[]
-  gazePoints: GazeCalibrationPoint[]
+  gazePoints?: GazeCalibrationPoint[]
   voice: VoiceCalibrationRequest
   cameraLabel: string
 }): CalibrationEvidence {
   assertMovement(input.frames)
-  assertGaze(input.gazePoints)
+  if (input.gazePoints?.length) assertGaze(input.gazePoints)
   const parts = splitPhraseEvidence(input.voice)
   const speechMs = Math.floor((parts.audio_samples.length * 1000) / AUDIO_RATE)
   parts.mouth_samples = parts.mouth_samples.filter((sample) => sample.t_ms <= speechMs)
@@ -139,7 +139,7 @@ export function buildCalibrationEvidence(input: {
   return {
     challenge_id: input.challengeId,
     frames: input.frames,
-    gaze_points: input.gazePoints,
+    gaze_points: input.gazePoints ?? [],
     ...parts,
     camera_label: input.cameraLabel.slice(0, 200),
   }
