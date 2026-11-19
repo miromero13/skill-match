@@ -25,7 +25,7 @@ it("shows the server question and oral justification instruction without typed a
   expect(await screen.findByText("Explain mutability")).toBeInTheDocument()
   expect(screen.getByText(/Respondé hablando y justificá/)).toBeInTheDocument()
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Grabar respuesta" })).toBeDisabled()
+  expect(screen.getByRole("button", { name: "Grabar respuesta" })).toBeEnabled()
 })
 it("preserves exact backend errors and does not claim an exam started", async () => {
   const user = userEvent.setup()
@@ -90,5 +90,4 @@ it("keeps the same oral submission ID and audio for a network retry", async () =
   expect(api.answer.mock.calls[0]).toEqual(api.answer.mock.calls[1])
   expect(api.answer.mock.calls[0][1]).toEqual(expect.objectContaining({ question_id: "question", audio_base64: "PCM_WAV_PAYLOAD" }))
   view.unmount()
-  expect(track.stop).toHaveBeenCalled()
 })

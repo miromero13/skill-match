@@ -25,12 +25,9 @@ export function TheoryExamPage() {
   const [level, setLevel] = useState("1")
   const [textConsent, setTextConsent] = useState(false)
   const [recording, setRecording] = useState(false)
-  const [cameraReady, setCameraReady] = useState(false)
   const [retryReady, setRetryReady] = useState(false)
   const [remaining, setRemaining] = useState(0)
   const alive = useRef(false)
-  const media = useRef<MediaStream | null>(null)
-  const video = useRef<HTMLVideoElement>(null)
   const capture = useRef<OralRecording | null>(null)
   const captureAbort = useRef<AbortController | null>(null)
   const pending = useRef<OralSubmission | null>(null)
@@ -53,7 +50,6 @@ export function TheoryExamPage() {
     return () => {
       alive.current = false; clearInterval(interval)
       captureAbort.current?.abort(); capture.current?.cancel(); capture.current = null
-      media.current?.getTracks().forEach(track => track.stop()); media.current = null
       pending.current = null; setProgress(null)
     }
   }, [refresh, setProgress])
@@ -68,9 +64,6 @@ export function TheoryExamPage() {
     if (recording && (state?.current_question?.id !== recordingQuestion.current || remaining === 0)) {
       captureAbort.current?.abort(); capture.current = null; setRecording(false)
       setError("La pregunta venció o cambió. La captura se canceló; consultá el estado del examen.")
-    }
-    if (state && !state.current_question) {
-      media.current?.getTracks().forEach(track => track.stop()); media.current = null; setCameraReady(false)
     }
   }, [recording, state, remaining])
   useEffect(() => {
@@ -88,34 +81,8 @@ export function TheoryExamPage() {
     try { await operation() } catch (reason) { if (alive.current) setError(messageOf(reason)) }
     finally { if (alive.current) setBusy(false) }
   }
-  const camera = () => void run(async () => {
-    const acquired = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-    if (!alive.current || activeId.current !== id) { acquired.getTracks().forEach(track => track.stop()); return }
-    media.current?.getTracks().forEach(track => track.stop())
-    media.current = acquired
-    try {
-      if (video.current) { video.current.srcObject = acquired; await video.current.play() }
-      if (!acquired.getVideoTracks()[0] || acquired.getVideoTracks()[0].readyState !== "live")
-        throw new Error("La cámara no entrega una señal activa.")
-    } catch (reason) {
-      acquired.getTracks().forEach(track => track.stop()); media.current = null
-      throw reason
-    }
-    const track = acquired.getVideoTracks()[0]
-    const lost = () => {
-      acquired.getTracks().forEach(item => item.stop())
-      if (!alive.current) return
-      captureAbort.current?.abort(); capture.current = null; setRecording(false); setCameraReady(false)
-      setError("Se interrumpió la cámara. La grabación se canceló.")
-    }
-    track.addEventListener("ended", lost, { once: true }); track.addEventListener("mute", lost, { once: true })
-    setCameraReady(true)
-  })
-  useEffect(() => {
-    if (state?.current_question && !cameraReady && !busy) void camera()
-  }, [state?.current_question?.id, cameraReady, busy])
   const record = () => void run(async () => {
-    if (!state?.current_question || !cameraReady || remaining <= 0 || pending.current) return
+    if (!state?.current_question || remaining <= 0 || pending.current) return
     const controller = new AbortController()
     captureAbort.current = controller
     recordingQuestion.current = state.current_question.id
@@ -161,19 +128,16 @@ export function TheoryExamPage() {
       <Label htmlFor="theory-level">Nivel a evaluar</Label><Select value={level} disabled={busy} onValueChange={setLevel}><SelectTrigger id="theory-level"><SelectValue /></SelectTrigger><SelectContent>{levels.map((name, index) => <SelectItem key={name} value={String(index + 1)}>{name}</SelectItem>)}</SelectContent></Select>
       <Button disabled={busy || !textConsent} onClick={() => { enterExamFullscreen(); void run(async () => { const response = await theoryExam.start(id, Number(level), textConsent); if (alive.current) { setNotice(response.message); await refresh() } }) }}>Comenzar examen y consumir intento</Button>
     </CardContent></Card>}
-    {state?.current_question && <div className="grid min-h-[calc(100vh-8rem)] gap-5 md:grid-cols-[minmax(0,1fr)_20rem]">
+    {state?.current_question && <div className="grid min-h-[calc(100vh-8rem)] gap-5">
       <Card><CardHeader><CardTitle>Pregunta {state.position} de {state.question_count}</CardTitle><Progress value={state.answered_count / state.question_count * 100} aria-label="Progreso del examen" /></CardHeader><CardContent className="grid gap-4">
         <p className="text-lg">{state.current_question.prompt}</p>
         {state.current_question.choices.map(choice => <p key={choice.code}>{choice.code}: {choice.text}</p>)}
         <p role="timer">Tiempo aproximado restante: {remaining}s. El servidor determina el vencimiento.</p>
-        <Button disabled={busy || recording || retryReady || !cameraReady || remaining <= 0} onClick={record}>Grabar respuesta</Button>
+        <Button disabled={busy || recording || retryReady || remaining <= 0} onClick={record}>Grabar respuesta</Button>
         {recording && <p role="status">Micrófono grabando. Terminá y enviá tu explicación antes del vencimiento.</p>}
         <Button disabled={busy || (!recording && !retryReady)} onClick={send}>{retryReady ? "Reenviar misma respuesta" : "Terminar y enviar respuesta"}</Button>
         {recording && <Button variant="outline" disabled={busy} onClick={() => { captureAbort.current?.abort(); capture.current = null; setRecording(false) }}>Cancelar grabación</Button>}
         <p className="text-sm text-muted-foreground">Audio en memoria únicamente; máximo90s por grabación. Si falla el envío, reenviá la misma respuesta sin volver a grabar. Salir de esta página descarta audio pendiente, pero no devuelve el intento.</p>
-      </CardContent></Card>
-      <Card><CardHeader><CardTitle>Cámara</CardTitle></CardHeader><CardContent className="grid gap-3"><video ref={video} muted playsInline autoPlay className="aspect-video w-full rounded bg-black" aria-label="Vista previa de tu cámara" />
-        <p className="text-xs">La cámara se activa automáticamente con el permiso del navegador. Esta vista previa no acredita supervisión continua.</p>
       </CardContent></Card>
     </div>}
     {state && !state.current_question && <Card><CardHeader><CardTitle>{state.grading_state === "COMPLETE" ? "Resultado de la corrección" : "Corrección teórica"}</CardTitle></CardHeader><CardContent className="grid gap-3">
