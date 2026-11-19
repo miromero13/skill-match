@@ -153,10 +153,11 @@ class WalletService:
         now = datetime.now(timezone.utc)
         receipt = f"REC-{now.strftime('%Y%m%d')}-{tx_id.hex[:6].upper()}"
 
+        card_detail = f"Tarjeta •••• {payload.card_last_four}" if payload.card_last_four and payload.payment_method == "card" else ("PayPal" if payload.payment_method == "paypal" else "Pasarela")
         description = (
             f"Adquisición de {pkg.name} (+{pkg.points} SP"
             + (f" +{pkg.bonus_points} Bonus" if pkg.bonus_points > 0 else "")
-            + f") · Pago exitoso de ${pkg.price_usd:.2f} USD"
+            + f") · Pago con {card_detail} de ${pkg.price_usd:.2f} USD"
         )
 
         # Simular latencia realista de procesamiento bancario seguro (~800ms)

@@ -30,17 +30,25 @@ export interface PointPackage {
 
 export interface TopupPayload {
   package_id: string
-  points: number
-  amount_usd: number
+  points?: number
+  amount_usd?: number
   payment_method?: string
+  card_last_four?: string
+  card_holder?: string
+  paypal_email?: string
 }
 
 export interface TopupResult {
   transaction_id: string
-  points_added: number
+  package_id?: string
+  points_added?: number
+  bonus_points?: number
+  total_points_added?: number
   new_balance: number
-  payment_reference: string
-  status: string
+  price_usd?: number
+  receipt_number?: string
+  payment_reference?: string
+  status?: string
 }
 
 export interface CashoutCalculation {

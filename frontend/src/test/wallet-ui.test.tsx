@@ -142,7 +142,7 @@ describe('Wallet UI & Store Suite (SM-54 / HU-42)', () => {
     expect(screen.getByRole('button', { name: /Retirar Fondos/i })).toBeInTheDocument()
   })
 
-  it('opens TopupModal and allows selecting packages and payment methods', async () => {
+  it('opens TopupModal and allows selecting packages and payment methods with realistic inputs', async () => {
     useWalletStore.setState({ isTopupModalOpen: true })
 
     render(
@@ -161,6 +161,16 @@ describe('Wallet UI & Store Suite (SM-54 / HU-42)', () => {
     fireEvent.click(initialPkg)
 
     expect(screen.getByRole('button', { name: /Pagar \$10\.00 USD/i })).toBeInTheDocument()
+
+    // Test card number input accepts fake / test data
+    const cardInput = screen.getByLabelText(/Número de Tarjeta/i)
+    fireEvent.change(cardInput, { target: { value: '4532819210294821' } })
+    expect(cardInput).toHaveValue('4532 8192 1029 4821')
+
+    // Switch to PayPal
+    const paypalBtn = screen.getByRole('button', { name: /PayPal/i })
+    fireEvent.click(paypalBtn)
+    expect(screen.getByLabelText(/Correo Electrónico de PayPal/i)).toBeInTheDocument()
   })
 
   it('opens CashoutModal and dynamically calculates 15% fee and net USD', async () => {

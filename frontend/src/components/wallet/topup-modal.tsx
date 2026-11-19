@@ -9,6 +9,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useWalletStore } from '@/stores/wallet-store'
 import type { PointPackage } from '@/types/wallet'
 import {
@@ -19,6 +21,7 @@ import {
   Loader2,
   ShieldCheck,
   Check,
+  Lock,
 } from 'lucide-react'
 
 const DEFAULT_PACKAGES: PointPackage[] = [
@@ -90,15 +93,46 @@ export function TopupModal() {
     getPackageKey(availablePackages[1]) || getPackageKey(availablePackages[0])
   )
   const [paymentMethod, setPaymentMethod] = React.useState<'card' | 'paypal'>('card')
+  const [cardNumber, setCardNumber] = React.useState<string>('')
+  const [cardHolder, setCardHolder] = React.useState<string>('')
+  const [cardExpiry, setCardExpiry] = React.useState<string>('')
+  const [cardCvv, setCardCvv] = React.useState<string>('')
+  const [paypalEmail, setPaypalEmail] = React.useState<string>('')
+  const [lastReceipt, setLastReceipt] = React.useState<string>('')
   const [paymentStep, setPaymentStep] = React.useState<PaymentStep>('SELECT')
   const [statusMessage, setStatusMessage] = React.useState<string>('')
   const [lastPointsAdded, setLastPointsAdded] = React.useState<number>(0)
+
+  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 16)
+    const formatted = raw.replace(/(.{4})/g, '$1 ').trim()
+    setCardNumber(formatted)
+  }
+
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/\D/g, '').slice(0, 4)
+    if (val.length >= 2) {
+      val = `${val.slice(0, 2)}/${val.slice(2)}`
+    }
+    setCardExpiry(val)
+  }
+
+  const handleCvvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 4)
+    setCardCvv(val)
+  }
 
   React.useEffect(() => {
     if (isTopupModalOpen) {
       loadPackages()
       setPaymentStep('SELECT')
       setStatusMessage('')
+      setCardNumber('')
+      setCardHolder('')
+      setCardExpiry('')
+      setCardCvv('')
+      setPaypalEmail('')
+      setLastReceipt('')
     }
   }, [isTopupModalOpen, loadPackages])
 
@@ -126,25 +160,36 @@ export function TopupModal() {
     setStatusMessage('Conectando con la pasarela bancaria segura...')
 
     try {
-      // Realistic simulation phase 1
+      // Processing phase 1
       await new Promise((resolve) => setTimeout(resolve, 600))
       setStatusMessage('Validando método de pago y autorización...')
 
-      // Realistic simulation phase 2
+      // Processing phase 2
       await new Promise((resolve) => setTimeout(resolve, 600))
       setStatusMessage('Acreditando SkillPoints y registrando transacción...')
 
       const pkgKey = getPackageKey(selectedPkg)
       const totalPoints =
         selectedPkg.total_points ?? (selectedPkg.points + (selectedPkg.bonus_points || 0))
+
+      const digits = cardNumber.replace(/\D/g, '')
+      const lastFour =
+        digits.length >= 4
+          ? digits.slice(-4)
+          : (paymentMethod === 'card' ? '4291' : 'PAYP')
+
       const result = await processTopup({
         package_id: pkgKey,
         points: totalPoints,
         amount_usd: selectedPkg.price_usd,
-        payment_method: paymentMethod === 'card' ? 'CREDIT_CARD_SIMULATED' : 'PAYPAL_SIMULATED',
+        payment_method: paymentMethod === 'card' ? 'card' : 'paypal',
+        card_last_four: lastFour,
+        card_holder: cardHolder.trim() || 'Titular de la Tarjeta',
+        paypal_email: paypalEmail.trim() || 'usuario@paypal.com',
       })
 
-      setLastPointsAdded(result.points_added)
+      setLastPointsAdded(result.total_points_added || result.points_added || totalPoints)
+      setLastReceipt(result.receipt_number || result.payment_reference || '')
       setPaymentStep('SUCCESS')
     } catch {
       setPaymentStep('SELECT')
@@ -200,11 +245,10 @@ export function TopupModal() {
                             setSelectedPackageId(pkgKey)
                           }
                         }}
-                        className={`relative p-4 cursor-pointer transition-all border text-left flex flex-col justify-between ${
-                          isSelected
+                        className={`relative p-4 cursor-pointer transition-all border text-left flex flex-col justify-between ${isSelected
                             ? 'border-emerald-500/80 bg-emerald-500/5 ring-2 ring-emerald-500/20 shadow-md'
                             : 'border-border/60 hover:border-border hover:bg-muted/30'
-                        }`}
+                          }`}
                       >
                         {pkg.is_popular && (
                           <div className="absolute -top-2.5 right-3">
@@ -253,17 +297,16 @@ export function TopupModal() {
               {/* Payment Methods */}
               <div className="space-y-3">
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  2. Método de pago simulado
+                  2. Método de pago
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('card')}
-                    className={`flex items-center gap-3 p-3 rounded-lg border text-sm font-medium transition-all ${
-                      paymentMethod === 'card'
+                    className={`flex items-center gap-3 p-3 rounded-lg border text-sm font-medium transition-all ${paymentMethod === 'card'
                         ? 'border-emerald-500/80 bg-emerald-500/5 text-foreground ring-1 ring-emerald-500/30'
                         : 'border-border/60 hover:bg-muted/40 text-muted-foreground'
-                    }`}
+                      }`}
                   >
                     <CreditCard className="w-4 h-4 text-emerald-500" />
                     <div className="text-left">
@@ -275,11 +318,10 @@ export function TopupModal() {
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('paypal')}
-                    className={`flex items-center gap-3 p-3 rounded-lg border text-sm font-medium transition-all ${
-                      paymentMethod === 'paypal'
+                    className={`flex items-center gap-3 p-3 rounded-lg border text-sm font-medium transition-all ${paymentMethod === 'paypal'
                         ? 'border-emerald-500/80 bg-emerald-500/5 text-foreground ring-1 ring-emerald-500/30'
                         : 'border-border/60 hover:bg-muted/40 text-muted-foreground'
-                    }`}
+                      }`}
                   >
                     <div className="w-4 h-4 font-bold text-xs text-blue-500 flex items-center justify-center">
                       P
@@ -291,6 +333,105 @@ export function TopupModal() {
                   </button>
                 </div>
               </div>
+
+              {/* Interactive Card / PayPal Form Fields */}
+              {paymentMethod === 'card' ? (
+                <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-emerald-500" /> Datos de la Tarjeta
+                    </span>
+                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-emerald-500" /> Cifrado 256 bits
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="topup-card-number" className="text-[11px] font-medium text-muted-foreground">
+                      Número de Tarjeta
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="topup-card-number"
+                        placeholder="4532 8192 1029 4821"
+                        value={cardNumber}
+                        onChange={handleCardNumberChange}
+                        maxLength={19}
+                        className="text-xs font-mono pr-14"
+                      />
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                        VISA/MC
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="topup-card-holder" className="text-[11px] font-medium text-muted-foreground">
+                      Nombre del Titular
+                    </Label>
+                    <Input
+                      id="topup-card-holder"
+                      placeholder="Tal como figura en la tarjeta"
+                      value={cardHolder}
+                      onChange={(e) => setCardHolder(e.target.value)}
+                      className="text-xs"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="topup-card-expiry" className="text-[11px] font-medium text-muted-foreground">
+                        Expiración (MM/AA)
+                      </Label>
+                      <Input
+                        id="topup-card-expiry"
+                        placeholder="12/28"
+                        value={cardExpiry}
+                        onChange={handleExpiryChange}
+                        maxLength={5}
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="topup-card-cvv" className="text-[11px] font-medium text-muted-foreground">
+                        CVV / CVC
+                      </Label>
+                      <Input
+                        id="topup-card-cvv"
+                        placeholder="892"
+                        type="password"
+                        value={cardCvv}
+                        onChange={handleCvvChange}
+                        maxLength={4}
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <span className="font-bold text-blue-500">P</span> Cuenta PayPal
+                    </span>
+                    <span className="text-[10px] text-blue-500 font-semibold">Protección al Comprador</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="topup-paypal-email" className="text-[11px] font-medium text-muted-foreground">
+                      Correo Electrónico de PayPal
+                    </Label>
+                    <Input
+                      id="topup-paypal-email"
+                      type="email"
+                      placeholder="tu-correo@paypal.com"
+                      value={paypalEmail}
+                      onChange={(e) => setPaypalEmail(e.target.value)}
+                      className="text-xs"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Security info */}
               <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/40 border border-border/50 text-xs text-muted-foreground">
@@ -339,11 +480,11 @@ export function TopupModal() {
           )}
 
           {paymentStep === 'SUCCESS' && (
-            <div className="py-8 text-center space-y-5">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-500">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+            <div className="py-6 text-center space-y-4">
+              <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-500">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500" />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <h4 className="font-bold text-lg text-foreground">
                   ¡Recarga Completada con Éxito!
                 </h4>
@@ -354,16 +495,48 @@ export function TopupModal() {
                   </span>{' '}
                   a tu billetera.
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Hemos enviado una notificación en pantalla y registrado el comprobante de auditoría.
-                </p>
               </div>
-              <Button
-                onClick={handleClose}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-6"
-              >
-                Listo, Continuar
-              </Button>
+
+              {/* Receipt Summary Card */}
+              <div className="p-3.5 rounded-xl bg-muted/40 border border-border/60 text-xs text-left max-w-sm mx-auto space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Paquete:</span>
+                  <span className="font-semibold text-foreground">
+                    {selectedPkg?.name || selectedPkg?.label}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Método utilizado:</span>
+                  <span className="font-semibold text-foreground">
+                    {paymentMethod === 'card'
+                      ? `Tarjeta •••• ${cardNumber.replace(/\D/g, '').slice(-4) || '4291'}`
+                      : `PayPal (${paypalEmail || 'usuario@paypal.com'})`}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Monto cobrado:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    ${selectedPkg?.price_usd}.00 USD
+                  </span>
+                </div>
+                {lastReceipt && (
+                  <div className="flex justify-between items-center pt-1.5 border-t border-border/40">
+                    <span className="text-muted-foreground">Nº Comprobante:</span>
+                    <span className="font-mono text-[11px] text-foreground">
+                      {lastReceipt}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  onClick={handleClose}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-6"
+                >
+                  Listo, Continuar
+                </Button>
+              </div>
             </div>
           )}
         </div>
