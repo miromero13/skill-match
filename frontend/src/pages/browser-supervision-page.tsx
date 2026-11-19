@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import {
   AlertCircle,
@@ -18,36 +18,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { GazeCalibrationStep } from "@/components/integrity/gaze-calibration-step"
-import { VoiceCalibrationStep, type VoiceRecorder } from "@/components/integrity/voice-calibration-step"
-import { startFaceTracker, type FaceTracker, type GazeZone } from "@/services/gaze-tracking"
+import { VoiceCalibrationStep } from "@/components/integrity/voice-calibration-step"
+import { useAvSupervision } from "@/hooks/use-av-supervision"
+import { useTrialSession } from "@/hooks/use-trial-session"
 import { useAuthStore } from "@/stores/auth-store"
-import {
-  AVFailureTracker,
-  BrowserMonitor,
-  IncidentQueue,
-  avWindowDurationMs,
-  calibrateGaze,
-  calibrateVoice,
-  readBrowserLedger,
-  readBrowserTrial,
-  sendAVWindow,
-  sendBrowserIncidents,
-  startBrowserTrial,
-  trialAction,
-  type GazeCalibrationPoint,
-  type IncidentKind,
-  type LedgerIncident,
-  type Trial,
-} from "@/services/browser-supervision"
-
-interface Runtime {
-  id: string
-  queue: IncidentQueue
-  monitor: BrowserMonitor
-  timer: ReturnType<typeof setInterval> | null
-  closing: boolean
-  release: () => void
-}
+import { calibrateGaze, calibrateVoice, type GazeCalibrationPoint } from "@/services/browser-supervision"
 
 const labels: Record<string, string> = {
   AWAY: "Salida / pérdida de foco",
@@ -89,580 +64,55 @@ const labels: Record<string, string> = {
   BACKGROUND_AUDIO: "Audio de fondo o reproducción",
 }
 
-/** Samples of the voice calibration recording are kept to what the server accepts (12 s at 16 kHz). */
-const VOICE_MAX_SAMPLES = 192_000
-
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo completar la operación."
 
 export function BrowserSupervisionPage() {
   const owner = useAuthStore((state) => state.user?.id)
-  const area = useRef<HTMLDivElement>(null)
-  const runtime = useRef<Runtime | null>(null)
-  const generation = useRef(0)
-  const tab = useRef(crypto.randomUUID())
+  // A different member starts from a clean page: the key remounts everything instead of resetting state in effects.
+  return <SupervisionTrial key={owner ?? "anonymous"} owner={owner} />
+}
 
-  // Video / Audio refs
+function SupervisionTrial({ owner }: { owner: string | undefined }) {
+  const area = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const processorRef = useRef<ScriptProcessorNode | null>(null)
-  const audioBufferRef = useRef<number[]>([])
-  const avTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const vuAnimationRef = useRef<number | null>(null)
-  const avInFlightRef = useRef(false)
-  const avFailuresRef = useRef(new AVFailureTracker())
-  const trackerRef = useRef<FaceTracker | null>(null)
-  const gazeZoneRef = useRef<GazeZone | null>(null)
-  const voiceRecordingRef = useRef<{ samples: number[]; startedAt: number } | null>(null)
-
-  const [trial, setTrial] = useState<Trial | null>(null)
   const [accepted, setAccepted] = useState(false)
-  const [active, setActive] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  const [notice, setNotice] = useState("")
-  const [pending, setPending] = useState(0)
-  const [rows, setRows] = useState<LedgerIncident[]>([])
-  const [total, setTotal] = useState(0)
 
-  // AV State
-  const [avActive, setAvActive] = useState(false)
-  const [faceCount, setFaceCount] = useState<number>(1)
-  const [headOrientation, setHeadOrientation] = useState<string>("CENTER")
-  const [identityMatch, setIdentityMatch] = useState<boolean | null>(null)
-  const [faceCovered, setFaceCovered] = useState(false)
-  const [mouthCovered, setMouthCovered] = useState(false)
-  const [cameraBlocked, setCameraBlocked] = useState(false)
-  const [speechDetected, setSpeechDetected] = useState(false)
-  const [mouthMoving, setMouthMoving] = useState(false)
-  const [mouthSync, setMouthSync] = useState<boolean | null>(null)
-  const [multipleSpeakers, setMultipleSpeakers] = useState(false)
-  const [voiceMatch, setVoiceMatch] = useState<boolean | null>(null)
-  const [lipSync, setLipSync] = useState<"synced" | "unsynced" | "insufficient" | null>(null)
-  const [noiseLevel, setNoiseLevel] = useState(0)
+  const av = useAvSupervision({
+    videoRef,
+    canvasRef,
+    windowsEnabled: true,
+    onAnomalies: () => void session.refreshLedger().catch(() => undefined),
+  })
+  const session = useTrialSession({
+    owner,
+    areaRef: area,
+    onReady: (handle) => void av.start(handle),
+    onSuspend: av.stop,
+    onResume: (handle) => void av.start(handle),
+    onEnd: av.stop,
+  })
+  const { trial, active, busy, error, notice, pending, rows, total } = session
+  const { avActive, vuLevel, deviceError, avStatus, lookingAway, gazeNotice } = av
+  const {
+    faceCount, headOrientation, identityMatch, faceCovered, mouthCovered, cameraBlocked, speechDetected,
+    mouthMoving, mouthSync, multipleSpeakers, voiceMatch, lipSync, noiseLevel,
+  } = av.telemetry
   const presenceAlert = cameraBlocked || faceCovered || mouthCovered
-  const [vuLevel, setVuLevel] = useState(0)
-  const [deviceError, setDeviceError] = useState("")
-  const [avStatus, setAvStatus] = useState("")
-  const [lookingAway, setLookingAway] = useState(false)
-  const [gazeNotice, setGazeNotice] = useState("")
-
-  const lastKey = `sm43:last:${owner}`
-
-  function stopAV() {
-    if (vuAnimationRef.current) {
-      cancelAnimationFrame(vuAnimationRef.current)
-      vuAnimationRef.current = null
-    }
-    if (avTimerRef.current) {
-      clearInterval(avTimerRef.current)
-      avTimerRef.current = null
-    }
-    if (processorRef.current) {
-      processorRef.current.onaudioprocess = null
-      try {
-        processorRef.current.disconnect()
-      } catch {
-        // ignore
-      }
-      processorRef.current = null
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop())
-      streamRef.current = null
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      void audioContextRef.current.close().catch(() => undefined)
-      audioContextRef.current = null
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
-    audioBufferRef.current = []
-    avInFlightRef.current = false
-    avFailuresRef.current = new AVFailureTracker()
-    if (trackerRef.current) {
-      trackerRef.current.stop()
-      trackerRef.current = null
-    }
-    setLookingAway(false)
-    setGazeNotice("")
-    setAvStatus("")
-    setAvActive(false)
-    setVuLevel(0)
-  }
-
-  function stop() {
-    stopAV()
-    const current = runtime.current
-    runtime.current = null
-    if (current) {
-      current.monitor.stop()
-      if (current.timer) clearInterval(current.timer)
-      current.release()
-    }
-  }
-
-  async function ledger(id: string, more = false) {
-    const version = generation.current
-    const response = await readBrowserLedger(id, more ? rows.at(-1)?.sequence ?? 0 : 0)
-    if (version !== generation.current) return
-    setRows((previous) => (more ? [...previous, ...response.data] : response.data))
-    setTotal(response.count ?? 0)
-  }
-
-  useEffect(() => {
-    const version = ++generation.current
-    setTrial(null)
-    setRows([])
-    setTotal(0)
-    setActive(false)
-    try {
-      const id = localStorage.getItem(`sm43:last:${owner}`)
-      if (id && /^[0-9a-f-]{36}$/i.test(id))
-        void readBrowserTrial(id)
-          .then(async (saved) => {
-            if (version !== generation.current) return
-            setTrial(saved)
-            await ledger(saved.id)
-          })
-          .catch((cause) => {
-            if (version === generation.current) setError(message(cause))
-          })
-    } catch {
-      setError("El almacenamiento local no está disponible; no se puede garantizar recuperación.")
-    }
-    return () => {
-      generation.current++
-      stop()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [owner])
-
-  async function startAV(
-    trialId: string,
-    tabId: string,
-    emit: (event: { kind: IncidentKind; duration_ms?: number }) => void,
-  ) {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      return
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-        audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        void videoRef.current.play().catch(() => undefined)
-      }
-
-      stream.getTracks().forEach((track) => {
-        track.addEventListener("ended", () => {
-          emit({ kind: "DEVICE_DISCONNECTED" })
-          setDeviceError(`Dispositivo de ${track.kind === "video" ? "cámara" : "micrófono"} desconectado.`)
-        })
-        track.addEventListener("mute", () => {
-          emit({ kind: "DEVICE_DISCONNECTED" })
-          setDeviceError(`Pérdida temporal de señal en ${track.kind === "video" ? "cámara" : "micrófono"}.`)
-        })
-      })
-
-      audioBufferRef.current = []
-
-      try {
-        const AudioCtx =
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-        if (AudioCtx) {
-          const audioCtx = new AudioCtx()
-          audioContextRef.current = audioCtx
-          await audioCtx.resume().catch(() => undefined)
-
-          const source = audioCtx.createMediaStreamSource(stream)
-          const analyser = audioCtx.createAnalyser()
-          analyser.fftSize = 1024
-          source.connect(analyser)
-          analyserRef.current = analyser
-
-          // Continuous 16kHz PCM capture via ScriptProcessorNode
-          if (typeof audioCtx.createScriptProcessor === "function") {
-            const processor = audioCtx.createScriptProcessor(2048, 1, 1)
-            processorRef.current = processor
-            const ratio = audioCtx.sampleRate / 16000
-            processor.onaudioprocess = (event) => {
-              event.outputBuffer.getChannelData(0).fill(0)
-              if (!streamRef.current) return
-              const input = event.inputBuffer.getChannelData(0)
-              const outLen = Math.floor(input.length / ratio)
-              const buf = audioBufferRef.current
-              for (let i = 0; i < outLen; i++) {
-                const start = Math.floor(i * ratio)
-                const end = Math.min(input.length, Math.floor((i + 1) * ratio))
-                let total = 0
-                for (let s = start; s < end; s++) total += input[s]
-                const sample = Math.max(-1, Math.min(1, total / Math.max(1, end - start)))
-                buf.push(sample)
-                const recording = voiceRecordingRef.current
-                if (recording && recording.samples.length < VOICE_MAX_SAMPLES) recording.samples.push(sample)
-              }
-              // Keep at most 3.5 seconds at 16kHz (56,000 samples)
-              if (buf.length > 56000) {
-                buf.splice(0, buf.length - 56000)
-              }
-            }
-            source.connect(processor)
-            processor.connect(audioCtx.destination)
-          }
-
-          const timeDomain = new Float32Array(analyser.fftSize)
-          const updateVU = () => {
-            if (!streamRef.current) return
-            if (typeof analyser.getFloatTimeDomainData === "function") {
-              analyser.getFloatTimeDomainData(timeDomain)
-              let sumSq = 0
-              for (let i = 0; i < timeDomain.length; i++) {
-                sumSq += timeDomain[i] * timeDomain[i]
-              }
-              const rms = Math.sqrt(sumSq / timeDomain.length)
-              // Nonlinear perceptual scaling so normal speech (RMS ~0.015-0.08) is clearly visible
-              const level = rms < 0.002 ? 0 : Math.min(100, Math.round(Math.pow(rms * 14, 0.65) * 100))
-              setVuLevel(level)
-            }
-            vuAnimationRef.current = requestAnimationFrame(updateVU)
-          }
-          vuAnimationRef.current = requestAnimationFrame(updateVU)
-        }
-      } catch {
-        // Audio context optional in test environments
-      }
-
-      setAvActive(true)
-      setDeviceError("")
-
-      // Browser-side gaze tracking (~15 fps) is a live hint and telemetry; the server re-measures the frames.
-      if (videoRef.current) {
-        void startFaceTracker(videoRef.current, { onAway: setLookingAway })
-          .then((tracker) => {
-            if (streamRef.current !== stream) {
-              tracker.stop()
-              return
-            }
-            tracker.setZone(gazeZoneRef.current)
-            trackerRef.current = tracker
-          })
-          .catch(() =>
-            setGazeNotice(
-              "El seguimiento de mirada en tu navegador no está disponible. El servidor igual controla la mirada.",
-            ),
-          )
-      }
-
-      const collectedFrames: string[] = []
-      const frameStamps: number[] = []
-      let windowStart = Date.now()
-      let sampleCounter = 0
-
-      // Capture 1 frame every 400ms; send window every 6 frames (~2.4 seconds) for fast detection
-      const sampleInterval = setInterval(() => {
-        if (!streamRef.current || !videoRef.current || !canvasRef.current) return
-        sampleCounter++
-        try {
-          const canvas = canvasRef.current
-          const video = videoRef.current
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            canvas.width = 320
-            canvas.height = 240
-            const ctx = canvas.getContext("2d")
-            if (ctx) {
-              ctx.drawImage(video, 0, 0, 320, 240)
-              collectedFrames.push(canvas.toDataURL("image/jpeg", 0.6))
-              frameStamps.push(Date.now())
-            }
-          }
-        } catch {
-          // ignore frame capture error
-        }
-
-        // Fallback if ScriptProcessor didn't populate audioBufferRef
-        if (
-          audioBufferRef.current.length < 4000 &&
-          analyserRef.current &&
-          typeof analyserRef.current.getFloatTimeDomainData === "function"
-        ) {
-          const fallbackChunk = new Float32Array(analyserRef.current.fftSize)
-          analyserRef.current.getFloatTimeDomainData(fallbackChunk)
-          for (let i = 0; i < fallbackChunk.length; i++) {
-            audioBufferRef.current.push(Math.max(-1, Math.min(1, fallbackChunk[i])))
-          }
-        }
-
-        if (sampleCounter >= 6 && !avInFlightRef.current) {
-          sampleCounter = 0
-          const framesToSend = collectedFrames.splice(0, 8)
-          const stampsToSend = frameStamps.splice(0, 8)
-          const audioToSend = audioBufferRef.current.splice(0, 48000)
-          const durationMs = avWindowDurationMs(audioToSend.length)
-          // The window starts where the previous one ended; frame times and telemetry are offsets from it.
-          const startedAt = windowStart
-          windowStart = Date.now()
-
-          // A window without frames or audio is still sent: the server records the missing evidence.
-          avInFlightRef.current = true
-          void sendAVWindow(trialId, {
-            tab_id: tabId,
-            window_id: crypto.randomUUID(),
-            observed_at: new Date(startedAt).toISOString(),
-            duration_ms: durationMs,
-            mode: "UNIFIED",
-            frames: framesToSend,
-            audio_samples: audioToSend,
-            frame_times_ms: stampsToSend.map((at) => Math.min(durationMs, Math.max(0, at - startedAt))),
-            gaze_samples: trackerRef.current?.takeSamples(startedAt, durationMs) ?? [],
-          })
-            .then((res) => {
-              avFailuresRef.current.success()
-              setAvStatus("")
-              setFaceCount(res.face_count)
-              setHeadOrientation(res.head_orientation)
-              setIdentityMatch(res.identity_match)
-              setFaceCovered(Boolean(res.occlusion?.face || res.anomalies.includes("FACE_OCCLUDED")))
-              setMouthCovered(Boolean(res.occlusion?.mouth || res.anomalies.includes("MOUTH_OCCLUDED")))
-              setCameraBlocked(Boolean(res.camera_blocked || res.anomalies.includes("CAMERA_BLOCKED")))
-              setSpeechDetected(res.speech_detected)
-              setMouthMoving(Boolean(res.mouth_moving))
-              setMouthSync(res.mouth_sync ?? null)
-              setVoiceMatch(res.voice_match ?? null)
-              setLipSync(res.lip_sync ?? null)
-              setMultipleSpeakers(
-                Boolean(res.multiple_speakers || res.anomalies.includes("MULTIPLE_SPEAKERS")),
-              )
-              setNoiseLevel(res.noise_level)
-              if (res.anomalies.length > 0) {
-                void ledger(trialId)
-              }
-            })
-            .catch((cause) => {
-              const tracker = avFailuresRef.current
-              const report = tracker.failure()
-              setAvStatus(
-                `La supervisión audiovisual no pudo confirmarse (${tracker.consecutive} ventana${
-                  tracker.consecutive === 1 ? "" : "s"
-                } seguida${tracker.consecutive === 1 ? "" : "s"} sin respuesta): ${message(cause)}`,
-              )
-              if (report) emit({ kind: "STREAM_ERROR" })
-            })
-            .finally(() => {
-              avInFlightRef.current = false
-            })
-        }
-      }, 400)
-
-      avTimerRef.current = sampleInterval
-    } catch {
-      emit({ kind: "STREAM_ERROR" })
-      setDeviceError("No se pudo iniciar la cámara o micrófono. Verificá los permisos del navegador.")
-    }
-  }
-
-  async function start() {
-    if (!owner || !area.current) return
-    stop()
-    setActive(false)
-    setBusy(true)
-    setError("")
-    const version = ++generation.current
-    const tabId = crypto.randomUUID()
-    tab.current = tabId
-    let claimed: string | null = null
-    const requestedAt = performance.now()
-    try {
-      const result = await startBrowserTrial(tabId)
-      claimed = result.trial.id
-      if (version !== generation.current) {
-        void trialAction(claimed, tabId, "release", true).catch(() => undefined)
-        return
-      }
-      if (performance.now() - requestedAt >= 15000)
-        throw new Error("La activación llegó tarde. Reactivá la prueba para confirmar autorización.")
-      gazeZoneRef.current = result.trial.gaze_zone ?? null
-      const resumed = localStorage.getItem(lastKey) === claimed
-      localStorage.setItem(lastKey, claimed)
-      setTrial(result.trial)
-      setNotice(result.message)
-      const pause = (text: string) => {
-        if (version === generation.current) {
-          setError(text)
-          setActive(false)
-        }
-      }
-      let fatal = false
-      let deadline = requestedAt + 15000
-      let current: Runtime
-      const queue = new IncidentQueue(
-        `sm43:queue:${owner}:${claimed}`,
-        async (events) => {
-          const response = await sendBrowserIncidents(result.trial.id, tabId, events)
-          if (runtime.current !== current || performance.now() >= deadline)
-            throw new Error("Confirmación tardía: los incidentes se conservan para reintentar.")
-          return response
-        },
-        (text) => {
-          fatal = true
-          pause(text)
-        },
-      )
-      const emit = (event: Parameters<IncidentQueue["add"]>[0]) => {
-        if (runtime.current !== current || current.closing) return
-        queue.add(event)
-        setPending(queue.size)
-        void queue
-          .flush()
-          .then(() => {
-            if (runtime.current === current) setPending(queue.size)
-          })
-          .catch((cause) => pause(message(cause)))
-      }
-      const monitor = new BrowserMonitor(area.current, emit, setNotice)
-      current = {
-        id: claimed,
-        queue,
-        monitor,
-        timer: null,
-        closing: false,
-        release: () => {
-          void trialAction(result.trial.id, tabId, "release", true).catch(() => undefined)
-        },
-      }
-      runtime.current = current
-      let nextRenew = performance.now() + 5000
-      let renewing = false
-      const renew = async () => {
-        if (renewing || runtime.current !== current || current.closing) return
-        renewing = true
-        const sentAt = performance.now()
-        try {
-          await trialAction(current.id, tabId, "heartbeat")
-          if (runtime.current !== current || current.closing) return
-          deadline = sentAt + 15000
-          if (performance.now() >= deadline) throw new Error("La renovación llegó tarde. Reactivá la prueba.")
-          await queue.flush()
-          if (runtime.current === current && !current.closing) {
-            setPending(queue.size)
-            monitor.start()
-            setActive(!fatal)
-          }
-        } catch (cause) {
-          if (runtime.current === current && !current.closing) {
-            monitor.stop()
-            pause(message(cause))
-          }
-        } finally {
-          renewing = false
-        }
-      }
-      current.timer = setInterval(() => {
-        if (performance.now() >= deadline) {
-          monitor.stop()
-          setActive(false)
-          setError("Autorización de pestaña sin confirmar. Reactivá la prueba para continuar.")
-        }
-        if (performance.now() >= nextRenew) {
-          nextRenew = performance.now() + 5000
-          void renew()
-        }
-      }, 1000)
-      monitor.start()
-      queue.add({ kind: resumed ? "SESSION_RESUME" : "SESSION_OPEN" })
-      setPending(queue.size)
-      await queue.flush()
-      if (runtime.current === current) {
-        setPending(queue.size)
-        setActive(!fatal)
-        await ledger(current.id)
-        void startAV(claimed, tabId, emit)
-      }
-    } catch (cause) {
-      if (version === generation.current) {
-        setError(message(cause))
-        setActive(false)
-        if (!runtime.current && claimed) void trialAction(claimed, tabId, "release", true).catch(() => undefined)
-      }
-    } finally {
-      if (version === generation.current) setBusy(false)
-    }
-  }
-
-  async function close() {
-    stopAV()
-    const current = runtime.current
-    if (!current) return
-    setBusy(true)
-    setActive(false)
-    setError("")
-    current.closing = true
-    current.monitor.stop()
-    if (current.timer) clearInterval(current.timer)
-    try {
-      await current.queue.flush()
-      const result = await trialAction(current.id, tab.current, "close")
-      if (runtime.current !== current) return
-      current.monitor.stop()
-      if (current.timer) clearInterval(current.timer)
-      runtime.current = null
-      setTrial(result.trial)
-      setPending(0)
-      setNotice(result.message)
-      await ledger(current.id)
-    } catch (cause) {
-      setError(message(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  /** One 320x240 JPEG of the camera, the same size the supervision windows use. */
-  function captureJpeg(): string | null {
-    const canvas = canvasRef.current
-    const video = videoRef.current
-    if (!canvas || !video || video.videoWidth === 0 || video.videoHeight === 0) return null
-    canvas.width = 320
-    canvas.height = 240
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return null
-    ctx.drawImage(video, 0, 0, 320, 240)
-    return canvas.toDataURL("image/jpeg", 0.6)
-  }
 
   async function submitGazeCalibration(points: GazeCalibrationPoint[]) {
     if (!trial) throw new Error("La prueba no está activa.")
-    const { result, message: serverMessage } = await calibrateGaze(trial.id, tab.current, points)
-    gazeZoneRef.current = result.zone
-    trackerRef.current?.setZone(result.zone)
-    setTrial((previous) => (previous ? { ...previous, gaze_zone: result.zone } : previous))
+    const { result, message: serverMessage } = await calibrateGaze(trial.id, session.tabId(), points)
+    av.setZone(result.zone)
+    session.setTrial((previous) => (previous ? { ...previous, gaze_zone: result.zone } : previous))
     return { message: serverMessage }
-  }
-
-  /** Records the microphone at 16 kHz (the same samples the supervision windows use) between start and stop. */
-  const voiceRecorder: VoiceRecorder = {
-    start: () => {
-      voiceRecordingRef.current = { samples: [], startedAt: Date.now() }
-    },
-    stop: () => {
-      const recording = voiceRecordingRef.current
-      voiceRecordingRef.current = null
-      return recording
-    },
   }
 
   async function submitVoiceCalibration(request: Parameters<typeof calibrateVoice>[2]) {
     if (!trial) throw new Error("La prueba no está activa.")
-    const { result, message: serverMessage } = await calibrateVoice(trial.id, tab.current, request)
-    setTrial((previous) => (previous ? { ...previous, voice_enrolled: result.voice_enrolled } : previous))
+    const { result, message: serverMessage } = await calibrateVoice(trial.id, session.tabId(), request)
+    session.setTrial((previous) => (previous ? { ...previous, voice_enrolled: result.voice_enrolled } : previous))
     return { message: serverMessage }
   }
 
@@ -716,7 +166,7 @@ export function BrowserSupervisionPage() {
         throw new Error("Este navegador no permite pantalla completa. La prueba puede continuar sin ese modo.")
       await area.current.requestFullscreen()
     } catch (cause) {
-      setError(message(cause))
+      session.setError(message(cause))
     }
   }
 
@@ -754,10 +204,10 @@ export function BrowserSupervisionPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => void start()} disabled={!accepted || busy || active}>
+            <Button onClick={() => void session.start()} disabled={!accepted || busy || active}>
               {busy ? "Procesando…" : "Activar prueba"}
             </Button>
-            <Button variant="outline" onClick={() => void close()} disabled={!runtime.current || busy}>
+            <Button variant="outline" onClick={() => void session.close()} disabled={!session.open || busy}>
               Cerrar prueba
             </Button>
             <Button variant="outline" onClick={() => void fullscreen()} disabled={!active}>
@@ -1003,14 +453,14 @@ export function BrowserSupervisionPage() {
       </Card>
 
       {avActive && active && trial && !trial.closed_at && (
-        <GazeCalibrationStep captureFrame={captureJpeg} submit={submitGazeCalibration} />
+        <GazeCalibrationStep captureFrame={av.captureFrame} submit={submitGazeCalibration} />
       )}
 
       {avActive && active && trial && !trial.closed_at && trial.gaze_zone && (
         <VoiceCalibrationStep
-          recorder={voiceRecorder}
-          captureFrame={captureJpeg}
-          readMouth={(startedAt, durationMs) => trackerRef.current?.takeMouthSamples(startedAt, durationMs) ?? []}
+          recorder={av.recorder}
+          captureFrame={av.captureFrame}
+          readMouth={av.readMouth}
           submit={submitVoiceCalibration}
         />
       )}
@@ -1044,7 +494,7 @@ export function BrowserSupervisionPage() {
               variant="outline"
               disabled={!trial}
               onClick={() => {
-                if (trial) void ledger(trial.id).catch((cause) => setError(message(cause)))
+                void session.refreshLedger().catch((cause) => session.setError(message(cause)))
               }}
             >
               Actualizar bitácora
@@ -1053,7 +503,7 @@ export function BrowserSupervisionPage() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  if (trial) void ledger(trial.id, true).catch((cause) => setError(message(cause)))
+                  void session.loadMore().catch((cause) => session.setError(message(cause)))
                 }}
               >
                 Cargar más incidentes
