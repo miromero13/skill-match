@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { Plus, Trash2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -61,6 +62,9 @@ export function AdminProgrammingPage() {
     setTests((current) => current.map((test, testIndex) => testIndex === index ? { ...test, ...patch } : test))
   }
 
+  const addTest = () => setTests((current) => [...current, emptyTest(current.length)])
+  const removeTest = (index: number) => setTests((current) => current.length > 1 ? current.filter((_, testIndex) => testIndex !== index).map((test, testIndex) => ({ ...test, order_index: testIndex })) : current)
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!selectedSkill || !title.trim() || !statement.trim() || tests.some((test) => !test.name.trim() || !test.expected_stdout.trim())) return
@@ -108,7 +112,7 @@ export function AdminProgrammingPage() {
               <div className="space-y-2"><Label htmlFor="programming-title">Título</Label><Input id="programming-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Suma de dos números" /></div>
               <div className="space-y-2"><Label htmlFor="programming-statement">Consigna</Label><Textarea id="programming-statement" value={statement} onChange={(event) => setStatement(event.target.value)} rows={6} placeholder="Explicá qué debe resolver el miembro..." /></div>
               <div className="space-y-2"><Label htmlFor="programming-starter">Código inicial</Label><Textarea id="programming-starter" value={starterCode} onChange={(event) => setStarterCode(event.target.value)} rows={7} className="font-mono text-xs" /></div>
-              <div className="space-y-3"><Label>Tests</Label>{tests.map((test, index) => <div key={index} className="space-y-2 rounded-md border border-[#1E2629] p-3"><div className="flex items-center justify-between gap-2"><Input value={test.name} onChange={(event) => updateTest(index, { name: event.target.value })} aria-label={`Nombre del test ${index + 1}`} /><Select value={test.visibility} onValueChange={(value: "PUBLIC" | "HIDDEN") => updateTest(index, { visibility: value })}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PUBLIC">Público</SelectItem><SelectItem value="HIDDEN">Oculto</SelectItem></SelectContent></Select></div><Textarea value={test.stdin_data} onChange={(event) => updateTest(index, { stdin_data: event.target.value })} placeholder="Entrada stdin" aria-label={`Entrada del test ${index + 1}`} /><Textarea value={test.expected_stdout} onChange={(event) => updateTest(index, { expected_stdout: event.target.value })} placeholder="Salida esperada" aria-label={`Salida del test ${index + 1}`} /></div>)}</div>
+              <div className="space-y-3"><div className="flex items-center justify-between"><Label>Tests</Label><Button type="button" variant="outline" size="sm" onClick={addTest}><Plus className="mr-1 h-4 w-4" />Agregar caso</Button></div>{tests.map((test, index) => <div key={index} className="space-y-2 rounded-md border border-[#1E2629] p-3"><div className="flex items-center justify-between gap-2"><Input value={test.name} onChange={(event) => updateTest(index, { name: event.target.value })} aria-label={`Nombre del test ${index + 1}`} /><div className="flex items-center gap-2"><Select value={test.visibility} onValueChange={(value: "PUBLIC" | "HIDDEN") => updateTest(index, { visibility: value })}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PUBLIC">Público</SelectItem><SelectItem value="HIDDEN">Oculto</SelectItem></SelectContent></Select><Button type="button" variant="ghost" size="icon" disabled={tests.length === 1} onClick={() => removeTest(index)} aria-label={`Eliminar test ${index + 1}`}><Trash2 className="h-4 w-4" /></Button></div></div><Textarea value={test.stdin_data} onChange={(event) => updateTest(index, { stdin_data: event.target.value })} placeholder="Entrada stdin" aria-label={`Entrada del test ${index + 1}`} /><Textarea value={test.expected_stdout} onChange={(event) => updateTest(index, { expected_stdout: event.target.value })} placeholder="Salida esperada" aria-label={`Salida del test ${index + 1}`} /></div>)}</div>
               <div className="flex justify-end"><Button type="submit" disabled={saving || loading || !selectedSkill}>{saving ? "Guardando..." : "Guardar borrador"}</Button></div>
             </form>
           </CardContent>
