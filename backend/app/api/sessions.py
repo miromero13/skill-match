@@ -16,9 +16,14 @@ from app.schemas.exchange_session import (
     ExchangeSessionResponse,
     ExchangeSessionStatusUpdate,
     SessionCalendarExportResponse,
+    SessionConfirmRequest,
+    SessionConfirmResponse,
+    SessionNoShowRequest,
+    SessionNoShowResponse,
+    SessionPresencePinResponse,
 )
 from app.schemas.response import APIResponse
-from app.services import exchange_session_service
+from app.services import exchange_session_service, session_completion_service
 
 router = APIRouter(prefix="/sessions", tags=["Sesiones de intercambio · HU-38"])
 
@@ -155,3 +160,70 @@ async def cancel_session(
         payload.cancellation_reason,
     )
     return APIResponse.ok(data=item, message="Sesión cancelada correctamente.")
+
+
+@router.post(
+    "/{session_id}/confirm",
+    response_model=APIResponse[SessionConfirmResponse],
+    response_model_exclude={"count"},
+    summary="Confirmar realización y horas de sesión",
+    description=(
+        "Protocolo de confirmación dual post-sesión. La primera confirmación registra las horas y temas; "
+        "la segunda con horas concordantes completa la sesión a COMPLETED."
+    ),
+)
+async def confirm_session(
+    session_id: UUID,
+    payload: SessionConfirmRequest,
+    user: MemberDep,
+    db: DatabaseDep,
+) -> APIResponse[SessionConfirmResponse]:
+    result = await session_completion_service.confirm_session(db, user, session_id, payload)
+    message = (
+        "Sesión completada exitosamente."
+        if result.status == "COMPLETED"
+        else "Confirmación de sesión registrada correctamente."
+    )
+    return APIResponse.ok(data=result, message=message)
+
+
+@router.post(
+    "/{session_id}/report-noshow",
+    response_model=APIResponse[SessionNoShowResponse],
+    response_model_exclude={"count"},
+    summary="Reportar inasistencia (no-show)",
+    description=(
+        "Permite a un participante registrar la inasistencia injustificada de la contraparte "
+        "después de concluida la sesión."
+    ),
+)
+async def report_noshow(
+    session_id: UUID,
+    payload: SessionNoShowRequest,
+    user: MemberDep,
+    db: DatabaseDep,
+) -> APIResponse[SessionNoShowResponse]:
+    result = await session_completion_service.report_noshow(db, user, session_id, payload)
+    return APIResponse.ok(
+        data=result,
+        message="Reporte de inasistencia registrado correctamente.",
+    )
+
+
+@router.get(
+    "/{session_id}/presence-pin",
+    response_model=APIResponse[SessionPresencePinResponse],
+    response_model_exclude={"count"},
+    summary="Consultar o generar PIN presencial",
+    description="Devuelve el PIN de 4 dígitos para validación mutua en sesiones presenciales.",
+)
+async def get_presence_pin(
+    session_id: UUID,
+    user: MemberDep,
+    db: DatabaseDep,
+) -> APIResponse[SessionPresencePinResponse]:
+    result = await session_completion_service.get_or_create_presence_pin(db, user, session_id)
+    return APIResponse.ok(
+        data=result,
+        message="PIN de presencia obtenido correctamente.",
+    )

@@ -18,6 +18,9 @@ class NotificationType(str, Enum):
     SESSION_RESCHEDULED = "SESSION_RESCHEDULED"
     SESSION_CANCELLED = "SESSION_CANCELLED"
     SESSION_REMINDER = "SESSION_REMINDER"
+    SESSION_CONFIRMATION_RECORDED = "SESSION_CONFIRMATION_RECORDED"
+    SESSION_COMPLETED = "SESSION_COMPLETED"
+    SESSION_NO_SHOW_REPORTED = "SESSION_NO_SHOW_REPORTED"
     POINTS_RECEIVED = "POINTS_RECEIVED"
     OTHER = "OTHER"
 
@@ -37,6 +40,9 @@ NOTIFICATION_CATEGORIES = {
     NotificationType.SESSION_RESCHEDULED: NotificationCategory.INTERCHANGES,
     NotificationType.SESSION_CANCELLED: NotificationCategory.INTERCHANGES,
     NotificationType.SESSION_REMINDER: NotificationCategory.INTERCHANGES,
+    NotificationType.SESSION_CONFIRMATION_RECORDED: NotificationCategory.INTERCHANGES,
+    NotificationType.SESSION_COMPLETED: NotificationCategory.INTERCHANGES,
+    NotificationType.SESSION_NO_SHOW_REPORTED: NotificationCategory.INTERCHANGES,
     NotificationType.POINTS_RECEIVED: NotificationCategory.POINTS,
     NotificationType.OTHER: NotificationCategory.GENERAL,
 }
@@ -51,7 +57,8 @@ class Notification(Base):
         CheckConstraint(
             "type IN ('MATCH_RECEIVED', 'MATCH_CONFIRMED', 'SESSION_PROPOSED', "
             "'SESSION_ACCEPTED', 'SESSION_REJECTED', 'SESSION_RESCHEDULED', "
-            "'SESSION_CANCELLED', 'SESSION_REMINDER', 'POINTS_RECEIVED', 'OTHER')",
+            "'SESSION_CANCELLED', 'SESSION_REMINDER', 'SESSION_CONFIRMATION_RECORDED', "
+            "'SESSION_COMPLETED', 'SESSION_NO_SHOW_REPORTED', 'POINTS_RECEIVED', 'OTHER')",
             name="ck_notifications_type",
         ),
         CheckConstraint("length(btrim(title)) > 0", name="ck_notifications_title"),

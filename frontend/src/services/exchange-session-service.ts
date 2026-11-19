@@ -4,7 +4,12 @@ import type {
   ExchangeSessionCreate,
   ExchangeSessionReschedule,
   SessionCalendarExport,
+  SessionConfirmRequest,
+  SessionConfirmResponse,
   SessionListData,
+  SessionNoShowRequest,
+  SessionNoShowResponse,
+  SessionPresencePinResponse,
 } from "@/types/exchange-session"
 
 const base = "/sessions"
@@ -67,5 +72,34 @@ export function getSessionCalendarExport(id: string, signal?: AbortSignal) {
   return apiClient.get<SessionCalendarExport>(
     `${base}/${encodeURIComponent(id)}/calendar-export`,
     { ...requestOptions, signal }
+  )
+}
+
+export function confirmExchangeSession(
+  id: string,
+  payload: SessionConfirmRequest
+) {
+  return apiClient.post<SessionConfirmResponse>(
+    `${base}/${encodeURIComponent(id)}/confirm`,
+    payload,
+    requestOptions
+  )
+}
+
+export function reportSessionNoShow(
+  id: string,
+  payload: SessionNoShowRequest
+) {
+  return apiClient.post<SessionNoShowResponse>(
+    `${base}/${encodeURIComponent(id)}/report-noshow`,
+    payload,
+    requestOptions
+  )
+}
+
+export function getSessionPresencePin(id: string) {
+  return apiClient.get<SessionPresencePinResponse>(
+    `${base}/${encodeURIComponent(id)}/presence-pin`,
+    requestOptions
   )
 }
