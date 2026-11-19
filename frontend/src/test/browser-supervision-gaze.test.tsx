@@ -45,6 +45,11 @@ const zone: gaze.GazeZone = {
   gaze_v_max: 0.55,
 }
 
+/** Seeded from a valid pre-exam calibration: supervision starts without the calibration gate. */
+const seed = () => vi.mocked(api.startBrowserTrial).mockResolvedValue({
+  trial: { ...trial, gaze_zone: zone, voice_enrolled: true }, message: "Sesión de prueba preparada.",
+})
+
 interface FakeTracker {
   setZone: Mock<gaze.FaceTracker["setZone"]>
   takeSamples: Mock<gaze.FaceTracker["takeSamples"]>
@@ -163,6 +168,7 @@ async function runWindow() {
 it("attaches frame timestamps and browser telemetry to every audiovisual window", async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   stubCapture()
+  seed()
   show()
   await activate()
   await runWindow()
@@ -181,6 +187,7 @@ it("attaches frame timestamps and browser telemetry to every audiovisual window"
 it("still sends windows without telemetry when browser tracking is unavailable and says so", async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   stubCapture()
+  seed()
   vi.mocked(gaze.startFaceTracker).mockRejectedValue(new Error("assets missing"))
   show()
   fireEvent.click(screen.getByRole("checkbox", { name: /Acepto los controles/ }))
@@ -194,6 +201,7 @@ it("still sends windows without telemetry when browser tracking is unavailable a
 it("warns 'Mirá a la pantalla' while away without blocking anything, and clears it", async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   stubCapture()
+  seed()
   show()
   await activate()
   expect(screen.queryByTestId("gaze-away")).not.toBeInTheDocument()

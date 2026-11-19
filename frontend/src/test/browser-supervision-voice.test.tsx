@@ -279,27 +279,10 @@ it("reports the voice verdicts in the acoustic activity card", async () => {
   expect(screen.getByText(/la voz no coincide con la huella de voz calibrada/i)).toBeInTheDocument()
 })
 
-it("says the voice is unverified when speech arrives without an enrolled voiceprint", async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true })
-  stubCapture()
-  vi.mocked(api.sendAVWindow).mockResolvedValue({
-    ...windowResult,
-    speech_detected: true,
-    mouth_moving: true,
-    mouth_sync: true,
-    voice_match: null,
-    lip_sync: "synced",
-  })
-  show()
-  await activate()
-  await runWindow()
-  expect(await screen.findByText("Voz sin verificar")).toBeInTheDocument()
-})
-
 it("says the lips do not match the voice when the correlation fails", async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   stubCapture()
-  useTrial({ ...baseTrial, voice_enrolled: true })
+  useTrial({ ...baseTrial, gaze_zone: zone, voice_enrolled: true })
   vi.mocked(api.sendAVWindow).mockResolvedValue({
     ...windowResult,
     speech_detected: true,

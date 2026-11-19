@@ -17,8 +17,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { GazeCalibrationStep } from "@/components/integrity/gaze-calibration-step"
-import { VoiceCalibrationStep } from "@/components/integrity/voice-calibration-step"
+import { CalibrationGate, isCalibrated } from "@/components/integrity/calibration-gate"
 import { useAvSupervision } from "@/hooks/use-av-supervision"
 import { useTrialSession } from "@/hooks/use-trial-session"
 import { useAuthStore } from "@/stores/auth-store"
@@ -79,21 +78,21 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [accepted, setAccepted] = useState(false)
 
-  const av = useAvSupervision({
-    videoRef,
-    canvasRef,
-    windowsEnabled: true,
-    onAnomalies: () => void session.refreshLedger().catch(() => undefined),
-  })
   const session = useTrialSession({
     owner,
     areaRef: area,
     onReady: (handle) => void av.start(handle),
-    onSuspend: av.stop,
+    onSuspend: () => av.stop(),
     onResume: (handle) => void av.start(handle),
-    onEnd: av.stop,
+    onEnd: () => av.stop(),
   })
   const { trial, active, busy, error, notice, pending, rows, total } = session
+  const av = useAvSupervision({
+    videoRef,
+    canvasRef,
+    windowsEnabled: active && isCalibrated(trial),
+    onAnomalies: () => void session.refreshLedger().catch(() => undefined),
+  })
   const { avActive, vuLevel, deviceError, avStatus, lookingAway, gazeNotice } = av
   const {
     faceCount, headOrientation, identityMatch, faceCovered, mouthCovered, cameraBlocked, speechDetected,
@@ -453,15 +452,13 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
       </Card>
 
       {avActive && active && trial && !trial.closed_at && (
-        <GazeCalibrationStep captureFrame={av.captureFrame} submit={submitGazeCalibration} />
-      )}
-
-      {avActive && active && trial && !trial.closed_at && trial.gaze_zone && (
-        <VoiceCalibrationStep
-          recorder={av.recorder}
+        <CalibrationGate
+          trial={trial}
           captureFrame={av.captureFrame}
+          recorder={av.recorder}
           readMouth={av.readMouth}
-          submit={submitVoiceCalibration}
+          submitGaze={submitGazeCalibration}
+          submitVoice={submitVoiceCalibration}
         />
       )}
 

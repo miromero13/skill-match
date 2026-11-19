@@ -27,6 +27,14 @@ const trial: api.Trial = {
   lease_until: new Date(Date.now() + 20000).toISOString(),
   event_count: 0,
 }
+/** A trial seeded from a valid pre-exam calibration (zone and voiceprint): supervision starts without the gate. */
+const seededTrial: api.Trial = {
+  ...trial,
+  gaze_zone: {
+    pitch_min: -9, pitch_max: 13, yaw_min: -13, yaw_max: 13, gaze_h_min: -0.65, gaze_h_max: 0.65, gaze_v_min: -0.45, gaze_v_max: 0.55,
+  },
+  voice_enrolled: true,
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -37,7 +45,7 @@ beforeEach(() => {
     >,
   })
   vi.mocked(api.startBrowserTrial).mockResolvedValue({
-    trial,
+    trial: seededTrial,
     message: "Sesión de prueba preparada. No inicia un examen ni consume intentos.",
   })
   vi.mocked(api.trialAction).mockImplementation(async (_id, _tab, action) => ({
