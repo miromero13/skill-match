@@ -103,3 +103,23 @@ MOUTH_PATCH_MIN_ACTIVE_STEPS = 2
 
 # ---- window aggregation ------------------------------------------------------------------------
 FACE_ABSENT_MIN_EMPTY_FRAMES = 2  # also needs more than half of the frames to be empty
+
+# ---- gaze features (T6 / S5); the browser mirrors these in frontend/src/services/gaze-tracking.ts ------
+GAZE_BLINK_SCORE = 0.55  # mean eyeBlinkLeft/Right at or above this is a blink
+GAZE_CLOSED_LID_RATIO = 0.08  # without blendshapes: lid opening / eye width below this is a closed eye
+GAZE_GAIN_H = 2.0  # iris offset from the corner midpoint, in half eye widths, scaled to roughly [-1, 1]
+GAZE_GAIN_V = 1.5  # iris offset from the lid midpoint, in half lid openings
+GAZE_BLENDSHAPE_WEIGHT = 0.5  # eyeLook* blendshapes vs iris geometry
+
+# ---- calibrated screen zone (T6) ---------------------------------------------------------------
+ZONE_HEAD_MARGIN_DEG = 5.0  # slack around the head pose reached at the five calibration targets
+ZONE_GAZE_MARGIN = 0.15  # slack around the gaze reached at the five calibration targets
+ZONE_MIN_HEAD_SPAN_DEG = 3.0  # an axis is distinguishable when the head moved at least this much...
+ZONE_MIN_GAZE_SPAN = 0.10  # ...or the eyes moved at least this much between the targets
+ZONE_MIN_USABLE_FRAMES = 2  # non-blink single-face frames needed per target
+
+# Conservative absolute limits used while a trial has no calibrated zone.
+DEFAULT_ZONE_PITCH_DEG = (-15.0, 20.0)
+DEFAULT_ZONE_YAW_DEG = (-16.0, 16.0)
+DEFAULT_ZONE_GAZE_H = (-0.6, 0.6)
+DEFAULT_ZONE_GAZE_V = (-0.5, 0.6)

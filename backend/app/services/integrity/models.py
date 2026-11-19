@@ -28,6 +28,10 @@ class FrameObservation:
     identity_match: Optional[bool] = None
     mouth_patch: Optional[MouthPatch] = None
     landmarks: Optional[np.ndarray] = None  # (N, 3) normalized landmarks, only when the analyzer keeps them
+    # Eye gaze (T6): iris position in [-1, 1] (h: + image right, v: + down); None when the eyes could not be measured.
+    gaze_h: Optional[float] = None
+    gaze_v: Optional[float] = None
+    blink: bool = False  # eyes (nearly) closed: the frame says nothing about where the candidate looks
     model_unavailable: bool = False
 
     @classmethod
@@ -49,6 +53,9 @@ class FrameObservation:
             identity_match=raw.get("identity_match"),
             mouth_patch=raw.get("mouth_patch"),
             landmarks=raw.get("landmarks"),
+            gaze_h=raw.get("gaze_h"),
+            gaze_v=raw.get("gaze_v"),
+            blink=bool(raw.get("blink", False)),
             model_unavailable=bool(raw.get("model_unavailable", False)),
         )
 

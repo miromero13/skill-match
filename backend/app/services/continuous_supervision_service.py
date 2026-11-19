@@ -11,7 +11,7 @@ they remain the seams existing callers and tests patch; the engine is wired over
 """
 import threading
 from collections import OrderedDict
-from typing import Any, Optional
+from typing import Any, Mapping, Optional, Sequence
 
 import numpy as np
 
@@ -19,7 +19,7 @@ from app.services.integrity import frame_analyzer as frames
 from app.services.integrity.audio_analyzer import AudioAnalyzer
 from app.services.integrity.engine import IntegrityEngine
 from app.services.integrity.frame_analyzer import FrameAnalyzer, LandmarkerLifecycle
-from app.services.integrity.models import FrameObservation, MouthPatch
+from app.services.integrity.models import FrameBatch, FrameObservation, MouthPatch
 from app.services.integrity.policy import SupervisionProfile
 from app.services.integrity.state import InMemoryStateStore
 from app.services.integrity.sync_analyzer import SyncAnalyzer
@@ -109,6 +109,12 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
         return cls._frame_analyzer().analyze_frame(
             image, detector, recognizer, reference_embedding, session_key=trial_key, landmarker=landmarker
         ).to_legacy_dict()
+
+    @classmethod
+    def analyze_gaze_targets(cls, frames_by_target: Mapping[str, Sequence[str]]) -> dict[str, FrameBatch]:
+        """Measures the calibration frames of each screen target (no per-trial baseline is touched)."""
+        analyzer = cls._frame_analyzer()
+        return {name: analyzer.analyze_frames(frames, None, None) for name, frames in frames_by_target.items()}
 
     @classmethod
     def compute_mouth_trace(cls, patches: list[Optional[MouthPatch]]) -> tuple[bool, list[float]]:

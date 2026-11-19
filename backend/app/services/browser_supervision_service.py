@@ -11,8 +11,11 @@ from sqlalchemy import func, select
 from app.core.exceptions import SkillMatchException
 from app.models.browser_supervision import BrowserIncident, BrowserTrial
 from app.models.user import User, UserRole
-from app.schemas.browser_supervision import AVWindowRequest, IncidentKind, IncidentResponse
+from app.schemas.browser_supervision import (
+    AVWindowRequest, GazeCalibrationRequest, IncidentKind, IncidentResponse,
+)
 from app.services.continuous_supervision_service import ContinuousSupervisionService
+from app.services.integrity.gaze import GazeCalibrationError, compute_zone
 
 LOCKED = "Esta prueba está activa en otra pestaña o perdió su autorización. Esperá hasta 20 segundos y reintentá."
 DEFAULT_CADENCE_MS = 2400  # expected spacing of audiovisual windows when the client does not say
@@ -31,6 +34,17 @@ AV_KINDS = (
     "VIDEO_MISSING", "AUDIO_MISSING", "WINDOW_GAP",
 )
 BROWSER_KINDS = tuple(kind for kind in get_args(IncidentKind) if kind not in AV_KINDS)
+
+# Calibration failures: code -> (HTTP status, message shown verbatim by the frontend).
+GAZE_CALIBRATION_ERRORS = {
+    "FACE_MISSING": (400, "No pudimos ver tu rostro en todos los puntos. Ubicate frente a la cámara con buena luz "
+                          "y repetí la calibración."),
+    "MULTIPLE_FACES": (400, "Se detectó más de una persona durante la calibración. Tiene que estar solo tu rostro "
+                            "en cámara."),
+    "NOT_DISTINGUISHABLE": (400, "No pudimos distinguir hacia dónde mirabas. Mirá cada punto moviendo los ojos o la "
+                                 "cabeza hacia esa esquina y repetí la calibración."),
+    "MODEL_UNAVAILABLE": (503, "El análisis de mirada no está disponible en este momento. Reintentá más tarde."),
+}
 
 # Bounded pool: inference is CPU-heavy and native models are shared, so only a few run at once.
 _AV_EXECUTOR = ThreadPoolExecutor(max_workers=AV_INFERENCE_WORKERS, thread_name_prefix="av-inference")
@@ -275,3 +289,27 @@ class BrowserSupervisionService:
             "anomalies": anomalies,
             "incidents_created": [IncidentResponse.model_validate(inc) for inc in created_incidents],
         }
+
+    @classmethod
+    async def calibrate_gaze(cls, db, user, trial_id, payload: GazeCalibrationRequest):
+        """Computes and stores the trial's screen zone from the five labelled calibration points."""
+        # Phase 1: authorize under the row lock, then release it before the CPU-heavy measurement.
+        trial = await cls.owned(db, user, trial_id, lock=True)
+        cls.leased(trial, payload.tab_id, utcnow())
+        await db.commit()
+
+        frames = {point.target: point.frames for point in payload.points}
+        try:
+            batches = await asyncio.get_running_loop().run_in_executor(
+                _AV_EXECUTOR, ContinuousSupervisionService.analyze_gaze_targets, frames)
+            zone = compute_zone(batches)
+        except GazeCalibrationError as error:
+            status, message = GAZE_CALIBRATION_ERRORS[error.code]
+            reject(status, message)
+
+        # Phase 3: the lease may have been lost meanwhile; re-lock, re-verify and only then persist.
+        trial = await cls.owned(db, user, trial_id, lock=True)
+        cls.leased(trial, payload.tab_id, utcnow())
+        trial.gaze_zone = zone.to_dict()
+        await db.commit()
+        return {"zone": trial.gaze_zone, "frames_used": sum(len(batch.frames) for batch in batches.values())}

@@ -1,9 +1,9 @@
 """Bounded metadata only: clipboard contents and arbitrary context are forbidden."""
 from datetime import datetime
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal, Optional, get_args
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 # One base64 JPEG frame (320x240 is ~20 KB); the cap keeps a 12-frame window under ~5 MB.
 MAX_FRAME_B64_CHARS = 400_000
@@ -60,6 +60,45 @@ class IncidentBatch(TabRequest):
     events: list[IncidentRequest] = Field(min_length=1, max_length=50)
 
 
+GazeTarget = Literal["CENTER", "TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT"]
+GAZE_TARGETS: tuple[str, ...] = get_args(GazeTarget)
+
+
+class GazeZoneModel(BaseModel):
+    """Bounds of head pitch/yaw (degrees) and gaze_h/gaze_v while looking at the screen."""
+    model_config = ConfigDict(extra="forbid")
+    pitch_min: float
+    pitch_max: float
+    yaw_min: float
+    yaw_max: float
+    gaze_h_min: float
+    gaze_h_max: float
+    gaze_v_min: float
+    gaze_v_max: float
+
+
+class GazeCalibrationPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target: GazeTarget
+    frames: list[Annotated[str, StringConstraints(max_length=MAX_FRAME_B64_CHARS)]] = Field(min_length=1, max_length=6)
+
+
+class GazeCalibrationRequest(TabRequest):
+    """Frames captured while the candidate looks at the center and the four screen corners, one point each."""
+    points: list[GazeCalibrationPoint] = Field(min_length=5, max_length=5)
+
+    @model_validator(mode="after")
+    def every_target_once(self):
+        if sorted(point.target for point in self.points) != sorted(GAZE_TARGETS):
+            raise ValueError("Hace falta exactamente un punto por cada objetivo de calibración.")
+        return self
+
+
+class GazeCalibrationResponse(BaseModel):
+    zone: GazeZoneModel
+    frames_used: int
+
+
 class TrialResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -69,6 +108,7 @@ class TrialResponse(BaseModel):
     closed_at: datetime | None
     lease_until: datetime | None
     event_count: int
+    gaze_zone: GazeZoneModel | None = None
 
 
 class IncidentResponse(IncidentRequest):

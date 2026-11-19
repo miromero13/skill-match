@@ -23,6 +23,7 @@ import numpy as np
 from app.schemas.browser_supervision import MAX_FRAME_B64_CHARS
 from app.services import vision_models
 from app.services.integrity import thresholds as t
+from app.services.integrity.gaze import measure_gaze
 from app.services.integrity.models import FrameBatch, FrameObservation, MouthPatch
 from app.services.integrity.state import SessionStateStore
 
@@ -490,6 +491,9 @@ class FrameAnalyzer:
             if self.keep_landmarks:
                 landmarks = np.asarray([[p.x, p.y, p.z] for p in lm], dtype=np.float32)
 
+            # 3. Eye gaze (T6): iris vs eye corners/lids blended with the eyeLook* blendshapes
+            gaze = measure_gaze(np.asarray([[p.x, p.y] for p in lm], dtype=np.float64), bs_map)
+
             return FrameObservation(
                 face_count=1,
                 orientation=_orientation(is_left, is_right, is_down),
@@ -498,6 +502,9 @@ class FrameAnalyzer:
                 blendshapes=bs_map,
                 mouth_open_score=mouth_open_score,
                 landmarks=landmarks,
+                gaze_h=gaze.gaze_h,
+                gaze_v=gaze.gaze_v,
+                blink=gaze.blink,
             )
         except Exception as exc:
             logger.debug("Error en análisis MediaPipe: %s", exc)

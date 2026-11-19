@@ -190,13 +190,15 @@ async def test_heartbeat_records_gap_once_when_windows_stop(scenario, empty_scen
     assert "WINDOW_GAP" in late["anomalies"]
 
 
-def test_alembic_has_a_single_head_that_adds_last_av_window_at():
+def test_alembic_has_a_single_head_and_last_av_window_at_is_in_its_history():
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
     config.set_main_option("script_location", str(Path(__file__).parents[1] / "alembic"))
     script = ScriptDirectory.from_config(config)
     assert len(script.get_heads()) == 1
     head = script.get_revision(script.get_heads()[0])
-    assert head.revision == "dbe2f44f08c2"
+    assert head.revision == "c4e8a1f27b95"  # T6 adds the per-trial gaze zone on top of last_av_window_at
+    window = script.get_revision(head.down_revision)
+    assert window.revision == "dbe2f44f08c2"
     # The merge lives in its own empty revision so `downgrade -1` stays unambiguous.
-    merge = script.get_revision(head.down_revision)
+    merge = script.get_revision(window.down_revision)
     assert set(merge.down_revision) == {"c3bea441869b", "ce51f995031a", "f6a39d2c801b"}
