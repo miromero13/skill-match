@@ -79,6 +79,9 @@ export function TheoryExamPage() {
     window.addEventListener("beforeunload", warn)
     return () => window.removeEventListener("beforeunload", warn)
   }, [state?.current_question])
+  const enterExamFullscreen = () => {
+    if (!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => undefined)
+  }
   const run = async (operation: () => Promise<void>) => {
     if (busy) return
     setBusy(true); setError("")
@@ -141,7 +144,10 @@ export function TheoryExamPage() {
     pending.current = null; setRetryReady(false); setNotice(result.message)
     await refresh()
   })
-  return <main className="mx-auto grid min-h-screen max-w-5xl gap-5 p-4 sm:p-8">
+  const examActive = Boolean(state)
+  return <main className={examActive
+    ? "grid min-h-screen w-full gap-5 bg-background p-4 sm:p-8"
+    : "mx-auto grid min-h-screen max-w-5xl gap-5 p-4 sm:p-8"}>
     <header><h1 className="text-2xl font-semibold">Evaluación teórica oral</h1><p>Respondé hablando y justificá tu elección, incluso en preguntas de opción múltiple.</p></header>
     {error && <p role="alert" className="text-destructive">{error}</p>}
     {notice && <p role="status">{notice}</p>}
@@ -150,9 +156,9 @@ export function TheoryExamPage() {
       <div className="flex items-start gap-3"><Checkbox id="theory-text-consent" checked={textConsent} onCheckedChange={value => setTextConsent(value === true)} />
         <Label htmlFor="theory-text-consent">Autorizo enviar al proveedor configurado la pregunta, referencia, rúbrica y transcripción de mis respuestas para corregirlas. No se enviará audio, video, nombre ni datos de cuenta.</Label></div>
       <Label htmlFor="theory-level">Nivel a evaluar</Label><Select value={level} disabled={busy} onValueChange={setLevel}><SelectTrigger id="theory-level"><SelectValue /></SelectTrigger><SelectContent>{levels.map((name, index) => <SelectItem key={name} value={String(index + 1)}>{name}</SelectItem>)}</SelectContent></Select>
-      <Button disabled={busy || !textConsent} onClick={() => void run(async () => { const response = await theoryExam.start(id, Number(level), textConsent); if (alive.current) { setNotice(response.message); await refresh() } })}>Comenzar examen y consumir intento</Button>
+      <Button disabled={busy || !textConsent} onClick={() => { enterExamFullscreen(); void run(async () => { const response = await theoryExam.start(id, Number(level), textConsent); if (alive.current) { setNotice(response.message); await refresh() } }) }}>Comenzar examen y consumir intento</Button>
     </CardContent></Card>}
-    {state?.current_question && <div className="grid gap-5 md:grid-cols-[1fr_18rem]">
+    {state?.current_question && <div className="grid min-h-[calc(100vh-8rem)] gap-5 md:grid-cols-[minmax(0,1fr)_20rem]">
       <Card><CardHeader><CardTitle>Pregunta {state.position} de {state.question_count}</CardTitle><Progress value={state.answered_count / state.question_count * 100} aria-label="Progreso del examen" /></CardHeader><CardContent className="grid gap-4">
         <p className="text-lg">{state.current_question.prompt}</p>
         {state.current_question.choices.map(choice => <p key={choice.code}>{choice.code}: {choice.text}</p>)}
