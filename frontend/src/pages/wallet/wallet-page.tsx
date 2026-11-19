@@ -19,6 +19,7 @@ import {
 
 export function WalletPage() {
   const {
+    balance,
     escrowBalance,
     availableBalance,
     pointsPerUsd,
@@ -32,9 +33,11 @@ export function WalletPage() {
     loadBalance()
   }, [loadBalance])
 
+  const safeAvailable = availableBalance ?? balance ?? 0
+  const safeEscrow = escrowBalance ?? 0
   const rate = pointsPerUsd || 10
-  const availableUsd = (availableBalance / rate).toFixed(2)
-  const escrowUsd = (escrowBalance / rate).toFixed(2)
+  const availableUsd = (safeAvailable / rate).toFixed(2)
+  const escrowUsd = (safeEscrow / rate).toFixed(2)
 
   return (
     <div className="flex-1 min-w-0 h-full overflow-y-auto p-4 lg:p-8 bg-background">
@@ -98,7 +101,7 @@ export function WalletPage() {
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-3xl font-extrabold tracking-tight text-foreground">
-                  {availableBalance}
+                  {safeAvailable}
                 </span>
                 <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
                   SP
@@ -126,7 +129,7 @@ export function WalletPage() {
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-3xl font-extrabold tracking-tight text-foreground">
-                  {escrowBalance}
+                  {safeEscrow}
                 </span>
                 <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
                   SP

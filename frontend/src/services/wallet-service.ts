@@ -16,15 +16,17 @@ export async function getWalletBalance(): Promise<WalletBalance> {
   const response = await apiClient.get<WalletBalance>(`${WALLET_ENDPOINT}/balance`, {
     showToastOnError: true,
   })
-  return (
-    response.data || {
-      balance: 0,
-      escrow_balance: 0,
-      available_balance: 0,
-      currency: 'SkillPoints',
-      points_per_usd: 10,
-    }
-  )
+  const d = response.data
+  const balance = d?.balance ?? 0
+  const available = d?.available_balance ?? d?.balance ?? 0
+  const escrow = d?.escrow_balance ?? 0
+  return {
+    balance,
+    escrow_balance: escrow,
+    available_balance: available,
+    currency: d?.currency ?? 'SkillPoints',
+    points_per_usd: d?.points_per_usd ?? 10,
+  }
 }
 
 export async function getPointPackages(): Promise<PointPackage[]> {
@@ -92,9 +94,13 @@ export async function getWalletTransactions(
   type?: string,
   limit = 50
 ): Promise<PointTransaction[]> {
-  const params: Record<string, string | number> = { limit }
+  const params: Record<string, string | number> = {
+    limit,
+    page_size: limit,
+  }
   if (type && type !== 'ALL') {
     params.type = type
+    params.type_filter = type
   }
   const response = await apiClient.get<PointTransaction[]>(
     `${WALLET_ENDPOINT}/transactions`,

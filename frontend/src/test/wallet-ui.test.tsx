@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { WalletPage } from '@/pages/wallet/wallet-page'
@@ -218,5 +218,17 @@ describe('Wallet UI & Store Suite (SM-54 / HU-42)', () => {
       expect(screen.getAllByText('Recarga de paquete formativo').length).toBeGreaterThan(0)
     })
     expect(screen.getAllByText('+250 SP').length).toBeGreaterThan(0)
+
+    // Test filter change
+    await act(async () => {
+      await useWalletStore.getState().setFilter('CLASS_PAYMENT')
+    })
+    expect(screen.getByText(/No hay movimientos de clases registrados/i)).toBeInTheDocument()
+
+    // Switch back to Todas
+    await act(async () => {
+      await useWalletStore.getState().setFilter('ALL')
+    })
+    expect(screen.getAllByText('Recarga de paquete formativo').length).toBeGreaterThan(0)
   })
 })

@@ -132,15 +132,19 @@ async def list_wallet_transactions(
     user: User = Depends(current_member),
     db: AsyncSession = Depends(get_db),
     type_filter: Optional[str] = Query(default=None, description="TOPUP | CLASS_PAYMENT | TIP | CASHOUT | ADMIN_REWARD"),
+    type: Optional[str] = Query(default=None, description="Alias para type_filter"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    limit: Optional[int] = Query(default=None, ge=1, le=100, description="Alias para page_size"),
 ) -> APIResponse[List[PointTransactionItem]]:
+    active_filter = type_filter or type
+    effective_limit = limit or page_size
     items, total = await wallet_service.list_transactions(
         db,
         user.id,
-        type_filter=type_filter,
+        type_filter=active_filter,
         page=page,
-        page_size=page_size,
+        page_size=effective_limit,
     )
     return APIResponse.ok(
         data=items,

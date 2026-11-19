@@ -96,6 +96,13 @@ export function TransactionHistoryTable() {
     loadTransactions()
   }, [loadTransactions])
 
+  const displayedTransactions = React.useMemo(() => {
+    if (!filter || filter === 'ALL') return transactions
+    return transactions.filter((tx) => tx.transaction_type === filter)
+  }, [transactions, filter])
+
+  const activeLabel = FILTER_OPTIONS.find((opt) => opt.id === filter)?.label || 'Todos'
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -133,17 +140,21 @@ export function TransactionHistoryTable() {
           <Loader2 className="w-6 h-6 animate-spin text-emerald-500 mx-auto" />
           <p className="text-xs text-muted-foreground">Cargando transacciones...</p>
         </div>
-      ) : transactions.length === 0 ? (
+      ) : displayedTransactions.length === 0 ? (
         <div className="py-14 text-center rounded-xl border border-dashed border-border/80 bg-muted/20 space-y-3">
           <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
             <Inbox className="w-6 h-6" />
           </div>
           <div className="space-y-1">
             <p className="text-sm font-semibold text-foreground">
-              No hay movimientos registrados
+              {filter === 'ALL'
+                ? 'No hay movimientos registrados'
+                : `No hay movimientos de ${activeLabel.toLowerCase()} registrados`}
             </p>
             <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Cuando realices recargas, tomes clases o solicites retiros, aparecerán listados aquí.
+              {filter === 'ALL'
+                ? 'Cuando realices recargas, tomes clases o solicites retiros, aparecerán listados aquí.'
+                : `Las transacciones clasificadas como ${activeLabel.toLowerCase()} se mostrarán en esta sección.`}
             </p>
           </div>
         </div>
@@ -162,7 +173,7 @@ export function TransactionHistoryTable() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((tx) => {
+                {displayedTransactions.map((tx) => {
                   const isPositive = tx.amount > 0
                   return (
                     <TableRow key={tx.id} className="hover:bg-muted/30 transition-colors">
@@ -205,7 +216,7 @@ export function TransactionHistoryTable() {
 
           {/* Mobile Card List View */}
           <div className="sm:hidden divide-y divide-border/50">
-            {transactions.map((tx) => {
+            {displayedTransactions.map((tx) => {
               const isPositive = tx.amount > 0
               return (
                 <div key={tx.id} className="p-4 space-y-2">

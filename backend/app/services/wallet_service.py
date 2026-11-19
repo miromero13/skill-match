@@ -123,6 +123,7 @@ class WalletService:
 
         return WalletBalanceData(
             balance=wallet.balance,
+            available_balance=wallet.balance,
             escrow_balance=wallet.escrow_balance,
             rewards_balance=rewards_balance,
             total_balance=wallet.balance + wallet.escrow_balance,

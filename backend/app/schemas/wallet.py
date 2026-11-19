@@ -11,6 +11,7 @@ class WalletBalanceData(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     balance: int = Field(..., description="Saldo disponible para trueques o clases directas")
+    available_balance: int = Field(default=0, description="Saldo disponible garantizado")
     escrow_balance: int = Field(..., description="Puntos retenidos en garantía por sesiones activas")
     rewards_balance: int = Field(..., description="Puntos generados por mentorías y propinas elegibles para retiro")
     total_balance: int = Field(..., description="Suma de saldo disponible y retenido en escrow")

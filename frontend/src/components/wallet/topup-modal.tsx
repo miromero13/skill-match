@@ -250,23 +250,23 @@ export function TopupModal() {
                             : 'border-border/60 hover:border-border hover:bg-muted/30'
                           }`}
                       >
-                        {pkg.is_popular && (
-                          <div className="absolute -top-2.5 right-3">
-                            <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 shadow-sm">
-                              <Sparkles className="w-2.5 h-2.5 mr-1 inline" /> Más Popular
-                            </Badge>
-                          </div>
-                        )}
                         <div>
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-medium text-muted-foreground">
                               {title}
                             </span>
-                            {isSelected && (
-                              <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center">
-                                <Check className="w-2.5 h-2.5 stroke-[3]" />
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1.5">
+                              {pkg.is_popular && (
+                                <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 shadow-xs">
+                                  <Sparkles className="w-2.5 h-2.5 mr-1 inline" /> Más Popular
+                                </Badge>
+                              )}
+                              {isSelected && (
+                                <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div className="mt-2 flex items-baseline gap-1.5">
                             <span className="text-2xl font-bold tracking-tight text-foreground">

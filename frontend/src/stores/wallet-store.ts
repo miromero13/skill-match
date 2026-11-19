@@ -112,15 +112,16 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     set({ isLoadingBalance: true })
     try {
       const data = await getWalletBalance()
+      const available = data.available_balance ?? data.balance ?? 0
       set({
-        balance: data.balance,
-        escrowBalance: data.escrow_balance,
-        availableBalance: data.available_balance,
+        balance: data.balance ?? 0,
+        escrowBalance: data.escrow_balance ?? 0,
+        availableBalance: available,
         pointsPerUsd: data.points_per_usd || 10,
       })
       // Sync with global auth store balance
       useAuthStore.getState().updateProfile({
-        skillPointsBalance: data.balance,
+        skillPointsBalance: available,
       })
     } catch {
       // Error handled by apiClient toast
