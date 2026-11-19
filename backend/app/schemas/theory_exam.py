@@ -9,7 +9,7 @@ from app.schemas.theory_question import Choice
 class TheoryStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     evaluation_id: UUID
-    level_number: int = Field(ge=1, le=5)
+    level_number: int | None = Field(default=None, ge=1, le=5)
     text_grading_consent: bool = False
 
 

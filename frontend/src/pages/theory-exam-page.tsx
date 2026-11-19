@@ -1,28 +1,43 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useParams, useSearchParams } from "react-router-dom"
 import { theoryExam, type OralSubmission } from "@/services/theory-exam-service"
 import { useTheoryExamStore } from "@/stores/theory-exam-store"
+import { useEvaluationPreflightStore } from "@/stores/evaluation-preflight-store"
 import { startOralRecording, type OralRecording } from "@/services/oral-recording"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { ApiError } from "@/types/api"
 
 const messageOf = (error: unknown) => error instanceof Error ? error.message : "No se pudo completar la operación."
-const levels = ["Principiante", "Elemental", "Intermedio", "Avanzado", "Master Pedagogo"]
+const levels: Record<number, string> = {
+  1: "Nivel 1 · Principiante",
+  2: "Nivel 2 · Elemental",
+  3: "Nivel 3 · Intermedio",
+  4: "Nivel 4 · Avanzado",
+  5: "Nivel 5 · Experto / Master Pedagogo",
+}
 
 export function TheoryExamPage() {
   const { id = "" } = useParams()
+  const [searchParams] = useSearchParams()
+  const preflight = useEvaluationPreflightStore(state => state.preflight)
   const progress = useTheoryExamStore(state => state.progress)
   const setProgress = useTheoryExamStore(state => state.setProgress)
   const state = progress?.evaluation_id === id ? progress : null
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
   const [busy, setBusy] = useState(false)
-  const [level, setLevel] = useState("1")
+  const queryLevel = Number(searchParams.get("level") || "")
+  const targetLevelNumber =
+    queryLevel >= 1 && queryLevel <= 5
+      ? queryLevel
+      : preflight?.target_level_number ?? 1
+  const targetLevelLabel =
+    preflight?.declared_level_label ?? levels[targetLevelNumber] ?? levels[1]
   const [textConsent, setTextConsent] = useState(false)
   const [recording, setRecording] = useState(false)
   const [retryReady, setRetryReady] = useState(false)
@@ -125,8 +140,9 @@ export function TheoryExamPage() {
       <p>El inicio consume tu intento una sola vez. Se requieren calibración, preguntas publicadas y transcripción local disponible.</p>
       <div className="flex items-start gap-3"><Checkbox id="theory-text-consent" checked={textConsent} onCheckedChange={value => setTextConsent(value === true)} />
         <Label htmlFor="theory-text-consent">Autorizo enviar al proveedor configurado la pregunta, referencia, rúbrica y transcripción de mis respuestas para corregirlas. No se enviará audio, video, nombre ni datos de cuenta.</Label></div>
-      <Label htmlFor="theory-level">Nivel a evaluar</Label><Select value={level} disabled={busy} onValueChange={setLevel}><SelectTrigger id="theory-level"><SelectValue /></SelectTrigger><SelectContent>{levels.map((name, index) => <SelectItem key={name} value={String(index + 1)}>{name}</SelectItem>)}</SelectContent></Select>
-      <Button disabled={busy || !textConsent} onClick={() => { enterExamFullscreen(); void run(async () => { const response = await theoryExam.start(id, Number(level), textConsent); if (alive.current) { setNotice(response.message); await refresh() } }) }}>Comenzar examen y consumir intento</Button>
+      <Label htmlFor="theory-level">Nivel a evaluar (declarado en tu perfil)</Label>
+      <Input id="theory-level" value={targetLevelLabel} readOnly disabled className="bg-muted font-semibold disabled:opacity-100 disabled:cursor-default" />
+      <Button disabled={busy || !textConsent} onClick={() => { enterExamFullscreen(); void run(async () => { const response = await theoryExam.start(id, targetLevelNumber, textConsent); if (alive.current) { setNotice(response.message); await refresh() } }) }}>Comenzar examen y consumir intento</Button>
     </CardContent></Card>}
     {state?.current_question && <div className="grid min-h-[calc(100vh-8rem)] gap-5">
       <Card><CardHeader><CardTitle>Pregunta {state.position} de {state.question_count}</CardTitle><Progress value={state.answered_count / state.question_count * 100} aria-label="Progreso del examen" /></CardHeader><CardContent className="grid gap-4">

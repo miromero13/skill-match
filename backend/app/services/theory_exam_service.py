@@ -11,7 +11,11 @@ from app.models.theory_question import TheoryQuestion
 from app.models.user import User, UserRole
 from app.schemas.theory_exam import TheoryStartResponse, PublicTheoryQuestion
 from app.services.evaluation_calibration_service import EvaluationCalibrationService
-from app.services.evaluation_preflight_service import EvaluationPreflightService, POLICY_VERSION
+from app.services.evaluation_preflight_service import (
+    EvaluationPreflightService,
+    POLICY_VERSION,
+    resolve_declared_level,
+)
 from app.services.local_speech_service import LocalSpeechService
 from app.services.theory_grading_provider import PROMPT_VERSION, provider_configuration
 
@@ -44,7 +48,7 @@ class TheoryExamService:
         evaluation = await cls.owned(db, user, payload.evaluation_id, lock=True)
         existing = await db.get(TheoryExam, evaluation.id)
         if existing is not None:
-            if existing.level_number != payload.level_number:
+            if payload.level_number is not None and existing.level_number != payload.level_number:
                 raise SkillMatchException(statuscode=409, message="El examen ya comenzó con otro nivel.")
             return cls.response(evaluation, existing)
         if not payload.text_grading_consent:
@@ -52,7 +56,10 @@ class TheoryExamService:
         configured = provider_configuration()
         if configured is None:
             raise SkillMatchException(statuscode=503, message="El corrector teórico no está configurado. Tu intento no se descontó.")
-        await EvaluationPreflightService.context(db, user, evaluation.teaching_skill_id)
+        offer, *_ = await EvaluationPreflightService.context(db, user, evaluation.teaching_skill_id)
+        target_level = payload.level_number
+        if target_level is None:
+            target_level, _ = resolve_declared_level(offer.declared_level)
         state = await EvaluationCalibrationService.state(db, user, evaluation.id)
         if not state.ready or evaluation.policy_version != POLICY_VERSION:
             raise SkillMatchException(statuscode=409, message="Completá una calibración válida antes de iniciar el examen.")
@@ -61,7 +68,7 @@ class TheoryExamService:
         candidates = (await db.scalars(select(TheoryQuestion).join(latest, and_(
             TheoryQuestion.id == latest.c.id, TheoryQuestion.version == latest.c.version,
         )).where(TheoryQuestion.skill_id == evaluation.skill_id,
-                 TheoryQuestion.level_number == payload.level_number,
+                 TheoryQuestion.level_number == target_level,
                  TheoryQuestion.status == "PUBLISHED"))).all()
         if len(candidates) < cls.QUESTION_COUNT:
             raise SkillMatchException(statuscode=409, message="No hay suficientes preguntas publicadas para esta habilidad y nivel.")
@@ -72,7 +79,7 @@ class TheoryExamService:
         questions = [{"id": str(item.id), "version": item.version, "position": index + 1,
                       **{key: item.content[key] for key in ("kind", "prompt", "choices", "reference_answer",
                           "criteria", "time_limit_seconds", "max_score")}} for index, item in enumerate(selected)]
-        exam = TheoryExam(evaluation_id=evaluation.id, level_number=payload.level_number,
+        exam = TheoryExam(evaluation_id=evaluation.id, level_number=target_level,
                           started_at=now, deadline_at=now + timedelta(minutes=10), questions=questions,
                           current_position=0, question_started_at=now, answers=[], text_consent_at=now,
                           grading_provider=configured[0], grading_model=configured[1],
