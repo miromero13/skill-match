@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.programming import (
     ChallengeCreateRequest,
+    ChallengePreviewRequest,
     ChallengeResponse,
     ChallengeSummary,
     ChallengeRunRequest,
@@ -33,6 +34,15 @@ async def list_challenges(
 ):
     items = await ChallengeService.list_challenges(db, skill_id)
     return APIResponse(statuscode=200, message="Retos recuperados exitosamente.", data=items, count=len(items))
+
+
+@admin_router.post("/challenges/test", response_model=APIResponse[ChallengeRunResponse])
+async def preview_challenge(
+    payload: ChallengePreviewRequest,
+    admin: User = Depends(get_current_admin_user),
+):
+    result = await ChallengeService.preview_challenge(payload)
+    return APIResponse(statuscode=200, message="Prueba del reto ejecutada exitosamente.", data=result)
 
 
 @admin_router.post("/challenges", response_model=APIResponse[ChallengeResponse], status_code=status.HTTP_201_CREATED)

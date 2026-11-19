@@ -14,7 +14,7 @@ from app.models.evaluation import Evaluation
 from app.models.theory_exam import TheoryExam
 from app.models.programming import Challenge, ChallengeSubmission, ChallengeTestCase
 from app.models.user import User
-from app.schemas.programming import ChallengeCreateRequest, ChallengeRunResponse, ChallengeTestResult
+from app.schemas.programming import ChallengeCreateRequest, ChallengePreviewRequest, ChallengeRunResponse, ChallengeTestResult
 from app.services.programming_sandbox_runner import DockerSandboxRunner, SandboxUnavailableError
 
 
@@ -65,6 +65,30 @@ class ChallengeService:
         await db.flush()
         await db.refresh(challenge, attribute_names=["tests"])
         return challenge
+
+    @classmethod
+    async def preview_challenge(cls, payload: ChallengePreviewRequest) -> ChallengeRunResponse:
+        if payload.evaluation_modality != "SANDBOX" or payload.execution_profile != "PYTHON_3_12":
+            raise SkillMatchException("El evaluador seleccionado todavía no está disponible para pruebas.", 400)
+        challenge = Challenge(
+            id=uuid.uuid4(),
+            skill_id=payload.skill_id,
+            level_number=payload.level_number,
+            version=1,
+            title=payload.title,
+            statement=payload.statement,
+            evaluation_modality=payload.evaluation_modality,
+            execution_profile=payload.execution_profile,
+            starter_code=payload.starter_code,
+            time_limit_ms=payload.time_limit_ms,
+            memory_limit_mb=payload.memory_limit_mb,
+            max_output_bytes=payload.max_output_bytes,
+            allowed_imports=payload.allowed_imports,
+            blocked_imports=payload.blocked_imports,
+            status="DRAFT",
+        )
+        challenge.tests = [ChallengeTestCase(**test.model_dump()) for test in payload.tests]
+        return await cls._run_tests(challenge, payload.code, public_only=False)
 
     @staticmethod
     async def list_challenges(db: AsyncSession, skill_id: uuid.UUID | None = None) -> list[Challenge]:

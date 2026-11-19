@@ -8,9 +8,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { getSkills } from "@/services/admin-catalog-service"
-import { createChallenge, listChallenges, publishChallenge } from "@/services/programming-service"
+import { createChallenge, listChallenges, previewChallenge, publishChallenge } from "@/services/programming-service"
 import type { Skill } from "@/types/catalog"
-import type { Challenge, ChallengePayload, ChallengeTestCase, EvaluationModality } from "@/types/programming"
+import type { Challenge, ChallengePayload, ChallengeRunResult, ChallengeTestCase, EvaluationModality } from "@/types/programming"
 
 const PROGRAMMING_LEVELS = [
   { value: "1", label: "Nivel 1 · Principiante" },
@@ -41,6 +41,9 @@ export function AdminProgrammingPage() {
   const [tests, setTests] = useState<ChallengeTestCase[]>([emptyTest(0), emptyTest(1)])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testCode, setTestCode] = useState(starterCode)
+  const [testResult, setTestResult] = useState<ChallengeRunResult | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -64,10 +67,7 @@ export function AdminProgrammingPage() {
   const addTest = () => setTests((current) => [...current, emptyTest(current.length)])
   const removeTest = (index: number) => setTests((current) => current.length > 1 ? current.filter((_, testIndex) => testIndex !== index).map((test, testIndex) => ({ ...test, order_index: testIndex })) : current)
 
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault()
-    if (!selectedSkill || !title.trim() || !statement.trim() || tests.some((test) => !test.name.trim() || !test.expected_stdout.trim())) return
-    const payload: ChallengePayload = {
+  const buildPayload = (): ChallengePayload => ({
       skill_id: selectedSkill,
       level_number: Number(level),
       title: title.trim(),
@@ -81,7 +81,24 @@ export function AdminProgrammingPage() {
       allowed_imports: [],
       blocked_imports: [],
       tests: tests.map((test, index) => ({ ...test, order_index: index })),
+    })
+
+  const canTest = Boolean(selectedSkill && title.trim() && statement.trim() && testCode.trim() && tests.every((test) => test.name.trim() && test.expected_stdout.trim()))
+
+  const testDraft = async () => {
+    if (!canTest) return
+    setTesting(true)
+    try {
+      setTestResult(await previewChallenge(buildPayload(), testCode))
+    } finally {
+      setTesting(false)
     }
+  }
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!canTest) return
+    const payload = buildPayload()
     setSaving(true)
     try {
       await createChallenge(payload)
@@ -112,7 +129,8 @@ export function AdminProgrammingPage() {
               <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="challenge-modality">Modalidad</Label><Select value={modality} onValueChange={(value: EvaluationModality) => setModality(value)}><SelectTrigger id="challenge-modality"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="SANDBOX">Sandbox</SelectItem><SelectItem value="SPREADSHEET" disabled>Planilla / Excel (próximamente)</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label htmlFor="challenge-profile">Perfil de ejecución</Label><Select value={executionProfile} onValueChange={setExecutionProfile}><SelectTrigger id="challenge-profile"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PYTHON_3_12">Python 3.12</SelectItem></SelectContent></Select></div></div>
               <div className="space-y-2"><Label htmlFor="challenge-title">Título</Label><Input id="challenge-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Suma de dos números" /></div>
               <div className="space-y-2"><Label htmlFor="programming-statement">Consigna</Label><Textarea id="challenge-statement" value={statement} onChange={(event) => setStatement(event.target.value)} rows={6} placeholder="Explicá qué debe resolver el miembro..." /></div>
-              <div className="space-y-2"><Label htmlFor="programming-starter">Código inicial</Label><Textarea id="challenge-starter" value={starterCode} onChange={(event) => setStarterCode(event.target.value)} rows={7} className="font-mono text-xs" /></div>
+              <div className="space-y-2"><Label htmlFor="programming-starter">Código inicial</Label><Textarea id="challenge-starter" value={starterCode} onChange={(event) => { setStarterCode(event.target.value); if (!testCode.trim()) setTestCode(event.target.value) }} rows={7} className="font-mono text-xs" /></div>
+              <div className="space-y-2 rounded-md border border-[#1E2629] p-3"><div><Label htmlFor="challenge-test-code">Código para probar</Label><p className="text-xs text-[#8B9D9F]">Ejecuta todos los casos sin guardar ni publicar el reto.</p></div><Textarea id="challenge-test-code" value={testCode} onChange={(event) => setTestCode(event.target.value)} rows={8} className="font-mono text-xs" /><Button type="button" variant="secondary" onClick={testDraft} disabled={testing || !canTest}>{testing ? "Probando..." : "Probar reto"}</Button>{testResult && <div className="space-y-1 text-sm"><Badge variant={testResult.status === "PASSED" ? "default" : "destructive"}>{testResult.status} · {testResult.passed_tests}/{testResult.total_tests}</Badge>{testResult.results.map((result) => <p key={result.name} className={result.passed ? "text-emerald-300" : "text-red-300"}>{result.name}: {result.passed ? "correcto" : "falló"}</p>)}</div>}</div>
               <div className="space-y-3"><div className="flex items-center justify-between"><Label>Tests</Label><Button type="button" variant="outline" size="sm" onClick={addTest}><Plus className="mr-1 h-4 w-4" />Agregar caso</Button></div>{tests.map((test, index) => <div key={index} className="space-y-2 rounded-md border border-[#1E2629] p-3"><div className="flex items-center justify-between gap-2"><Input value={test.name} onChange={(event) => updateTest(index, { name: event.target.value })} aria-label={`Nombre del test ${index + 1}`} /><div className="flex items-center gap-2"><Select value={test.visibility} onValueChange={(value: "PUBLIC" | "HIDDEN") => updateTest(index, { visibility: value })}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PUBLIC">Público</SelectItem><SelectItem value="HIDDEN">Oculto</SelectItem></SelectContent></Select><Button type="button" variant="ghost" size="icon" disabled={tests.length === 1} onClick={() => removeTest(index)} aria-label={`Eliminar test ${index + 1}`}><Trash2 className="h-4 w-4" /></Button></div></div><Textarea value={test.stdin_data} onChange={(event) => updateTest(index, { stdin_data: event.target.value })} placeholder="Entrada stdin" aria-label={`Entrada del test ${index + 1}`} /><Textarea value={test.expected_stdout} onChange={(event) => updateTest(index, { expected_stdout: event.target.value })} placeholder="Salida esperada" aria-label={`Salida del test ${index + 1}`} /></div>)}</div>
               <div className="flex justify-end"><Button type="submit" disabled={saving || loading || !selectedSkill}>{saving ? "Guardando..." : "Guardar borrador"}</Button></div>
             </form>
