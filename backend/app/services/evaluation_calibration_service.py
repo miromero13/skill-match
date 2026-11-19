@@ -1,5 +1,7 @@
 import secrets
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
 
 from sqlalchemy import select, update
 from starlette.concurrency import run_in_threadpool
@@ -10,8 +12,19 @@ from app.models.evaluation import Evaluation
 from app.models.user import UserRole
 from app.schemas.calibration import CalibrationStateResponse
 from app.services.calibration_vision_service import CalibrationVisionService
-from app.services.integrity import messages
+from app.services.integrity import messages, thresholds as t, voiceprint as vp
 from app.services.integrity.calibration import REQUIRED_CHECKS
+from app.services.integrity.models import GazeZone
+
+
+@dataclass(frozen=True)
+class CalibrationSeed:
+    """What a valid calibration gives a supervision trial. Server-side only: it is never serialized into a response."""
+
+    gaze_zone: GazeZone
+    voiceprint: dict[str, Any]
+    ambient_rms: Optional[float]  # the noise floor measured in the silent step (also inside ``voiceprint``)
+    occlusion_ref: dict[str, float]
 
 
 class EvaluationCalibrationService:
@@ -64,7 +77,7 @@ class EvaluationCalibrationService:
         checks = latest.checks if enrollment_matches and latest.checks else {}
         # Ready needs every check AND the three things supervision is seeded with: no clean pass by omission.
         complete = latest is not None and all(
-            value is not None for value in (latest.gaze_zone, latest.voiceprint, latest.occlusion_ref))
+            bool(value) for value in (latest.gaze_zone, latest.voiceprint, latest.occlusion_ref))
         ready = (evaluation.status == "READY_FOR_THEORY" and complete
                  and set(checks) == cls.REQUIRED_CHECKS and all(value is True for value in checks.values()))
         return CalibrationStateResponse(
@@ -98,3 +111,37 @@ class EvaluationCalibrationService:
         evaluation.status = "READY_FOR_THEORY"
         await db.commit()
         return await cls.state(db, user, evaluation_id)
+
+    @classmethod
+    async def valid_seed(cls, db, user, now: Optional[datetime] = None) -> Optional[CalibrationSeed]:
+        """The zone, voiceprint, ambient floor and occlusion reference of the member's latest valid calibration.
+
+        Valid means: passed every required check, made by this member for the face they are enrolled with now, not
+        older than ``CAL_MAX_AGE_HOURS``, with all three inputs stored and readable. Anything else is None (the
+        trial then starts unseeded and uses its own calibration endpoints).
+        """
+        now = now or datetime.now(timezone.utc)
+        row = await db.scalar(select(CalibrationChallenge).join(
+            Evaluation, Evaluation.id == CalibrationChallenge.evaluation_id,
+        ).where(
+            Evaluation.user_id == user.id,
+            CalibrationChallenge.consumed_at.is_not(None),
+            CalibrationChallenge.consumed_at >= now - timedelta(hours=t.CAL_MAX_AGE_HOURS),
+            CalibrationChallenge.enrollment_hash == user.biometric_face_hash,
+            CalibrationChallenge.gaze_zone.is_not(None),
+            CalibrationChallenge.voiceprint.is_not(None),
+            CalibrationChallenge.occlusion_ref.is_not(None),
+        ).order_by(CalibrationChallenge.consumed_at.desc(), CalibrationChallenge.id.desc()).limit(1))
+        if row is None or not user.biometric_face_hash:
+            return None
+        if not all(isinstance(value, dict) and value for value in (row.gaze_zone, row.voiceprint, row.occlusion_ref)):
+            return None  # a JSON null is not a stored input
+        checks = row.checks or {}
+        if set(checks) != cls.REQUIRED_CHECKS or not all(value is True for value in checks.values()):
+            return None
+        try:
+            zone = GazeZone.from_dict(row.gaze_zone)
+            vp.embedding_of(row.voiceprint)
+        except (KeyError, TypeError, ValueError, vp.SpeakerModelUnavailable):
+            return None
+        return CalibrationSeed(zone, dict(row.voiceprint), vp.ambient_rms_of(row.voiceprint), dict(row.occlusion_ref))

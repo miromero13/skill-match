@@ -174,6 +174,12 @@ class ContinuousSupervisionService:
         server_mouth = enrollment.mouth_from_frames(cls._frame_analyzer(), frames)
         return enrollment.enroll_voice(audio, ambient_ms, mouth, server_mouth)
 
+    @classmethod
+    def seed_trial(cls, trial_key: str, occlusion_ref: Optional[Mapping[str, float]]) -> None:
+        """Gives a trial the occlusion reference of its calibration (per-trial in-memory state, like the baseline)."""
+        if occlusion_ref:
+            cls._store().set_track(trial_key, "occlusion_ref", dict(occlusion_ref))
+
     # ---- window ---------------------------------------------------------------------------------
 
     @classmethod
