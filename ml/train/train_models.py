@@ -142,7 +142,16 @@ def train_and_evaluate_level_classifier(
     # Verify zero participant overlap between train and test splits
     train_participants = {r["participant_id"] for r in train_rows}
     test_participants = {r["participant_id"] for r in test_rows}
-    assert train_participants.isdisjoint(test_participants)
+    leaked = train_participants & test_participants
+    if leaked:
+        raise ValueError(
+            "Participant(s) "
+            + ", ".join(sorted(leaked))
+            + " appear in both the train and test split. The same participant_id "
+            "was likely reused across different real people (e.g. every upload "
+            "defaulted to the same auto-generated id); assign a distinct "
+            "participant_id per real person before training."
+        )
 
     x_train = np.array(
         [_feature_vector(r["features"]) for r in train_rows],

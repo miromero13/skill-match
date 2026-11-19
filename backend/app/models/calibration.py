@@ -19,3 +19,8 @@ class CalibrationChallenge(Base, TimestampMixin):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     checks: Mapped[dict[str, bool] | None] = mapped_column(JSON, nullable=True)
+    # What a passed calibration gives supervision (T9): the screen zone, the voiceprint (a biometric, with the ambient
+    # noise floor) and the occlusion reference. They stay on the server: no response ever carries them.
+    gaze_zone: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    voiceprint: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    occlusion_ref: Mapped[dict | None] = mapped_column(JSON, nullable=True)

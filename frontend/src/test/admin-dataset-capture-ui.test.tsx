@@ -8,7 +8,11 @@ import { useAuthStore } from "@/stores/auth-store"
 import { useDatasetCaptureStore } from "@/stores/dataset-capture-store"
 
 vi.mock("@/services/dataset-sample-service", () => ({
-  calculateFileSha256: vi.fn().mockResolvedValue("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"),
+  calculateFileSha256: vi
+    .fn()
+    .mockResolvedValue(
+      "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    ),
   getDatasetSamples: vi.fn().mockResolvedValue({
     statuscode: 200,
     message: "OK",
@@ -21,7 +25,8 @@ vi.mock("@/services/dataset-sample-service", () => ({
         signed_consent: true,
         file_format: "mp4",
         file_size_bytes: 5242880,
-        file_hash_sha256: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        file_hash_sha256:
+          "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         storage_path: "datasets/futbol/sample-1.mp4",
         created_at: "2026-11-15T12:00:00Z",
         updated_at: "2026-11-15T12:00:00Z",
@@ -39,6 +44,7 @@ vi.mock("@/services/dataset-sample-service", () => ({
     message: "Muestra eliminada exitosamente.",
     data: null,
   }),
+
   getDatasetSampleContent: vi.fn().mockResolvedValue({
     statuscode: 200,
     message: "OK",
@@ -50,6 +56,7 @@ vi.mock("@/services/dataset-sample-service", () => ({
       text_preview: null,
     },
   }),
+
   getFluteDatasetPreview: vi.fn().mockResolvedValue({
     statuscode: 200,
     message: "OK",
@@ -57,19 +64,36 @@ vi.mock("@/services/dataset-sample-service", () => ({
       samples: [],
       total_count: 0,
       notes_count: { DO: 0, RE: 0, MI: 0, FA: 0, SOL: 0, LA: 0, SI: 0 },
-      variations_count: { sostenida: 0, rapida: 0, angulo_suave: 0, transicion: 0 },
+      variations_count: {
+        sostenida: 0,
+        rapida: 0,
+        angulo_suave: 0,
+        transicion: 0,
+      },
       notes_covered: 0,
       total_notes_required: 7,
     },
   }),
+
   listFluteModels: vi.fn().mockResolvedValue({
     statuscode: 200,
     message: "OK",
     data: [],
     count: 0,
   }),
+
   trainFluteModel: vi.fn(),
   activateFluteModel: vi.fn(),
+
+  getDatasetSamplePreviewUrl: vi.fn().mockResolvedValue({
+    statuscode: 200,
+    message: "URL de vista previa generada exitosamente.",
+    data: {
+      preview_url:
+        "https://s3.example.com/skillmatch-football/sample-1.mp4?signature=abc",
+      file_format: "mp4",
+    },
+  }),
 }))
 
 vi.mock("@/services/admin-catalog-service", () => ({
@@ -107,6 +131,7 @@ describe("AdminDatasetCapturePage", () => {
       error: null,
       lastUploadMessage: null,
       signedConsent: false,
+      levelLabel: "",
     })
   })
 
@@ -215,6 +240,11 @@ describe("AdminDatasetCapturePage", () => {
     })
     await user.click(consentSwitch)
 
+    // Football/Deporte is the default active category, so the real level must be
+    // chosen explicitly before upload is allowed (no silent "Intermedio" default).
+    await user.click(screen.getByRole("combobox", { name: /Nivel real del participante/i }))
+    await user.click(await screen.findByRole("option", { name: "Avanzado" }))
+
     const uploadBtn = screen.getByRole("button", {
       name: /Subir Lote de 2 Muestras Reales a Garage S3/i,
     })
@@ -224,6 +254,176 @@ describe("AdminDatasetCapturePage", () => {
     await waitFor(() => {
       expect(uploadDatasetSample).toHaveBeenCalledTimes(2)
     })
+    expect(uploadDatasetSample).toHaveBeenCalledWith(
+      expect.objectContaining({ level_label: "Avanzado" })
+    )
+  })
+
+  it("never reuses the same auto participant id across consecutive single-file uploads", async () => {
+    // Reproduces the real bug: uploading one file at a time (not a multi-file
+    // batch) must still yield a unique anon-pNN per upload, derived from how
+    // many football samples already exist, not from the position within the
+    // current (always-length-1) batch.
+    const user = userEvent.setup()
+    const { uploadDatasetSample, getDatasetSamples } = await import(
+      "@/services/dataset-sample-service"
+    )
+
+    let storedSamples: Array<{ id: string; discipline: string; participant_id: string }> = []
+    vi.mocked(uploadDatasetSample).mockImplementation(async (payload: any) => {
+      storedSamples.push({
+        id: `sample-${storedSamples.length + 1}`,
+        discipline: payload.discipline,
+        participant_id: payload.participant_id,
+      })
+      return { statuscode: 201, message: "Muestra subida.", data: null as any }
+    })
+    vi.mocked(getDatasetSamples).mockImplementation(async () => ({
+      statuscode: 200,
+      message: "OK",
+      data: storedSamples.map((s) => ({
+        id: s.id,
+        discipline: s.discipline,
+        participant_id: s.participant_id,
+        challenge: "Dominadas de Balón",
+        hardware_info: "Auto",
+        signed_consent: true,
+        file_format: "mp4",
+        file_size_bytes: 1024,
+        file_hash_sha256: "a".repeat(64),
+        storage_path: `datasets/futbol/${s.id}.mp4`,
+        created_at: "2026-11-18T00:00:00Z",
+        updated_at: "2026-11-18T00:00:00Z",
+      })),
+      count: storedSamples.length,
+    }))
+
+    render(
+      <MemoryRouter>
+        <AdminDatasetCapturePage />
+      </MemoryRouter>
+    )
+
+    await user.click(
+      screen.getByRole("switch", { name: /Consentimiento Informado Firmado/i })
+    )
+    await user.click(screen.getByRole("combobox", { name: /Nivel real del participante/i }))
+    await user.click(await screen.findByRole("option", { name: "Intermedio" }))
+
+    const { waitFor } = await import("@testing-library/react")
+
+    for (const name of ["clip-a.mp4", "clip-b.mp4", "clip-c.mp4"]) {
+      const input = screen.getByLabelText(/Carga Múltiple de Archivos Reales/i)
+      await user.upload(input, [new File(["clip"], name, { type: "video/mp4" })])
+
+      const uploadBtn = screen.getByRole("button", {
+        name: /Subir Muestra al Dataset de IA/i,
+      })
+      await user.click(uploadBtn)
+
+      await waitFor(() => {
+        expect(storedSamples.length).toBeGreaterThanOrEqual(
+          ["clip-a.mp4", "clip-b.mp4", "clip-c.mp4"].indexOf(name) + 1
+        )
+      })
+    }
+
+    const participantIds = storedSamples.map((s) => s.participant_id)
+    expect(participantIds).toEqual(["anon-p01", "anon-p02", "anon-p03"])
+    expect(new Set(participantIds).size).toBe(3)
+
+    // mockImplementation (unlike the factory's mockResolvedValue) survives
+    // vi.clearAllMocks() in the next test's beforeEach; restore the default.
+    vi.mocked(getDatasetSamples).mockResolvedValue({
+      statuscode: 200,
+      message: "OK",
+      data: [
+        {
+          id: "sample-1",
+          discipline: "futbol",
+          challenge: "Dominadas de Balón",
+          hardware_info: "Logitech C920",
+          signed_consent: true,
+          file_format: "mp4",
+          file_size_bytes: 5242880,
+          file_hash_sha256: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          storage_path: "datasets/futbol/sample-1.mp4",
+          created_at: "2026-11-15T12:00:00Z",
+          updated_at: "2026-11-15T12:00:00Z",
+        },
+      ],
+      count: 1,
+    })
+    vi.mocked(uploadDatasetSample).mockResolvedValue({
+      statuscode: 201,
+      message: "Muestra multimedia subida y procesada exitosamente.",
+      data: null as any,
+    })
+  })
+
+  it("blocks football batch upload without an explicit level, then allows it once selected", async () => {
+    const user = userEvent.setup()
+    const { uploadDatasetSample } = await import("@/services/dataset-sample-service")
+
+    render(
+      <MemoryRouter>
+        <AdminDatasetCapturePage />
+      </MemoryRouter>
+    )
+
+    const file = new File(["clip-video"], "clip.mp4", { type: "video/mp4" })
+    const input = screen.getByLabelText(/Carga Múltiple de Archivos Reales/i)
+    await user.upload(input, [file])
+
+    await user.click(
+      screen.getByRole("switch", { name: /Consentimiento Informado Firmado/i })
+    )
+
+    const uploadBtn = screen.getByRole("button", {
+      name: /Subir Muestra al Dataset de IA/i,
+    })
+    await user.click(uploadBtn)
+
+    expect(uploadDatasetSample).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(/Seleccioná el nivel real del participante/i)
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("combobox", { name: /Nivel real del participante/i }))
+    await user.click(await screen.findByRole("option", { name: "Avanzado" }))
+    await user.click(uploadBtn)
+
+    const { waitFor } = await import("@testing-library/react")
+    await waitFor(() => {
+      expect(uploadDatasetSample).toHaveBeenCalledTimes(1)
+    })
+    expect(uploadDatasetSample).toHaveBeenCalledWith(
+      expect.objectContaining({ level_label: "Avanzado" })
+    )
+  })
+
+  it("opens a video preview dialog when clicking the view button on a sample", async () => {
+    const user = userEvent.setup()
+    const { getDatasetSamplePreviewUrl } = await import("@/services/dataset-sample-service")
+
+    render(
+      <MemoryRouter>
+        <AdminDatasetCapturePage />
+      </MemoryRouter>
+    )
+
+    const viewBtn = await screen.findByRole("button", { name: /Ver muestra/i })
+    await user.click(viewBtn)
+
+    await screen.findByText(/Vista previa de la muestra/i)
+    expect(getDatasetSamplePreviewUrl).toHaveBeenCalledWith("sample-1")
+
+    const video = document.querySelector("video")
+    expect(video).toBeInTheDocument()
+    expect(video).toHaveAttribute(
+      "src",
+      "https://s3.example.com/skillmatch-football/sample-1.mp4?signature=abc"
+    )
   })
 
   it("switches to Flute Guided Capture when Música category is selected", async () => {

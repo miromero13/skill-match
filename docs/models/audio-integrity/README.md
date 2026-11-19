@@ -24,7 +24,9 @@ Los modelos se instalan en `backend/app/models/weights/audio-integrity/`. En des
 | Archivo instalado | Tamaño | SHA256 |
 |---|---:|---|
 | `speaker_segmentation.onnx` | 5992913 bytes | `220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079` |
-| `speaker_embedding.onnx` | 39593761 bytes | `1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b` |
+| `speaker_embedding.onnx` | 39593762 bytes | `f1ee61be04000b50392a63442e5dd9feaea7e81dddd494d3647cf1c3d88a1498` |
+
+> **Cambio de artefacto (2026-11-19).** El distribuidor republicó `speaker_embedding.onnx` el 2026-11-19 07:54 UTC en GitHub Releases y en Hugging Face (mismo mantenedor, `csukuangfj`). El archivo anterior (39593761 bytes, SHA256 `1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b`) dejó de estar disponible en origen, por lo que el pin pasó al artefacto vigente. Quien conserve el archivo anterior debe reemplazarlo: la aplicación solo acepta el hash de esta tabla.
 
 Fuentes:
 

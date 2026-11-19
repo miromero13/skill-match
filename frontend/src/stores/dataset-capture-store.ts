@@ -79,7 +79,7 @@ export const useDatasetCaptureStore = create<DatasetCaptureState>((set, get) => 
   signedConsent: true,
   codeContent: "# Código de prueba piloto\ndef solution():\n    return 42\n",
   participantId: "",
-  levelLabel: "Intermedio",
+  levelLabel: "",
   manualTouchCount: null,
   noiseLevel: "bajo",
   surface: "cesped",
@@ -157,6 +157,10 @@ export const useDatasetCaptureStore = create<DatasetCaptureState>((set, get) => 
       set({ error: "Debe otorgar el consentimiento explícito antes de subir la muestra." })
       return false
     }
+    if (state.discipline === "futbol" && !state.levelLabel) {
+      set({ error: "Seleccioná el nivel real del participante antes de subir la muestra." })
+      return false
+    }
 
     let blobToUpload: Blob | null = state.recordedBlob
     let fileName = state.recordedFileName || `capture-${Date.now()}`
@@ -190,7 +194,7 @@ export const useDatasetCaptureStore = create<DatasetCaptureState>((set, get) => 
         ...(normalizedDiscipline === "futbol"
           ? {
               participant_id: state.participantId.trim() || "anon-p01",
-              level_label: state.levelLabel || "Intermedio",
+              level_label: state.levelLabel,
               manual_touch_count:
                 state.manualTouchCount !== null ? state.manualTouchCount : undefined,
               noise_level: state.noiseLevel || "bajo",

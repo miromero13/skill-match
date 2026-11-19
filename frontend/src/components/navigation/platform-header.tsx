@@ -1,6 +1,7 @@
+import { useEffect } from "react"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { Home, Users, Calendar, Award, ShieldCheck, Plus, Search, CreditCard, LogOut } from "lucide-react"
+import { Home, Users, Calendar, Award, Plus, Search, CreditCard, LogOut, QrCode } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -14,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuthStore } from "@/stores"
+import { useWalletStore } from "@/stores/wallet-store"
 import { logoutSession } from "@/services/auth-service"
 import { ModeToggle } from "@/components/mode-toggle"
 
@@ -38,13 +40,19 @@ export function PlatformHeader() {
 
   const balancePoints = user?.skillPointsBalance ?? 0
 
+  useEffect(() => {
+    if (user?.id) {
+      useWalletStore.getState().loadBalance()
+    }
+  }, [user?.id])
+
 
   const navItems = [
     { label: "Inicio", icon: Home, to: "/app", active: path === "/app" },
     { label: "Matches y Comunidad", icon: Users, to: "/app/swaps", active: path === "/app/swaps", badge: 3 },
     { label: "Agenda y Disponibilidad", icon: Calendar, to: "/app/availability", active: path === "/app/availability" },
     { label: "Certificados de IA", icon: Award, to: "/app/certificates", active: path === "/app/certificates" },
-    { label: "Pasaporte de Confianza", icon: ShieldCheck, to: "/app/profile", active: path === "/app/profile" },
+    { label: "Mi Pasaporte QR", icon: QrCode, to: "/app/passport", active: path.includes("passport") },
   ]
 
   return (
@@ -149,7 +157,13 @@ export function PlatformHeader() {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link to="/app/profile">Mi Perfil & Pasaporte</Link>
+                <Link to="/app/profile">Mi Perfil</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/app/passport" className="flex items-center justify-between">
+                  <span>Mi Pasaporte QR</span>
+                  <QrCode className="h-3.5 w-3.5 text-primary" />
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link to="/app/teaching-skills">Mis Habilidades para Enseñar</Link>

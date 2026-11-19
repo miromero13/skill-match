@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import {
   AlertCircle,
@@ -10,35 +10,19 @@ import {
   User,
   Volume2,
 } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { CalibrationGate, isCalibrated } from "@/components/integrity/calibration-gate"
+import { TrialLabelSelect, type TrialLabel } from "@/components/integrity/trial-label-select"
+import { useAvSupervision } from "@/hooks/use-av-supervision"
+import { useTrialSession } from "@/hooks/use-trial-session"
 import { useAuthStore } from "@/stores/auth-store"
-import {
-  BrowserMonitor,
-  IncidentQueue,
-  readBrowserLedger,
-  readBrowserTrial,
-  sendAVWindow,
-  sendBrowserIncidents,
-  startBrowserTrial,
-  trialAction,
-  type IncidentKind,
-  type LedgerIncident,
-  type Trial,
-} from "@/services/browser-supervision"
-
-interface Runtime {
-  id: string
-  queue: IncidentQueue
-  monitor: BrowserMonitor
-  timer: ReturnType<typeof setInterval> | null
-  closing: boolean
-  release: () => void
-}
+import { calibrateGaze, calibrateVoice, type GazeCalibrationPoint } from "@/services/browser-supervision"
 
 const labels: Record<string, string> = {
   AWAY: "Salida / pérdida de foco",
@@ -59,11 +43,25 @@ const labels: Record<string, string> = {
   IDENTITY_MISMATCH: "Rostro no coincide con el perfil",
   HEAD_POSE_DOWN: "Cabeza orientada hacia abajo sostenida",
   HEAD_POSE_SIDE: "Cabeza girada a los costados sostenida",
+  HEAD_POSE_UP: "Cabeza orientada hacia arriba sostenida",
+  GAZE_AWAY: "Mirada fuera de la pantalla sostenida",
+  CLIENT_MISMATCH: "El navegador contradice la medición del servidor",
   VOICE_DETECTED: "Voz detectada sin movimiento labial coincidente",
   MULTIPLE_SPEAKERS: "Voces simultáneas / más de un hablante",
   HIGH_NOISE: "Ruido ambiental excesivo",
   DEVICE_DISCONNECTED: "Desconexión de cámara o micrófono",
   STREAM_ERROR: "Fallo técnico en la captura audiovisual",
+  MODEL_UNAVAILABLE: "Modelo de IA no disponible",
+  VIDEO_MISSING: "Sin video",
+  AUDIO_MISSING: "Sin audio",
+  WINDOW_GAP: "Supervisión interrumpida",
+  FACE_OCCLUDED: "Rostro cubierto",
+  MOUTH_OCCLUDED: "Boca cubierta",
+  CAMERA_BLOCKED: "Cámara tapada o congelada",
+  VOICE_MISMATCH: "La voz no coincide con la persona",
+  VOICE_UNVERIFIED: "Voz sin verificar",
+  LIP_SYNC_MISMATCH: "La voz no coincide con los labios",
+  BACKGROUND_AUDIO: "Audio de fondo o reproducción",
 }
 
 const message = (error: unknown) =>
@@ -71,464 +69,96 @@ const message = (error: unknown) =>
 
 export function BrowserSupervisionPage() {
   const owner = useAuthStore((state) => state.user?.id)
-  const area = useRef<HTMLDivElement>(null)
-  const runtime = useRef<Runtime | null>(null)
-  const generation = useRef(0)
-  const tab = useRef(crypto.randomUUID())
+  // A different member starts from a clean page: the key remounts everything instead of resetting state in effects.
+  return <SupervisionTrial key={owner ?? "anonymous"} owner={owner} />
+}
 
-  // Video / Audio refs
+function SupervisionTrial({ owner }: { owner: string | undefined }) {
+  const area = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const processorRef = useRef<ScriptProcessorNode | null>(null)
-  const audioBufferRef = useRef<number[]>([])
-  const avTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const vuAnimationRef = useRef<number | null>(null)
-  const avInFlightRef = useRef(false)
-
-  const [trial, setTrial] = useState<Trial | null>(null)
   const [accepted, setAccepted] = useState(false)
-  const [active, setActive] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  const [notice, setNotice] = useState("")
-  const [pending, setPending] = useState(0)
-  const [rows, setRows] = useState<LedgerIncident[]>([])
-  const [total, setTotal] = useState(0)
+  const [trialLabel, setTrialLabel] = useState<TrialLabel>("normal")
 
-  // AV State
-  const [avActive, setAvActive] = useState(false)
-  const [faceCount, setFaceCount] = useState<number>(1)
-  const [headOrientation, setHeadOrientation] = useState<string>("CENTER")
-  const [identityMatch, setIdentityMatch] = useState<boolean | null>(null)
-  const [speechDetected, setSpeechDetected] = useState(false)
-  const [mouthMoving, setMouthMoving] = useState(false)
-  const [mouthSync, setMouthSync] = useState<boolean | null>(null)
-  const [multipleSpeakers, setMultipleSpeakers] = useState(false)
-  const [noiseLevel, setNoiseLevel] = useState(0)
-  const [vuLevel, setVuLevel] = useState(0)
-  const [deviceError, setDeviceError] = useState("")
+  const session = useTrialSession({
+    owner,
+    areaRef: area,
+    onReady: (handle) => void av.start(handle),
+    onSuspend: () => av.stop(),
+    onResume: (handle) => void av.start(handle),
+    onEnd: () => av.stop(),
+  })
+  const { trial, active, busy, error, notice, pending, rows, total } = session
+  const av = useAvSupervision({
+    videoRef,
+    canvasRef,
+    windowsEnabled: active && isCalibrated(trial),
+    onAnomalies: () => void session.refreshLedger().catch(() => undefined),
+    label: import.meta.env.DEV ? trialLabel : undefined,
+  })
+  const { avActive, vuLevel, deviceError, avStatus, lookingAway, gazeNotice } = av
+  const {
+    faceCount, headOrientation, identityMatch, faceCovered, mouthCovered, cameraBlocked, speechDetected,
+    mouthMoving, mouthSync, multipleSpeakers, voiceMatch, lipSync, noiseLevel,
+  } = av.telemetry
+  const presenceAlert = cameraBlocked || faceCovered || mouthCovered
 
-  const lastKey = `sm43:last:${owner}`
-
-  function stopAV() {
-    if (vuAnimationRef.current) {
-      cancelAnimationFrame(vuAnimationRef.current)
-      vuAnimationRef.current = null
-    }
-    if (avTimerRef.current) {
-      clearInterval(avTimerRef.current)
-      avTimerRef.current = null
-    }
-    if (processorRef.current) {
-      processorRef.current.onaudioprocess = null
-      try {
-        processorRef.current.disconnect()
-      } catch {
-        // ignore
-      }
-      processorRef.current = null
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop())
-      streamRef.current = null
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      void audioContextRef.current.close().catch(() => undefined)
-      audioContextRef.current = null
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
-    audioBufferRef.current = []
-    avInFlightRef.current = false
-    setAvActive(false)
-    setVuLevel(0)
+  async function submitGazeCalibration(points: GazeCalibrationPoint[]) {
+    if (!trial) throw new Error("La prueba no está activa.")
+    const { result, message: serverMessage } = await calibrateGaze(trial.id, session.tabId(), points)
+    av.setZone(result.zone)
+    session.setTrial((previous) => (previous ? { ...previous, gaze_zone: result.zone } : previous))
+    return { message: serverMessage }
   }
 
-  function stop() {
-    stopAV()
-    const current = runtime.current
-    runtime.current = null
-    if (current) {
-      current.monitor.stop()
-      if (current.timer) clearInterval(current.timer)
-      current.release()
-    }
+  async function submitVoiceCalibration(request: Parameters<typeof calibrateVoice>[2]) {
+    if (!trial) throw new Error("La prueba no está activa.")
+    const { result, message: serverMessage } = await calibrateVoice(trial.id, session.tabId(), request)
+    session.setTrial((previous) => (previous ? { ...previous, voice_enrolled: result.voice_enrolled } : previous))
+    return { message: serverMessage }
   }
 
-  async function ledger(id: string, more = false) {
-    const version = generation.current
-    const response = await readBrowserLedger(id, more ? rows.at(-1)?.sequence ?? 0 : 0)
-    if (version !== generation.current) return
-    setRows((previous) => (more ? [...previous, ...response.data] : response.data))
-    setTotal(response.count ?? 0)
-  }
-
-  useEffect(() => {
-    const version = ++generation.current
-    setTrial(null)
-    setRows([])
-    setTotal(0)
-    setActive(false)
-    try {
-      const id = localStorage.getItem(`sm43:last:${owner}`)
-      if (id && /^[0-9a-f-]{36}$/i.test(id))
-        void readBrowserTrial(id)
-          .then(async (saved) => {
-            if (version !== generation.current) return
-            setTrial(saved)
-            await ledger(saved.id)
-          })
-          .catch((cause) => {
-            if (version === generation.current) setError(message(cause))
-          })
-    } catch {
-      setError("El almacenamiento local no está disponible; no se puede garantizar recuperación.")
-    }
-    return () => {
-      generation.current++
-      stop()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [owner])
-
-  async function startAV(
-    trialId: string,
-    tabId: string,
-    emit: (event: { kind: IncidentKind; duration_ms?: number }) => void,
-  ) {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      return
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-        audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        void videoRef.current.play().catch(() => undefined)
+  /** What the acoustic card says: ownership of the voice first, then its link with the lips. */
+  function acousticStatus(): { label: string; text: string; alert: boolean } {
+    if (multipleSpeakers)
+      return {
+        label: "Voces / audio de fondo",
+        text: "Alerta: Se detectaron múltiples voces o sonido multimedia de fondo (TV/serie/terceros).",
+        alert: true,
       }
-
-      stream.getTracks().forEach((track) => {
-        track.addEventListener("ended", () => {
-          emit({ kind: "DEVICE_DISCONNECTED" })
-          setDeviceError(`Dispositivo de ${track.kind === "video" ? "cámara" : "micrófono"} desconectado.`)
-        })
-        track.addEventListener("mute", () => {
-          emit({ kind: "DEVICE_DISCONNECTED" })
-          setDeviceError(`Pérdida temporal de señal en ${track.kind === "video" ? "cámara" : "micrófono"}.`)
-        })
-      })
-
-      audioBufferRef.current = []
-
-      try {
-        const AudioCtx =
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-        if (AudioCtx) {
-          const audioCtx = new AudioCtx()
-          audioContextRef.current = audioCtx
-          await audioCtx.resume().catch(() => undefined)
-
-          const source = audioCtx.createMediaStreamSource(stream)
-          const analyser = audioCtx.createAnalyser()
-          analyser.fftSize = 1024
-          source.connect(analyser)
-          analyserRef.current = analyser
-
-          // Continuous 16kHz PCM capture via ScriptProcessorNode
-          if (typeof audioCtx.createScriptProcessor === "function") {
-            const processor = audioCtx.createScriptProcessor(2048, 1, 1)
-            processorRef.current = processor
-            const ratio = audioCtx.sampleRate / 16000
-            processor.onaudioprocess = (event) => {
-              event.outputBuffer.getChannelData(0).fill(0)
-              if (!streamRef.current) return
-              const input = event.inputBuffer.getChannelData(0)
-              const outLen = Math.floor(input.length / ratio)
-              const buf = audioBufferRef.current
-              for (let i = 0; i < outLen; i++) {
-                const start = Math.floor(i * ratio)
-                const end = Math.min(input.length, Math.floor((i + 1) * ratio))
-                let total = 0
-                for (let s = start; s < end; s++) total += input[s]
-                const sample = Math.max(-1, Math.min(1, total / Math.max(1, end - start)))
-                buf.push(sample)
-              }
-              // Keep at most 3.5 seconds at 16kHz (56,000 samples)
-              if (buf.length > 56000) {
-                buf.splice(0, buf.length - 56000)
-              }
-            }
-            source.connect(processor)
-            processor.connect(audioCtx.destination)
-          }
-
-          const timeDomain = new Float32Array(analyser.fftSize)
-          const updateVU = () => {
-            if (!streamRef.current) return
-            if (typeof analyser.getFloatTimeDomainData === "function") {
-              analyser.getFloatTimeDomainData(timeDomain)
-              let sumSq = 0
-              for (let i = 0; i < timeDomain.length; i++) {
-                sumSq += timeDomain[i] * timeDomain[i]
-              }
-              const rms = Math.sqrt(sumSq / timeDomain.length)
-              // Nonlinear perceptual scaling so normal speech (RMS ~0.015-0.08) is clearly visible
-              const level = rms < 0.002 ? 0 : Math.min(100, Math.round(Math.pow(rms * 14, 0.65) * 100))
-              setVuLevel(level)
-            }
-            vuAnimationRef.current = requestAnimationFrame(updateVU)
-          }
-          vuAnimationRef.current = requestAnimationFrame(updateVU)
-        }
-      } catch {
-        // Audio context optional in test environments
+    if (speechDetected && voiceMatch === false)
+      return {
+        label: "Voz distinta a la calibrada",
+        text: "Alerta: la voz no coincide con la huella de voz calibrada.",
+        alert: true,
       }
-
-      setAvActive(true)
-      setDeviceError("")
-
-      let collectedFrames: string[] = []
-      let sampleCounter = 0
-
-      // Capture 1 frame every 400ms; send window every 6 frames (~2.4 seconds) for fast detection
-      const sampleInterval = setInterval(() => {
-        if (!streamRef.current || !videoRef.current || !canvasRef.current) return
-        sampleCounter++
-        try {
-          const canvas = canvasRef.current
-          const video = videoRef.current
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            canvas.width = 320
-            canvas.height = 240
-            const ctx = canvas.getContext("2d")
-            if (ctx) {
-              ctx.drawImage(video, 0, 0, 320, 240)
-              collectedFrames.push(canvas.toDataURL("image/jpeg", 0.6))
-            }
-          }
-        } catch {
-          // ignore frame capture error
-        }
-
-        // Fallback if ScriptProcessor didn't populate audioBufferRef
-        if (
-          audioBufferRef.current.length < 4000 &&
-          analyserRef.current &&
-          typeof analyserRef.current.getFloatTimeDomainData === "function"
-        ) {
-          const fallbackChunk = new Float32Array(analyserRef.current.fftSize)
-          analyserRef.current.getFloatTimeDomainData(fallbackChunk)
-          for (let i = 0; i < fallbackChunk.length; i++) {
-            audioBufferRef.current.push(Math.max(-1, Math.min(1, fallbackChunk[i])))
-          }
-        }
-
-        if (sampleCounter >= 6 && !avInFlightRef.current) {
-          sampleCounter = 0
-          const framesToSend = collectedFrames.splice(0, 8)
-          const audioToSend = audioBufferRef.current.splice(0, 48000)
-
-          if (framesToSend.length > 0) {
-            avInFlightRef.current = true
-            void sendAVWindow(trialId, {
-              tab_id: tabId,
-              window_id: crypto.randomUUID(),
-              observed_at: new Date().toISOString(),
-              duration_ms: 2400,
-              mode: "UNIFIED",
-              frames: framesToSend,
-              audio_samples: audioToSend,
-            })
-              .then((res) => {
-                setFaceCount(res.face_count)
-                setHeadOrientation(res.head_orientation)
-                setIdentityMatch(res.identity_match)
-                setSpeechDetected(res.speech_detected)
-                setMouthMoving(Boolean(res.mouth_moving))
-                setMouthSync(res.mouth_sync ?? null)
-                setMultipleSpeakers(
-                  Boolean(res.multiple_speakers || res.anomalies.includes("MULTIPLE_SPEAKERS")),
-                )
-                setNoiseLevel(res.noise_level)
-                if (res.anomalies.length > 0) {
-                  void ledger(trialId)
-                }
-              })
-              .catch(() => undefined)
-              .finally(() => {
-                avInFlightRef.current = false
-              })
-          }
-        }
-      }, 400)
-
-      avTimerRef.current = sampleInterval
-    } catch {
-      emit({ kind: "STREAM_ERROR" })
-      setDeviceError("No se pudo iniciar la cámara o micrófono. Verificá los permisos del navegador.")
-    }
-  }
-
-  async function start() {
-    if (!owner || !area.current) return
-    stop()
-    setActive(false)
-    setBusy(true)
-    setError("")
-    const version = ++generation.current
-    const tabId = crypto.randomUUID()
-    tab.current = tabId
-    let claimed: string | null = null
-    const requestedAt = performance.now()
-    try {
-      const result = await startBrowserTrial(tabId)
-      claimed = result.trial.id
-      if (version !== generation.current) {
-        void trialAction(claimed, tabId, "release", true).catch(() => undefined)
-        return
+    if (speechDetected && lipSync === "unsynced")
+      return {
+        label: "Voz sin labios coincidentes",
+        text: "Alerta: la voz no coincide con el movimiento de tus labios.",
+        alert: true,
       }
-      if (performance.now() - requestedAt >= 15000)
-        throw new Error("La activación llegó tarde. Reactivá la prueba para confirmar autorización.")
-      const resumed = localStorage.getItem(lastKey) === claimed
-      localStorage.setItem(lastKey, claimed)
-      setTrial(result.trial)
-      setNotice(result.message)
-      const pause = (text: string) => {
-        if (version === generation.current) {
-          setError(text)
-          setActive(false)
-        }
+    if (speechDetected && mouthSync === false)
+      return { label: "Voz sin boca coincidente", text: "Alerta: Se detectó voz sin movimiento labial coincidente.", alert: true }
+    if (speechDetected && !trial?.voice_enrolled)
+      return {
+        label: "Voz sin verificar",
+        text: "Calibrá tu voz para poder comprobar que quien habla sos vos.",
+        alert: false,
       }
-      let fatal = false
-      let deadline = requestedAt + 15000
-      let current: Runtime
-      const queue = new IncidentQueue(
-        `sm43:queue:${owner}:${claimed}`,
-        async (events) => {
-          const response = await sendBrowserIncidents(result.trial.id, tabId, events)
-          if (runtime.current !== current || performance.now() >= deadline)
-            throw new Error("Confirmación tardía: los incidentes se conservan para reintentar.")
-          return response
-        },
-        (text) => {
-          fatal = true
-          pause(text)
-        },
-      )
-      const emit = (event: Parameters<IncidentQueue["add"]>[0]) => {
-        if (runtime.current !== current || current.closing) return
-        queue.add(event)
-        setPending(queue.size)
-        void queue
-          .flush()
-          .then(() => {
-            if (runtime.current === current) setPending(queue.size)
-          })
-          .catch((cause) => pause(message(cause)))
+    if (speechDetected)
+      return {
+        label: mouthSync ? "Voz propia (boca activa)" : "Voz detectada",
+        text: mouthSync
+          ? "Habla propia verificada: única voz y coincidente con tu movimiento labial."
+          : "Voz detectada: todavía no hay evidencia suficiente de los labios.",
+        alert: false,
       }
-      const monitor = new BrowserMonitor(area.current, emit, setNotice)
-      current = {
-        id: claimed,
-        queue,
-        monitor,
-        timer: null,
-        closing: false,
-        release: () => {
-          void trialAction(result.trial.id, tabId, "release", true).catch(() => undefined)
-        },
-      }
-      runtime.current = current
-      let nextRenew = performance.now() + 5000
-      let renewing = false
-      const renew = async () => {
-        if (renewing || runtime.current !== current || current.closing) return
-        renewing = true
-        const sentAt = performance.now()
-        try {
-          await trialAction(current.id, tabId, "heartbeat")
-          if (runtime.current !== current || current.closing) return
-          deadline = sentAt + 15000
-          if (performance.now() >= deadline) throw new Error("La renovación llegó tarde. Reactivá la prueba.")
-          await queue.flush()
-          if (runtime.current === current && !current.closing) {
-            setPending(queue.size)
-            monitor.start()
-            setActive(!fatal)
-          }
-        } catch (cause) {
-          if (runtime.current === current && !current.closing) {
-            monitor.stop()
-            pause(message(cause))
-          }
-        } finally {
-          renewing = false
-        }
-      }
-      current.timer = setInterval(() => {
-        if (performance.now() >= deadline) {
-          monitor.stop()
-          setActive(false)
-          setError("Autorización de pestaña sin confirmar. Reactivá la prueba para continuar.")
-        }
-        if (performance.now() >= nextRenew) {
-          nextRenew = performance.now() + 5000
-          void renew()
-        }
-      }, 1000)
-      monitor.start()
-      queue.add({ kind: resumed ? "SESSION_RESUME" : "SESSION_OPEN" })
-      setPending(queue.size)
-      await queue.flush()
-      if (runtime.current === current) {
-        setPending(queue.size)
-        setActive(!fatal)
-        await ledger(current.id)
-        void startAV(claimed, tabId, emit)
-      }
-    } catch (cause) {
-      if (version === generation.current) {
-        setError(message(cause))
-        setActive(false)
-        if (!runtime.current && claimed) void trialAction(claimed, tabId, "release", true).catch(() => undefined)
-      }
-    } finally {
-      if (version === generation.current) setBusy(false)
-    }
-  }
-
-  async function close() {
-    stopAV()
-    const current = runtime.current
-    if (!current) return
-    setBusy(true)
-    setActive(false)
-    setError("")
-    current.closing = true
-    current.monitor.stop()
-    if (current.timer) clearInterval(current.timer)
-    try {
-      await current.queue.flush()
-      const result = await trialAction(current.id, tab.current, "close")
-      if (runtime.current !== current) return
-      current.monitor.stop()
-      if (current.timer) clearInterval(current.timer)
-      runtime.current = null
-      setTrial(result.trial)
-      setPending(0)
-      setNotice(result.message)
-      await ledger(current.id)
-    } catch (cause) {
-      setError(message(cause))
-    } finally {
-      setBusy(false)
+    if (noiseLevel > 0.14) return { label: "Ruido alto", text: "Alerta: Ruido ambiental excesivo.", alert: true }
+    return {
+      label: mouthMoving ? "Boca en movimiento" : "Silencio",
+      text: "Sin voces externas. Si hablás, se verifica tu voz y tu movimiento labial.",
+      alert: false,
     }
   }
 
@@ -538,9 +168,11 @@ export function BrowserSupervisionPage() {
         throw new Error("Este navegador no permite pantalla completa. La prueba puede continuar sin ese modo.")
       await area.current.requestFullscreen()
     } catch (cause) {
-      setError(message(cause))
+      session.setError(message(cause))
     }
   }
+
+  const acoustic = acousticStatus()
 
   return (
     <section className="mx-auto w-full max-w-4xl space-y-5 p-4 sm:p-6">
@@ -551,11 +183,14 @@ export function BrowserSupervisionPage() {
         </p>
       </div>
 
+      {import.meta.env.DEV && <TrialLabelSelect value={trialLabel} onChange={setTrialLabel} />}
+
       <Card>
         <CardContent className="space-y-4 p-5">
           <h2 className="font-semibold">Normas y controles activos</h2>
           <p className="text-sm text-muted-foreground">
-            Se supervisa en tiempo real la presencia facial, orientación sostenida de la cabeza (abajo o costados),
+            Se supervisa en tiempo real la presencia facial, orientación sostenida de la cabeza y de la mirada (no podés
+            mirar abajo, arriba ni a los costados fuera de la pantalla por más de un segundo),
             sincronía entre voz y movimiento de boca (podés hablar en voz alta siempre que tu boca coincida con el audio),
             pérdida de foco, cambio de pestaña y portapapeles dentro del área de prueba.
           </p>
@@ -573,10 +208,10 @@ export function BrowserSupervisionPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => void start()} disabled={!accepted || busy || active}>
+            <Button onClick={() => void session.start()} disabled={!accepted || busy || active}>
               {busy ? "Procesando…" : "Activar prueba"}
             </Button>
-            <Button variant="outline" onClick={() => void close()} disabled={!runtime.current || busy}>
+            <Button variant="outline" onClick={() => void session.close()} disabled={!session.open || busy}>
               Cerrar prueba
             </Button>
             <Button variant="outline" onClick={() => void fullscreen()} disabled={!active}>
@@ -595,6 +230,12 @@ export function BrowserSupervisionPage() {
               <AlertCircle className="size-4 shrink-0" />
               {deviceError}
             </p>
+          )}
+          {avStatus && (
+            <Alert variant="destructive" data-testid="av-status">
+              <AlertCircle />
+              <AlertDescription>{avStatus}</AlertDescription>
+            </Alert>
           )}
           {notice && (
             <p role="status" className="text-sm text-muted-foreground">
@@ -645,6 +286,17 @@ export function BrowserSupervisionPage() {
               </div>
               <canvas ref={canvasRef} className="hidden" />
 
+              {avActive && lookingAway && (
+                <Alert data-testid="gaze-away" className="mt-3 border-amber-500/50 text-amber-700 dark:text-amber-400">
+                  <AlertCircle />
+                  <AlertDescription>
+                    Mirá a la pantalla. Tu cabeza o tu mirada están fuera de la zona de pantalla; es solo un aviso, la
+                    decisión es del servidor.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {gazeNotice && <p className="mt-3 text-xs text-muted-foreground">{gazeNotice}</p>}
+
               {/* VU Meter */}
               <div className="w-full mt-3 space-y-1">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -678,10 +330,16 @@ export function BrowserSupervisionPage() {
                       <User className="size-3.5" /> Presencia facial
                     </span>
                     <Badge
-                      variant={faceCount === 1 ? "secondary" : "destructive"}
+                      variant={faceCount === 1 && !presenceAlert ? "secondary" : "destructive"}
                       className="text-[11px]"
                     >
-                      {faceCount === 0
+                      {cameraBlocked
+                        ? "Cámara tapada o congelada"
+                        : faceCovered
+                        ? "Rostro cubierto"
+                        : mouthCovered
+                        ? "Boca cubierta"
+                        : faceCount === 0
                         ? "Ausente"
                         : faceCount === 1
                         ? "1 en encuadre"
@@ -689,7 +347,13 @@ export function BrowserSupervisionPage() {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {faceCount === 1
+                    {cameraBlocked
+                      ? "Alerta: La cámara está tapada, sin imagen o congelada."
+                      : faceCovered
+                      ? "Alerta: El rostro está cubierto. Descubrilo para continuar."
+                      : mouthCovered
+                      ? "Alerta: La boca está cubierta. Descubrila para continuar."
+                      : faceCount === 1
                       ? "Rostro único validado con YuNet."
                       : faceCount === 0
                       ? "Alerta: No se detecta persona frente a la cámara."
@@ -711,6 +375,8 @@ export function BrowserSupervisionPage() {
                         ? "Al centro"
                         : headOrientation === "DOWN"
                         ? "Hacia abajo"
+                        : headOrientation === "UP"
+                        ? "Hacia arriba"
                         : headOrientation === "LEFT" || headOrientation === "RIGHT"
                         ? "Lateral"
                         : "Sin rostro"}
@@ -721,6 +387,8 @@ export function BrowserSupervisionPage() {
                       ? "Postura centrada mirando a pantalla."
                       : headOrientation === "DOWN"
                       ? "Alerta: Cabeza inclinada hacia abajo."
+                      : headOrientation === "UP"
+                      ? "Alerta: Cabeza inclinada hacia arriba."
                       : headOrientation === "LEFT" || headOrientation === "RIGHT"
                       ? "Alerta: Giro lateral pronunciado."
                       : "Esperando detección facial."}
@@ -743,7 +411,9 @@ export function BrowserSupervisionPage() {
                       }
                       className="text-[11px]"
                     >
-                      {identityMatch === true
+                      {presenceAlert
+                        ? "No verificable"
+                        : identityMatch === true
                         ? "Coincide"
                         : identityMatch === false
                         ? "Discrepancia"
@@ -751,7 +421,9 @@ export function BrowserSupervisionPage() {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {identityMatch === true
+                    {presenceAlert
+                      ? "El rostro no está visible por completo: no se puede cotejar."
+                      : identityMatch === true
                       ? "Embedding SFace coincide con registro oficial."
                       : identityMatch === false
                       ? "Alerta: Posible suplantación a mitad de prueba."
@@ -765,39 +437,13 @@ export function BrowserSupervisionPage() {
                     <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                       <Volume2 className="size-3.5" /> Actividad acústica
                     </span>
-                    <Badge
-                      variant={
-                        multipleSpeakers ||
-                        (speechDetected && mouthSync === false) ||
-                        noiseLevel > 0.14
-                          ? "destructive"
-                          : "secondary"
-                      }
-                      className="text-[11px]"
-                    >
-                      {multipleSpeakers
-                        ? "Voces / audio de fondo"
-                        : speechDetected
-                        ? mouthSync
-                          ? "Voz propia (boca activa)"
-                          : "Voz sin boca coincidente"
-                        : noiseLevel > 0.14
-                        ? "Ruido alto"
-                        : mouthMoving
-                        ? "Boca en movimiento"
-                        : "Silencio"}
+                    <Badge variant={acoustic.alert ? "destructive" : "secondary"} className="text-[11px]">
+                      {acoustic.label}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {multipleSpeakers
-                      ? "Alerta: Se detectaron múltiples voces o sonido multimedia de fondo (TV/serie/terceros)."
-                      : speechDetected
-                      ? mouthSync
-                        ? "Habla propia verificada: única voz y coincidente con tu movimiento labial."
-                        : "Alerta: Se detectó voz sin movimiento labial coincidente."
-                      : noiseLevel > 0.14
-                      ? "Alerta: Ruido ambiental excesivo."
-                      : "Sin voces externas. Si hablás, se verifica tu movimiento labial."}
+                  <p className="text-xs text-muted-foreground">{acoustic.text}</p>
+                  <p data-testid="voice-status" className="text-xs text-muted-foreground">
+                    Huella de voz: {trial?.voice_enrolled ? "calibrada" : "pendiente"}
                   </p>
                 </div>
               </div>
@@ -809,6 +455,17 @@ export function BrowserSupervisionPage() {
           </div>
         </CardContent>
       </Card>
+
+      {avActive && active && trial && !trial.closed_at && (
+        <CalibrationGate
+          trial={trial}
+          captureFrame={av.captureFrame}
+          recorder={av.recorder}
+          readMouth={av.readMouth}
+          submitGaze={submitGazeCalibration}
+          submitVoice={submitVoiceCalibration}
+        />
+      )}
 
       {/* Supervised Text Area */}
       <div ref={area} className="space-y-3 rounded-xl border bg-card p-5">
@@ -839,7 +496,7 @@ export function BrowserSupervisionPage() {
               variant="outline"
               disabled={!trial}
               onClick={() => {
-                if (trial) void ledger(trial.id).catch((cause) => setError(message(cause)))
+                void session.refreshLedger().catch((cause) => session.setError(message(cause)))
               }}
             >
               Actualizar bitácora
@@ -848,7 +505,7 @@ export function BrowserSupervisionPage() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  if (trial) void ledger(trial.id, true).catch((cause) => setError(message(cause)))
+                  void session.loadMore().catch((cause) => session.setError(message(cause)))
                 }}
               >
                 Cargar más incidentes

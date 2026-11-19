@@ -179,5 +179,6 @@ evaluations/recordings/
 *.dump
 minio_data/
 pgdata/
+storage/
 
 .agents/

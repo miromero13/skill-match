@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom"
+import { createBrowserRouter, Navigate, useParams } from "react-router-dom"
 import { PublicLayout } from "@/layouts/public-layout"
 import { PlatformLayout } from "@/layouts/platform-layout"
 import { ExamLayout } from "@/layouts/exam-layout"
@@ -22,6 +22,7 @@ import { EvaluationSetupPage } from "@/pages/evaluation-setup-page"
 import { TheoryExamPage } from "@/pages/theory-exam-page"
 import { ProgrammingExamPage } from "@/pages/programming-exam-page"
 import { BrowserSupervisionPage } from "@/pages/browser-supervision-page"
+import { browserSupervisionTrialEnabled } from "@/lib/feature-flags"
 import { ProfilePage } from "@/pages/profile-page"
 import { AdminDatasetCapturePage } from "@/pages/admin-dataset-capture-page"
 import { FootballValidationWizard } from "@/features/football-validation"
@@ -29,12 +30,35 @@ import { AvailabilityPage } from "@/pages/availability-page"
 import { MatchesPage } from "@/pages/matches-page"
 import { SearchPage } from "@/pages/search-page"
 import { SessionsPage } from "@/pages/sessions-page"
+import { ReputationPage } from "@/pages/reputation-page"
+import { PublicPassportPage } from "@/pages/public-passport-page"
 import { ComingSoonPage } from "@/pages/coming-soon-page"
+import { useAuthStore } from "@/stores/auth-store"
+import { WalletPage } from "@/pages/wallet/wallet-page"
+
+function MyPassportRedirect() {
+  const user = useAuthStore((s) => s.user)
+  if (!user?.id) {
+    return <Navigate to="/login" replace />
+  }
+  return <Navigate to="/app/passport" replace />
+}
+
+function PublicPassportRoute() {
+  const { uuid } = useParams<{ uuid: string }>()
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  if (isAuthenticated && uuid) {
+    return <Navigate to={`/app/passport/${uuid}`} replace />
+  }
+  return <PublicPassportPage />
+}
 
 import { NotificationLayout } from "@/components/notifications/notification-layout"
 import { NotificationInboxPage } from "@/pages/notifications/notification-inbox-page"
 import { NotificationSettingsPage } from "@/pages/notifications/notification-settings-page"
 import { PrivacySettingsPage } from "@/pages/settings/privacy-settings-page"
+import { ComplaintsPage } from "@/pages/complaints/complaints-page"
+import { AdminComplaintsPage } from "@/pages/admin/admin-complaints-page"
 
 export const router = createBrowserRouter([
   { path: "/evaluation/:id/theory", element: <MemberRouteGuard><TheoryExamPage /></MemberRouteGuard> },
@@ -66,6 +90,14 @@ export const router = createBrowserRouter([
     ),
     children: [{ index: true, element: <MatchesPage /> }],
   },
+  {
+    path: "/wallet",
+    element: <Navigate to="/app/wallet" replace />,
+  },
+  {
+    path: "/complaints",
+    element: <Navigate to="/app/complaints" replace />,
+  },
   // 1. Public Layout (Landing Page, Institucional)
   {
     path: "/",
@@ -87,6 +119,11 @@ export const router = createBrowserRouter([
     ],
   },
   { path: "/search", element: <Navigate to="/app/search" replace /> },
+  { path: "/sessions", element: <Navigate to="/app/sessions" replace /> },
+  { path: "/reputation", element: <Navigate to="/app/reputation" replace /> },
+  { path: "/availability", element: <Navigate to="/app/availability" replace /> },
+  { path: "/passport/:uuid", element: <PublicPassportRoute /> },
+  { path: "/passport", element: <MyPassportRedirect /> },
   {
     path: "/app/notifications",
     element: <Navigate to="/notifications" replace />,
@@ -120,6 +157,10 @@ export const router = createBrowserRouter([
         element: <SearchPage />,
       },
       {
+        path: "matches",
+        element: <MatchesPage />,
+      },
+      {
         path: "swaps",
         element: (
           <ComingSoonPage
@@ -146,10 +187,9 @@ export const router = createBrowserRouter([
         path: "teaching-skills",
         element: <TeachingSkillsPage />,
       },
-      {
-        path: "browser-supervision-test",
-        element: <BrowserSupervisionPage />,
-      },
+      ...(browserSupervisionTrialEnabled
+        ? [{ path: "browser-supervision-test", element: <BrowserSupervisionPage /> }]
+        : []),
       {
         path: "football-validation",
         element: (
@@ -160,14 +200,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "wallet",
-        element: (
-          <ComingSoonPage
-            featureKey="wallet"
-            title="Billetera de SkillPoints"
-            subtitle="Historial de movimientos, canjes y transferencias"
-            description="Tu saldo actual está sincronizado con el backend. La visualización de transacciones históricas y canje de puntos estará disponible próximamente."
-          />
-        ),
+        element: <WalletPage />,
       },
       {
         path: "availability",
@@ -186,25 +219,23 @@ export const router = createBrowserRouter([
       },
       {
         path: "reputation",
-        element: (
-          <ComingSoonPage
-            featureKey="reputation"
-            title="Reputación y Reseñas"
-            subtitle="Calificaciones pedagógicas y comentarios"
-            description="Próximamente se habilitará el muro de valoraciones comunitarias y propinas recibidas tras completar sesiones de trueque."
-          />
-        ),
+        element: <ReputationPage />,
+      },
+      {
+        path: "reputation/:userId",
+        element: <ReputationPage />,
+      },
+      {
+        path: "passport",
+        element: <PublicPassportPage />,
+      },
+      {
+        path: "passport/:uuid",
+        element: <PublicPassportPage />,
       },
       {
         path: "complaints",
-        element: (
-          <ComingSoonPage
-            featureKey="complaints"
-            title="Centro de Quejas y Mediación"
-            subtitle="Resolución de disputas e incumplimientos"
-            description="Próximamente podrás abrir quejas formales de trueques incumplidos y solicitar mediación o compensación arbitral de SkillPoints."
-          />
-        ),
+        element: <ComplaintsPage />,
       },
       {
         path: "settings/privacy",
@@ -340,7 +371,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // 6.5 Admin Backoffice - Disputas & Quejas (Próximamente)
+  // 6.5 Admin Backoffice - Disputas & Quejas (HU-43)
   {
     path: "/admin/disputes",
     element: (
@@ -351,16 +382,13 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: (
-          <ComingSoonPage
-            featureKey="complaints"
-            title="Disputas & Mediación Comunitaria"
-            subtitle="Arbitraje de trueques incumplidos y compensación de SkillPoints"
-            description="Este módulo permitirá al equipo administrador mediar en quejas reportadas por miembros, evaluar grabaciones y ordenar restituciones de saldo de puntos."
-          />
-        ),
+        element: <AdminComplaintsPage />,
       },
     ],
+  },
+  {
+    path: "/admin/complaints",
+    element: <Navigate to="/admin/disputes" replace />,
   },
 
   // 6. Admin Direct Redirection (Protección preventiva)

@@ -1,10 +1,12 @@
+
 import base64
 from typing import Any, Literal, Optional
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from pydantic import BaseModel, Field, FiniteFloat, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pydantic import BaseModel, Field, FiniteFloat, ValidationError
 from app.core.deps import get_current_admin_user
 from app.core.exceptions import SkillMatchException
 from app.db.session import get_db
@@ -12,13 +14,14 @@ from app.models.user import User
 from app.schemas.dataset_sample import DatasetSampleCreate, DatasetSampleResponse
 from app.schemas.response import APIResponse
 from app.services.dataset_sample_service import DatasetSampleService
+from app.services.dataset_storage_service import DatasetStorageService
 from app.services.flute_training_service import (
     _load_sample_bytes,
     activate_flute_model,
     infer_flute,
-    save_flute_labels,
     list_flute_model_versions,
     preview_flute_dataset,
+    save_flute_labels,
     train_flute_note_model,
 )
 
@@ -49,18 +52,33 @@ class FluteInferRequest(FluteFeaturesRequest):
 
 @router.post("/{sample_id}/flute-labels", response_model=APIResponse[dict[str, Any]])
 async def save_flute_labels_endpoint(
-    sample_id: UUID, payload: FluteLabelsRequest, db: AsyncSession = Depends(get_db),
+    sample_id: UUID,
+    payload: FluteLabelsRequest,
+    db: AsyncSession = Depends(get_db),
 ):
-    data = await save_flute_labels(db=db, sample_id=sample_id, **payload.model_dump())
-    return APIResponse(statuscode=200, message="Etiquetas de flauta guardadas exitosamente.", data=data)
+    data = await save_flute_labels(
+        db=db,
+        sample_id=sample_id,
+        **payload.model_dump(),
+    )
+    return APIResponse(
+        statuscode=200,
+        message="Etiquetas de flauta guardadas exitosamente.",
+        data=data,
+    )
 
 
 @router.post("/flute/infer", response_model=APIResponse[dict[str, Any]])
 async def infer_flute_endpoint(
-    payload: FluteInferRequest, db: AsyncSession = Depends(get_db),
+    payload: FluteInferRequest,
+    db: AsyncSession = Depends(get_db),
 ):
     data = await infer_flute(db=db, **payload.model_dump())
-    return APIResponse(statuscode=200, message="Inferencia de flauta completada.", data=data)
+    return APIResponse(
+        statuscode=200,
+        message="Inferencia de flauta completada.",
+        data=data,
+    )
 
 
 class FluteTrainModelRequest(BaseModel):
@@ -78,7 +96,6 @@ class FluteTrainModelRequest(BaseModel):
     )
 
 
-
 @router.get(
     "",
     response_model=APIResponse[list[DatasetSampleResponse]],
@@ -89,7 +106,10 @@ class FluteTrainModelRequest(BaseModel):
 async def list_dataset_samples(
     page: int = Query(default=1, ge=1, description="Número de página"),
     page_size: int = Query(default=50, ge=1, le=100, description="Tamaño de página"),
-    discipline: Optional[str] = Query(default=None, description="Filtrar por disciplina (ej. música, fútbol, programación)"),
+    discipline: Optional[str] = Query(
+        default=None,
+        description="Filtrar por disciplina (ej. música, fútbol, programación)",
+    ),
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin_user),
 ):
@@ -115,18 +135,51 @@ async def list_dataset_samples(
     description="Subida multipart de muestras (mp4, wav, py) con verificación criptográfica de hash SHA-256. Requiere rol ADMIN.",
 )
 async def upload_dataset_sample(
-    file: UploadFile = File(..., description="Archivo multimedia de la muestra (.mp4, .wav o .py)"),
-    discipline: str = Form(..., description="Disciplina de captura (ej. música, fútbol, programación)"),
+    file: UploadFile = File(
+        ...,
+        description="Archivo multimedia de la muestra (.mp4, .wav o .py)",
+    ),
+    discipline: str = Form(
+        ...,
+        description="Disciplina de captura (ej. música, fútbol, programación)",
+    ),
     challenge: str = Form(..., description="Reto o habilidad evaluada"),
-    hardware_info: str = Form(..., description="Hardware y periféricos utilizados para la captura"),
-    signed_consent: bool = Form(..., description="Consentimiento explícito firmado (debe ser true)"),
-    file_hash_sha256: Optional[str] = Form(None, description="Hash SHA-256 precalculado en cliente (opcional)"),
-    participant_id: Optional[str] = Form(None, description="ID del participante (fútbol)"),
-    level_label: Optional[str] = Form(None, description="Nivel etiquetado (fútbol)"),
-    manual_touch_count: Optional[int] = Form(None, description="Conteo manual de toques (fútbol)"),
-    noise_level: Optional[str] = Form(None, description="Nivel de ruido (fútbol)"),
-    surface: Optional[str] = Form(None, description="Superficie (fútbol)"),
-    split: Optional[str] = Form(None, description="Partición train/val/test (fútbol)"),
+    hardware_info: str = Form(
+        ...,
+        description="Hardware y periféricos utilizados para la captura",
+    ),
+    signed_consent: bool = Form(
+        ...,
+        description="Consentimiento explícito firmado (debe ser true)",
+    ),
+    file_hash_sha256: Optional[str] = Form(
+        None,
+        description="Hash SHA-256 precalculado en cliente (opcional)",
+    ),
+    participant_id: Optional[str] = Form(
+        None,
+        description="ID del participante (fútbol)",
+    ),
+    level_label: Optional[str] = Form(
+        None,
+        description="Nivel etiquetado (fútbol)",
+    ),
+    manual_touch_count: Optional[int] = Form(
+        None,
+        description="Conteo manual de toques (fútbol)",
+    ),
+    noise_level: Optional[str] = Form(
+        None,
+        description="Nivel de ruido (fútbol)",
+    ),
+    surface: Optional[str] = Form(
+        None,
+        description="Superficie (fútbol)",
+    ),
+    split: Optional[str] = Form(
+        None,
+        description="Partición train/val/test (fútbol)",
+    ),
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin_user),
 ):
@@ -146,10 +199,14 @@ async def upload_dataset_sample(
         )
     except ValidationError as exc:
         first_err = exc.errors()[0]
-        msg = first_err.get("msg", "Error de validación en los datos de la muestra.")
+        msg = first_err.get(
+            "msg",
+            "Error de validación en los datos de la muestra.",
+        )
         if msg.startswith("Value error, "):
             msg = msg.replace("Value error, ", "")
         raise SkillMatchException(statuscode=400, message=msg)
+
     sample = await DatasetSampleService.create_sample(
         db=db,
         file=file,
@@ -255,20 +312,32 @@ async def get_dataset_sample_content(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin_user),
 ):
-    sample = await DatasetSampleService.get_sample(db=db, sample_id=sample_id)
+    sample = await DatasetSampleService.get_sample(
+        db=db,
+        sample_id=sample_id,
+    )
     raw_bytes = _load_sample_bytes(sample)
+
     mime_map = {
         "mp4": "video/mp4",
         "wav": "audio/wav",
         "py": "text/plain",
     }
-    mime = mime_map.get(sample.file_format, "application/octet-stream")
-    b64 = base64.b64encode(raw_bytes).decode("ascii") if raw_bytes else ""
+    mime = mime_map.get(
+        sample.file_format,
+        "application/octet-stream",
+    )
+    b64 = (
+        base64.b64encode(raw_bytes).decode("ascii")
+        if raw_bytes
+        else ""
+    )
     text_preview = (
         raw_bytes.decode("utf-8", errors="replace")
         if sample.file_format == "py" and raw_bytes
         else None
     )
+
     return APIResponse(
         statuscode=status.HTTP_200_OK,
         message="Contenido de muestra recuperado exitosamente.",
@@ -278,6 +347,36 @@ async def get_dataset_sample_content(
             "mime_type": mime,
             "data_url": f"data:{mime};base64,{b64}" if b64 else None,
             "text_preview": text_preview,
+        },
+    )
+
+
+@router.get(
+    "/{sample_id}/preview-url",
+    response_model=APIResponse[dict[str, str]],
+    status_code=status.HTTP_200_OK,
+    summary="Obtener URL temporal para previsualizar una muestra",
+    description="Genera una URL firmada de corta duración para reproducir el archivo subido. Requiere rol ADMIN.",
+)
+async def get_dataset_sample_preview_url(
+    sample_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    sample = await DatasetSampleService.get_sample(
+        db=db,
+        sample_id=sample_id,
+    )
+    preview_url = DatasetStorageService.get_preview_url(
+        sample.storage_path,
+    )
+
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message="URL de vista previa generada exitosamente.",
+        data={
+            "preview_url": preview_url,
+            "file_format": sample.file_format,
         },
     )
 
@@ -294,7 +393,10 @@ async def delete_dataset_sample(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin_user),
 ):
-    await DatasetSampleService.delete_sample(db=db, sample_id=sample_id)
+    await DatasetSampleService.delete_sample(
+        db=db,
+        sample_id=sample_id,
+    )
     return APIResponse(
         statuscode=status.HTTP_200_OK,
         message="Muestra eliminada exitosamente.",

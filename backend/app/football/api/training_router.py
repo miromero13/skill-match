@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 from uuid import UUID
 
+from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,8 +14,8 @@ from app.football.services.training_service import (
     activate_football_model_version,
     list_football_model_versions,
     preview_football_dataset,
-    train_football_level_model,
 )
+from app.football.tasks import celery_app, train_level_model_task
 from app.models.user import User
 from app.schemas.response import APIResponse
 
@@ -36,7 +37,11 @@ class TrainModelRequest(BaseModel):
     )
     dataset_source: str = Field(
         default="all",
-        description="Fuente de datos: 'all', 'real_only', 'synthetic_only', o 'custom_ids'",
+        description=(
+            "Fuente de datos: 'all' (todas las muestras reales de fútbol) o "
+            "'custom_ids' (solo las indicadas en sample_ids). El entrenamiento usa "
+            "únicamente muestras reales; no existe camino sintético."
+        ),
     )
     sample_ids: Optional[list[UUID]] = Field(
         default=None,
@@ -74,26 +79,68 @@ async def dataset_preview(
 @training_router.post(
     "/train",
     response_model=APIResponse[dict[str, Any]],
-    status_code=status.HTTP_200_OK,
-    summary="Entrenar modelo de clasificación de nivel de fútbol y exportar a ONNX",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Encolar el entrenamiento del clasificador de nivel de fútbol (ONNX)",
 )
 async def train_model(
     payload: TrainModelRequest,
-    db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(get_current_admin_user),
 ) -> APIResponse[dict[str, Any]]:
-    model_data = await train_football_level_model(
-        db=db,
+    async_result = train_level_model_task.delay(
         version_tag=payload.version_tag,
         activate=payload.activate,
         dataset_source=payload.dataset_source,
-        sample_ids=payload.sample_ids,
-        skill_id=payload.skill_id,
+        sample_ids=[str(i) for i in payload.sample_ids] if payload.sample_ids else None,
+        skill_id=str(payload.skill_id) if payload.skill_id else None,
     )
     return APIResponse(
+        statuscode=status.HTTP_202_ACCEPTED,
+        message="Entrenamiento encolado.",
+        data={"task_id": str(async_result.id)},
+    )
+
+
+@training_router.get(
+    "/train/{task_id}/status",
+    response_model=APIResponse[dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Consultar el estado y progreso de un entrenamiento encolado",
+)
+async def train_model_status(
+    task_id: str,
+    admin_user: User = Depends(get_current_admin_user),
+) -> APIResponse[dict[str, Any]]:
+    async_result = AsyncResult(task_id, app=celery_app)
+    state = async_result.state
+    data: dict[str, Any] = {
+        "status": "queued",
+        "processed": None,
+        "total": None,
+        "message": None,
+        "result": None,
+    }
+    if state == "PROGRESS":
+        meta = async_result.info if isinstance(async_result.info, dict) else {}
+        data.update(
+            status="running",
+            processed=meta.get("processed"),
+            total=meta.get("total"),
+            message=meta.get("message"),
+        )
+    elif state == "SUCCESS":
+        data.update(status="done", result=async_result.result)
+    elif state == "FAILURE":
+        error = async_result.result
+        data.update(
+            status="failed",
+            message=str(error) if isinstance(error, BaseException) else None,
+        )
+    elif state in ("STARTED", "RETRY"):
+        data.update(status="running")
+    return APIResponse(
         statuscode=status.HTTP_200_OK,
-        message=f"Modelo {model_data['version']} entrenado y exportado exitosamente.",
-        data=model_data,
+        message="Estado del entrenamiento recuperado.",
+        data=data,
     )
 
 

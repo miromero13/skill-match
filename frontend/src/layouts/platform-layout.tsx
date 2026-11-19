@@ -5,7 +5,7 @@ import { MobileBottomBar } from "@/components/navigation/mobile-bottom-bar"
 
 export function PlatformLayout() {
   const location = useLocation()
-  const showSidebar =
+  const isFeed =
     location.pathname === "/app" ||
     location.pathname === "/app/"
   const isProfile = location.pathname.startsWith("/app/profile")
@@ -14,10 +14,10 @@ export function PlatformLayout() {
     <div className="flex h-screen flex-col bg-background text-foreground overflow-hidden">
       <PlatformHeader />
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {showSidebar && <PlatformSidebar />}
+        <PlatformSidebar />
         <main
           className={`min-w-0 flex-1 h-full pb-[54px] md:pb-0 ${
-            showSidebar
+            isFeed
               ? "overflow-hidden"
               : isProfile
                 ? "overflow-y-auto xl:overflow-hidden"

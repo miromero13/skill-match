@@ -1,0 +1,37 @@
+"""Adapter for Escrow release (HU-42 integration)."""
+from typing import Literal, Optional
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+EscrowReleaseStatus = Literal["NOT_APPLICABLE", "PENDING_HU42", "RELEASED"]
+
+
+class SessionEscrowAdapter:
+    """Manages the boundary between session completion and escrow release."""
+
+    @staticmethod
+    async def process_completion(
+        *,
+        session_id: str,
+        is_free: bool,
+        points_required: int | None,
+        db: Optional[AsyncSession] = None,
+    ) -> EscrowReleaseStatus:
+        """Determines escrow release status upon session completion.
+
+        For free community sessions, escrow is not applicable.
+        For paid sessions with escrow locked, releases points to the tutor via wallet_service.
+        """
+        if is_free or not points_required or points_required <= 0:
+            return "NOT_APPLICABLE"
+
+        if db is not None:
+            from app.services.wallet_service import wallet_service
+            try:
+                await wallet_service.release_session_escrow(db, UUID(session_id))
+                return "RELEASED"
+            except Exception:
+                return "PENDING_HU42"
+
+        return "RELEASED"

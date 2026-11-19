@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, text
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +21,17 @@ class BrowserTrial(Base):
     tab_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     event_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Server receipt time of the latest audiovisual window; basis of WINDOW_GAP detection.
+    last_av_window_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Per-trial calibrated screen zone (head pitch/yaw bounds and gaze bounds); None until calibrated.
+    gaze_zone: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Enrolled voiceprint (unit embedding + ambient noise floor, see integrity/voiceprint.py): a biometric that
+    # stays on the server; responses only expose ``voice_enrolled``.
+    voiceprint: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    @property
+    def voice_enrolled(self) -> bool:
+        return self.voiceprint is not None
 
 
 class BrowserIncident(Base):

@@ -79,3 +79,47 @@ def test_generate_grouped_participant_dataset_is_not_imported_by_training_servic
 
     source = inspect.getsource(training_service)
     assert "generate_grouped_participant_dataset" not in source
+
+
+@pytest.mark.asyncio
+async def test_duplicate_participant_id_across_splits_rejects_with_400(
+    no_synthetic_db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    If uploads reused the same participant_id for different real people split
+    across train/test (e.g. every single-file upload defaulted to anon-p01),
+    training must reject with a clear 400 naming the leaked participant,
+    never crash the worker with a bare AssertionError.
+    """
+    same_id = "anon-p01"
+    train_sample = _real_sample("leak-train", "Principiante")
+    train_sample.participant_id = same_id
+    train_sample.split = "train"
+    test_sample = _real_sample("leak-test", "Principiante")
+    test_sample.participant_id = same_id
+    test_sample.split = "test"
+    no_synthetic_db.add_all([train_sample, test_sample])
+    await no_synthetic_db.flush()
+
+    monkeypatch.setattr(
+        training_service,
+        "_extract_features_from_sample_clip",
+        lambda _s: {
+            "total_touches": 20,
+            "max_streak": 15,
+            "touches_per_minute": 50.0,
+            "regularity_score": 0.75,
+            "mean_height_diameters": 1.6,
+            "drops_count": 1,
+        },
+    )
+
+    with pytest.raises(SkillMatchException) as exc_info:
+        await training_service.train_football_level_model(
+            db=no_synthetic_db,
+            activate=False,
+            sample_ids=[train_sample.id, test_sample.id],
+        )
+    assert exc_info.value.statuscode == 400
+    assert same_id in exc_info.value.message

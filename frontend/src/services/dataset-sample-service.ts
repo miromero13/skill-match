@@ -1,3 +1,4 @@
+
 import { apiClient } from "@/services/api-client"
 import type {
   DatasetSample,
@@ -86,13 +87,23 @@ export interface FluteDatasetPreviewResponse {
 }
 
 export function saveFluteLabels(sampleId: string, payload: FluteLabels) {
-  return apiClient.post<Pick<FluteLabels, "participant_id" | "note_label" | "sound_label" | "posture_label">>(
-    `/ai/datasets/samples/${sampleId}/flute-labels`, payload, { showToastOnSuccess: true }
+  return apiClient.post<
+    Pick<
+      FluteLabels,
+      "participant_id" | "note_label" | "sound_label" | "posture_label"
+    >
+  >(
+    `/ai/datasets/samples/${sampleId}/flute-labels`,
+    payload,
+    { showToastOnSuccess: true }
   )
 }
 
 export function inferFlute(payload: FluteFeatures & { target_note: string }) {
-  return apiClient.post<FluteInference>("/ai/datasets/samples/flute/infer", payload)
+  return apiClient.post<FluteInference>(
+    "/ai/datasets/samples/flute/infer",
+    payload
+  )
 }
 
 export async function calculateFileSha256(blob: Blob): Promise<string> {
@@ -124,7 +135,9 @@ export async function uploadDatasetSample(
   const fileToUpload =
     payload.file instanceof File
       ? payload.file
-      : new File([payload.file], payload.fileName, { type: payload.file.type })
+      : new File([payload.file], payload.fileName, {
+        type: payload.file.type,
+      })
 
   formData.append("file", fileToUpload)
   formData.append("discipline", payload.discipline)
@@ -135,51 +148,67 @@ export async function uploadDatasetSample(
   if (payload.file_hash_sha256) {
     formData.append("file_hash_sha256", payload.file_hash_sha256)
   }
+
   if (payload.participant_id) {
     formData.append("participant_id", payload.participant_id)
   }
+
   if (payload.level_label) {
     formData.append("level_label", payload.level_label)
   }
+
   if (
     payload.manual_touch_count !== undefined &&
     payload.manual_touch_count !== null
   ) {
-    formData.append("manual_touch_count", String(payload.manual_touch_count))
+    formData.append(
+      "manual_touch_count",
+      String(payload.manual_touch_count)
+    )
   }
+
   if (payload.noise_level) {
     formData.append("noise_level", payload.noise_level)
   }
+
   if (payload.surface) {
     formData.append("surface", payload.surface)
   }
+
   if (payload.split) {
     formData.append("split", payload.split)
   }
 
-  return apiClient.post<DatasetSample>("/ai/datasets/samples/upload", formData, {
-    showToastOnSuccess: true,
-  })
+  return apiClient.post<DatasetSample>(
+    "/ai/datasets/samples/upload",
+    formData,
+    { showToastOnSuccess: true }
+  )
 }
 
 export async function deleteDatasetSample(
   id: string
 ): Promise<APIResponse<null>> {
-  return apiClient.delete<null>(`/ai/datasets/samples/${id}`, {
-    showToastOnSuccess: true,
-  })
+  return apiClient.delete<null>(
+    `/ai/datasets/samples/${id}`,
+    { showToastOnSuccess: true }
+  )
 }
 
 export async function getDatasetSampleContent(
   id: string
 ): Promise<APIResponse<DatasetSampleContent>> {
-  return apiClient.get<DatasetSampleContent>(`/ai/datasets/samples/${id}/content`)
+  return apiClient.get<DatasetSampleContent>(
+    `/ai/datasets/samples/${id}/content`
+  )
 }
 
 export async function getFluteDatasetPreview(): Promise<
   APIResponse<FluteDatasetPreviewResponse>
 > {
-  return apiClient.get<FluteDatasetPreviewResponse>("/ai/datasets/samples/flute/preview")
+  return apiClient.get<FluteDatasetPreviewResponse>(
+    "/ai/datasets/samples/flute/preview"
+  )
 }
 
 export async function trainFluteModel(payload: {
@@ -187,15 +216,19 @@ export async function trainFluteModel(payload: {
   activate?: boolean
   skill_id?: string
 }): Promise<APIResponse<FluteModelVersionItem>> {
-  return apiClient.post<FluteModelVersionItem>("/ai/datasets/samples/flute/train", payload, {
-    showToastOnSuccess: true,
-  })
+  return apiClient.post<FluteModelVersionItem>(
+    "/ai/datasets/samples/flute/train",
+    payload,
+    { showToastOnSuccess: true }
+  )
 }
 
 export async function listFluteModels(): Promise<
   APIResponse<FluteModelVersionItem[]>
 > {
-  return apiClient.get<FluteModelVersionItem[]>("/ai/datasets/samples/flute/models")
+  return apiClient.get<FluteModelVersionItem[]>(
+    "/ai/datasets/samples/flute/models"
+  )
 }
 
 export async function activateFluteModel(
@@ -205,5 +238,19 @@ export async function activateFluteModel(
     `/ai/datasets/samples/flute/models/${modelId}/activate`,
     {},
     { showToastOnSuccess: true }
+  )
+}
+
+export async function getDatasetSamplePreviewUrl(
+  id: string
+): Promise<
+  APIResponse<{ preview_url: string; file_format: string }>
+> {
+  return apiClient.get<{
+    preview_url: string
+    file_format: string
+  }>(
+    `/ai/datasets/samples/${id}/preview-url`,
+    { showToastOnError: false }
   )
 }
