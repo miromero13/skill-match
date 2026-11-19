@@ -15,6 +15,7 @@ from test_gaze_duration import ScriptedLandmarker, looking
 
 from app.models.browser_supervision import BrowserTrial
 from app.services.continuous_supervision_service import ContinuousSupervisionService as Service
+from app.services.integrity import frame_analyzer
 
 
 def telemetry(count=3, **extra):
@@ -111,7 +112,7 @@ def scripted(monkeypatch):
     def install(kinds_):
         landmarker = ScriptedLandmarker([looking(kind) for kind in kinds_])
         monkeypatch.setattr(Service, "get_vision_models", staticmethod(lambda: (None, None)))
-        monkeypatch.setattr(Service, "get_mediapipe_landmarker", classmethod(lambda cls: landmarker))
+        monkeypatch.setattr(frame_analyzer, "get_landmarker", lambda: landmarker)
         return landmarker
 
     return install

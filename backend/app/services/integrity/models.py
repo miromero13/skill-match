@@ -115,6 +115,11 @@ class FrameObservation:
     # Camera health (T7 / S8): a near-black or near-uniform image, and the mean abs difference to the previous frame.
     camera_blocked: bool = False
     frame_delta: Optional[float] = None
+    # Calibration (T9): the YuNet face box as fractions of the frame (x, y, width, height), and whether the pose
+    # comes from MediaPipe's 3D mesh (False: the 2D YuNet landmark fallback, which cannot judge a head turn).
+    face_box: Optional[tuple[float, float, float, float]] = None
+    face_score: Optional[float] = None  # YuNet confidence of that face
+    pose_3d: bool = False
 
     @classmethod
     def unavailable(cls) -> "FrameObservation":
@@ -181,6 +186,7 @@ class AudioObservation:
     voice_reset: bool = False  # the rolling voiced buffer was forgotten (long silence): confirmation counts restart
     # Per 30 ms chunk: True = sustained-audio candidate (non-speech above the ambient floor), None = no verdict.
     background_flags: list[Optional[bool]] = field(default_factory=list)
+    vad_unavailable: bool = False  # the voice-activity detector could not run: no verdict on speech, never "silence"
 
     @property
     def noise_level(self) -> float:

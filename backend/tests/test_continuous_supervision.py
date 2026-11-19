@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from app.services.continuous_supervision_service import ContinuousSupervisionService
+from app.services.integrity import frame_analyzer
 from test_evaluation_preflight import isolated_db, scenario, endpoint  # noqa: F401
 
 ROOT = "/api/browser-supervision/trials"
@@ -41,13 +42,13 @@ def empty_scene_models(monkeypatch):
     monkeypatch.setattr(
         ContinuousSupervisionService, "get_vision_models", staticmethod(lambda: (EmptySceneDetector(), None))
     )
-    monkeypatch.setattr(ContinuousSupervisionService, "get_mediapipe_landmarker", classmethod(lambda cls: None))
+    monkeypatch.setattr(frame_analyzer, "get_landmarker", lambda: None)
 
 
 @pytest.fixture
 def no_models_at_all(monkeypatch):
     monkeypatch.setattr(ContinuousSupervisionService, "get_vision_models", staticmethod(lambda: (None, None)))
-    monkeypatch.setattr(ContinuousSupervisionService, "get_mediapipe_landmarker", classmethod(lambda cls: None))
+    monkeypatch.setattr(frame_analyzer, "get_landmarker", lambda: None)
 
 
 async def start_trial(client, tab=None):

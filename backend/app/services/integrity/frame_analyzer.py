@@ -6,7 +6,8 @@ Models are injected (``vision_provider``, ``landmarker_provider``) or loaded laz
 ``app.services.vision_models`` (T2); a missing model yields ``FrameObservation.unavailable()`` and is never
 a clean face (fail closed).
 
-Calibration mapping (T9): ``CalibrationVisionService`` pose/face checks map to ``FrameAnalyzer.analyze_frame``.
+Calibration (T9) measures its frames with this same analyzer; ``identity_any_pose`` makes it match the face on turned
+heads too, which the liveness frames need.
 """
 import base64
 import binascii
@@ -177,66 +178,58 @@ def extract_mouth_and_cheeks(image: np.ndarray, face: np.ndarray) -> Optional[Mo
         return None
 
 
-class LandmarkerLifecycle:
-    """Lazily builds the process-wide MediaPipe FaceLandmarker; a failed init is retried after a cooldown.
+# One native MediaPipe FaceLandmarker per process, shared by supervision and calibration. A failed init is retried
+# after ``MP_RETRY_COOLDOWN_S``. ``monotonic`` and ``build_landmarker`` are module-level so tests can replace them.
+_landmarker: Any = None
+_landmarker_failed_at: Optional[float] = None
+_landmarker_lock = threading.Lock()
 
-    State is class-level on purpose (one native model per process). ``ContinuousSupervisionService``
-    subclasses this so its historical test seams (``_build_landmarker``, ``_monotonic``, ...) keep working.
-    """
 
-    _mp_landmarker: Any = None
-    # Monotonic time of the last failed MediaPipe init; a failure is retried after the cooldown.
-    _mp_failed_at: Optional[float] = None
-    _mp_lock = threading.Lock()
-    MP_RETRY_COOLDOWN_S = t.MP_RETRY_COOLDOWN_S
+def monotonic() -> float:
+    return time.monotonic()
 
-    @staticmethod
-    def _monotonic() -> float:
-        return time.monotonic()
 
-    @staticmethod
-    def _build_landmarker() -> Any:
-        """Creates the local MediaPipe FaceLandmarker (blendshapes + 3D matrices). Raises on failure."""
-        task_path = vision_models.MEDIAPIPE_TASK_PATH
-        if not task_path.is_file():
-            raise FileNotFoundError(f"Modelo MediaPipe no encontrado en {task_path}")
-        from mediapipe.tasks import python
-        from mediapipe.tasks.python import vision
+def build_landmarker() -> Any:
+    """Creates the local MediaPipe FaceLandmarker (blendshapes + 3D matrices). Raises on failure."""
+    task_path = vision_models.MEDIAPIPE_TASK_PATH
+    if not task_path.is_file():
+        raise FileNotFoundError(f"Modelo MediaPipe no encontrado en {task_path}")
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
 
-        base_options = python.BaseOptions(model_asset_path=str(task_path))
-        options = vision.FaceLandmarkerOptions(
-            base_options=base_options,
-            output_face_blendshapes=True,
-            output_facial_transformation_matrixes=True,
-            num_faces=t.MP_NUM_FACES,
-            min_face_detection_confidence=t.MP_MIN_FACE_CONFIDENCE,
-            min_face_presence_confidence=t.MP_MIN_FACE_CONFIDENCE,
-        )
-        return vision.FaceLandmarker.create_from_options(options)
+    base_options = python.BaseOptions(model_asset_path=str(task_path))
+    options = vision.FaceLandmarkerOptions(
+        base_options=base_options,
+        output_face_blendshapes=True,
+        output_facial_transformation_matrixes=True,
+        num_faces=t.MP_NUM_FACES,
+        min_face_detection_confidence=t.MP_MIN_FACE_CONFIDENCE,
+        min_face_presence_confidence=t.MP_MIN_FACE_CONFIDENCE,
+    )
+    return vision.FaceLandmarker.create_from_options(options)
 
-    @classmethod
-    def get_mediapipe_landmarker(cls) -> Any:
-        """Returns the shared landmarker, or None while it is unavailable."""
-        if cls._mp_landmarker is not None:
-            return cls._mp_landmarker
-        with cls._mp_lock:
-            if cls._mp_landmarker is not None:
-                return cls._mp_landmarker
-            now = cls._monotonic()
-            if cls._mp_failed_at is not None and now - cls._mp_failed_at < cls.MP_RETRY_COOLDOWN_S:
-                return None
-            try:
-                cls._mp_landmarker = cls._build_landmarker()
-                cls._mp_failed_at = None
-                return cls._mp_landmarker
-            except Exception as exc:
-                cls._mp_failed_at = now
-                logger.error(
-                    "MediaPipe FaceLandmarker no disponible (reintento en %.0fs): %s",
-                    cls.MP_RETRY_COOLDOWN_S,
-                    exc,
-                )
-                return None
+
+def get_landmarker() -> Any:
+    """Returns the process-wide landmarker, or None while it is unavailable (retried after the cooldown)."""
+    global _landmarker, _landmarker_failed_at
+    if _landmarker is not None:
+        return _landmarker
+    with _landmarker_lock:
+        if _landmarker is not None:
+            return _landmarker
+        now = monotonic()
+        if _landmarker_failed_at is not None and now - _landmarker_failed_at < t.MP_RETRY_COOLDOWN_S:
+            return None
+        try:
+            _landmarker = build_landmarker()
+            _landmarker_failed_at = None
+            return _landmarker
+        except Exception as exc:
+            _landmarker_failed_at = now
+            logger.error(
+                "MediaPipe FaceLandmarker no disponible (reintento en %.0fs): %s", t.MP_RETRY_COOLDOWN_S, exc,
+            )
+            return None
 
 
 def _orientation(is_left: bool, is_right: bool, is_down: bool) -> str:
@@ -260,13 +253,15 @@ class FrameAnalyzer:
         mediapipe_runner: Optional[MediaPipeRunner] = None,
         identity_threshold: float = t.IDENTITY_COSINE_THRESHOLD,
         keep_landmarks: bool = False,
+        identity_any_pose: bool = False,
     ) -> None:
         self.state = state
         self.vision_provider = vision_provider or create_vision_models
-        self.landmarker_provider = landmarker_provider or LandmarkerLifecycle.get_mediapipe_landmarker
+        self.landmarker_provider = landmarker_provider or (lambda: get_landmarker())
         self.mediapipe_runner: MediaPipeRunner = mediapipe_runner or self.analyze_mediapipe
         self.identity_threshold = identity_threshold
         self.keep_landmarks = keep_landmarks
+        self.identity_any_pose = identity_any_pose
 
     # ---- window level ---------------------------------------------------------------------------
 
@@ -370,7 +365,7 @@ class FrameAnalyzer:
                 recognizer is not None
                 and reference_embedding is not None
                 and primary is not None
-                and mp_res.orientation == "CENTER"
+                and (self.identity_any_pose or mp_res.orientation == "CENTER")
             ):
                 similarity, match = self._identity(image, primary, recognizer, reference_embedding)
             obs = dataclasses.replace(
@@ -382,6 +377,10 @@ class FrameAnalyzer:
             return FrameObservation(face_count=len(credible), faces_agreed=agreed)
         else:
             obs = self._analyze_yunet(image, primary, recognizer, reference_embedding, session_key, h)
+        if primary is not None:
+            obs = dataclasses.replace(obs, face_box=(
+                float(primary[0]) / w, float(primary[1]) / h, float(primary[2]) / w, float(primary[3]) / h),
+            face_score=float(primary[14]))
         return self._with_occlusion(
             obs, image, primary, session_key, mediapipe_saw_face=mp_res is not None and mp_res.face_count > 0,
             yunet_ran=detector is not None,
@@ -588,6 +587,7 @@ class FrameAnalyzer:
                 gaze_h=gaze.gaze_h,
                 gaze_v=gaze.gaze_v,
                 blink=gaze.blink,
+                pose_3d=True,
             )
         except Exception as exc:
             logger.debug("Error en análisis MediaPipe: %s", exc)
@@ -700,7 +700,8 @@ class FrameAnalyzer:
         orientation = _orientation(is_left, is_right, is_down)
 
         similarity = match = None
-        if recognizer is not None and reference_embedding is not None and orientation == "CENTER":
+        if recognizer is not None and reference_embedding is not None and (
+                self.identity_any_pose or orientation == "CENTER"):
             similarity, match = self._identity(image, face, recognizer, reference_embedding)
 
         return FrameObservation(

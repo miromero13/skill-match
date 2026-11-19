@@ -16,6 +16,7 @@ from app.schemas.user_profile import BiometricEnrollRequest, IdentityVerifyReque
 from app.services import vision_models
 from app.services.biometric_service import BiometricService
 from app.services.continuous_supervision_service import ContinuousSupervisionService
+from app.services.integrity import frame_analyzer
 from app.services.user_profile_service import UserProfileService
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "install_vision_models.py"
@@ -47,8 +48,8 @@ def no_vision_models(monkeypatch, tmp_path):
     monkeypatch.setattr(BiometricService, "_init_failed_at", None)
     monkeypatch.setattr(BiometricService, "_detector", None)
     monkeypatch.setattr(BiometricService, "_recognizer", None)
-    monkeypatch.setattr(ContinuousSupervisionService, "_mp_landmarker", None)
-    monkeypatch.setattr(ContinuousSupervisionService, "_mp_failed_at", None)
+    monkeypatch.setattr(frame_analyzer, "_landmarker", None)
+    monkeypatch.setattr(frame_analyzer, "_landmarker_failed_at", None)
     return tmp_path
 
 
@@ -156,10 +157,10 @@ def test_class_name_is_not_sniffed_and_landmarker_is_injected(monkeypatch):
 
 
 def test_mediapipe_init_is_retried_after_cooldown(monkeypatch):
-    monkeypatch.setattr(ContinuousSupervisionService, "_mp_landmarker", None)
-    monkeypatch.setattr(ContinuousSupervisionService, "_mp_failed_at", None)
+    monkeypatch.setattr(frame_analyzer, "_landmarker", None)
+    monkeypatch.setattr(frame_analyzer, "_landmarker_failed_at", None)
     clock = {"now": 1000.0}
-    monkeypatch.setattr(ContinuousSupervisionService, "_monotonic", staticmethod(lambda: clock["now"]))
+    monkeypatch.setattr(frame_analyzer, "monotonic", lambda: clock["now"])
     attempts = []
     ready = object()
 
@@ -169,16 +170,16 @@ def test_mediapipe_init_is_retried_after_cooldown(monkeypatch):
             raise RuntimeError("weights missing")
         return ready
 
-    monkeypatch.setattr(ContinuousSupervisionService, "_build_landmarker", staticmethod(build))
+    monkeypatch.setattr(frame_analyzer, "build_landmarker", build)
 
-    assert ContinuousSupervisionService.get_mediapipe_landmarker() is None
-    clock["now"] += ContinuousSupervisionService.MP_RETRY_COOLDOWN_S - 1
-    assert ContinuousSupervisionService.get_mediapipe_landmarker() is None
+    assert frame_analyzer.get_landmarker() is None
+    clock["now"] += frame_analyzer.t.MP_RETRY_COOLDOWN_S - 1
+    assert frame_analyzer.get_landmarker() is None
     assert len(attempts) == 1, "no retry storm inside the cooldown"
     clock["now"] += 2
-    assert ContinuousSupervisionService.get_mediapipe_landmarker() is ready
+    assert frame_analyzer.get_landmarker() is ready
     assert len(attempts) == 2
-    assert ContinuousSupervisionService.get_mediapipe_landmarker() is ready
+    assert frame_analyzer.get_landmarker() is ready
     assert len(attempts) == 2
 
 

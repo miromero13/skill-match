@@ -6,8 +6,9 @@ all local (zero third-party cloud APIs). This class keeps the public methods the
 tests have always used and delegates each of them to the engine's analyzers.
 
 The class-level state (``_trial_baselines``, ``_trial_audio_state``, ``_state_lock``) and the overridable
-model hooks (``get_vision_models``, ``get_mediapipe_landmarker``, ``_analyze_with_mediapipe``) stay here so
-they remain the seams existing callers and tests patch; the engine is wired over them on every call.
+model hooks (``get_vision_models``, ``_analyze_with_mediapipe``) stay here so they remain the seams existing
+callers and tests patch; the engine is wired over them on every call. The MediaPipe landmarker is not one of
+them any more: the process has a single one, owned by ``integrity.frame_analyzer.get_landmarker``.
 """
 import threading
 from collections import OrderedDict
@@ -19,7 +20,7 @@ from app.services.integrity import frame_analyzer as frames
 from app.services.integrity.audio_analyzer import AudioAnalyzer
 from app.services.integrity import enrollment
 from app.services.integrity.engine import IntegrityEngine
-from app.services.integrity.frame_analyzer import FrameAnalyzer, LandmarkerLifecycle
+from app.services.integrity.frame_analyzer import FrameAnalyzer
 from app.services.integrity.models import FrameBatch, FrameObservation, GazeSample, GazeZone, MouthPatch
 from app.services.integrity.policy import SupervisionProfile
 from app.services.integrity.state import InMemoryStateStore
@@ -32,7 +33,7 @@ from app.services.integrity.thresholds import (  # noqa: F401  (re-exported for 
 )
 
 
-class ContinuousSupervisionService(LandmarkerLifecycle):
+class ContinuousSupervisionService:
     # Bounded in-memory per-trial neutral 3D pose baselines (max 256 active trials)
     _trial_baselines: OrderedDict[str, dict[str, float]] = OrderedDict()
     # Bounded in-memory rolling 2.4s audio buffer & speaker state per trial
@@ -60,7 +61,7 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
         return FrameAnalyzer(
             cls._store(),
             vision_provider=cls.get_vision_models,
-            landmarker_provider=cls.get_mediapipe_landmarker if use_mediapipe else (lambda: None),
+            landmarker_provider=None if use_mediapipe else (lambda: None),
             mediapipe_runner=cls._analyze_with_mediapipe,
         )
 

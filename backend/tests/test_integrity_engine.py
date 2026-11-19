@@ -17,6 +17,7 @@ import pytest
 from app.services.biometric_service import SFACE_COSINE_THRESHOLD
 from app.services.calibration_speaker_service import CalibrationSpeakerService
 from app.services.continuous_supervision_service import ContinuousSupervisionService as Facade
+from app.services.integrity import frame_analyzer
 
 SAMPLES_2400 = 38_400  # 2.4 s at 16 kHz
 NEUTRAL = [80, 40, 120, 150, 115, 95, 165, 95, 140, 126, 120, 155, 160, 155, 0.95]
@@ -116,7 +117,7 @@ def run(request, monkeypatch):
         key = key or f"t-{uuid.uuid4()}"
         if request.param == "facade":
             monkeypatch.setattr(Facade, "get_vision_models", staticmethod(lambda: (detector, recognizer)))
-            monkeypatch.setattr(Facade, "get_mediapipe_landmarker", classmethod(lambda cls: None))
+            monkeypatch.setattr(frame_analyzer, "get_landmarker", lambda: None)
             embedding = None if reference is None else "[" + ",".join(str(float(v)) for v in reference) + "]"
             return Facade.assess_window(
                 frames, audio, trial_id=key, biometric_embedding_json=embedding, duration_ms=duration_ms,
@@ -450,7 +451,7 @@ def test_engine_matches_facade_for_a_window_with_everything_wrong(monkeypatch):
     images = frames(4)
     detector = SequenceDetector([[NEUTRAL], [NEUTRAL], [DOWN], [DOWN]])
     monkeypatch.setattr(Facade, "get_vision_models", staticmethod(lambda: (detector, StubRecognizer(one_hot(1)))))
-    monkeypatch.setattr(Facade, "get_mediapipe_landmarker", classmethod(lambda cls: None))
+    monkeypatch.setattr(frame_analyzer, "get_landmarker", lambda: None)
     legacy = Facade.assess_window(images, loud(), trial_id="everything", duration_ms=2400,
                                   biometric_embedding_json="[" + ",".join(map(str, REFERENCE.tolist())) + "]")
     # The first window of an identity mismatch is only pending (confirmed by a second one), so it is not listed;
