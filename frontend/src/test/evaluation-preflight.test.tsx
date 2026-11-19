@@ -20,10 +20,13 @@ vi.mock("@/services/evaluation-service", () => ({
 const preflight: EvaluationPreflight = {
   teaching_skill_id: "offer-1",
   skill_name: "Python",
+  declared_level: "INTERMEDIATE",
+  declared_level_label: "Nivel 3 · Intermedio",
+  target_level_number: 3,
   syllabus: "Fundamentos",
   requirements: ["Cámara y micrófono disponibles"],
   stages: ["Teoría", "Práctica de la habilidad", "Defensa con preguntas"],
-  estimated_duration_minutes: null,
+  estimated_duration_minutes: 25,
   free_evaluations_left: 3,
   attempts_used: 0,
   policy_version: "v1.0",
@@ -62,6 +65,12 @@ describe("shared evaluation preparation", () => {
     expect(screen.getByRole("navigation", { name: "Pasos del pre-embarque" })).toHaveTextContent("Calibración")
     expect(screen.getByText("Paso 1 de 3")).toBeInTheDocument()
     expect(getEvaluationPreflight).toHaveBeenCalledWith("offer-1")
+    expect(screen.getByLabelText("Habilidad declarada en tu perfil")).toHaveValue("Python")
+    expect(screen.getByLabelText("Habilidad declarada en tu perfil")).toBeDisabled()
+    expect(screen.getByLabelText("Nivel objetivo a validar")).toHaveValue("Nivel 3 · Intermedio")
+    expect(screen.getByLabelText("Nivel objetivo a validar")).toBeDisabled()
+    expect(screen.getByLabelText("Duración estimada")).toHaveValue("25 minutos")
+    expect(screen.getByLabelText("Duración estimada")).toBeDisabled()
     expect(screen.getByText("Teoría")).toBeInTheDocument()
     expect(screen.getByText("Práctica de la habilidad")).toBeInTheDocument()
     expect(screen.getByText("Defensa con preguntas")).toBeInTheDocument()

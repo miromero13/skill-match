@@ -5,6 +5,9 @@ import type { MouthSampleDTO } from "@/services/gaze-tracking"
 export interface EvaluationPreflight {
   teaching_skill_id: string
   skill_name: string
+  declared_level?: string | null
+  declared_level_label?: string | null
+  target_level_number?: number
   syllabus: string
   requirements: string[]
   stages: string[]

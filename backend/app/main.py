@@ -18,6 +18,7 @@ from app.api.evaluations import router as evaluation_preflight_router
 from app.api.health import health_router
 from app.api.matches.router import router as matches_router
 from app.api.notifications.router import router as notifications_router
+from app.api.programming import admin_router as admin_programming_router, member_router as programming_router
 from app.api.notifications.web_push import router as web_push_router
 from app.api.notifications.websocket import router as notification_websocket_router
 from app.api.search import search_router
@@ -118,10 +119,12 @@ def create_application() -> FastAPI:
     app.include_router(admin_auth_router, prefix="/api")
     app.include_router(admin_management_router, prefix="/api")
     app.include_router(admin_catalog_router, prefix="/api")
+    app.include_router(admin_programming_router, prefix="/api")
     app.include_router(theory_question_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
     app.include_router(evaluation_preflight_router, prefix="/api")
     app.include_router(theory_exam_router, prefix="/api")
+    app.include_router(programming_router, prefix="/api")
     register_browser_supervision_router(app, settings)
     app.include_router(public_skills_router, prefix="/api")
     app.include_router(user_learning_skills_router, prefix="/api")

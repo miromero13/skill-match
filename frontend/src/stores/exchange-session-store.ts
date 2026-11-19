@@ -8,6 +8,8 @@ import type {
   ExchangeSession,
   ExchangeSessionCreate,
   ExchangeSessionReschedule,
+  SessionConfirmRequest,
+  SessionNoShowRequest,
 } from "@/types/exchange-session"
 
 interface ExchangeSessionState {
@@ -30,6 +32,14 @@ interface ExchangeSessionState {
     payload: ExchangeSessionReschedule
   ) => Promise<boolean>
   cancel: (id: string, cancellationReason: string) => Promise<boolean>
+  confirmSession: (
+    id: string,
+    payload: SessionConfirmRequest
+  ) => Promise<boolean>
+  reportNoShow: (
+    id: string,
+    payload: SessionNoShowRequest
+  ) => Promise<boolean>
 }
 
 const initial = () => ({
@@ -187,6 +197,93 @@ export const useExchangeSessionStore = create<ExchangeSessionState>(
               : state.freeSessionsLeft,
         })
       ),
+    confirmSession: async (id, payload) => {
+      const state = get()
+      const key = `confirm:${id}`
+      if (!authenticated() || state.pending[key]) return false
+      const epoch = generation
+      useExchangeSessionStore.setState((current) => ({
+        pending: { ...current.pending, [key]: true },
+        error: null,
+      }))
+      try {
+        const response = await service.confirmExchangeSession(id, payload)
+        if (epoch !== generation) return false
+        useExchangeSessionStore.setState((current) => ({
+          items: current.items.map((session) =>
+            session.id === id
+              ? {
+                  ...session,
+                  status: response.data.status,
+                  actual_minutes: response.data.actual_minutes ?? session.actual_minutes,
+                  completed_at: response.data.completed_at ?? session.completed_at,
+                  my_confirmation: response.data.my_confirmation,
+                  counterpart_confirmation: response.data.counterpart_confirmation,
+                  can_confirm: false,
+                  can_report_noshow:
+                    response.data.status !== "COMPLETED" && session.can_report_noshow,
+                }
+              : session
+          ),
+        }))
+        toast.success(response.message)
+        return true
+      } catch (error) {
+        if (epoch === generation) {
+          useExchangeSessionStore.setState({ error: errorMessage(error) })
+          if (!(error instanceof ApiError)) toast.error(errorMessage(error))
+        }
+        return false
+      } finally {
+        if (epoch === generation) {
+          useExchangeSessionStore.setState((current) => {
+            const pending = { ...current.pending }
+            delete pending[key]
+            return { pending }
+          })
+        }
+      }
+    },
+    reportNoShow: async (id, payload) => {
+      const state = get()
+      const key = `noshow:${id}`
+      if (!authenticated() || state.pending[key]) return false
+      const epoch = generation
+      useExchangeSessionStore.setState((current) => ({
+        pending: { ...current.pending, [key]: true },
+        error: null,
+      }))
+      try {
+        const response = await service.reportSessionNoShow(id, payload)
+        if (epoch !== generation) return false
+        useExchangeSessionStore.setState((current) => ({
+          items: current.items.map((session) =>
+            session.id === id
+              ? {
+                  ...session,
+                  can_report_noshow: false,
+                }
+              : session
+          ),
+        }))
+        toast.success(response.message)
+        return true
+      } catch (error) {
+        if (epoch === generation) {
+          useExchangeSessionStore.setState({ error: errorMessage(error) })
+          if (!(error instanceof ApiError)) toast.error(errorMessage(error))
+        }
+        return false
+      } finally {
+        if (epoch === generation) {
+          useExchangeSessionStore.setState((current) => {
+            const pending = { ...current.pending }
+            delete pending[key]
+            return { pending }
+          })
+        }
+      }
+    },
   })
 )
 

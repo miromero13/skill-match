@@ -29,7 +29,7 @@ const MIN_HEIGHT = 240
 
 interface Devices { recorder: MicrophoneRecorder; tracker: FaceTracker }
 
-export function CalibrationPanel({ evaluationId, onBack }: { evaluationId: string; onBack?: () => void }) {
+export function CalibrationPanel({ evaluationId, targetLevel, onBack }: { evaluationId: string; targetLevel?: number; onBack?: () => void }) {
   const video = useRef<HTMLVideoElement>(null)
   const canvas = useRef<HTMLCanvasElement | null>(null)
   const stream = useRef<MediaStream | null>(null)
@@ -244,7 +244,7 @@ export function CalibrationPanel({ evaluationId, onBack }: { evaluationId: strin
     <div className="flex flex-col-reverse justify-between gap-3 sm:flex-row">
       {onBack && <Button variant="outline" className="h-11" onClick={onBack}><ArrowLeft aria-hidden="true" />Volver a Normas</Button>}
       {passed
-        ? <Button asChild className="h-11 sm:ml-auto sm:px-6"><a href={`/evaluation/${evaluationId}/theory`}>Continuar al examen oral<ArrowRight aria-hidden="true" /></a></Button>
+        ? <Button asChild className="h-11 sm:ml-auto sm:px-6"><a href={`/evaluation/${evaluationId}/theory${targetLevel ? `?level=${targetLevel}` : ""}`}>Continuar al examen oral<ArrowRight aria-hidden="true" /></a></Button>
         : <Button disabled className="h-11 sm:ml-auto sm:px-6" title="Completá primero la calibración">Comenzar primera prueba<ArrowRight aria-hidden="true" /></Button>}
     </div>
   </section>

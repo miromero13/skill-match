@@ -11,6 +11,7 @@ import { AdminLoginPage } from "@/pages/admin-login-page"
 import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
 import { AdminUsersPage } from "@/pages/admin-users-page"
 import { AdminCatalogPage } from "@/pages/admin-catalog-page"
+import { AdminProgrammingPage } from "@/pages/admin-programming-page"
 import { TheoryBankPage } from "@/pages/theory-bank-page"
 import { LearningSkillsPage } from "@/pages/learning-skills-page"
 import { AdminLayout } from "@/layouts/admin-layout"
@@ -19,6 +20,7 @@ import { MemberRouteGuard } from "@/components/member-route-guard"
 import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { EvaluationSetupPage } from "@/pages/evaluation-setup-page"
 import { TheoryExamPage } from "@/pages/theory-exam-page"
+import { ProgrammingExamPage } from "@/pages/programming-exam-page"
 import { BrowserSupervisionPage } from "@/pages/browser-supervision-page"
 import { browserSupervisionTrialEnabled } from "@/lib/feature-flags"
 import { ProfilePage } from "@/pages/profile-page"
@@ -37,6 +39,7 @@ import { PrivacySettingsPage } from "@/pages/settings/privacy-settings-page"
 
 export const router = createBrowserRouter([
   { path: "/evaluation/:id/theory", element: <MemberRouteGuard><TheoryExamPage /></MemberRouteGuard> },
+  { path: "/evaluation/:id/code", element: <MemberRouteGuard><ProgrammingExamPage /></MemberRouteGuard> },
   {
     path: "/evaluation/:skillId/setup",
     element: (
@@ -280,6 +283,12 @@ export const router = createBrowserRouter([
         element: <AdminCatalogPage />,
       },
     ],
+  },
+
+  {
+    path: "/admin/challenges",
+    element: <AdminRouteGuard><AdminLayout /></AdminRouteGuard>,
+    children: [{ index: true, element: <AdminProgrammingPage /> }],
   },
 
   // 6.2 Alias /admin/skills -> /admin/catalog

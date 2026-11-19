@@ -12,7 +12,7 @@ from app.core.security import create_access_token
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-from app.models import Category, Skill, TeachingSkill, User, UserRole
+from app.models import Category, ChallengeType, Skill, TeachingSkill, User, UserRole
 
 
 @pytest.fixture
@@ -192,3 +192,35 @@ async def test_outdated_policy_does_not_create_or_consume(scenario):
     assert response.json() == {"statuscode": 409, "message": "Las condiciones cambiaron. Volvé a leerlas antes de aceptar.", "data": None}
     check = (await client.get(endpoint(offer, "preflight"))).json()["data"]
     assert check["pending_evaluation_id"] is None and check["free_evaluations_left"] == 3
+
+
+@pytest.mark.asyncio
+async def test_stages_depend_on_skill_challenge_type(scenario):
+    client, db, user, python_offer = scenario
+    python_data = (await client.get(endpoint(python_offer, "preflight"))).json()["data"]
+    assert python_data["stages"] == ["Teoría", "Práctica de la habilidad", "Defensa con preguntas"]
+
+    audio_ct = ChallengeType(name="Espectrograma de Audio", code="AUDIO_SPECTRAL", evaluation_modality="audio", is_active=True)
+    vision_ct = ChallengeType(name="Visión por Computadora y Pose", code="VISION_POSE", evaluation_modality="video", is_active=True)
+    music_cat = Category(name="Música", slug=f"musica-{uuid.uuid4().hex}", is_active=True)
+    sport_cat = Category(name="Deporte", slug=f"deporte-{uuid.uuid4().hex}", is_active=True)
+    db.add_all([audio_ct, vision_ct, music_cat, sport_cat])
+    await db.flush()
+
+    guitar = Skill(name="Guitarra Acústica", slug=f"guitarra-{uuid.uuid4().hex}",
+                   category_id=music_cat.id, challenge_type_id=audio_ct.id, is_active=True)
+    football = Skill(name="Dominadas y Control de Balón", slug=f"futbol-{uuid.uuid4().hex}",
+                     category_id=sport_cat.id, challenge_type_id=vision_ct.id, is_active=True)
+    db.add_all([guitar, football])
+    await db.flush()
+
+    guitar_offer = TeachingSkill(user_id=user.id, skill_id=guitar.id, declared_level="BEGINNER",
+                                 years_of_experience=1, accepts_points=False)
+    football_offer = TeachingSkill(user_id=user.id, skill_id=football.id, declared_level="BEGINNER",
+                                   years_of_experience=1, accepts_points=False)
+    db.add_all([guitar_offer, football_offer])
+    await db.commit()
+
+    for offer in (guitar_offer, football_offer):
+        data = (await client.get(endpoint(offer, "preflight"))).json()["data"]
+        assert data["stages"] == ["Teoría", "Práctica de la habilidad"]
