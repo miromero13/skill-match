@@ -52,7 +52,7 @@ from app.db.session import AsyncSessionLocal
 from app.football.api import router as football_router
 from app.schemas.response import APIResponse
 from app.services.notification_connection_manager import notification_connection_manager
-from app.services.realtime_notification_broker import consume_notification_events
+# from app.services.realtime_notification_broker import consume_notification_events  # TEMPORAL: ver lifespan
 from app.services.vision_models import report_vision_models_readiness
 
 logging.basicConfig(
@@ -79,10 +79,12 @@ async def lifespan(app: FastAPI):
     # Modelos de visión locales: se informa en ERROR si faltan, pero la app sigue sirviendo el resto.
     await report_vision_models_readiness()
 
-    broker_listener = asyncio.create_task(consume_notification_events())
+    # TEMPORAL: listener Redis de notificaciones desactivado (Redis local apagado; llenaba los logs de errores).
+    # Para reactivarlo, descomentar estas líneas y el import de `consume_notification_events`.
+    # broker_listener = asyncio.create_task(consume_notification_events())
     yield
-    broker_listener.cancel()
-    await asyncio.gather(broker_listener, return_exceptions=True)
+    # broker_listener.cancel()
+    # await asyncio.gather(broker_listener, return_exceptions=True)
     await notification_connection_manager.close_all()
     logger.info("Cerrando conexiones y apagando servicios de SkillMatch API...")
 
