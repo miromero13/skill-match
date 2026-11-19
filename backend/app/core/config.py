@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     # Google Identity Services: ID-token flow, no client secret or other providers.
     GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google OAuth Web Client ID; must match the frontend")
 
+    # Optional text-only theory grading; selecting a provider requires explicit consent.
+    THEORY_GRADING_PROVIDER: str = Field(default="disabled", description="disabled | openai | gemini")
+    THEORY_GRADING_MODEL: str = Field(default="", description="Explicit provider model identifier; no implicit default")
+    OPENAI_API_KEY: Optional[SecretStr] = Field(default=None, description="OpenAI API key for theory grading")
+    GEMINI_API_KEY: Optional[SecretStr] = Field(default=None, description="Gemini API key for theory grading")
+    THEORY_GRADING_TIMEOUT_SECONDS: int = Field(default=20, ge=1, le=60)
+
     # Almacenamiento MinIO / S3
     MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Endpoint de MinIO/S3")
     MINIO_ROOT_USER: str = Field(default="minioadmin", description="Usuario root de MinIO")
