@@ -89,9 +89,9 @@ El consentimiento textual autoriza solo pregunta, referencia, rúbrica y transcr
 
 El adaptador usa el runtime Sherpa existente y Whisper multilingüe configurado en español. Los tres activos `encoder.onnx`, `decoder.onnx` y `tokens.txt` se provisionaron explícitamente solo en el worktree aislado, sin sobrescritura y con hashes verificados. No se descargan al atender peticiones. Ver [procedencia y resultado nativo](models/theory-whisper/README.md).
 
-El candidato Tiny alteró una negación en la muestra sintética española: «las tuplas son inmutables» se transcribió como «las tuple son bien mutables». Por eso `APPROVED_FOR_EXAMS` permanece falso: disponer de archivos ejecutables no basta para habilitar certificaciones. No se validó eficacia con voz humana real.
+El candidato Tiny tuvo errores en una muestra sintética española. El runtime local queda habilitado para que el equipo valide el flujo real desde la web mediante `THEORY_ASR_ENABLED=True`; esta configuración no certifica por sí sola la calidad semántica del modelo.
 
-Si faltan activos o el modelo no está aprobado, el inicio devuelve503 antes de consumir un intento. La transcripción también exige aprobación; una falla no registra una respuesta. El formato es WAV PCM mono de16kHz/16bits, con tamaño y duración acotados.
+Si faltan activos o `THEORY_ASR_ENABLED=False`, el inicio devuelve503 antes de consumir un intento. Una falla de transcripción tampoco registra una respuesta. El formato es WAV PCM mono de16kHz/16bits, con tamaño y duración acotados.
 
 Las pruebas que sustituyen el transcriptor comprueban persistencia/idempotencia, no eficacia de reconocimiento. El corrector valida criterios exactos y el servidor calcula puntos ponderados de la rúbrica; fallo del proveedor deja corrección en error sin nota y permite reintento con procedencia fijada.
 

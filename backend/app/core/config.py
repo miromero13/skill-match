@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[SecretStr] = Field(default=None, description="OpenAI API key for theory grading")
     GEMINI_API_KEY: Optional[SecretStr] = Field(default=None, description="Gemini API key for theory grading")
     THEORY_GRADING_TIMEOUT_SECONDS: int = Field(default=20, ge=1, le=60)
+    THEORY_ASR_ENABLED: bool = Field(default=True, description="Enable the installed local ASR runtime for theory exams")
 
     # Almacenamiento MinIO / S3
     MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Endpoint de MinIO/S3")
