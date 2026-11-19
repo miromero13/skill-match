@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom"
-import { Home, Compass, ArrowLeftRight, Bell, User } from "lucide-react"
+import { Home, Compass, CalendarDays, Bell, User } from "lucide-react"
 
 export function MobileBottomBar() {
   const location = useLocation()
@@ -8,7 +8,7 @@ export function MobileBottomBar() {
   const items = [
     { label: "Inicio", icon: Home, to: "/app", active: path === "/app" },
     { label: "Buscar", icon: Compass, to: "/app/search", active: path.startsWith("/app/search") },
-    { label: "Swaps", icon: ArrowLeftRight, to: "/app/swaps", active: path.startsWith("/app/swaps") },
+    { label: "Sesiones", icon: CalendarDays, to: "/app/sessions", active: path.startsWith("/app/sessions") || path.startsWith("/app/swaps") },
     { label: "Avisos", icon: Bell, to: "/notifications", active: path.startsWith("/notifications") },
     { label: "Perfil", icon: User, to: "/app/profile", active: path.startsWith("/app/profile") },
   ]
