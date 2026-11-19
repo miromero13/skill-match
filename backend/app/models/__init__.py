@@ -47,7 +47,13 @@ from app.models.user_availability import UserAvailability
 from app.models.user_block import UserBlock
 from app.models.user_learning_skill import UrgencyLevel, UserLearningSkill
 from app.models.user_report import ReportReason, ReportStatus, UserReport
-from app.models.wallet import Wallet
+from app.models.wallet import (
+    CashoutRequest,
+    CashoutStatus,
+    PointTransaction,
+    PointTransactionType,
+    Wallet,
+)
 from app.models.web_push_subscription import WebPushSubscription
 
 
@@ -57,6 +63,8 @@ __all__ = [
     "BrowserIncident",
     "BrowserTrial",
     "CalibrationChallenge",
+    "CashoutRequest",
+    "CashoutStatus",
     "Category",
     "ChallengeSegment",
     "ChallengeSegmentType",
@@ -80,6 +88,8 @@ __all__ = [
     "NotificationCategory",
     "NotificationPreference",
     "NotificationType",
+    "PointTransaction",
+    "PointTransactionType",
     "Challenge",
     "ChallengeSubmission",
     "ChallengeTestCase",

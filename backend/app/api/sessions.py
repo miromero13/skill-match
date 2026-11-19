@@ -23,7 +23,9 @@ from app.schemas.exchange_session import (
     SessionPresencePinResponse,
 )
 from app.schemas.response import APIResponse
+from app.schemas.wallet import SessionPayResult
 from app.services import exchange_session_service, session_completion_service
+from app.services.wallet_service import wallet_service
 
 router = APIRouter(prefix="/sessions", tags=["Sesiones de intercambio · HU-38"])
 
@@ -226,4 +228,23 @@ async def get_presence_pin(
     return APIResponse.ok(
         data=result,
         message="PIN de presencia obtenido correctamente.",
+    )
+
+
+@router.post(
+    "/{session_id}/pay",
+    response_model=APIResponse[SessionPayResult],
+    response_model_exclude={"count"},
+    summary="Asegurar clase no recíproca con puntos Escrow (HU-42)",
+    description="Bloquea los puntos requeridos en custodia Escrow hasta la conclusión y confirmación de la sesión.",
+)
+async def pay_session(
+    session_id: UUID,
+    user: MemberDep,
+    db: DatabaseDep,
+) -> APIResponse[SessionPayResult]:
+    result = await wallet_service.pay_session_escrow(db, user.id, session_id)
+    return APIResponse.ok(
+        data=result,
+        message=result.message,
     )

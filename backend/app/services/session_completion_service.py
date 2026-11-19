@@ -235,6 +235,7 @@ async def confirm_session(
             session_id=str(session.id),
             is_free=session.is_free,
             points_required=session.points_required,
+            db=db,
         )
 
         db.add(
