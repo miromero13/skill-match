@@ -19,7 +19,7 @@ from app.schemas.response import APIResponse
 from app.services.programming_service import ChallengeService
 
 admin_router = APIRouter(
-    prefix="/admin/challenges",
+    prefix="/admin",
     tags=["admin-challenges"],
     dependencies=[Depends(get_current_admin_user)],
 )
@@ -75,7 +75,7 @@ async def get_evaluation_challenge(
     return APIResponse(statuscode=200, message="Reto recuperado exitosamente.", data=item)
 
 
-@member_router.get("/challenges/{challenge_id}", response_model=APIResponse[ChallengeResponse])
+@member_router.get("/{challenge_id}", response_model=APIResponse[ChallengeResponse])
 async def get_member_challenge(
     challenge_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -85,7 +85,7 @@ async def get_member_challenge(
     return APIResponse(statuscode=200, message="Reto recuperado exitosamente.", data=item)
 
 
-@member_router.post("/challenges/{challenge_id}/run", response_model=APIResponse[ChallengeRunResponse])
+@member_router.post("/{challenge_id}/run", response_model=APIResponse[ChallengeRunResponse])
 async def run_public_tests(
     challenge_id: UUID,
     payload: ChallengeRunRequest,
