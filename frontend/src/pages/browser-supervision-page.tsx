@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { GazeCalibrationStep } from "@/components/integrity/gaze-calibration-step"
+import { VoiceCalibrationStep, type VoiceRecorder } from "@/components/integrity/voice-calibration-step"
 import { startFaceTracker, type FaceTracker, type GazeZone } from "@/services/gaze-tracking"
 import { useAuthStore } from "@/stores/auth-store"
 import {
@@ -26,6 +27,7 @@ import {
   IncidentQueue,
   avWindowDurationMs,
   calibrateGaze,
+  calibrateVoice,
   readBrowserLedger,
   readBrowserTrial,
   sendAVWindow,
@@ -81,7 +83,14 @@ const labels: Record<string, string> = {
   FACE_OCCLUDED: "Rostro cubierto",
   MOUTH_OCCLUDED: "Boca cubierta",
   CAMERA_BLOCKED: "Cámara tapada o congelada",
+  VOICE_MISMATCH: "La voz no coincide con la persona",
+  VOICE_UNVERIFIED: "Voz sin verificar",
+  LIP_SYNC_MISMATCH: "La voz no coincide con los labios",
+  BACKGROUND_AUDIO: "Audio de fondo o reproducción",
 }
+
+/** Samples of the voice calibration recording are kept to what the server accepts (12 s at 16 kHz). */
+const VOICE_MAX_SAMPLES = 192_000
 
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "No se pudo completar la operación."
@@ -107,6 +116,7 @@ export function BrowserSupervisionPage() {
   const avFailuresRef = useRef(new AVFailureTracker())
   const trackerRef = useRef<FaceTracker | null>(null)
   const gazeZoneRef = useRef<GazeZone | null>(null)
+  const voiceRecordingRef = useRef<{ samples: number[]; startedAt: number } | null>(null)
 
   const [trial, setTrial] = useState<Trial | null>(null)
   const [accepted, setAccepted] = useState(false)
@@ -130,6 +140,8 @@ export function BrowserSupervisionPage() {
   const [mouthMoving, setMouthMoving] = useState(false)
   const [mouthSync, setMouthSync] = useState<boolean | null>(null)
   const [multipleSpeakers, setMultipleSpeakers] = useState(false)
+  const [voiceMatch, setVoiceMatch] = useState<boolean | null>(null)
+  const [lipSync, setLipSync] = useState<"synced" | "unsynced" | "insufficient" | null>(null)
   const [noiseLevel, setNoiseLevel] = useState(0)
   const presenceAlert = cameraBlocked || faceCovered || mouthCovered
   const [vuLevel, setVuLevel] = useState(0)
@@ -295,6 +307,8 @@ export function BrowserSupervisionPage() {
                 for (let s = start; s < end; s++) total += input[s]
                 const sample = Math.max(-1, Math.min(1, total / Math.max(1, end - start)))
                 buf.push(sample)
+                const recording = voiceRecordingRef.current
+                if (recording && recording.samples.length < VOICE_MAX_SAMPLES) recording.samples.push(sample)
               }
               // Keep at most 3.5 seconds at 16kHz (56,000 samples)
               if (buf.length > 56000) {
@@ -422,6 +436,8 @@ export function BrowserSupervisionPage() {
               setSpeechDetected(res.speech_detected)
               setMouthMoving(Boolean(res.mouth_moving))
               setMouthSync(res.mouth_sync ?? null)
+              setVoiceMatch(res.voice_match ?? null)
+              setLipSync(res.lip_sync ?? null)
               setMultipleSpeakers(
                 Boolean(res.multiple_speakers || res.anomalies.includes("MULTIPLE_SPEAKERS")),
               )
@@ -631,6 +647,69 @@ export function BrowserSupervisionPage() {
     return { message: serverMessage }
   }
 
+  /** Records the microphone at 16 kHz (the same samples the supervision windows use) between start and stop. */
+  const voiceRecorder: VoiceRecorder = {
+    start: () => {
+      voiceRecordingRef.current = { samples: [], startedAt: Date.now() }
+    },
+    stop: () => {
+      const recording = voiceRecordingRef.current
+      voiceRecordingRef.current = null
+      return recording
+    },
+  }
+
+  async function submitVoiceCalibration(request: Parameters<typeof calibrateVoice>[2]) {
+    if (!trial) throw new Error("La prueba no está activa.")
+    const { result, message: serverMessage } = await calibrateVoice(trial.id, tab.current, request)
+    setTrial((previous) => (previous ? { ...previous, voice_enrolled: result.voice_enrolled } : previous))
+    return { message: serverMessage }
+  }
+
+  /** What the acoustic card says: ownership of the voice first, then its link with the lips. */
+  function acousticStatus(): { label: string; text: string; alert: boolean } {
+    if (multipleSpeakers)
+      return {
+        label: "Voces / audio de fondo",
+        text: "Alerta: Se detectaron múltiples voces o sonido multimedia de fondo (TV/serie/terceros).",
+        alert: true,
+      }
+    if (speechDetected && voiceMatch === false)
+      return {
+        label: "Voz distinta a la calibrada",
+        text: "Alerta: la voz no coincide con la huella de voz calibrada.",
+        alert: true,
+      }
+    if (speechDetected && lipSync === "unsynced")
+      return {
+        label: "Voz sin labios coincidentes",
+        text: "Alerta: la voz no coincide con el movimiento de tus labios.",
+        alert: true,
+      }
+    if (speechDetected && mouthSync === false)
+      return { label: "Voz sin boca coincidente", text: "Alerta: Se detectó voz sin movimiento labial coincidente.", alert: true }
+    if (speechDetected && !trial?.voice_enrolled)
+      return {
+        label: "Voz sin verificar",
+        text: "Calibrá tu voz para poder comprobar que quien habla sos vos.",
+        alert: false,
+      }
+    if (speechDetected)
+      return {
+        label: mouthSync ? "Voz propia (boca activa)" : "Voz detectada",
+        text: mouthSync
+          ? "Habla propia verificada: única voz y coincidente con tu movimiento labial."
+          : "Voz detectada: todavía no hay evidencia suficiente de los labios.",
+        alert: false,
+      }
+    if (noiseLevel > 0.14) return { label: "Ruido alto", text: "Alerta: Ruido ambiental excesivo.", alert: true }
+    return {
+      label: mouthMoving ? "Boca en movimiento" : "Silencio",
+      text: "Sin voces externas. Si hablás, se verifica tu voz y tu movimiento labial.",
+      alert: false,
+    }
+  }
+
   async function fullscreen() {
     try {
       if (!area.current?.requestFullscreen)
@@ -640,6 +719,8 @@ export function BrowserSupervisionPage() {
       setError(message(cause))
     }
   }
+
+  const acoustic = acousticStatus()
 
   return (
     <section className="mx-auto w-full max-w-4xl space-y-5 p-4 sm:p-6">
@@ -902,39 +983,13 @@ export function BrowserSupervisionPage() {
                     <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                       <Volume2 className="size-3.5" /> Actividad acústica
                     </span>
-                    <Badge
-                      variant={
-                        multipleSpeakers ||
-                        (speechDetected && mouthSync === false) ||
-                        noiseLevel > 0.14
-                          ? "destructive"
-                          : "secondary"
-                      }
-                      className="text-[11px]"
-                    >
-                      {multipleSpeakers
-                        ? "Voces / audio de fondo"
-                        : speechDetected
-                        ? mouthSync
-                          ? "Voz propia (boca activa)"
-                          : "Voz sin boca coincidente"
-                        : noiseLevel > 0.14
-                        ? "Ruido alto"
-                        : mouthMoving
-                        ? "Boca en movimiento"
-                        : "Silencio"}
+                    <Badge variant={acoustic.alert ? "destructive" : "secondary"} className="text-[11px]">
+                      {acoustic.label}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {multipleSpeakers
-                      ? "Alerta: Se detectaron múltiples voces o sonido multimedia de fondo (TV/serie/terceros)."
-                      : speechDetected
-                      ? mouthSync
-                        ? "Habla propia verificada: única voz y coincidente con tu movimiento labial."
-                        : "Alerta: Se detectó voz sin movimiento labial coincidente."
-                      : noiseLevel > 0.14
-                      ? "Alerta: Ruido ambiental excesivo."
-                      : "Sin voces externas. Si hablás, se verifica tu movimiento labial."}
+                  <p className="text-xs text-muted-foreground">{acoustic.text}</p>
+                  <p data-testid="voice-status" className="text-xs text-muted-foreground">
+                    Huella de voz: {trial?.voice_enrolled ? "calibrada" : "pendiente"}
                   </p>
                 </div>
               </div>
@@ -949,6 +1004,14 @@ export function BrowserSupervisionPage() {
 
       {avActive && active && trial && !trial.closed_at && (
         <GazeCalibrationStep captureFrame={captureJpeg} submit={submitGazeCalibration} />
+      )}
+
+      {avActive && active && trial && !trial.closed_at && trial.gaze_zone && (
+        <VoiceCalibrationStep
+          recorder={voiceRecorder}
+          readMouth={(startedAt, durationMs) => trackerRef.current?.takeMouthSamples(startedAt, durationMs) ?? []}
+          submit={submitVoiceCalibration}
+        />
       )}
 
       {/* Supervised Text Area */}

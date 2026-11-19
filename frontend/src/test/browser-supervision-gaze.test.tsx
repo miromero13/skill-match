@@ -48,6 +48,7 @@ const zone: gaze.GazeZone = {
 interface FakeTracker {
   setZone: Mock<gaze.FaceTracker["setZone"]>
   takeSamples: Mock<gaze.FaceTracker["takeSamples"]>
+  takeMouthSamples: Mock<gaze.FaceTracker["takeMouthSamples"]>
   stop: Mock<gaze.FaceTracker["stop"]>
 }
 const sample: gaze.GazeSampleDTO = {
@@ -58,6 +59,7 @@ const sample: gaze.GazeSampleDTO = {
   gaze_v: -0.1,
   blink: false,
   face_count: 1,
+  mouth_open: 0.12,
 }
 let tracker: FakeTracker
 let onAway: ((away: boolean) => void) | undefined
@@ -70,7 +72,7 @@ beforeEach(() => {
       ReturnType<typeof useAuthStore.getState>["user"]
     >,
   })
-  tracker = { setZone: vi.fn(), takeSamples: vi.fn(() => [sample]), stop: vi.fn() }
+  tracker = { setZone: vi.fn(), takeSamples: vi.fn(() => [sample]), takeMouthSamples: vi.fn(() => []), stop: vi.fn() }
   onAway = undefined
   vi.mocked(gaze.startFaceTracker).mockImplementation(async (_video, options) => {
     onAway = options?.onAway
@@ -171,6 +173,7 @@ it("attaches frame timestamps and browser telemetry to every audiovisual window"
   const times = payload.frame_times_ms ?? []
   expect(times.every((value, index) => value >= 0 && value <= payload.duration_ms && (index === 0 || value >= times[index - 1]))).toBe(true)
   expect(payload.gaze_samples).toEqual([sample])
+  expect(payload.gaze_samples?.[0].mouth_open).toBe(0.12) // the mouth aperture travels with every telemetry sample
   // The tracker is asked for exactly the window the payload describes: from observed_at, for duration_ms.
   expect(tracker.takeSamples).toHaveBeenCalledWith(Date.parse(payload.observed_at), payload.duration_ms)
 })

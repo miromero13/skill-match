@@ -1,5 +1,5 @@
 import { apiClient } from "@/services/api-client"
-import type { GazeSampleDTO, GazeZone } from "@/services/gaze-tracking"
+import type { GazeSampleDTO, GazeZone, MouthSampleDTO } from "@/services/gaze-tracking"
 
 export type IncidentKind =
   | "AWAY"
@@ -35,6 +35,10 @@ export type IncidentKind =
   | "FACE_OCCLUDED"
   | "MOUTH_OCCLUDED"
   | "CAMERA_BLOCKED"
+  | "VOICE_MISMATCH"
+  | "VOICE_UNVERIFIED"
+  | "LIP_SYNC_MISMATCH"
+  | "BACKGROUND_AUDIO"
 
 export interface BrowserIncident {
   event_id: string
@@ -56,6 +60,8 @@ export interface Trial {
   event_count: number
   /** Calibrated screen zone of this trial; null until the candidate calibrates. */
   gaze_zone?: GazeZone | null
+  /** A voiceprint is enrolled for this trial (the embedding itself never leaves the server). */
+  voice_enrolled?: boolean
 }
 export interface BatchResult {
   accepted_ids: string[]
@@ -82,6 +88,10 @@ export interface AVWindowResponse {
   speech_detected: boolean
   mouth_moving?: boolean
   mouth_sync?: boolean | null
+  /** The voice is the enrolled one; null without speech, without a voiceprint or without a verdict. */
+  voice_match?: boolean | null
+  /** Voice energy vs mouth movement over the window; null without speech. */
+  lip_sync?: "synced" | "unsynced" | "insufficient" | null
   multiple_speakers?: boolean
   noise_level: number
   /** Confirmed (continuous >= 1 s) covered face / covered mouth, and blocked or frozen camera. */
@@ -166,6 +176,26 @@ export async function calibrateGaze(id: string, tabId: string, points: GazeCalib
   )
   return { result: response.data, message: response.message }
 }
+/** Recording of the voice calibration: `ambient_ms` of silence first, then the control phrase read aloud (16 kHz mono). */
+export interface VoiceCalibrationRequest {
+  audio_samples: number[]
+  ambient_ms: number
+  /** Mouth aperture readings, `t_ms` counted from the start of `audio_samples`. */
+  mouth_samples: MouthSampleDTO[]
+}
+export interface VoiceCalibrationResult {
+  voice_enrolled: boolean
+  voiced_seconds: number
+}
+/** Enrolls the trial's voiceprint; the server answers only whether it is enrolled, never the embedding. */
+export async function calibrateVoice(id: string, tabId: string, request: VoiceCalibrationRequest) {
+  const response = await apiClient.post<VoiceCalibrationResult>(
+    `${root}/${id}/voice-calibration`,
+    { tab_id: tabId, ...request },
+    silent,
+  )
+  return { result: response.data, message: response.message }
+}
 export async function readBrowserLedger(id: string, after = 0) {
   return apiClient.get<LedgerIncident[]>(`${root}/${id}/events`, { ...silent, params: { after, limit: 200 } })
 }
@@ -204,6 +234,10 @@ const kinds: IncidentKind[] = [
   "FACE_OCCLUDED",
   "MOUTH_OCCLUDED",
   "CAMERA_BLOCKED",
+  "VOICE_MISMATCH",
+  "VOICE_UNVERIFIED",
+  "LIP_SYNC_MISMATCH",
+  "BACKGROUND_AUDIO",
 ]
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 function validIncident(value: unknown): value is BrowserIncident {

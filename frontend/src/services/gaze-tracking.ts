@@ -24,6 +24,9 @@ export const GAZE_BLINK_MAX_MS = 800
 export const TELEMETRY_MIN_SPACING_MS = 30
 export const TELEMETRY_MAX_SAMPLES = 60
 export const TRACKER_FPS = 15
+/** Mouth readings the server accepts for one voice calibration (backend schemas/browser_supervision.py). */
+export const MOUTH_MAX_SAMPLES = 450
+export const MOUTH_OPEN_MAX = 2
 
 export interface GazeZone {
   pitch_min: number
@@ -117,6 +120,25 @@ export function measureGaze(points: ReadonlyArray<Point>, blendshapes: Readonly<
   return { gazeH: geoH, gazeV: geoV, blink }
 }
 
+/**
+ * Mouth aperture, the same score as `gaze.mouth_open_score` on the server (T8 / S11): the largest of the
+ * close-softened jawOpen blendshape, the inner-lip aspect ratio (landmarks 13/14 over the mouth width 78/308,
+ * x1.4) and the funnel/pucker blendshapes (x0.55). `src/test/gaze-tracking.test.ts` pins the same fixtures as
+ * `backend/tests/test_mouth_open_parity.py`.
+ */
+export function mouthOpenScore(points: ReadonlyArray<Point>, blendshapes: Readonly<Record<string, number>>): number {
+  const jawOpen = blendshapes.jawOpen ?? 0
+  const mouthClose = blendshapes.mouthClose ?? 0
+  const funnel = (blendshapes.mouthFunnel ?? 0) + 0.5 * (blendshapes.mouthPucker ?? 0)
+  let ratio = 0
+  if (points.length > 308) {
+    const lipVert = Math.hypot(points[14].x - points[13].x, points[14].y - points[13].y)
+    const mouthWidth = Math.max(Math.hypot(points[308].x - points[78].x, points[308].y - points[78].y), 1e-4)
+    ratio = lipVert / mouthWidth
+  }
+  return Math.max(jawOpen * Math.max(0.2, 1 - 0.55 * mouthClose), ratio * 1.4, funnel * 0.55)
+}
+
 function isBlink(blendshapes: Readonly<Record<string, number>>, openingRatios: number[]) {
   if ("eyeBlinkLeft" in blendshapes || "eyeBlinkRight" in blendshapes) {
     const score = ((blendshapes.eyeBlinkLeft ?? 0) + (blendshapes.eyeBlinkRight ?? 0)) / 2
@@ -163,6 +185,8 @@ export interface GazeReading {
   gazeH: number | null
   gazeV: number | null
   blink: boolean
+  /** Mouth aperture score (`mouthOpenScore`); absent or null when the face could not be measured. */
+  mouthOpen?: number | null
 }
 
 export function classifyReading(reading: GazeReading, zone: GazeZone | null): GazeLabel {
@@ -222,6 +246,14 @@ export interface GazeSampleDTO {
   gaze_v: number | null
   blink: boolean
   face_count: number
+  /** Mouth aperture score; null when not measured (never 0 for "unknown"). */
+  mouth_open: number | null
+}
+
+/** Wire shape of `mouth_samples` in the voice calibration payload; `t_ms` counts from the recording start. */
+export interface MouthSampleDTO {
+  t_ms: number
+  mouth_open: number
 }
 
 export interface TimedReading extends GazeReading {
@@ -246,8 +278,23 @@ export function samplesForWindow(readings: ReadonlyArray<TimedReading>, startMs:
       gaze_v: round(reading.gazeV, 3),
       blink: reading.blink,
       face_count: Math.min(10, reading.faceCount),
+      mouth_open: reading.mouthOpen == null ? null : round(Math.min(MOUTH_OPEN_MAX, Math.max(0, reading.mouthOpen)), 3),
     })
     if (out.length >= TELEMETRY_MAX_SAMPLES) break
+  }
+  return out
+}
+
+/** Single-face mouth readings inside [startMs, startMs + durationMs] as offsets from `startMs`, within the server limits. */
+export function mouthSamplesForWindow(readings: ReadonlyArray<TimedReading>, startMs: number, durationMs: number): MouthSampleDTO[] {
+  const out: MouthSampleDTO[] = []
+  for (const reading of readings) {
+    const offset = Math.round(reading.at - startMs)
+    if (offset < 0 || offset > durationMs || reading.faceCount !== 1 || reading.mouthOpen == null) continue
+    const previous = out.at(-1)
+    if (previous && offset - previous.t_ms < TELEMETRY_MIN_SPACING_MS) continue
+    out.push({ t_ms: offset, mouth_open: Number(Math.min(MOUTH_OPEN_MAX, Math.max(0, reading.mouthOpen)).toFixed(3)) })
+    if (out.length >= MOUTH_MAX_SAMPLES) break
   }
   return out
 }
@@ -271,14 +318,23 @@ export interface FaceLandmarkerLike {
 export function readingFromResult(result: FaceResult, at: number): TimedReading {
   const faceCount = result.faceLandmarks.length
   if (faceCount !== 1) {
-    return { at, faceCount, headPitch: null, headYaw: null, gazeH: null, gazeV: null, blink: false }
+    return { at, faceCount, headPitch: null, headYaw: null, gazeH: null, gazeV: null, blink: false, mouthOpen: null }
   }
   const points = result.faceLandmarks[0]
   const blendshapes: Record<string, number> = {}
   for (const category of result.faceBlendshapes?.[0]?.categories ?? []) blendshapes[category.categoryName] = category.score
   const gaze = measureGaze(points, blendshapes)
   const pose = headPose(points, result.facialTransformationMatrixes?.[0]?.data ?? null)
-  return { at, faceCount, headPitch: pose.pitch, headYaw: pose.yaw, gazeH: gaze.gazeH, gazeV: gaze.gazeV, blink: gaze.blink }
+  return {
+    at,
+    faceCount,
+    headPitch: pose.pitch,
+    headYaw: pose.yaw,
+    gazeH: gaze.gazeH,
+    gazeV: gaze.gazeV,
+    blink: gaze.blink,
+    mouthOpen: mouthOpenScore(points, blendshapes),
+  }
 }
 
 export interface FaceTrackerOptions {
@@ -292,6 +348,8 @@ export interface FaceTrackerOptions {
 export interface FaceTracker {
   setZone(zone: GazeZone | null): void
   takeSamples(startMs: number, durationMs: number): GazeSampleDTO[]
+  /** Mouth readings of [startMs, startMs + durationMs] for the voice calibration (the buffer keeps ~12 s). */
+  takeMouthSamples(startMs: number, durationMs: number): MouthSampleDTO[]
   stop(): void
 }
 
@@ -342,6 +400,7 @@ export async function startFaceTracker(video: HTMLVideoElement, options: FaceTra
       away.reset()
     },
     takeSamples: (startMs, durationMs) => samplesForWindow(readings, startMs, durationMs),
+    takeMouthSamples: (startMs, durationMs) => mouthSamplesForWindow(readings, startMs, durationMs),
     stop() {
       clearInterval(timer)
       landmarker.close()

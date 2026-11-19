@@ -5,6 +5,8 @@ import {
   classifyReading,
   headPose,
   measureGaze,
+  mouthOpenScore,
+  mouthSamplesForWindow,
   readingFromResult,
   samplesForWindow,
   type GazeReading,
@@ -201,6 +203,7 @@ describe("telemetry", () => {
       gaze_v: 0,
       blink: false,
       face_count: 1,
+      mouth_open: null, // a reading without a mouth measurement is not a closed mouth
     })
     const dense = Array.from({ length: 200 }, (_, index) => at(index * 33))
     expect(samplesForWindow(dense, 1_000, 30_000).length).toBe(60)
@@ -220,5 +223,77 @@ describe("telemetry", () => {
     expect(result).toMatchObject({ at: 7, faceCount: 1, blink: true })
     expect(result.gazeH).toBeCloseTo(0.8, 6)
     expect(result.headPitch).toBeCloseTo(0, 6)
+  })
+})
+
+// ---- mouth aperture (T8 / S11): same landmarks and numbers as backend/tests/test_mouth_open_parity.py -------
+
+function mouthLandmarks(lipGap: number): Point[] {
+  const points: Point[] = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5, z: 0 }))
+  points[78] = { x: 0.43, y: 0.65, z: 0 }
+  points[308] = { x: 0.57, y: 0.65, z: 0 }
+  points[13] = { x: 0.5, y: 0.65, z: 0 }
+  points[14] = { x: 0.5, y: 0.65 + lipGap, z: 0 }
+  return points
+}
+
+describe("mouth aperture mirrors mouth_open_score", () => {
+  it.each([
+    ["closed", 0, {}, 0],
+    ["inner lip ratio only", 0.021, {}, 0.21],
+    ["jawOpen softened by mouthClose", 0, { jawOpen: 0.3, mouthClose: 0.5 }, 0.2175],
+    ["mouthClose never takes jawOpen below a fifth", 0, { jawOpen: 0.4, mouthClose: 1 }, 0.18],
+    ["funnel and pucker", 0, { mouthFunnel: 0.4, mouthPucker: 0.2 }, 0.275],
+    ["the largest signal wins", 0.021, { jawOpen: 0.4, mouthClose: 1 }, 0.21],
+  ])("%s", (_name, gap, blendshapes, expected) => {
+    expect(mouthOpenScore(mouthLandmarks(gap), blendshapes)).toBeCloseTo(expected, 9)
+  })
+
+  it("is closed, not an error, for a degenerate mouth", () => {
+    expect(mouthOpenScore(Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5, z: 0 })), {})).toBe(0)
+  })
+
+  it("is part of every single-face reading and absent otherwise", () => {
+    const result = readingFromResult(
+      {
+        faceLandmarks: [mouthLandmarks(0.021)],
+        faceBlendshapes: [{ categories: [{ categoryName: "jawOpen", score: 0.1 }] }],
+      },
+      5,
+    )
+    expect(result.mouthOpen).toBeCloseTo(0.21, 9)
+    expect(readingFromResult({ faceLandmarks: [] }, 5).mouthOpen).toBeNull()
+  })
+})
+
+describe("mouth telemetry for the voice calibration", () => {
+  const at = (offset: number, mouthOpen: number | null, faceCount = 1): TimedReading => ({
+    ...reading({ faceCount }),
+    at: 5_000 + offset,
+    mouthOpen,
+  })
+
+  it("keeps single-face readings with a mouth measurement as offsets, thinned to the server limits", () => {
+    const readings = [at(-10, 0.1), at(0, 0.1), at(10, 0.2), at(66, 0.3), at(100, null), at(132, 0.4, 2), at(200, 0.5)]
+    expect(mouthSamplesForWindow(readings, 5_000, 9_000)).toEqual([
+      { t_ms: 0, mouth_open: 0.1 },
+      { t_ms: 66, mouth_open: 0.3 },
+      { t_ms: 200, mouth_open: 0.5 },
+    ])
+  })
+
+  it("never exceeds the 450 samples the server accepts", () => {
+    const dense = Array.from({ length: 600 }, (_, index) => at(index * 33, 0.2))
+    expect(mouthSamplesForWindow(dense, 5_000, 30_000).length).toBe(450)
+  })
+
+  it("rounds and bounds the aperture to what the server validates (0 to 2)", () => {
+    expect(mouthSamplesForWindow([at(0, 3.456789)], 5_000, 1000)).toEqual([{ t_ms: 0, mouth_open: 2 }])
+    expect(mouthSamplesForWindow([at(0, 0.123456)], 5_000, 1000)).toEqual([{ t_ms: 0, mouth_open: 0.123 }])
+  })
+
+  it("adds mouth_open to the audiovisual telemetry samples", () => {
+    const [sample] = samplesForWindow([at(0, 0.2346)], 5_000, 2400)
+    expect(sample.mouth_open).toBe(0.235)
   })
 })

@@ -5,7 +5,9 @@ import {
   BrowserMonitor,
   IncidentQueue,
   avWindowDurationMs,
+  calibrateVoice,
 } from "@/services/browser-supervision"
+import { apiClient } from "@/services/api-client"
 
 beforeEach(() => { localStorage.clear(); vi.useFakeTimers() })
 afterEach(() => { vi.useRealTimers(); document.body.replaceChildren() })
@@ -168,4 +170,23 @@ describe("S8/S13 audiovisual evidence helpers", () => {
       expect(new IncidentQueue("kinds", send, vi.fn()).size).toBe(1)
     },
   )
+})
+
+describe("T8 voice calibration service", () => {
+  it("posts the recording with the tab id and returns the server message", async () => {
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({
+      statuscode: 200,
+      message: "Voz calibrada.",
+      data: { voice_enrolled: true, voiced_seconds: 4.2 },
+    } as never)
+    const request = { audio_samples: [0.1], ambient_ms: 2000, mouth_samples: [{ t_ms: 10, mouth_open: 0.2 }] }
+    const outcome = await calibrateVoice("trial-1", "tab-1", request)
+    expect(post).toHaveBeenCalledWith(
+      "/browser-supervision/trials/trial-1/voice-calibration",
+      { tab_id: "tab-1", ...request },
+      { showToastOnError: false },
+    )
+    expect(outcome).toEqual({ result: { voice_enrolled: true, voiced_seconds: 4.2 }, message: "Voz calibrada." })
+    post.mockRestore()
+  })
 })
