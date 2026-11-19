@@ -15,7 +15,7 @@ SEGMENTATION_MODEL = MODEL_ROOT / "speaker_segmentation.onnx"
 EMBEDDING_MODEL = MODEL_ROOT / "speaker_embedding.onnx"
 MODEL_HASHES = {
     "speaker_segmentation.onnx": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
-    "speaker_embedding.onnx": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+    "speaker_embedding.onnx": "f1ee61be04000b50392a63442e5dd9feaea7e81dddd494d3647cf1c3d88a1498",
 }
 
 
