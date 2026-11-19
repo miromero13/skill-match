@@ -25,7 +25,9 @@ async def prepare(db, user, offer, evaluation_id, count=5):
     now = datetime.now(timezone.utc)
     db.add(CalibrationChallenge(evaluation_id=evaluation.id, action="TURN_LEFT",
                                enrollment_hash=user.biometric_face_hash, expires_at=now + timedelta(seconds=45),
-                               consumed_at=now, checks={key: True for key in EvaluationCalibrationService.REQUIRED_CHECKS}))
+                               consumed_at=now, checks={key: True for key in EvaluationCalibrationService.REQUIRED_CHECKS},
+                               gaze_zone={"pitch_min": -14.0}, voiceprint={"embedding": [1.0]},
+                               occlusion_ref={"n": 4.0}))
     for index in range(count):
         db.add(TheoryQuestion(skill_id=offer.skill_id, level_number=1, status="PUBLISHED",
                               content={**complete(), "prompt": f"Explain mutability {index}"}))

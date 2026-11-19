@@ -34,10 +34,11 @@ VOICE_CALIBRATION_ERRORS = {
                             "cámara."),
     "NO_FACE": (400, "No pudimos ver tu rostro mientras grababas la voz. Ubicate frente a la cámara con buena luz y "
                      "repetí la calibración."),
+    "NO_VIDEO": (400, "No se obtuvo video sincronizado suficiente. Mantené la página visible y repetí la calibración."),
 }
-# The two codes above that one rule shares with the voice step's face check.
 VOICE_UNAVAILABLE = (503, "La verificación de voz no está disponible en este momento. Reintentá más tarde.")
 VOICE_VISION_UNAVAILABLE = (503, "El análisis de video de la voz no está disponible en este momento. Reintentá más tarde.")
+VOICE_CALIBRATION_ERRORS["VISION_UNAVAILABLE"] = VOICE_VISION_UNAVAILABLE
 
 # Pre-exam calibration steps (the wording the member saw before the unification is kept where the rule is kept).
 INVALID_IMAGE = "La captura de calibración no es una imagen JPEG válida."

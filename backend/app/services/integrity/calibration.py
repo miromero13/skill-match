@@ -41,8 +41,6 @@ REQUIRED_CHECKS = frozenset({
     "background_quiet", "microphone", "speech_pause", "single_speaker", "no_overlap",
     "mouth_telemetry", "mouth_audio_sync", "voiceprint",
 })
-# The checks whose evidence the pre-exam request does not carry yet (the zone points and the browser telemetry).
-NEW_CONTRACT_CHECKS = frozenset({"gaze_zone", "mouth_telemetry", "voiceprint"})
 
 
 class CalibrationRejected(Exception):
@@ -67,18 +65,13 @@ class CalibrationEvidence:
 
     action: str  # TURN_LEFT / TURN_RIGHT
     frames: Sequence[str]  # liveness frames, about one second apart (base64 JPEG)
-    gaze_points: Optional[Mapping[str, Sequence[str]]]  # target -> frames; None: the contract that predates the zone
+    gaze_points: Mapping[str, Sequence[str]]  # target -> frames, one entry per gaze target
     audio: Sequence[float]  # silence segment + speech segment, 16 kHz mono
     ambient_ms: int  # length of the silence segment
     voice_frames: Sequence[tuple[int, str]]  # (ms from the recording start, base64 JPEG) of the speech segment
-    mouth: Optional[Sequence[tuple[int, float]]]  # browser mouth readings, ms from the recording start; None: none sent
+    mouth: Sequence[tuple[int, float]]  # the browser's mouth aperture readings, ms from the recording start
     reference: np.ndarray  # the enrolled face embedding (unit vector)
     camera_label: str = ""  # client-supplied, advisory (see environment.py)
-
-    @property
-    def complete(self) -> bool:
-        """False for the pre-exam contract that predates the zone and the browser telemetry (removed next slice)."""
-        return self.gaze_points is not None and self.mouth is not None
 
 
 @dataclass(frozen=True)
@@ -86,8 +79,8 @@ class CalibrationOutput:
     """The verdict and what supervision needs from it. The zone, voiceprint and reference never leave the server."""
 
     checks: dict[str, bool]
-    gaze_zone: Optional[GazeZone]  # None only for an incomplete-contract evidence
-    voiceprint: Optional[dict[str, Any]]
+    gaze_zone: GazeZone
+    voiceprint: dict[str, Any]
     occlusion_ref: dict[str, float]
 
 
@@ -288,10 +281,9 @@ class CalibrationEngine:
         checks = _Checks()
         self._movement(evidence, session, checks)
         reference_ref = self.state.get_track(session, "occlusion_ref")
-        zone = self._gaze(evidence, checks) if evidence.complete else None
+        zone = self._gaze(evidence, checks)
         voiceprint = self._voice(evidence, session, checks)
-        required = REQUIRED_CHECKS if evidence.complete else REQUIRED_CHECKS - NEW_CONTRACT_CHECKS
-        if set(checks.results) != required or not all(checks.results.values()) or reference_ref is None:
+        if set(checks.results) != REQUIRED_CHECKS or not all(checks.results.values()) or reference_ref is None:
             raise CalibrationRejected("incomplete", m.INCOMPLETE)
         return CalibrationOutput(dict(checks.results), zone, voiceprint, dict(reference_ref))
 
@@ -338,7 +330,7 @@ class CalibrationEngine:
     def _gaze(self, evidence: CalibrationEvidence, checks: _Checks) -> GazeZone:
         per_target: dict[str, FrameBatch] = {}
         for name in TARGETS:
-            target_frames = list((evidence.gaze_points or {}).get(name, ()))
+            target_frames = list(evidence.gaze_points.get(name, ()))
             if not target_frames:
                 raise CalibrationRejected("gaze_zone", m.GAZE_CALIBRATION_ERRORS["FACE_MISSING"][1])
             per_target[name] = self._measure(
@@ -368,7 +360,7 @@ class CalibrationEngine:
             and np.all(gaps > t.CAL_VOICE_FRAME_MIN_GAP_MS) and np.max(gaps) <= t.CAL_VOICE_FRAME_MAX_GAP_MS
             and np.median(gaps) <= t.CAL_VOICE_FRAME_MEDIAN_GAP_MAX_MS)
 
-    def _voice(self, evidence: CalibrationEvidence, session: str, checks: _Checks) -> Optional[dict[str, Any]]:
+    def _voice(self, evidence: CalibrationEvidence, session: str, checks: _Checks) -> dict[str, Any]:
         samples = np.asarray(evidence.audio, dtype=np.float32)
         ambient_ms = evidence.ambient_ms
         duration_ms = samples.size * 1000 // t.AUDIO_SAMPLE_RATE
@@ -409,11 +401,6 @@ class CalibrationEngine:
         server_mouth = [(at, sample.mouth_open) for f, at in zip(observed, times)
                         for sample in [sample_from_frame(f, at)] if f.face_count == 1 and sample.mouth_open is not None]
         try:
-            if not evidence.complete:
-                # No browser telemetry in this contract: the voice must follow the mouth the server measured itself.
-                enrollment.judge_sync(recording, ambient_ms, None, server_mouth)
-                checks.add([_ok("mouth_audio_sync")])
-                return None
             record = enrollment.finish_enrollment(recording, ambient_ms, evidence.mouth, server_mouth, self.extractor)
         except enrollment.EnrollmentError as error:
             raise self._enrollment_rejected(error) from error

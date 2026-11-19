@@ -119,11 +119,23 @@ class MouthSampleRequest(BaseModel):
     mouth_open: float = Field(ge=0, le=2)
 
 
+class VoiceCalibrationFrame(BaseModel):
+    """A JPEG sampled while recording; ``t_ms`` counts from the start of ``audio_samples``. The server measures the
+    mouth on these itself to cross-check the browser's mouth readings."""
+    model_config = ConfigDict(extra="forbid")
+    t_ms: int = Field(ge=0, le=12_000, strict=True)
+    image: str = Field(min_length=1, max_length=80_000)
+
+
 class VoiceCalibrationRequest(TabRequest):
-    """16 kHz mono audio: ``ambient_ms`` of silence first, then the candidate reading the control phrase."""
+    """16 kHz mono audio: ``ambient_ms`` of silence first, then the candidate reading the control phrase.
+
+    ``frames`` (20 to 130 sampled JPEGs) are required: without server frames the mouth telemetry cannot be verified.
+    """
     audio_samples: list[float] = Field(min_length=1, max_length=MAX_VOICE_SAMPLES)
     ambient_ms: int = Field(ge=500, le=3000, strict=True)
     mouth_samples: list[MouthSampleRequest] = Field(default_factory=list, max_length=450)
+    frames: list[VoiceCalibrationFrame] = Field(min_length=20, max_length=130)
 
     @model_validator(mode="after")
     def mouth_is_coherent(self):
@@ -132,6 +144,10 @@ class VoiceCalibrationRequest(TabRequest):
         if any(later - earlier < 30 for earlier, later in zip(stamps, stamps[1:])) or any(
                 value > duration_ms for value in stamps):
             raise ValueError("mouth_samples debe ser creciente, a menos de ~33 muestras por segundo y dentro del audio.")
+        frame_stamps = [frame.t_ms for frame in self.frames]
+        if any(later - earlier < 40 for earlier, later in zip(frame_stamps, frame_stamps[1:])) or any(
+                value > duration_ms for value in frame_stamps):
+            raise ValueError("frames debe ser creciente, a menos de 25 imágenes por segundo y dentro del audio.")
         return self
 
 

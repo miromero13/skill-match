@@ -497,38 +497,41 @@ def test_the_vad_floor_knob_feeds_quiet_speech_to_the_vad_as_the_pre_exam_silenc
     assert sum(strict.voiced_flags) > 30 and not strict.vad_unavailable
 
 
-# ---- the pre-exam contract that predates the zone and the browser telemetry (kept working until the next slice) ----
+# ---- the evidence is mandatory: nothing is a pass by omission ------------------------------------------------------
 
 
-def test_without_zone_points_and_telemetry_the_rest_is_still_enforced_and_the_server_mouth_is_the_series(good):
-    output = good.run(gaze_points=None, mouth=None)
-    assert set(output.checks) == cal.REQUIRED_CHECKS - cal.NEW_CONTRACT_CHECKS and all(output.checks.values())
-    assert output.gaze_zone is None and output.voiceprint is None  # nothing to seed supervision with: not a full pass
+def test_the_evidence_has_no_optional_part_any_more():
+    import dataclasses
+    fields = {f.name: f for f in dataclasses.fields(cal.CalibrationEvidence)}
+    assert fields["gaze_points"].default is dataclasses.MISSING and fields["mouth"].default is dataclasses.MISSING
+    assert not hasattr(cal.CalibrationEvidence, "complete") and not hasattr(cal, "NEW_CONTRACT_CHECKS")
 
 
-def test_the_server_mouth_series_still_judges_a_voice_with_a_still_mouth(good):
+def test_an_empty_gaze_point_or_no_mouth_telemetry_is_rejected(good):
+    assert good.rejected(gaze_points={}).check == "gaze_zone"
+    error = good.rejected(mouth=[])
+    assert (error.check, error.message) == ("mouth_audio_sync", m.VOICE_CALIBRATION_ERRORS["NO_MOUTH"][1])
+
+
+def test_telemetry_the_server_frames_cannot_verify_is_rejected_even_if_the_voice_follows_it(good):
     for frame in good.voice:
-        good.fake.by_frame[frame] = face(mouth_open_score=0.05)
-    error = good.rejected(gaze_points=None, mouth=None)
-    assert (error.check, error.message) == ("mouth_audio_sync", m.VOICE_WITHOUT_MOUTH)
-
-
-def test_without_zone_points_the_movement_rules_still_reject(good):
-    only(good, 5, face_count=2, orientation="UNKNOWN", pitch_deg=None, yaw_deg=None, occlusion=None)
-    assert good.rejected(gaze_points=None, mouth=None).check == "single_face"
+        good.fake.by_frame[frame] = face(mouth_open_score=0.0)  # the server measures no aperture at all
+    assert good.rejected().check == "mouth_telemetry"
 
 
 # ---- helpers for the HTTP-level calibration tests (the engine runs for real over a faked frame boundary) ----------
 
 
 def http_body(good, challenge_id, audio=None):
-    """The ``CalibrationVerifyRequest`` JSON equivalent of the evidence of ``good`` (the pre-exam contract)."""
+    """The ``CalibrationVerifyRequest`` JSON equivalent of the evidence of ``good``."""
     samples = good.audio if audio is None else audio
     split = AMBIENT_MS * SR // 1000
     return {"challenge_id": challenge_id, "frames": good.movement,
             "ambient_audio_samples": [float(v) for v in samples[:split]],
             "audio_samples": [float(v) for v in samples[split:]],
             "spoken_frames": [{"time_ms": at - AMBIENT_MS, "image": image} for at, image in zip(good.times, good.voice)],
+            "gaze_points": [{"target": target, "frames": frames} for target, frames in good.points.items()],
+            "mouth_samples": [{"t_ms": at - AMBIENT_MS, "mouth_open": value} for at, value in good.mouth],
             "camera_label": "Physical webcam"}
 
 

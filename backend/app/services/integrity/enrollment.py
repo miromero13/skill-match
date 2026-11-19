@@ -24,13 +24,14 @@ import numpy as np
 from app.services.integrity import lipsync, thresholds as t
 from app.services.integrity import voiceprint as vp
 from app.services.integrity.audio_analyzer import AudioAnalyzer, voiced_audio
-from app.services.integrity.gaze import check_mouth_telemetry
+from app.services.integrity.frame_analyzer import FrameAnalyzer
+from app.services.integrity.gaze import check_mouth_telemetry, sample_from_frame
 from app.services.integrity.models import AudioObservation, GazeSample
 from app.services.integrity.state import InMemoryStateStore
 from app.services.integrity.voiceprint import EnrollmentError
 
 __all__ = ["EnrollmentError", "InMemoryStateStore", "Recording", "RecordingRules", "TrialRules", "enroll_voice",
-           "finish_enrollment", "judge_sync", "measure_recording"]
+           "finish_enrollment", "judge_sync", "measure_recording", "mouth_from_frames"]
 
 MouthReadings = Sequence[tuple[int, float]]  # (ms from the recording start, mouth aperture)
 
@@ -45,6 +46,24 @@ class Recording:
     phrase: np.ndarray
     measured: AudioObservation
     voiced: np.ndarray
+
+
+def mouth_from_frames(analyzer: FrameAnalyzer, frames: Sequence[tuple[int, str]]) -> list[tuple[int, float]]:
+    """What the server itself measures on the sampled JPEG frames of a recording: (ms from the recording start, mouth
+    aperture) for every frame with exactly one face. Raises EnrollmentError when the frames cannot be trusted:
+    VISION_UNAVAILABLE (a model is missing), NO_VIDEO (a frame could not be decoded), MULTIPLE_FACES, NO_FACE."""
+    times = [int(at) for at, _ in frames]
+    batch = analyzer.analyze_frames([raw for _, raw in frames], None, None, times_ms=times)
+    if batch.model_unavailable:
+        raise EnrollmentError("VISION_UNAVAILABLE")
+    if len(batch.frames) != len(frames) or len(batch.times_ms) != len(frames):
+        raise EnrollmentError("NO_VIDEO")
+    if any(f.face_count > 1 for f in batch.frames):
+        raise EnrollmentError("MULTIPLE_FACES")
+    if sum(1 for f in batch.frames if f.face_count == 1) * 2 <= len(frames):
+        raise EnrollmentError("NO_FACE")
+    readings = [(at, sample_from_frame(f, at).mouth_open) for f, at in zip(batch.frames, batch.times_ms) if f.face_count == 1]
+    return [(at, float(value)) for at, value in readings if value is not None]
 
 
 class RecordingRules(Protocol):
@@ -94,30 +113,26 @@ def measure_recording(
 def judge_sync(
     recording: Recording,
     ambient_ms: int,
-    mouth: Optional[MouthReadings],
-    server_mouth: Optional[MouthReadings],
+    mouth: MouthReadings,
+    server_mouth: MouthReadings,
 ) -> None:
-    """Cross-checks the mouth telemetry and judges lip-sync (the voice must follow the mouth).
+    """Cross-checks the mouth telemetry against the server's own frames and judges lip-sync.
 
     ``mouth`` is the browser's telemetry and ``server_mouth`` the aperture the server measured on the sampled JPEG
-    frames (one reading per frame with exactly one face), both as (ms from the recording start, aperture).
-      * ``mouth`` None: there is no telemetry; the server's own readings are the series (source "server").
-      * ``server_mouth`` None: no frames to cross-check against (the trial endpoint until it sends frames).
-      * both given: untrusted telemetry (``gaze.check_mouth_telemetry``) rejects with UNTRUSTED_TELEMETRY.
+    frames (one reading per frame with exactly one face), both as (ms from the recording start, aperture). Both are
+    mandatory: telemetry the server frames cannot verify (``gaze.check_mouth_telemetry``), or no server frames at
+    all, rejects the enrollment with UNTRUSTED_TELEMETRY; the voice must then follow the mouth.
     """
     def samples(readings: MouthReadings) -> list[GazeSample]:
         return [GazeSample(t_ms=int(at), face_count=1, mouth_open=float(value)) for at, value in readings]
 
-    series, source = mouth, "telemetry"
-    if mouth is None:
-        series, source = server_mouth, "server"
-    elif server_mouth is not None and mouth and not check_mouth_telemetry(samples(server_mouth), samples(mouth)).trusted:
-        raise EnrollmentError("UNTRUSTED_TELEMETRY")
-    if not series:
+    if not mouth:
         raise EnrollmentError("NO_MOUTH")
-    readings = [(at - ambient_ms, value) for at, value in series if at >= ambient_ms]
+    if not check_mouth_telemetry(samples(server_mouth), samples(mouth)).trusted:
+        raise EnrollmentError("UNTRUSTED_TELEMETRY")
+    readings = [(at - ambient_ms, value) for at, value in mouth if at >= ambient_ms]
     measured = recording.measured
-    verdict = lipsync.evaluate(measured.chunk_rms, measured.voiced_flags, readings, source).verdict
+    verdict = lipsync.evaluate(measured.chunk_rms, measured.voiced_flags, readings, "telemetry").verdict
     if verdict == "insufficient":
         raise EnrollmentError("NO_MOUTH")
     if verdict == "unsynced":
@@ -127,8 +142,8 @@ def judge_sync(
 def finish_enrollment(
     recording: Recording,
     ambient_ms: int,
-    mouth: Optional[MouthReadings],
-    server_mouth: Optional[MouthReadings],
+    mouth: MouthReadings,
+    server_mouth: MouthReadings,
     extractor: vp.EmbeddingExtractor,
 ) -> dict[str, Any]:
     """``judge_sync`` and then the voiceprint record built from the candidate's voiced calibration speech."""
@@ -140,7 +155,7 @@ def enroll_voice(
     audio: Sequence[float],
     ambient_ms: int,
     mouth: MouthReadings,
-    server_mouth: Optional[MouthReadings] = None,
+    server_mouth: MouthReadings,
     analyzer: Optional[AudioAnalyzer] = None,
     extractor: Optional[vp.EmbeddingExtractor] = None,
 ) -> dict[str, Any]:

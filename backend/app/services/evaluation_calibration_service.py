@@ -10,12 +10,13 @@ from app.models.evaluation import Evaluation
 from app.models.user import UserRole
 from app.schemas.calibration import CalibrationStateResponse
 from app.services.calibration_vision_service import CalibrationVisionService
+from app.services.integrity import messages
+from app.services.integrity.calibration import REQUIRED_CHECKS
 
 
 class EvaluationCalibrationService:
-    REQUIRED_CHECKS = {"lighting", "framing", "single_face", "microphone", "background_quiet",
-                       "identity", "liveness", "passive_screen_check", "single_speaker",
-                       "no_overlap", "mouth_audio_sync", "speech_pause"}
+    # Every check of the engine's calibration (camera, faces, identity, pose, gaze zone, silence, speech, voice, ...).
+    REQUIRED_CHECKS = REQUIRED_CHECKS
 
     @staticmethod
     async def owned(db, user, evaluation_id, *, lock=False):
@@ -61,7 +62,10 @@ class EvaluationCalibrationService:
         ).order_by(CalibrationChallenge.created_at.desc(), CalibrationChallenge.id.desc()).limit(1))
         enrollment_matches = latest is not None and latest.enrollment_hash == user.biometric_face_hash
         checks = latest.checks if enrollment_matches and latest.checks else {}
-        ready = (evaluation.status == "READY_FOR_THEORY"
+        # Ready needs every check AND the three things supervision is seeded with: no clean pass by omission.
+        complete = latest is not None and all(
+            value is not None for value in (latest.gaze_zone, latest.voiceprint, latest.occlusion_ref))
+        ready = (evaluation.status == "READY_FOR_THEORY" and complete
                  and set(checks) == cls.REQUIRED_CHECKS and all(value is True for value in checks.values()))
         return CalibrationStateResponse(
             evaluation_id=evaluation.id, ready=ready,
@@ -81,15 +85,16 @@ class EvaluationCalibrationService:
             raise SkillMatchException(statuscode=410, message="El reto venció. Solicitá uno nuevo; tu intento no se descontó.")
         if challenge.enrollment_hash != user.biometric_face_hash:
             raise SkillMatchException(statuscode=409, message="Tu enrolamiento cambió. Solicitá un nuevo reto.")
-        checks = await run_in_threadpool(
-            CalibrationVisionService.assess, payload.frames, payload.audio_samples,
-            payload.camera_label, challenge.action, user.biometric_embedding, payload.ambient_audio_samples,
-            payload.spoken_frames,
-        )
+        output = await run_in_threadpool(
+            CalibrationVisionService.assess, payload, challenge.action, user.biometric_embedding)
+        checks = output.checks
         if set(checks) != cls.REQUIRED_CHECKS or not all(value is True for value in checks.values()):
-            raise SkillMatchException(statuscode=400, message="La calibración no completó todas las comprobaciones.")
+            raise SkillMatchException(statuscode=400, message=messages.INCOMPLETE)
         challenge.consumed_at = datetime.now(timezone.utc)
         challenge.checks = checks
+        challenge.gaze_zone = output.gaze_zone.to_dict()
+        challenge.voiceprint = output.voiceprint
+        challenge.occlusion_ref = output.occlusion_ref
         evaluation.status = "READY_FOR_THEORY"
         await db.commit()
         return await cls.state(db, user, evaluation_id)

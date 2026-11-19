@@ -160,10 +160,19 @@ class ContinuousSupervisionService:
     def _audio_missing(samples: Optional[list[float]], duration_ms: Optional[int]) -> bool:
         return AudioAnalyzer.is_missing(samples, duration_ms)
 
-    @staticmethod
-    def enroll_voice(audio: Sequence[float], ambient_ms: int, mouth: Sequence[tuple[int, float]]) -> dict[str, Any]:
-        """The voiceprint record of a calibration recording (raises ``EnrollmentError`` / ``SpeakerModelUnavailable``)."""
-        return enrollment.enroll_voice(audio, ambient_ms, mouth)
+    @classmethod
+    def enroll_voice(
+        cls, audio: Sequence[float], ambient_ms: int, mouth: Sequence[tuple[int, float]],
+        frames: Sequence[tuple[int, str]],
+    ) -> dict[str, Any]:
+        """The voiceprint record of a calibration recording (raises ``EnrollmentError`` / ``SpeakerModelUnavailable``).
+
+        ``frames`` are the (ms from the recording start, base64 JPEG) frames sampled while recording: the server
+        measures the mouth on them itself and the browser's ``mouth`` telemetry must agree (untrusted telemetry, or
+        no usable frames, rejects the enrollment).
+        """
+        server_mouth = enrollment.mouth_from_frames(cls._frame_analyzer(), frames)
+        return enrollment.enroll_voice(audio, ambient_ms, mouth, server_mouth)
 
     # ---- window ---------------------------------------------------------------------------------
 

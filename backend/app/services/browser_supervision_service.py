@@ -15,6 +15,7 @@ from app.schemas.browser_supervision import (
     AVWindowRequest, GazeCalibrationRequest, IncidentKind, IncidentResponse, VoiceCalibrationRequest,
 )
 from app.services.continuous_supervision_service import ContinuousSupervisionService
+from app.services.integrity import messages
 from app.services.integrity.gaze import GazeCalibrationError, compute_zone
 from app.services.integrity.voiceprint import EnrollmentError, SpeakerModelUnavailable
 
@@ -37,31 +38,11 @@ AV_KINDS = (
 )
 BROWSER_KINDS = tuple(kind for kind in get_args(IncidentKind) if kind not in AV_KINDS)
 
-# Calibration failures: code -> (HTTP status, message shown verbatim by the frontend).
-GAZE_CALIBRATION_ERRORS = {
-    "FACE_MISSING": (400, "No pudimos ver tu rostro en todos los puntos. Ubicate frente a la cámara con buena luz "
-                          "y repetí la calibración."),
-    "MULTIPLE_FACES": (400, "Se detectó más de una persona durante la calibración. Tiene que estar solo tu rostro "
-                            "en cámara."),
-    "NOT_DISTINGUISHABLE": (400, "No pudimos distinguir hacia dónde mirabas. Mirá cada punto moviendo los ojos o la "
-                                 "cabeza hacia esa esquina y repetí la calibración."),
-    "MODEL_UNAVAILABLE": (503, "El análisis de mirada no está disponible en este momento. Reintentá más tarde."),
-}
-
-VOICE_CALIBRATION_ERRORS = {
-    "INSUFFICIENT_SPEECH": (400, "No escuchamos suficiente voz. Leé la frase completa en voz alta y repetí la "
-                                 "calibración."),
-    "MULTIPLE_SPEAKERS": (400, "Se detectó más de una voz durante la calibración. Tiene que hablar solo vos, sin otras "
-                                "personas ni audio reproducido, y repetí la calibración."),
-    "INCONSISTENT": (400, "No pudimos confirmar una sola voz constante. Repetí la frase en un ambiente silencioso."),
-    "UNSYNCED": (400, "Tu voz no coincide con el movimiento de tus labios. Mirá la cámara, leé la frase en voz alta y "
-                      "repetí la calibración."),
-    "NO_MOUTH": (400, "No pudimos ver el movimiento de tu boca. Ubicate frente a la cámara con la boca descubierta y "
-                      "repetí la calibración."),
-    "AMBIENT_NOT_QUIET": (400, "Había voces o ruido durante el silencio inicial. Buscá un ambiente en silencio y "
-                               "repetí la calibración."),
-}
-VOICE_UNAVAILABLE = (503, "La verificación de voz no está disponible en este momento. Reintentá más tarde.")
+# Calibration failures: code -> (HTTP status, message shown verbatim by the frontend); shared with the pre-exam
+# calibration (``integrity/messages.py``), so one rule never has two wordings.
+GAZE_CALIBRATION_ERRORS = messages.GAZE_CALIBRATION_ERRORS
+VOICE_CALIBRATION_ERRORS = messages.VOICE_CALIBRATION_ERRORS
+VOICE_UNAVAILABLE = messages.VOICE_UNAVAILABLE
 
 # Bounded pool: inference is CPU-heavy and native models are shared, so only a few run at once.
 _AV_EXECUTOR = ThreadPoolExecutor(max_workers=AV_INFERENCE_WORKERS, thread_name_prefix="av-inference")
@@ -351,9 +332,11 @@ class BrowserSupervisionService:
         await db.commit()
 
         mouth = [(sample.t_ms, sample.mouth_open) for sample in payload.mouth_samples]
+        frames = [(frame.t_ms, frame.image) for frame in payload.frames]
         try:
             record = await asyncio.get_running_loop().run_in_executor(
-                _AV_EXECUTOR, ContinuousSupervisionService.enroll_voice, payload.audio_samples, payload.ambient_ms, mouth)
+                _AV_EXECUTOR, ContinuousSupervisionService.enroll_voice, payload.audio_samples, payload.ambient_ms,
+                mouth, frames)
         except EnrollmentError as error:
             status, message = VOICE_CALIBRATION_ERRORS[error.code]
             reject(status, message)

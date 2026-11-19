@@ -21,6 +21,7 @@ from app.services import browser_supervision_service as service
 from app.services.continuous_supervision_service import ContinuousSupervisionService as Service
 from app.services.integrity import audio_analyzer
 from app.services.integrity import voiceprint as vp
+from app.services.integrity.models import FrameBatch, FrameObservation
 from audio_fixtures import LevelExtractor, Segment, SR, install_fake_vad, mouth_samples, silence, speaking, syllables
 from test_av_missing_evidence import window  # noqa: F401
 from test_browser_supervision import LOCKED, ROOT, body  # noqa: F401
@@ -36,11 +37,29 @@ def one_voice(audio):
     return [Segment(0.0, len(audio) / SR, 0)]
 
 
+class ServerFrames:
+    """The server's own measurement of the sampled frames: ``"mouth:<aperture>"`` is a face with that aperture."""
+
+    def __init__(self):
+        self.faces, self.unavailable = 1, False
+
+    def analyze_frames(self, frames, reference, session_key, times_ms=None):
+        if self.unavailable:
+            return FrameBatch(model_unavailable=True)
+        usable = [(i, raw) for i, raw in enumerate(frames) if raw.startswith("mouth:")]
+        observed = tuple(FrameObservation(face_count=self.faces, mouth_open_score=float(raw[6:]), blendshapes={"jawOpen": 0.0})
+                         for _, raw in usable)
+        times = tuple(int(times_ms[i]) for i, _ in usable) if times_ms is not None and len(usable) == len(frames) else ()
+        return FrameBatch(frames=observed, video_missing=not usable, times_ms=times)
+
+
 @pytest.fixture
 def models(monkeypatch):
-    """The speaker models: diarization finds one voice (``segments``), the extractor tells voices by loudness."""
+    """The speaker models: diarization finds one voice (``segments``), the extractor tells voices by loudness.
+    The vision models are replaced by ``ServerFrames`` (state["frames"])."""
     install_fake_vad(monkeypatch)
-    state = {"segments": one_voice, "extractor": LevelExtractor()}
+    state = {"segments": one_voice, "extractor": LevelExtractor(), "frames": ServerFrames()}
+    monkeypatch.setattr(Service, "_frame_analyzer", classmethod(lambda cls, use_mediapipe=True: state["frames"]))
     monkeypatch.setattr(audio_analyzer, "_default_segments", lambda audio: state["segments"](audio))
     monkeypatch.setattr(vp, "default_extractor", lambda: state["extractor"])
     return state
@@ -54,11 +73,19 @@ def recording(speaker=1, phrase_s=PHRASE_S, still=False, mouth=True, ambient=Non
     return audio, (readings if mouth else [])
 
 
+def sampled(audio, readings=None, step_ms=66):
+    """Frames sampled while recording: they show the aperture of ``readings`` (or a still mouth without any)."""
+    if readings:
+        return [{"t_ms": r["t_ms"], "image": f"mouth:{r['mouth_open']}"} for r in readings]
+    return [{"t_ms": at, "image": "mouth:0.05"} for at in range(0, len(audio) * 1000 // SR - step_ms, step_ms)]
+
+
 def payload(tab, audio=None, mouth=None, **kw):
     if audio is None:
         audio, mouth = recording()
+    frames = kw.pop("frames", None)
     return {"tab_id": tab, "audio_samples": [float(v) for v in audio], "ambient_ms": AMBIENT_MS,
-            "mouth_samples": mouth or [], **kw}
+            "mouth_samples": mouth or [], "frames": sampled(audio, mouth) if frames is None else frames, **kw}
 
 
 async def enroll(client, trial, body_):
@@ -202,6 +229,14 @@ async def test_the_diarization_model_missing_is_also_a_503(scenario, models):
         lambda p: p.update(mouth_samples=[{"t_ms": 0, "mouth_open": 5.0}]),
         lambda p: p.update(mouth_samples=[{"t_ms": 0, "mouth_open": 0.1, "extra": 1}]),
         lambda p: p.update(extra=1),
+        lambda p: p.pop("frames"),  # no server frames: the telemetry could not be verified
+        lambda p: p.update(frames=p["frames"][:19]),
+        lambda p: p.update(frames=p["frames"] * 3),
+        lambda p: p.update(frames=[{**p["frames"][0], "image": "m" * 80_001}, *p["frames"][1:]]),
+        lambda p: p.update(frames=[{**p["frames"][0], "t_ms": 12_001}, *p["frames"][1:]]),
+        lambda p: p.update(frames=[{**p["frames"][0], "extra": 1}, *p["frames"][1:]]),
+        lambda p: p.update(frames=list(reversed(p["frames"]))),
+        lambda p: p.update(frames=[{"t_ms": i * 10, "image": "mouth:0.1"} for i in range(30)]),
     ],
 )
 @pytest.mark.asyncio
@@ -317,3 +352,65 @@ def test_alembic_has_a_single_head_and_the_voiceprint_sits_on_top_of_the_gaze_zo
     head = script.get_revision(script.get_heads()[0])
     assert head.revision == "f3a8d2c19e47" and head.down_revision == "e5b1c7d3a962"  # T9: calibration inputs on top
     assert script.get_revision(head.down_revision).down_revision == "c4e8a1f27b95"
+
+
+# ---- T9b: the server frames cross-check the mouth telemetry (CLIENT_MISMATCH mechanism) ----------------------------
+
+
+def message(code):
+    from app.services.integrity import messages
+    return messages.VOICE_CALIBRATION_ERRORS[code]
+
+
+@pytest.mark.asyncio
+async def test_telemetry_the_server_frames_contradict_rejects_the_enrollment(scenario, models):
+    client, db, _, _ = scenario
+    trial, tab = await start_trial(client)
+    audio, mouth = recording()
+    lying = [{**r, "mouth_open": r["mouth_open"] + 0.6} for r in mouth]  # the browser claims much wider openings
+    response = await enroll(client, trial, payload(tab, audio, lying, frames=sampled(audio, mouth)))
+    status, text = message("UNTRUSTED_TELEMETRY")
+    assert response.status_code == status and response.json() == body(text, status=status)
+    assert await stored(db, trial) is None
+
+
+@pytest.mark.asyncio
+async def test_frames_that_never_coincide_with_the_telemetry_reject_the_enrollment(scenario, models):
+    client, db, _, _ = scenario
+    trial, tab = await start_trial(client)
+    audio, mouth = recording()
+    early, late = mouth[:20], [r for r in mouth if r["t_ms"] >= 3000]  # the telemetry ends before the frames begin
+    response = await enroll(client, trial, payload(tab, audio, early, frames=sampled(audio, late)))
+    assert response.status_code == 400 and response.json()["message"] == message("UNTRUSTED_TELEMETRY")[1]
+    assert await stored(db, trial) is None
+
+
+@pytest.mark.parametrize("setup,code", [
+    (lambda frames: setattr(frames, "faces", 2), "MULTIPLE_FACES"),
+    (lambda frames: setattr(frames, "faces", 0), "NO_FACE"),
+])
+@pytest.mark.asyncio
+async def test_a_second_person_or_nobody_in_the_frames_rejects_the_enrollment(scenario, models, setup, code):
+    client, db, _, _ = scenario
+    trial, tab = await start_trial(client)
+    setup(models["frames"])
+    response = await enroll(client, trial, payload(tab))
+    status, text = message(code)
+    assert response.status_code == status and response.json() == body(text, status=status)
+    assert await stored(db, trial) is None
+
+
+@pytest.mark.asyncio
+async def test_undecodable_frames_and_missing_vision_models_fail_closed(scenario, models):
+    client, db, _, _ = scenario
+    trial, tab = await start_trial(client)
+    audio, mouth = recording()
+    frames = sampled(audio, mouth)
+    frames[3] = {**frames[3], "image": "garbage"}
+    response = await enroll(client, trial, payload(tab, audio, mouth, frames=frames))
+    assert response.status_code == 400 and response.json()["message"] == message("NO_VIDEO")[1]
+    models["frames"].unavailable = True
+    response = await enroll(client, trial, payload(tab, audio, mouth))
+    status, text = message("VISION_UNAVAILABLE")
+    assert response.status_code == 503 == status and response.json() == body(text, status=503)
+    assert await stored(db, trial) is None

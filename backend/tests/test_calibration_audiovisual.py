@@ -18,23 +18,33 @@ def good(monkeypatch):
 
 
 def set_mouth(good, level_at):
+    """The server measures ``level_at(seconds into the speech segment)`` on every spoken frame."""
     for frame, at in zip(good.voice, good.times):
         good.fake.by_frame[frame] = face(mouth_open_score=level_at((at - AMBIENT_MS) / 1000))
 
 
+def follow(good, level_at):
+    """Browser telemetry and the server's own frames agree on ``level_at`` (so only lip-sync judges the voice)."""
+    set_mouth(good, level_at)
+    return [(at, level_at((at - AMBIENT_MS) / 1000)) for at, _ in good.mouth]
+
+
 def run(good, **changes):
-    return good.rejected(gaze_points=None, mouth=None, **changes)
+    return good.rejected(**changes)
 
 
-@pytest.mark.parametrize("moving", [lambda t: 0.05, lambda t: 0.05 + 0.25 * float(syllables(5, chunks=400)[int(t * 33)]) if t >= 5 else 0.05])
-def test_voice_without_corresponding_mouth_activity_rejects(good, moving):
-    set_mouth(good, moving)  # a still mouth, or one that only moves after the phrase
-    error = run(good)
+def after_the_phrase(t):
+    return 0.05 + 0.25 * float(syllables(5, chunks=400)[int(t * 33)]) if t >= 5 else 0.05
+
+
+@pytest.mark.parametrize("level_at", [lambda t: 0.05, after_the_phrase])
+def test_voice_without_corresponding_mouth_activity_rejects(good, level_at):
+    error = run(good, mouth=follow(good, level_at))  # a still mouth, or one that only moves after the phrase
     assert (error.check, error.status, error.message) == ("mouth_audio_sync", 400, m.VOICE_WITHOUT_MOUTH)
 
 
 def test_synchronized_motion_and_voice_can_pass_but_does_not_prove_words(good):
-    output = good.run(gaze_points=None, mouth=None)
+    output = good.run()
     assert output.checks["mouth_audio_sync"] and output.checks["speech_pause"]
 
 

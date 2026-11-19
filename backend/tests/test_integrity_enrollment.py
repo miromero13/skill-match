@@ -103,3 +103,13 @@ def test_telemetry_with_occasional_noise_is_still_trusted():
     mouth = mouth_of(env)
     server = [(at, value + (0.5 if index % 10 == 0 else 0.0)) for index, (at, value) in enumerate(mouth)]  # 10 % off
     assert run(audio, mouth, server=server)["voiced_s"] >= 3.0
+
+
+def test_the_server_frames_are_mandatory_for_an_enrollment():
+    """T9b: ``server_mouth`` has no default any more, and empty server evidence is untrusted telemetry."""
+    import inspect
+    assert inspect.signature(enrollment.enroll_voice).parameters["server_mouth"].default is inspect.Parameter.empty
+    audio, env = phrase()
+    with pytest.raises(enrollment.EnrollmentError) as error:
+        run(audio, mouth_of(env), server=[])
+    assert error.value.code == "UNTRUSTED_TELEMETRY"

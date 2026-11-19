@@ -23,6 +23,7 @@ def break_it(good, failure):
         good.segments = lambda a: [Segment(0.3, 2, 0), Segment(1.5, 3.5, 1)]
     elif failure == "mouth":
         set_mouth(good, lambda t: 0.05)
+        good.mouth = [(at, 0.05) for at, _ in good.mouth]
     elif failure == "pause":
         start = (AMBIENT_MS + 5000) * SR // 1000
         audio[start:start + SR] = voice(1.0)

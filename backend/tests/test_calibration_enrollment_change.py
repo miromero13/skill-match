@@ -2,17 +2,13 @@
 import pytest
 
 from tests.test_evaluation_preflight import endpoint, isolated_db, scenario  # noqa: F401
-from tests.test_evaluation_calibration import PAYLOAD, prepare
+from tests.test_evaluation_calibration import PAYLOAD, passing_output, prepare
 from app.services.calibration_vision_service import CalibrationVisionService
 
 
 @pytest.mark.asyncio
 async def test_enrollment_change_invalidates_previous_ready_state(scenario, monkeypatch):
-    monkeypatch.setattr(CalibrationVisionService, "assess", lambda *args: {
-        "lighting": True, "framing": True, "single_face": True, "microphone": True,
-        "identity": True, "liveness": True, "passive_screen_check": True, "background_quiet": True,
-        "single_speaker": True, "no_overlap": True, "mouth_audio_sync": True, "speech_pause": True,
-    })
+    monkeypatch.setattr(CalibrationVisionService, "assess", lambda *args: passing_output())
     client, db, user, offer = scenario
     evaluation_id = await prepare(scenario)
     challenge = (await client.post(f"/api/evaluations/{evaluation_id}/liveness/challenge")).json()["data"]
