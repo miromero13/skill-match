@@ -18,14 +18,17 @@ from app.api.matches.router import router as matches_router
 from app.api.notifications.router import router as notifications_router
 from app.api.notifications.web_push import router as web_push_router
 from app.api.notifications.websocket import router as notification_websocket_router
+from app.api.passports import router as passports_router
 from app.api.search import search_router
 from app.api.sessions import router as sessions_router
+from app.api.session_reviews import router as session_reviews_router
 from app.api.skills.router import router as public_skills_router
 from app.api.users.availability import router as user_availability_router
 from app.api.users.learning_skills import router as user_learning_skills_router
 from app.api.users.moderation import router as user_moderation_router
 from app.api.users.notification_preferences import router as notification_preferences_router
 from app.api.users.profile import router as user_profile_router
+from app.api.users.reputation import router as user_reputation_router
 from app.api.users.skill_evidences import router as skill_evidences_router
 from app.api.users.teaching_skills import router as teaching_skills_router
 from app.core.config import settings
@@ -125,6 +128,9 @@ def create_application() -> FastAPI:
     app.include_router(search_router, prefix="/api")
     app.include_router(user_moderation_router, prefix="/api")
     app.include_router(sessions_router, prefix="/api")
+    app.include_router(session_reviews_router, prefix="/api")
+    app.include_router(user_reputation_router, prefix="/api")
+    app.include_router(passports_router, prefix="/api")
 
     return app
 

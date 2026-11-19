@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom"
+import { createBrowserRouter, Navigate, useParams } from "react-router-dom"
 import { PublicLayout } from "@/layouts/public-layout"
 import { PlatformLayout } from "@/layouts/platform-layout"
 import { ExamLayout } from "@/layouts/exam-layout"
@@ -25,7 +25,27 @@ import { AvailabilityPage } from "@/pages/availability-page"
 import { MatchesPage } from "@/pages/matches-page"
 import { SearchPage } from "@/pages/search-page"
 import { SessionsPage } from "@/pages/sessions-page"
+import { ReputationPage } from "@/pages/reputation-page"
+import { PublicPassportPage } from "@/pages/public-passport-page"
 import { ComingSoonPage } from "@/pages/coming-soon-page"
+import { useAuthStore } from "@/stores/auth-store"
+
+function MyPassportRedirect() {
+  const user = useAuthStore((s) => s.user)
+  if (!user?.id) {
+    return <Navigate to="/login" replace />
+  }
+  return <Navigate to="/app/passport" replace />
+}
+
+function PublicPassportRoute() {
+  const { uuid } = useParams<{ uuid: string }>()
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  if (isAuthenticated && uuid) {
+    return <Navigate to={`/app/passport/${uuid}`} replace />
+  }
+  return <PublicPassportPage />
+}
 
 import { NotificationLayout } from "@/components/notifications/notification-layout"
 import { NotificationInboxPage } from "@/pages/notifications/notification-inbox-page"
@@ -81,6 +101,11 @@ export const router = createBrowserRouter([
     ],
   },
   { path: "/search", element: <Navigate to="/app/search" replace /> },
+  { path: "/sessions", element: <Navigate to="/app/sessions" replace /> },
+  { path: "/reputation", element: <Navigate to="/app/reputation" replace /> },
+  { path: "/availability", element: <Navigate to="/app/availability" replace /> },
+  { path: "/passport/:uuid", element: <PublicPassportRoute /> },
+  { path: "/passport", element: <MyPassportRedirect /> },
   {
     path: "/app/notifications",
     element: <Navigate to="/notifications" replace />,
@@ -112,6 +137,10 @@ export const router = createBrowserRouter([
       {
         path: "search",
         element: <SearchPage />,
+      },
+      {
+        path: "matches",
+        element: <MatchesPage />,
       },
       {
         path: "swaps",
@@ -180,14 +209,19 @@ export const router = createBrowserRouter([
       },
       {
         path: "reputation",
-        element: (
-          <ComingSoonPage
-            featureKey="reputation"
-            title="Reputación y Reseñas"
-            subtitle="Calificaciones pedagógicas y comentarios"
-            description="Próximamente se habilitará el muro de valoraciones comunitarias y propinas recibidas tras completar sesiones de trueque."
-          />
-        ),
+        element: <ReputationPage />,
+      },
+      {
+        path: "reputation/:userId",
+        element: <ReputationPage />,
+      },
+      {
+        path: "passport",
+        element: <PublicPassportPage />,
+      },
+      {
+        path: "passport/:uuid",
+        element: <PublicPassportPage />,
       },
       {
         path: "complaints",

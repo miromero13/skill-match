@@ -42,6 +42,8 @@ from app.models.user_block import UserBlock
 from app.models.user_learning_skill import UrgencyLevel, UserLearningSkill
 from app.models.user_report import ReportReason, ReportStatus, UserReport
 from app.models.wallet import Wallet
+from app.models.wallet_transaction import WalletTransaction
+from app.models.session_review import SessionReview
 from app.models.web_push_subscription import WebPushSubscription
 
 __all__ = [
@@ -84,6 +86,7 @@ __all__ = [
     "SessionReminderDispatch",
     "SessionReminderEmailDelivery",
     "SessionReminderWebPushDelivery",
+    "SessionReview",
     "Skill",
     "SkillEvidence",
     "SkillLevel",
@@ -100,6 +103,7 @@ __all__ = [
     "ValidationSession",
     "ValidationSessionState",
     "Wallet",
+    "WalletTransaction",
     "WebPushSubscription",
     "WeeklySessionQuota",
 ]

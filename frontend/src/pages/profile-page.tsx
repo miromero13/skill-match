@@ -15,6 +15,7 @@ import {
   QrCode,
   Save,
   ShieldCheck,
+  ExternalLink,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -305,11 +306,14 @@ export function ProfilePage() {
   }
 
   const handleCopyAuditLink = () => {
-    const url = `${window.location.origin}/app/certificates`
+    const passportId = authUser?.id || profile?.id
+    const url = passportId ? `${window.location.origin}/passport/${passportId}` : window.location.href
     if (navigator.clipboard) {
       void navigator.clipboard.writeText(url)
     }
-    toast.success("Enlace directo de auditoría QR copiado al portapapeles.")
+    toast.success("Enlace oficial de tu Pasaporte copiado al portapapeles.", {
+      description: "Compártelo en tu CV o LinkedIn para verificación externa.",
+    })
   }
 
   return (
@@ -664,14 +668,26 @@ export function ProfilePage() {
                   </div>
                 </div>
 
-                <Button
-                  onClick={handleCopyAuditLink}
-                  size="sm"
-                  className="w-full h-8 text-xs gap-1.5"
-                >
-                  <Copy className="size-3.5" />
-                  Copiar Enlace Directo a Auditoría ➔
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleCopyAuditLink}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-xs gap-1.5"
+                  >
+                    <Copy className="size-3.5" />
+                    Copiar Enlace
+                  </Button>
+                  <Link to="/app/passport" className="flex-1">
+                    <Button
+                      size="sm"
+                      className="w-full h-8 text-xs gap-1.5 bg-[#00786F] hover:bg-[#006058] dark:bg-primary dark:hover:bg-primary/90 text-white font-semibold"
+                    >
+                      <ExternalLink className="size-3.5" />
+                      Ver Pasaporte ➔
+                    </Button>
+                  </Link>
+                </div>
               </div>
 
               {/* 4. Tarjeta de Verificación de Identidad y Biometría Facial */}
