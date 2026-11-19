@@ -288,7 +288,7 @@ Los umbrales de `app/services/integrity/thresholds.py` se ajustaron solo con dat
 4. Resumen por etiqueta (mín / p5 / mediana / p95 / máx, tasa de detección y falsas alarmas):
 
 ```bash
-cd backend && .venv/bin/python scripts/integrity_tuning_report.py /tmp/skillmatch-integrity-diagnostics
+cd backend && .venv/bin/python scripts/integrity_tuning_report.py <INTEGRITY_DIAGNOSTICS_DIR>
 ```
 
 Los archivos JSONL contienen datos de sesiones reales: borrá la carpeta al terminar.
