@@ -3,6 +3,12 @@
 Measures only: the incident decision (HIGH_NOISE, MULTIPLE_SPEAKERS, ...) belongs to the policy profile.
 Diarization reuses ``CalibrationSpeakerService.segments`` (Sherpa-ONNX Pyannote + embeddings, local).
 
+Device playback (S4): a browser cannot tell that the laptop itself is playing audio, so it is covered by
+composition rather than by one detector. Played speech is caught by VOICE_MISMATCH (not the enrolled voice),
+by LIP_SYNC_MISMATCH / VOICE_DETECTED (a voice with no matching mouth movement) and by MULTIPLE_SPEAKERS (it
+adds a voice). Played non-speech (music, tones, TV) is caught by BACKGROUND_AUDIO: audio the VAD does not call
+speech, above the ambient floor measured at voice calibration, for >= 2 s. HIGH_NOISE stays for very loud audio.
+
 Calibration mapping (T9): ``CalibrationAudioService`` (RMS + VAD speech checks) maps to ``AudioAnalyzer.analyze``;
 ``CalibrationSpeakerService.assess`` (single speaker, no overlap) maps to ``AudioAnalyzer.detect_multiple_speakers``.
 """
