@@ -1,9 +1,12 @@
 """Bounded metadata only: clipboard contents and arbitrary context are forbidden."""
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
+
+# One base64 JPEG frame (320x240 is ~20 KB); the cap keeps a 12-frame window under ~5 MB.
+MAX_FRAME_B64_CHARS = 400_000
 
 IncidentKind = Literal[
     "AWAY",
@@ -30,6 +33,9 @@ IncidentKind = Literal[
     "DEVICE_DISCONNECTED",
     "STREAM_ERROR",
     "MODEL_UNAVAILABLE",
+    "VIDEO_MISSING",
+    "AUDIO_MISSING",
+    "WINDOW_GAP",
 ]
 
 
@@ -81,7 +87,8 @@ class AVWindowRequest(TabRequest):
     observed_at: AwareDatetime
     duration_ms: int = Field(default=2500, ge=500, le=30000, strict=True)
     mode: Literal["QUIET", "SPEAKING", "UNIFIED"] = "UNIFIED"
-    frames: list[str] = Field(default_factory=list, max_length=12)
+    frames: list[Annotated[str, StringConstraints(max_length=MAX_FRAME_B64_CHARS)]] = Field(
+        default_factory=list, max_length=12)
     audio_samples: Optional[list[float]] = Field(default=None, max_length=160000)
 
 

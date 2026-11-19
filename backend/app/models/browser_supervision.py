@@ -21,6 +21,8 @@ class BrowserTrial(Base):
     tab_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     event_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Server receipt time of the latest audiovisual window; basis of WINDOW_GAP detection.
+    last_av_window_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class BrowserIncident(Base):

@@ -10,6 +10,7 @@ import {
   User,
   Volume2,
 } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -18,8 +19,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuthStore } from "@/stores/auth-store"
 import {
+  AVFailureTracker,
   BrowserMonitor,
   IncidentQueue,
+  avWindowDurationMs,
   readBrowserLedger,
   readBrowserTrial,
   sendAVWindow,
@@ -64,6 +67,10 @@ const labels: Record<string, string> = {
   HIGH_NOISE: "Ruido ambiental excesivo",
   DEVICE_DISCONNECTED: "Desconexión de cámara o micrófono",
   STREAM_ERROR: "Fallo técnico en la captura audiovisual",
+  MODEL_UNAVAILABLE: "Modelo de IA no disponible",
+  VIDEO_MISSING: "Sin video",
+  AUDIO_MISSING: "Sin audio",
+  WINDOW_GAP: "Supervisión interrumpida",
 }
 
 const message = (error: unknown) =>
@@ -87,6 +94,7 @@ export function BrowserSupervisionPage() {
   const avTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const vuAnimationRef = useRef<number | null>(null)
   const avInFlightRef = useRef(false)
+  const avFailuresRef = useRef(new AVFailureTracker())
 
   const [trial, setTrial] = useState<Trial | null>(null)
   const [accepted, setAccepted] = useState(false)
@@ -110,6 +118,7 @@ export function BrowserSupervisionPage() {
   const [noiseLevel, setNoiseLevel] = useState(0)
   const [vuLevel, setVuLevel] = useState(0)
   const [deviceError, setDeviceError] = useState("")
+  const [avStatus, setAvStatus] = useState("")
 
   const lastKey = `sm43:last:${owner}`
 
@@ -144,6 +153,8 @@ export function BrowserSupervisionPage() {
     }
     audioBufferRef.current = []
     avInFlightRef.current = false
+    avFailuresRef.current = new AVFailureTracker()
+    setAvStatus("")
     setAvActive(false)
     setVuLevel(0)
   }
@@ -336,37 +347,47 @@ export function BrowserSupervisionPage() {
           const framesToSend = collectedFrames.splice(0, 8)
           const audioToSend = audioBufferRef.current.splice(0, 48000)
 
-          if (framesToSend.length > 0) {
-            avInFlightRef.current = true
-            void sendAVWindow(trialId, {
-              tab_id: tabId,
-              window_id: crypto.randomUUID(),
-              observed_at: new Date().toISOString(),
-              duration_ms: 2400,
-              mode: "UNIFIED",
-              frames: framesToSend,
-              audio_samples: audioToSend,
+          // A window without frames or audio is still sent: the server records the missing evidence.
+          avInFlightRef.current = true
+          void sendAVWindow(trialId, {
+            tab_id: tabId,
+            window_id: crypto.randomUUID(),
+            observed_at: new Date().toISOString(),
+            duration_ms: avWindowDurationMs(audioToSend.length),
+            mode: "UNIFIED",
+            frames: framesToSend,
+            audio_samples: audioToSend,
+          })
+            .then((res) => {
+              avFailuresRef.current.success()
+              setAvStatus("")
+              setFaceCount(res.face_count)
+              setHeadOrientation(res.head_orientation)
+              setIdentityMatch(res.identity_match)
+              setSpeechDetected(res.speech_detected)
+              setMouthMoving(Boolean(res.mouth_moving))
+              setMouthSync(res.mouth_sync ?? null)
+              setMultipleSpeakers(
+                Boolean(res.multiple_speakers || res.anomalies.includes("MULTIPLE_SPEAKERS")),
+              )
+              setNoiseLevel(res.noise_level)
+              if (res.anomalies.length > 0) {
+                void ledger(trialId)
+              }
             })
-              .then((res) => {
-                setFaceCount(res.face_count)
-                setHeadOrientation(res.head_orientation)
-                setIdentityMatch(res.identity_match)
-                setSpeechDetected(res.speech_detected)
-                setMouthMoving(Boolean(res.mouth_moving))
-                setMouthSync(res.mouth_sync ?? null)
-                setMultipleSpeakers(
-                  Boolean(res.multiple_speakers || res.anomalies.includes("MULTIPLE_SPEAKERS")),
-                )
-                setNoiseLevel(res.noise_level)
-                if (res.anomalies.length > 0) {
-                  void ledger(trialId)
-                }
-              })
-              .catch(() => undefined)
-              .finally(() => {
-                avInFlightRef.current = false
-              })
-          }
+            .catch((cause) => {
+              const tracker = avFailuresRef.current
+              const report = tracker.failure()
+              setAvStatus(
+                `La supervisión audiovisual no pudo confirmarse (${tracker.consecutive} ventana${
+                  tracker.consecutive === 1 ? "" : "s"
+                } seguida${tracker.consecutive === 1 ? "" : "s"} sin respuesta): ${message(cause)}`,
+              )
+              if (report) emit({ kind: "STREAM_ERROR" })
+            })
+            .finally(() => {
+              avInFlightRef.current = false
+            })
         }
       }, 400)
 
@@ -595,6 +616,12 @@ export function BrowserSupervisionPage() {
               <AlertCircle className="size-4 shrink-0" />
               {deviceError}
             </p>
+          )}
+          {avStatus && (
+            <Alert variant="destructive" data-testid="av-status">
+              <AlertCircle />
+              <AlertDescription>{avStatus}</AlertDescription>
+            </Alert>
           )}
           {notice && (
             <p role="status" className="text-sm text-muted-foreground">

@@ -18,10 +18,16 @@ from typing import Any, Literal, Optional
 import cv2
 import numpy as np
 
+from app.schemas.browser_supervision import MAX_FRAME_B64_CHARS
 from app.services import vision_models
 from app.services.biometric_service import SFACE_COSINE_THRESHOLD
 
 logger = logging.getLogger("skillmatch.continuous_supervision")
+
+MAX_FRAME_WIDTH = 1920
+MAX_FRAME_HEIGHT = 1080
+AUDIO_SAMPLE_RATE = 16_000
+AUDIO_LENGTH_TOLERANCE = 0.25  # accepted deviation from duration_ms * 16 kHz
 
 
 class ContinuousSupervisionService:
@@ -126,16 +132,55 @@ class ContinuousSupervisionService:
         return existing
 
     @staticmethod
-    def decode_frame(raw: str) -> Optional[np.ndarray]:
-        """Safely decodes a base64 JPEG image with header verification."""
+    def _jpeg_dimensions(data: bytes) -> Optional[tuple[int, int]]:
+        """Reads (width, height) from the first SOF marker without decoding any pixels."""
+        size = len(data)
+        pos = 2
+        while pos < size:
+            if data[pos] != 0xFF:
+                return None
+            while pos < size and data[pos] == 0xFF:  # fill bytes
+                pos += 1
+            if pos >= size:
+                return None
+            marker = data[pos]
+            pos += 1
+            if marker == 0x01 or 0xD0 <= marker <= 0xD8:  # standalone markers carry no length
+                continue
+            if marker in (0xD9, 0xDA) or pos + 2 > size:  # EOI / SOS before any SOF
+                return None
+            length = int.from_bytes(data[pos:pos + 2], "big")
+            if length < 2:
+                return None
+            if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+                if pos + 7 > size:
+                    return None
+                height = int.from_bytes(data[pos + 3:pos + 5], "big")
+                width = int.from_bytes(data[pos + 5:pos + 7], "big")
+                return (width, height) if width and height else None
+            pos += length
+        return None
+
+    @classmethod
+    def decode_frame(cls, raw: str) -> Optional[np.ndarray]:
+        """Safely decodes a base64 JPEG; oversized or malformed images are rejected before pixel decoding."""
         if not raw:
             return None
         encoded = raw.split(",", 1)[1] if raw.startswith("data:") else raw
+        if len(encoded) > MAX_FRAME_B64_CHARS:
+            return None
         try:
             data = base64.b64decode(encoded.strip(), validate=False)
         except (ValueError, binascii.Error):
             return None
         if len(data) < 32 or data[:2] != b"\xff\xd8":
+            return None
+        dims = cls._jpeg_dimensions(data)
+        if dims is None:
+            return None
+        # Either orientation of Full HD is fine; anything larger is a decompression-bomb risk.
+        long_side, short_side = max(dims), min(dims)
+        if long_side > MAX_FRAME_WIDTH or short_side > MAX_FRAME_HEIGHT:
             return None
         nparr = np.frombuffer(data, np.uint8)
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -764,6 +809,15 @@ class ContinuousSupervisionService:
             "voiced_flags": voiced_flags,
         }
 
+    @staticmethod
+    def _audio_missing(samples: Optional[list[float]], duration_ms: Optional[int]) -> bool:
+        if not samples or len(samples) < 160:
+            return True
+        if duration_ms is None:
+            return False
+        expected = duration_ms * AUDIO_SAMPLE_RATE / 1000.0
+        return abs(len(samples) - expected) > AUDIO_LENGTH_TOLERANCE * expected
+
     @classmethod
     def assess_window(
         cls,
@@ -773,11 +827,14 @@ class ContinuousSupervisionService:
         biometric_embedding_json: Optional[str] = None,
         trial_id: Optional[str] = None,
         use_mediapipe: bool = True,
+        duration_ms: Optional[int] = None,
     ) -> dict[str, Any]:
         """Evaluates an audiovisual supervision window and determines anomalies.
 
         Fails closed: when no vision model is usable the window reports ``MODEL_UNAVAILABLE`` with
-        ``face_count`` 0 and no identity verdict instead of a clean face.
+        ``face_count`` 0 and no identity verdict instead of a clean face. Missing evidence is never clean
+        either: no decodable frame reports ``VIDEO_MISSING`` and absent or length-inconsistent audio
+        (checked against ``duration_ms`` at 16 kHz when given) reports ``AUDIO_MISSING``.
         """
         reference_embedding: Optional[np.ndarray] = None
         if biometric_embedding_json:
@@ -793,13 +850,12 @@ class ContinuousSupervisionService:
         landmarker = cls.get_mediapipe_landmarker() if use_mediapipe else None
         vision_available = detector is not None or landmarker is not None
 
+        images = [img for img in (cls.decode_frame(raw) for raw in frames_b64) if img is not None]
+        video_missing = not images
         frame_results = []
         model_unavailable = not vision_available
         if vision_available:
-            for raw in frames_b64:
-                img = cls.decode_frame(raw)
-                if img is None:
-                    continue
+            for img in images:
                 res = cls.analyze_frame_face(
                     img, detector, recognizer, reference_embedding, trial_key=trial_id,
                     landmarker=landmarker,
@@ -817,7 +873,9 @@ class ContinuousSupervisionService:
         mouth_open_scores: list[float] = []
         mouth_movements: list[float] = []
 
-        visual_unavailable = model_unavailable and not frame_results
+        visual_unavailable = (model_unavailable or video_missing) and not frame_results
+        if video_missing:
+            anomalies.append("VIDEO_MISSING")
         if model_unavailable:
             anomalies.append("MODEL_UNAVAILABLE")
         if visual_unavailable:
@@ -874,6 +932,8 @@ class ContinuousSupervisionService:
                     anomalies.append("IDENTITY_MISMATCH")
 
         # Audio analysis and lip-sync verification
+        if cls._audio_missing(audio_samples, duration_ms):
+            anomalies.append("AUDIO_MISSING")
         audio_res = cls.analyze_audio(audio_samples, trial_key=trial_id)
         speech_detected = audio_res["speech_detected"]
         multiple_speakers = audio_res["multiple_speakers"]

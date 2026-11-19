@@ -24,6 +24,10 @@ export type IncidentKind =
   | "HIGH_NOISE"
   | "DEVICE_DISCONNECTED"
   | "STREAM_ERROR"
+  | "MODEL_UNAVAILABLE"
+  | "VIDEO_MISSING"
+  | "AUDIO_MISSING"
+  | "WINDOW_GAP"
 
 export interface BrowserIncident {
   event_id: string
@@ -69,6 +73,42 @@ export interface AVWindowResponse {
   noise_level: number
   anomalies: string[]
   incidents_created: LedgerIncident[]
+}
+
+export const AV_SAMPLE_RATE = 16_000
+/** Nominal spacing of audiovisual windows; used when a window carries no audio to measure. */
+export const AV_NOMINAL_WINDOW_MS = 2400
+/** Consecutive failed audiovisual windows before a local STREAM_ERROR incident is queued. */
+export const AV_FAILURE_THRESHOLD = 2
+
+/** The duration a window reports must be the audio it actually carries (server limits: 500-30000 ms). */
+export function avWindowDurationMs(sampleCount: number) {
+  if (sampleCount <= 0) return AV_NOMINAL_WINDOW_MS
+  return Math.min(30_000, Math.max(500, Math.round((sampleCount / AV_SAMPLE_RATE) * 1000)))
+}
+
+/** Counts consecutive audiovisual window failures; a success starts a new streak. */
+export class AVFailureTracker {
+  private failures = 0
+  private reported = false
+  private threshold: number
+  constructor(threshold = AV_FAILURE_THRESHOLD) {
+    this.threshold = threshold
+  }
+  get consecutive() {
+    return this.failures
+  }
+  /** Returns true exactly once per streak: when the threshold is first reached. */
+  failure() {
+    this.failures++
+    if (this.reported || this.failures < this.threshold) return false
+    this.reported = true
+    return true
+  }
+  success() {
+    this.failures = 0
+    this.reported = false
+  }
 }
 
 const root = "/browser-supervision/trials"
@@ -120,6 +160,10 @@ const kinds: IncidentKind[] = [
   "HIGH_NOISE",
   "DEVICE_DISCONNECTED",
   "STREAM_ERROR",
+  "MODEL_UNAVAILABLE",
+  "VIDEO_MISSING",
+  "AUDIO_MISSING",
+  "WINDOW_GAP",
 ]
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 function validIncident(value: unknown): value is BrowserIncident {

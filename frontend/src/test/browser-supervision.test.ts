@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { BrowserMonitor, IncidentQueue } from "@/services/browser-supervision"
+import {
+  AV_NOMINAL_WINDOW_MS,
+  AVFailureTracker,
+  BrowserMonitor,
+  IncidentQueue,
+  avWindowDurationMs,
+} from "@/services/browser-supervision"
 
 beforeEach(() => { localStorage.clear(); vi.useFakeTimers() })
 afterEach(() => { vi.useRealTimers(); document.body.replaceChildren() })
@@ -120,4 +126,37 @@ describe("SM-43 durable queue", () => {
     localStorage.setItem("corrupt", '{"clipboard":"must-not-be-uploaded"}')
     expect(() => new IncidentQueue("corrupt", vi.fn(), warning)).toThrow()
   })
+})
+
+describe("S8/S13 audiovisual evidence helpers", () => {
+  it("reports the duration of the audio actually sent, within the server bounds", () => {
+    expect(avWindowDurationMs(38_400)).toBe(2400)
+    expect(avWindowDurationMs(48_000)).toBe(3000)
+    expect(avWindowDurationMs(30_720)).toBe(1920)
+    expect(avWindowDurationMs(100)).toBe(500)
+    expect(avWindowDurationMs(1_000_000)).toBe(30_000)
+    expect(avWindowDurationMs(0)).toBe(AV_NOMINAL_WINDOW_MS)
+  })
+
+  it("flags a failure streak once and starts over after a success", () => {
+    const tracker = new AVFailureTracker(2)
+    expect(tracker.failure()).toBe(false)
+    expect(tracker.failure()).toBe(true)
+    expect(tracker.failure()).toBe(false)
+    expect(tracker.consecutive).toBe(3)
+    tracker.success()
+    expect(tracker.consecutive).toBe(0)
+    expect(tracker.failure()).toBe(false)
+    expect(tracker.failure()).toBe(true)
+  })
+
+  it.each(["STREAM_ERROR", "MODEL_UNAVAILABLE", "VIDEO_MISSING", "AUDIO_MISSING", "WINDOW_GAP"] as const)(
+    "keeps %s in the durable queue and restores it from storage",
+    kind => {
+      const send = vi.fn()
+      const first = new IncidentQueue("kinds", send, vi.fn())
+      expect(first.add({ kind })).toBe(true)
+      expect(new IncidentQueue("kinds", send, vi.fn()).size).toBe(1)
+    },
+  )
 })

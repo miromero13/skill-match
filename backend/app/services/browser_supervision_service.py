@@ -11,6 +11,9 @@ from app.schemas.browser_supervision import AVWindowRequest, IncidentResponse
 from app.services.continuous_supervision_service import ContinuousSupervisionService
 
 LOCKED = "Esta prueba está activa en otra pestaña o perdió su autorización. Esperá hasta 20 segundos y reintentá."
+DEFAULT_CADENCE_MS = 2400  # expected spacing of audiovisual windows when the client does not say
+GAP_FACTOR = 3  # no window for more than this many cadences while the lease is active is a gap
+MAX_DURATION_MS = 86_400_000
 
 
 def utcnow():
@@ -74,6 +77,9 @@ class BrowserSupervisionService:
         cls.leased(trial, tab_id, now)
         if action == "heartbeat":
             trial.lease_until = now + timedelta(seconds=20)
+            since = cls.gap_since(trial, now, DEFAULT_CADENCE_MS)
+            if since is not None:
+                await cls.record_gap(db, trial, since, now)
         else:
             trial.tab_id = None
             trial.lease_until = None
@@ -81,6 +87,31 @@ class BrowserSupervisionService:
                 trial.closed_at = now
         await db.commit()
         return trial
+
+    @staticmethod
+    def gap_since(trial, now, cadence_ms):
+        """Start of an open window gap (the last window's receipt time), or None."""
+        last = trial.last_av_window_at
+        if last is not None and now - last > timedelta(milliseconds=GAP_FACTOR * cadence_ms):
+            return last
+        return None
+
+    @staticmethod
+    async def record_gap(db, trial, since, now):
+        """One WINDOW_GAP row per gap (id derived from the gap start); later sightings extend it."""
+        gap_ms = min(int((now - since).total_seconds() * 1000), MAX_DURATION_MS)
+        event_id = uuid.uuid5(trial.id, f"gap:{since.astimezone(timezone.utc).isoformat()}")
+        row = (await db.execute(select(BrowserIncident).where(
+            BrowserIncident.trial_id == trial.id, BrowserIncident.event_id == event_id,
+        ))).scalar_one_or_none()
+        if row is not None:
+            row.duration_ms = max(row.duration_ms, gap_ms)
+            return row
+        trial.event_count += 1
+        row = BrowserIncident(trial_id=trial.id, event_id=event_id, sequence=trial.event_count, kind="WINDOW_GAP",
+                              observed_at=since, received_at=now, duration_ms=gap_ms)
+        db.add(row)
+        return row
 
     @classmethod
     async def append(cls, db, user, trial_id, payload):
@@ -134,9 +165,16 @@ class BrowserSupervisionService:
             mode=payload.mode,
             biometric_embedding_json=user.biometric_embedding,
             trial_id=str(trial.id),
+            duration_ms=payload.duration_ms,
         )
 
         created_incidents = []
+        anomalies = list(result["anomalies"])
+        since = cls.gap_since(trial, now, payload.duration_ms)
+        trial.last_av_window_at = now
+        if since is not None:
+            created_incidents.append(await cls.record_gap(db, trial, since, now))
+            anomalies.append("WINDOW_GAP")
         for anomaly in result["anomalies"]:
             event_id = uuid.uuid5(payload.window_id, anomaly)
             existing = (await db.execute(select(BrowserIncident).where(
@@ -158,8 +196,7 @@ class BrowserSupervisionService:
             else:
                 created_incidents.append(existing)
 
-        if created_incidents:
-            await db.commit()
+        await db.commit()
 
         return {
             "window_id": payload.window_id,
@@ -171,6 +208,6 @@ class BrowserSupervisionService:
             "mouth_sync": result["mouth_sync"],
             "multiple_speakers": result["multiple_speakers"],
             "noise_level": result["noise_level"],
-            "anomalies": result["anomalies"],
+            "anomalies": anomalies,
             "incidents_created": [IncidentResponse.model_validate(inc) for inc in created_incidents],
         }
