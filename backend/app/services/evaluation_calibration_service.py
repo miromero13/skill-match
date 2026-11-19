@@ -1,5 +1,7 @@
 import secrets
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
 
 from sqlalchemy import select, update
 from starlette.concurrency import run_in_threadpool
@@ -10,12 +12,24 @@ from app.models.evaluation import Evaluation
 from app.models.user import UserRole
 from app.schemas.calibration import CalibrationStateResponse
 from app.services.calibration_vision_service import CalibrationVisionService
+from app.services.integrity import messages, thresholds as t, voiceprint as vp
+from app.services.integrity.calibration import REQUIRED_CHECKS
+from app.services.integrity.models import GazeZone
+
+
+@dataclass(frozen=True)
+class CalibrationSeed:
+    """What a valid calibration gives a supervision trial. Server-side only: it is never serialized into a response."""
+
+    gaze_zone: GazeZone
+    voiceprint: dict[str, Any]
+    ambient_rms: Optional[float]  # the noise floor measured in the silent step (also inside ``voiceprint``)
+    occlusion_ref: dict[str, float]
 
 
 class EvaluationCalibrationService:
-    REQUIRED_CHECKS = {"lighting", "framing", "single_face", "microphone", "background_quiet",
-                       "identity", "liveness", "passive_screen_check", "single_speaker",
-                       "no_overlap", "mouth_audio_sync", "speech_pause"}
+    # Every check of the engine's calibration (camera, faces, identity, pose, gaze zone, silence, speech, voice, ...).
+    REQUIRED_CHECKS = REQUIRED_CHECKS
 
     @staticmethod
     async def owned(db, user, evaluation_id, *, lock=False):
@@ -61,7 +75,10 @@ class EvaluationCalibrationService:
         ).order_by(CalibrationChallenge.created_at.desc(), CalibrationChallenge.id.desc()).limit(1))
         enrollment_matches = latest is not None and latest.enrollment_hash == user.biometric_face_hash
         checks = latest.checks if enrollment_matches and latest.checks else {}
-        ready = (evaluation.status == "READY_FOR_THEORY"
+        # Ready needs every check AND the three things supervision is seeded with: no clean pass by omission.
+        complete = latest is not None and all(
+            bool(value) for value in (latest.gaze_zone, latest.voiceprint, latest.occlusion_ref))
+        ready = (evaluation.status == "READY_FOR_THEORY" and complete
                  and set(checks) == cls.REQUIRED_CHECKS and all(value is True for value in checks.values()))
         return CalibrationStateResponse(
             evaluation_id=evaluation.id, ready=ready,
@@ -81,15 +98,50 @@ class EvaluationCalibrationService:
             raise SkillMatchException(statuscode=410, message="El reto venció. Solicitá uno nuevo; tu intento no se descontó.")
         if challenge.enrollment_hash != user.biometric_face_hash:
             raise SkillMatchException(statuscode=409, message="Tu enrolamiento cambió. Solicitá un nuevo reto.")
-        checks = await run_in_threadpool(
-            CalibrationVisionService.assess, payload.frames, payload.audio_samples,
-            payload.camera_label, challenge.action, user.biometric_embedding, payload.ambient_audio_samples,
-            payload.spoken_frames,
-        )
+        output = await run_in_threadpool(
+            CalibrationVisionService.assess, payload, challenge.action, user.biometric_embedding)
+        checks = output.checks
         if set(checks) != cls.REQUIRED_CHECKS or not all(value is True for value in checks.values()):
-            raise SkillMatchException(statuscode=400, message="La calibración no completó todas las comprobaciones.")
+            raise SkillMatchException(statuscode=400, message=messages.INCOMPLETE)
         challenge.consumed_at = datetime.now(timezone.utc)
         challenge.checks = checks
+        challenge.gaze_zone = output.gaze_zone.to_dict()
+        challenge.voiceprint = output.voiceprint
+        challenge.occlusion_ref = output.occlusion_ref
         evaluation.status = "READY_FOR_THEORY"
         await db.commit()
         return await cls.state(db, user, evaluation_id)
+
+    @classmethod
+    async def valid_seed(cls, db, user, now: Optional[datetime] = None) -> Optional[CalibrationSeed]:
+        """The zone, voiceprint, ambient floor and occlusion reference of the member's latest valid calibration.
+
+        Valid means: passed every required check, made by this member for the face they are enrolled with now, not
+        older than ``CAL_MAX_AGE_HOURS``, with all three inputs stored and readable. Anything else is None (the
+        trial then starts unseeded and uses its own calibration endpoints).
+        """
+        now = now or datetime.now(timezone.utc)
+        row = await db.scalar(select(CalibrationChallenge).join(
+            Evaluation, Evaluation.id == CalibrationChallenge.evaluation_id,
+        ).where(
+            Evaluation.user_id == user.id,
+            CalibrationChallenge.consumed_at.is_not(None),
+            CalibrationChallenge.consumed_at >= now - timedelta(hours=t.CAL_MAX_AGE_HOURS),
+            CalibrationChallenge.enrollment_hash == user.biometric_face_hash,
+            CalibrationChallenge.gaze_zone.is_not(None),
+            CalibrationChallenge.voiceprint.is_not(None),
+            CalibrationChallenge.occlusion_ref.is_not(None),
+        ).order_by(CalibrationChallenge.consumed_at.desc(), CalibrationChallenge.id.desc()).limit(1))
+        if row is None or not user.biometric_face_hash:
+            return None
+        if not all(isinstance(value, dict) and value for value in (row.gaze_zone, row.voiceprint, row.occlusion_ref)):
+            return None  # a JSON null is not a stored input
+        checks = row.checks or {}
+        if set(checks) != cls.REQUIRED_CHECKS or not all(value is True for value in checks.values()):
+            return None
+        try:
+            zone = GazeZone.from_dict(row.gaze_zone)
+            vp.embedding_of(row.voiceprint)
+        except (KeyError, TypeError, ValueError, vp.SpeakerModelUnavailable):
+            return None
+        return CalibrationSeed(zone, dict(row.voiceprint), vp.ambient_rms_of(row.voiceprint), dict(row.occlusion_ref))

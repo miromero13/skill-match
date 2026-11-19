@@ -160,7 +160,17 @@ class CatalogService:
         if search:
             stmt = stmt.where(func.lower(Skill.name).contains(search.strip().lower()))
         result = await db.execute(stmt)
-        return list(result.scalars().unique().all())
+        items = list(result.scalars().unique().all())
+        if not public_only:
+            repaired = False
+            for item in items:
+                if not item.levels:
+                    item.levels = [_make_level({"level_number": number, "name": name})
+                                   for number, name in CANONICAL_LEVELS.items()]
+                    repaired = True
+            if repaired:
+                await _commit_catalog(db)
+        return items
 
     @staticmethod
     async def get_skill(db, skill_id, public_only=False):
@@ -170,6 +180,10 @@ class CatalogService:
         item = (await db.execute(stmt)).scalar_one_or_none()
         if item is None:
             raise _not_found("Habilidad no encontrada")
+        if not public_only and not item.levels:
+            item.levels = [_make_level({"level_number": number, "name": name})
+                           for number, name in CANONICAL_LEVELS.items()]
+            await _commit_catalog(db)
         return item
 
     @staticmethod
@@ -184,7 +198,7 @@ class CatalogService:
         await CatalogService._validate_skill_references(db, request.category_id, request.challenge_type_id)
         await _ensure_unique_name(db, Skill, request.name, Skill.category_id == request.category_id)
         levels = request.levels
-        if levels is None:
+        if not levels:
             levels = [{"level_number": number, "name": name} for number, name in CANONICAL_LEVELS.items()]
         item = Skill(
             category_id=request.category_id, challenge_type_id=request.challenge_type_id,

@@ -1,8 +1,13 @@
 import { apiClient } from "@/services/api-client"
+import type { GazeCalibrationPoint } from "@/services/browser-supervision"
+import type { MouthSampleDTO } from "@/services/gaze-tracking"
 
 export interface EvaluationPreflight {
   teaching_skill_id: string
   skill_name: string
+  declared_level?: string | null
+  declared_level_label?: string | null
+  target_level_number?: number
   syllabus: string
   requirements: string[]
   stages: string[]
@@ -42,12 +47,21 @@ export interface CalibrationState {
   checks: Record<string, boolean>
 }
 
+/** Body of `POST /evaluations/{id}/liveness/verify-identity`; the server rejects extra fields and any missing one. */
 export interface CalibrationEvidence {
   challenge_id: string
+  /** 3 to 12 JPEGs of the head movement. */
   frames: string[]
-  audio_samples: number[]
+  /** Exactly one point per target (CENTER and the four corners), 1 to 6 JPEGs each. */
+  gaze_points: GazeCalibrationPoint[]
+  /** 16 kHz silence (32000 to 64000 samples). */
   ambient_audio_samples: number[]
+  /** 16 kHz phrase then pause (112000 to 160000 samples); nothing may be said from 4.5 s on. */
+  audio_samples: number[]
+  /** 20 to 100 JPEGs, `time_ms` counted from the start of `audio_samples`. */
   spoken_frames: { time_ms: number; image: string }[]
+  /** 8 to 450 mouth readings, `t_ms` counted from the start of `audio_samples`. */
+  mouth_samples: MouthSampleDTO[]
   camera_label: string
 }
 

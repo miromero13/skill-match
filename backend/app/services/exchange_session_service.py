@@ -14,6 +14,7 @@ from app.models.exchange_session import (
     ExchangeSession,
     SessionAuditEvent,
     SessionCancellation,
+    SessionConfirmation,
     SessionQuotaMovement,
     WeeklySessionQuota,
 )
@@ -140,8 +141,14 @@ async def get_match_session_options(
     bilateral = await db.scalar(
         select(UserBlock.id).where(
             or_(
-                and_(UserBlock.blocker_id == participant_ids[0], UserBlock.blocked_id == participant_ids[1]),
-                and_(UserBlock.blocker_id == participant_ids[1], UserBlock.blocked_id == participant_ids[0]),
+                and_(
+                    UserBlock.blocker_id == participant_ids[0],
+                    UserBlock.blocked_id == participant_ids[1],
+                ),
+                and_(
+                    UserBlock.blocker_id == participant_ids[1],
+                    UserBlock.blocked_id == participant_ids[0],
+                ),
             )
         )
     )
@@ -178,7 +185,9 @@ async def get_match_session_options(
     directions: list[SessionBookingDirection] = []
 
     for instructor_id in participant_ids:
-        learner_id = participant_ids[1] if instructor_id == participant_ids[0] else participant_ids[0]
+        learner_id = (
+            participant_ids[1] if instructor_id == participant_ids[0] else participant_ids[0]
+        )
         rows = (
             await db.execute(
                 select(TeachingSkill, Skill.name)
@@ -459,11 +468,43 @@ async def _notify_counterpart(
     )
 
 
-async def _response(db: AsyncSession, item: ExchangeSession) -> ExchangeSessionResponse:
+async def _response(
+    db: AsyncSession, item: ExchangeSession, actor_id: UUID | None = None
+) -> ExchangeSessionResponse:
     payload = ExchangeSessionResponse.model_validate(item).model_dump()
     payload["booking_blocked_until"] = (
         await _active_booking_block(db, item.cancelled_by_id) if item.cancelled_by_id else None
     )
+    if actor_id:
+        counterpart_id = item.learner_id if actor_id == item.instructor_id else item.instructor_id
+        my_conf = (
+            await db.execute(
+                select(SessionConfirmation).where(
+                    SessionConfirmation.session_id == item.id,
+                    SessionConfirmation.user_id == actor_id,
+                )
+            )
+        ).scalar_one_or_none()
+        counterpart_conf = (
+            await db.execute(
+                select(SessionConfirmation).where(
+                    SessionConfirmation.session_id == item.id,
+                    SessionConfirmation.user_id == counterpart_id,
+                )
+            )
+        ).scalar_one_or_none()
+        now = datetime.now(UTC)
+        payload["my_confirmation"] = my_conf is not None
+        payload["counterpart_confirmation"] = counterpart_conf is not None
+        payload["can_confirm"] = (
+            item.status == "ACCEPTED" and now >= item.ends_at and my_conf is None
+        )
+        payload["can_report_noshow"] = (
+            item.status == "ACCEPTED"
+            and now >= item.ends_at
+            and counterpart_conf is None
+            and item.status != "COMPLETED"
+        )
     return ExchangeSessionResponse.model_validate(payload)
 
 
@@ -578,7 +619,7 @@ async def list_for_member(
             )
         )
     ).scalar_one_or_none() or 0
-    return [await _response(db, row) for row in rows], total, max(0, FREE_LIMIT - used)
+    return [await _response(db, row, actor.id) for row in rows], total, max(0, FREE_LIMIT - used)
 
 
 async def update_status(

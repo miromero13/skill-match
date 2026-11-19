@@ -25,6 +25,43 @@ export async function computeBlobSha256Hex(blob: Blob): Promise<string> {
   return ""
 }
 
+export interface TrainedModelMetrics {
+  test_samples: number
+  train_participants: number
+  test_participants: number
+  rule_baseline_accuracy: number
+  trained_exact_accuracy: number
+  trained_within_one_level_accuracy: number
+  beats_rule_baseline: boolean
+  confusion_matrix: number[][]
+  loss_history: Array<{ epoch: number; loss: number }>
+  dataset_source?: string
+  real_samples_count?: number
+  synthetic_samples_count?: number
+  total_samples_count?: number
+  latency_ms_per_inference?: number
+  touch_mae?: number
+  skill_id?: string | null
+}
+
+export interface TrainedModelVersion {
+  id: string
+  nombre: string
+  version: string
+  ruta_onnx: string
+  activa: boolean
+  metricas: TrainedModelMetrics
+  created_at: string
+}
+
+export interface TrainingStatus {
+  status: "queued" | "running" | "done" | "failed"
+  processed: number | null
+  total: number | null
+  message: string | null
+  result: TrainedModelVersion | null
+}
+
 export const footballValidationApi = {
   async createSession(
     skillId?: string
@@ -118,73 +155,23 @@ export const footballValidationApi = {
     )
   },
 
-  async trainLevelModel(payload: {
+  async enqueueTraining(payload: {
     version_tag?: string
     activate?: boolean
     dataset_source?: "all" | "custom_ids"
     sample_ids?: string[]
     skill_id?: string
-  }): Promise<
-    APIResponse<{
-      id: string
-      nombre: string
-      version: string
-      ruta_onnx: string
-      activa: boolean
-      metricas: {
-        test_samples: number
-        train_participants: number
-        test_participants: number
-        rule_baseline_accuracy: number
-        trained_exact_accuracy: number
-        trained_within_one_level_accuracy: number
-        beats_rule_baseline: boolean
-        confusion_matrix: number[][]
-        loss_history: Array<{ epoch: number; loss: number }>
-        dataset_source?: string
-        real_samples_count?: number
-        synthetic_samples_count?: number
-        total_samples_count?: number
-        latency_ms_per_inference?: number
-        touch_mae?: number
-        skill_id?: string | null
-      }
-      created_at: string
-    }>
-  > {
+  }): Promise<APIResponse<{ task_id: string }>> {
     return apiClient.post("/football/training/train", payload)
   },
 
-  async listModelVersions(): Promise<
-    APIResponse<
-      Array<{
-        id: string
-        nombre: string
-        version: string
-        ruta_onnx: string
-        activa: boolean
-        metricas: {
-          test_samples: number
-          train_participants: number
-          test_participants: number
-          rule_baseline_accuracy: number
-          trained_exact_accuracy: number
-          trained_within_one_level_accuracy: number
-          beats_rule_baseline: boolean
-          confusion_matrix: number[][]
-          loss_history: Array<{ epoch: number; loss: number }>
-          dataset_source?: string
-          real_samples_count?: number
-          synthetic_samples_count?: number
-          total_samples_count?: number
-          latency_ms_per_inference?: number
-          touch_mae?: number
-          skill_id?: string | null
-        }
-        created_at: string
-      }>
-    >
-  > {
+  async getTrainingStatus(taskId: string): Promise<APIResponse<TrainingStatus>> {
+    return apiClient.get(`/football/training/train/${taskId}/status`, {
+      showToastOnError: false,
+    })
+  },
+
+  async listModelVersions(): Promise<APIResponse<TrainedModelVersion[]>> {
     return apiClient.get("/football/training/models")
   },
 

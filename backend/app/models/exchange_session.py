@@ -34,8 +34,12 @@ class ExchangeSession(Base, TimestampMixin):
             name="ck_exchange_sessions_modality",
         ),
         CheckConstraint(
-            "status IN ('PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED')",
+            "status IN ('PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'COMPLETED')",
             name="ck_exchange_sessions_status",
+        ),
+        CheckConstraint(
+            "actual_minutes IS NULL OR (actual_minutes >= 1 AND actual_minutes <= 60)",
+            name="ck_exchange_sessions_actual_minutes",
         ),
         CheckConstraint(
             "points_required IS NULL OR points_required >= 0",
@@ -91,6 +95,9 @@ class ExchangeSession(Base, TimestampMixin):
     )
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     quota_restored: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    actual_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completion_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
 
 class WeeklySessionQuota(Base, TimestampMixin):
@@ -205,7 +212,8 @@ class SessionAuditEvent(Base):
         CheckConstraint(
             "event_type IN "
             "('CREATED', 'ACCEPTED', 'REJECTED', 'RESCHEDULED', 'CANCELLED', "
-            "'QUOTA_RESERVED', 'QUOTA_RELEASED', 'QUOTA_RESTORED', 'BOOKING_BLOCKED')",
+            "'QUOTA_RESERVED', 'QUOTA_RELEASED', 'QUOTA_RESTORED', 'BOOKING_BLOCKED', "
+            "'CONFIRMATION_RECORDED', 'COMPLETED', 'NO_SHOW_REPORTED')",
             name="ck_session_audit_events_type",
         ),
         Index("ix_session_audit_events_session_time", "session_id", "created_at"),
@@ -353,3 +361,112 @@ class SessionReminderWebPushDelivery(Base, TimestampMixin):
     last_error_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
     skipped_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SessionConfirmation(Base):
+    __tablename__ = "session_confirmations"
+    __table_args__ = (
+        CheckConstraint(
+            "actual_minutes >= 1 AND actual_minutes <= 60",
+            name="ck_session_confirmations_minutes",
+        ),
+        CheckConstraint(
+            "modality IN ('VIRTUAL', 'PRESENCIAL')",
+            name="ck_session_confirmations_modality",
+        ),
+        UniqueConstraint("session_id", "user_id", name="uq_session_confirmations_session_user"),
+        UniqueConstraint("request_key", name="uq_session_confirmations_request_key"),
+        Index("ix_session_confirmations_session_user", "session_id", "user_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("exchange_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    actual_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    topics: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    modality: Mapped[str] = mapped_column(String(20), nullable=False)
+    confirmed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    request_key: Mapped[UUID] = mapped_column(nullable=False)
+
+
+class SessionPresencePin(Base):
+    __tablename__ = "session_presence_pins"
+    __table_args__ = (
+        CheckConstraint(
+            "attempt_count >= 0 AND attempt_count <= 5",
+            name="ck_session_presence_pins_attempts",
+        ),
+        UniqueConstraint("session_id", "user_id", name="uq_session_presence_pins_session_user"),
+        Index("ix_session_presence_pins_lookup", "session_id", "user_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("exchange_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    pin_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+
+
+class SessionNoShowReport(Base):
+    __tablename__ = "session_no_show_reports"
+    __table_args__ = (
+        CheckConstraint(
+            "reported_by_id <> absent_user_id", name="ck_session_no_show_distinct_users"
+        ),
+        CheckConstraint(
+            "length(btrim(reason)) BETWEEN 10 AND 500", name="ck_session_no_show_reason"
+        ),
+        CheckConstraint(
+            "status IN ('PENDING_REPUTATION', 'PROCESSED', 'DISMISSED')",
+            name="ck_session_no_show_status",
+        ),
+        UniqueConstraint("session_id", "absent_user_id", name="uq_session_no_show_session_absent"),
+        UniqueConstraint("request_key", name="uq_session_no_show_request_key"),
+        Index("ix_session_no_show_session", "session_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("exchange_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    reported_by_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    absent_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING_REPUTATION")
+    reported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )
+    request_key: Mapped[UUID] = mapped_column(nullable=False)

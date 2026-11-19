@@ -11,6 +11,7 @@ from app.models.user import User
 from app.schemas.dataset_sample import DatasetSampleCreate, DatasetSampleResponse
 from app.schemas.response import APIResponse
 from app.services.dataset_sample_service import DatasetSampleService
+from app.services.dataset_storage_service import DatasetStorageService
 
 router = APIRouter(
     prefix="/ai/datasets/samples",
@@ -100,6 +101,27 @@ async def upload_dataset_sample(
         statuscode=status.HTTP_201_CREATED,
         message="Muestra multimedia subida y procesada exitosamente.",
         data=sample,
+    )
+
+
+@router.get(
+    "/{sample_id}/preview-url",
+    response_model=APIResponse[dict[str, str]],
+    status_code=status.HTTP_200_OK,
+    summary="Obtener URL temporal para previsualizar una muestra",
+    description="Genera una URL firmada de corta duración para reproducir el archivo subido. Requiere rol ADMIN.",
+)
+async def get_dataset_sample_preview_url(
+    sample_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    sample = await DatasetSampleService.get_sample(db=db, sample_id=sample_id)
+    preview_url = DatasetStorageService.get_preview_url(sample.storage_path)
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message="URL de vista previa generada exitosamente.",
+        data={"preview_url": preview_url, "file_format": sample.file_format},
     )
 
 

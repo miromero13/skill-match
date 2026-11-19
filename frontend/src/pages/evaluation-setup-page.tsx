@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useEvaluationPreflightStore } from "@/stores/evaluation-preflight-store"
+import { browserSupervisionTrialEnabled } from "@/lib/feature-flags"
 import { CalibrationPanel } from "@/components/evaluations/calibration-panel"
 
 const steps = [
@@ -68,18 +69,20 @@ export function EvaluationSetupPage() {
           <p className="sr-only">Paso {currentStep} de 3</p>
           {currentStep === 3 && consent ? <>
             <p className="sr-only">Consentimiento registrado</p>
-            <CalibrationPanel key={consent.id} evaluationId={consent.id} onBack={() => { setStep(2); setReviewing(true) }} />
+            <CalibrationPanel key={consent.id} evaluationId={consent.id} targetLevel={preflight.target_level_number} onBack={() => { setStep(2); setReviewing(true) }} />
             <p className="text-xs text-muted-foreground">El intento todavía no comenzó ni se descontó.</p>
           </> : step === 1 ? <>
             <Card className="rounded-xl border bg-muted/20 py-0 shadow-none ring-0">
               <CardContent className="gap-4 p-4 sm:p-5">
                 <h2 className="text-xs leading-relaxed font-bold text-primary uppercase">Paso 1 de 3: instrucciones generales</h2>
-                <p className="text-xs leading-relaxed text-muted-foreground">Revisá la habilidad declarada en tu perfil y las condiciones antes de continuar con las normas de integridad.</p>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <p className="text-xs leading-relaxed text-muted-foreground">Revisá la habilidad y el nivel declarados en tu perfil, junto con las condiciones antes de continuar con las normas de integridad.</p>
+                <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-1.5"><Label htmlFor="evaluation-skill" className="text-[11px] font-bold text-muted-foreground uppercase">Habilidad declarada en tu perfil</Label>
-                    <Input id="evaluation-skill" value={preflight.skill_name} readOnly className="h-11 border-primary bg-card font-semibold" /></div>
+                    <Input id="evaluation-skill" value={preflight.skill_name} readOnly disabled className="h-11 border-primary bg-card font-semibold disabled:opacity-100 disabled:cursor-default" /></div>
+                  <div className="space-y-1.5"><Label htmlFor="evaluation-level" className="text-[11px] font-bold text-muted-foreground uppercase">Nivel objetivo a validar</Label>
+                    <Input id="evaluation-level" value={preflight.declared_level_label ?? `Nivel ${preflight.target_level_number ?? 1} · Principiante`} readOnly disabled className="h-11 border-primary/50 bg-card font-semibold text-primary disabled:opacity-100 disabled:cursor-default" /></div>
                   <div className="space-y-1.5"><Label htmlFor="evaluation-duration" className="text-[11px] font-bold text-muted-foreground uppercase">Duración estimada</Label>
-                    <Input id="evaluation-duration" value={preflight.estimated_duration_minutes === null ? "Pendiente de configurar" : `${preflight.estimated_duration_minutes} minutos`} readOnly className="h-11 bg-card" /></div>
+                    <Input id="evaluation-duration" value={`${preflight.estimated_duration_minutes ?? 20} minutos`} readOnly disabled className="h-11 bg-card font-medium disabled:opacity-100 disabled:cursor-default" /></div>
                 </div>
                 <div className="space-y-2 border-t pt-4">
                   <h3 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="size-4 text-primary" aria-hidden="true" />Temario de la prueba</h3>
@@ -127,7 +130,7 @@ export function EvaluationSetupPage() {
             </div>
           </>}
           <p className="text-xs leading-relaxed text-muted-foreground">Leer las instrucciones y aceptar el consentimiento no consume tu intento.</p>
-          <Button asChild variant="outline"><Link to="/app/browser-supervision-test">Probar controles del navegador (SM-43, sin examen)</Link></Button>
+          {browserSupervisionTrialEnabled && <Button asChild variant="outline"><Link to="/app/browser-supervision-test">Probar controles del navegador (SM-43, sin examen)</Link></Button>}
           {currentStep !== 2 && <p className="text-xs text-muted-foreground">Habilidades gratuitas disponibles: {preflight.free_evaluations_left}/3 · Intentos utilizados para esta habilidad: {preflight.attempts_used}/1</p>}
         </>}
       </CardContent>

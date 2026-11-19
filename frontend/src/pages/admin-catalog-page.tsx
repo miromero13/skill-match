@@ -131,7 +131,18 @@ export function AdminCatalogPage() {
     setSkillFormDescription("")
     setSkillFormThreshold(80)
     setSkillFormIsReady(false)
-    setSkillFormLevels([])
+    setSkillFormLevels(
+      CANONICAL_LEVELS_DEF.map((lvl) => ({
+        level_number: lvl.level_number,
+        name: lvl.name,
+        description: "",
+        rubric: {
+          min_score: lvl.defaultMinScore,
+          instructions: "",
+          criteria: [],
+        },
+      }))
+    )
     setActiveLevelTab("1")
     openCreateSkillModal()
   }
@@ -144,7 +155,21 @@ export function AdminCatalogPage() {
     setSkillFormThreshold(skill.min_approval_threshold)
     setSkillFormIsReady(skill.is_ready_to_publish)
 
-    const existingLevels = (skill.levels || []).map((l) => ({
+    const rawLevels =
+      skill.levels && skill.levels.length > 0
+        ? skill.levels
+        : CANONICAL_LEVELS_DEF.map((lvl) => ({
+            level_number: lvl.level_number,
+            name: lvl.name,
+            description: "",
+            rubric: {
+              min_score: lvl.defaultMinScore,
+              instructions: "",
+              criteria: [],
+            },
+          }))
+
+    const existingLevels = rawLevels.map((l) => ({
       level_number: l.level_number,
       name: l.name,
       description: l.description || "",

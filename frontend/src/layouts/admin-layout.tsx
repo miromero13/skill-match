@@ -12,6 +12,7 @@ import {
   Scale,
   Brain,
   Video,
+  Code2,
   Menu,
   X,
   LogOut,
@@ -51,6 +52,12 @@ export function AdminLayout() {
       visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-10)
     },
     {
+      label: "Banco de Preguntas",
+      to: "/admin/theory/questions",
+      icon: BookOpen,
+      visible: user?.role === "ADMIN",
+    },
+    {
       label: "Catálogo de Habilidades",
       to: "/admin/catalog",
       icon: BookOpen,
@@ -75,6 +82,12 @@ export function AdminLayout() {
       visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-17 / RF-IA-18)
     },
     {
+      label: "Retos",
+      to: "/admin/challenges",
+      icon: Code2,
+      visible: user?.role === "ADMIN",
+    },
+    {
       label: "IA & Datasets",
       to: "/admin/ai-datasets",
       icon: Brain,
@@ -94,6 +107,7 @@ export function AdminLayout() {
 
   // Título dinámico para el breadcrumb de la barra superior
   const getBreadcrumbTitle = () => {
+    if (location.pathname.includes("/admin/theory/questions")) return "Banco de Preguntas"
     if (location.pathname.includes("/admin/dashboard")) {
       return "Dashboard & Analítica"
     }
@@ -105,6 +119,9 @@ export function AdminLayout() {
     }
     if (location.pathname.includes("/admin/capture") || location.pathname.includes("/admin/ai-datasets")) {
       return "Ingesta y Captura de Muestras Multimedia"
+    }
+    if (location.pathname.includes("/admin/challenges")) {
+      return "Retos"
     }
     return "Panel Central de Control"
   }

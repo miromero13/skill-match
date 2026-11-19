@@ -12,7 +12,8 @@ Backend asíncrono para la plataforma de intercambio colaborativo de habilidades
 - **Seguridad:** Middlewares de CORS, compresión GZip, cabeceras preventivas y tokens JWT con claim dinámico de rol (`MEMBER` o `ADMIN`).
 - **Documentación Viva:** Swagger UI interactivo en `/docs` y ReDoc en `/redoc`.
 - **Prueba de navegador (SM-43):** sesiones de ensayo e incidentes reales en `/api/browser-supervision/trials`, separados del examen y de los cupos. Requiere la migración aditiva `bc43a710d962` con autorización explícita, no se aplica al arrancar. Vista MEMBER `/app/browser-supervision-test`; guía, límites y pruebas: [`docs/browser-supervision.md`](../docs/browser-supervision.md). No incluye cámara/audio continuo ni sanciones.
-- **Integridad audiovisual local (SM-44):** `webrtcvad-wheels==2.0.14` y `sherpa-onnx==2.0.1`, sin API de audio en la nube. Tras movimiento y fondo se capturan8s de voz/pausa con video sincronizado para estimar varios hablantes, superposición y movimiento de boca coincidente. Instalar dependencias y ejecutar desde `backend`: `.venv/bin/python scripts/install_calibration_audio_models.py`; verificar sin red con `--verify-only`. Modelos/hashes/licencias: [`docs/models/audio-integrity/README.md`](../docs/models/audio-integrity/README.md); contrato/límites/pruebas: [`docs/evaluation-calibration.md`](../docs/evaluation-calibration.md). No hay descargas durante solicitudes ni aprobación degradada sin detector/modelos. Prototipo pendiente de prueba física/revisión independiente, no garantía anticopia.
+- **Integridad audiovisual local (SM-44) y calibración sobre el motor de integridad:** `webrtcvad-wheels==2.0.14` y `sherpa-onnx==2.0.1`, sin API de audio en la nube. La calibración previa al examen (`POST /api/evaluations/{id}/liveness/verify-identity`) usa los mismos analizadores y umbrales que la supervisión (`app/services/integrity/`): movimiento con pose 3D, centro y cuatro esquinas de mirada, silencio, frase de control con video y lecturas de boca del navegador; guarda zona de mirada, huella de voz y referencia de oclusión (columnas JSON, migración `f3a8d2c19e47`) que nunca se devuelven. La evidencia nueva es obligatoria y sin el modelo de embeddings de hablante no hay calibración lista (503). Instalar dependencias y ejecutar desde `backend`: `.venv/bin/python scripts/install_calibration_audio_models.py`; verificar sin red con `--verify-only`. Modelos/hashes/licencias: [`docs/models/audio-integrity/README.md`](../docs/models/audio-integrity/README.md); contrato, comprobaciones y límites: [`docs/evaluation-calibration.md`](../docs/evaluation-calibration.md). `POST /api/browser-supervision/trials/{id}/voice-calibration` exige además `frames` muestreados para verificar la telemetría de boca. No hay descargas durante solicitudes ni aprobación degradada sin detector/modelos. Prototipo pendiente de prueba física/revisión independiente, no garantía anticopia.
+- **Modelos faciales locales (S13 / T2):** YuNet, SFace (OpenCV Zoo, Apache-2.0) y MediaPipe `face_landmarker.task` (Apache-2.0) no se versionan (`*.onnx`, `weights/` ignorados). Descargar una vez con SHA-256 fijado, desde `backend`: `.venv/bin/python scripts/install_vision_models.py` (escritura atómica; rechaza cualquier archivo cuyo hash no coincida y nunca sobrescribe uno existente); verificar sin red con `--verify-only`. Se instalan en `app/models/weights/`. Al arrancar, la API registra un `ERROR` por cada modelo ausente o no cargable y sigue sirviendo el resto. Sin modelos el sistema **falla en cerrado**: el enrolamiento y la verificación de identidad responden `400` (imagen no decodificable) o `503` ("Servicio biométrico no disponible…", sin persistir nada ni rechazar al miembro), y las ventanas de supervisión registran el incidente `MODEL_UNAVAILABLE` con `face_count` 0 e identidad sin veredicto, nunca un rostro limpio ni un embedding sintético. MediaPipe se reintenta cada 30 s tras un fallo. Requiere `mediapipe>=1.2.3,<1.3` (en `requirements.txt` y `pyproject.toml`). Pruebas: `tests/test_vision_models_fail_closed.py`.
 
 ---
 
@@ -68,6 +69,22 @@ ADMIN_FULL_NAME="Administrador Principal"
 # Obtener en Google Cloud Console -> APIs & Services -> Credentials -> OAuth 2.0 Client IDs
 GOOGLE_CLIENT_ID="tu-google-client-id.apps.googleusercontent.com"
 
+# --- Corrección teórica opcional (texto; consentimiento explícito requerido) ---
+THEORY_GRADING_PROVIDER="disabled" # disabled | openai | gemini
+THEORY_GRADING_MODEL=""            # Identificador explícito, sin modelo por defecto
+OPENAI_API_KEY=""                  # [SECRETO] Si provider=openai
+GEMINI_API_KEY=""                  # [SECRETO] Si provider=gemini
+THEORY_GRADING_TIMEOUT_SECONDS=20
+THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory exams
+# BROWSER_SUPERVISION_TRIAL_ENABLED=true  # Sin definir = activo solo en development/test, nunca en production (production lo fuerza apagado aunque sea true)
+# INTEGRITY_DIAGNOSTICS_ENABLED=false  # Registro numérico por ventana AV para afinar umbrales (nunca imágenes, audio ni huellas); production lo fuerza apagado
+# INTEGRITY_DIAGNOSTICS_DIR="/tmp/skillmatch-integrity-diagnostics"  # Carpeta de los <trial_id>.jsonl; por defecto bajo el directorio temporal del SO
+
+# --- Sandbox seguro de programación (la imagen debe estar pre-descargada) ---
+SANDBOX_DOCKER_IMAGE="python:3.12-slim"
+SANDBOX_DOCKER_BINARY="docker"
+SANDBOX_MAX_CONCURRENT_RUNS=2
+
 
 
 # --- Almacenamiento de Evidencias y MinIO / Garage S3 (Coolify VPS) ---
@@ -91,31 +108,16 @@ GARAGE_S3_FORCE_PATH_STYLE=True
 REDIS_URL="redis://localhost:6379/0"
 CELERY_TASK_ALWAYS_EAGER=False
 
-# --- Correo transaccional SMTP ---
-# Gmail requiere verificación en dos pasos y una contraseña de aplicación.
-EMAIL_ENABLED=False
-SMTP_HOST="smtp.gmail.com"
-SMTP_PORT=587
-SMTP_USERNAME=""
-SMTP_PASSWORD=""
-SMTP_STARTTLS=True
-SMTP_TIMEOUT_SECONDS=15
-EMAIL_FROM_ADDRESS=""
-EMAIL_FROM_NAME="SkillMatch"
-EMAIL_REPLY_TO=""
-FRONTEND_BASE_URL="http://localhost:5173"
-
-# --- Web Push navegador/PWA (VAPID) ---
-# Genere un par diferente por entorno y conserve la clave privada solo en .env.
-WEB_PUSH_ENABLED=False
-VAPID_PUBLIC_KEY=""
-VAPID_PRIVATE_KEY=""
-VAPID_SUBJECT="mailto:soporte@example.com"
+# --- Economía de Puntos y Pasarela de Pagos (HU-42 / RF-SES-09 / RF-WAL-02) ---
+PAYMENT_GATEWAY_PROVIDER="sandbox"
+STRIPE_SECRET_KEY=""
+STRIPE_PUBLISHABLE_KEY=""
+PAYPAL_CLIENT_ID=""
+PAYPAL_CLIENT_SECRET=""
+WALLET_POINTS_PER_USD=10
+WALLET_CASHOUT_MIN_POINTS=100
+WALLET_PLATFORM_FEE_PERCENTAGE=15.0
 ```
-
-Las claves VAPID deben generarse fuera del repositorio y ser diferentes por entorno. La clave privada se guarda únicamente en `.env`; nunca se añade a `env.template`, logs, Swagger ni respuestas HTTP. Un miembro autenticado puede consultar la clave pública, registrar varios navegadores y revocar exclusivamente sus propias suscripciones mediante `/api/notifications/push/...`. Las respuestas muestran sólo una huella del endpoint y nunca la capability URL ni las claves del navegador.
-
-El worker Celery procesa entregas Web Push pendientes junto con los recordatorios de sesión. Cada evento se audita por dispositivo; `404/410` desactivan suscripciones expiradas y `429/5xx` se reintentan hasta tres veces. Para habilitar tráfico real deben configurarse las tres variables VAPID y ejecutarse un único Celery Beat más uno o más workers.
 
 ---
 
@@ -266,6 +268,21 @@ La variable `POSTGRES_DB` debe identificar esa base descartable durante las migr
 
 
 
+### Afinado de umbrales de integridad con sesiones reales (T11)
+
+Los umbrales de `app/services/integrity/thresholds.py` se ajustaron solo con datos sintéticos. Para afinarlos hacen falta sesiones reales etiquetadas:
+
+1. En el `.env` del backend (solo development; production lo fuerza apagado): `INTEGRITY_DIAGNOSTICS_ENABLED=true` y, opcionalmente, `INTEGRITY_DIAGNOSTICS_DIR`. Reiniciá el backend. Con el flag apagado no se escribe nada ni se crea la carpeta.
+2. Abrí `/app/browser-supervision-test` con el frontend en modo DEV, completá la calibración y elegí una **Etiqueta de prueba** (`normal`, `mirando_abajo`, `mirando_costado`, `mirando_arriba`, `ojos_abajo`, `boca_tapada`, `cara_tapada`, `camara_tapada`, `dos_personas`, `otra_voz`, `audio_dispositivo`, `hablando_yo`). Cada ventana de ~2,4 s se envía con esa etiqueta; cambiala cada vez que cambies de comportamiento y grabá un minuto o más de `normal` para medir falsas alarmas.
+3. Cada ventana agrega una línea JSON a `<INTEGRITY_DIAGNOSTICS_DIR>/<trial_id>.jsonl` con la etiqueta, las anomalías y solo medidas numéricas (pose, mirada, parpadeo, boca, oclusión, cámara, RMS y segundos con voz, similitud de voz, hablantes, correlación y solapamiento labios-voz). Nunca se escriben imágenes, audio, embeddings, la huella de voz, la zona de mirada ni la referencia de oclusión. La etiqueta no se guarda en la bitácora.
+4. Resumen por etiqueta (mín / p5 / mediana / p95 / máx, tasa de detección y falsas alarmas):
+
+```bash
+cd backend && .venv/bin/python scripts/integrity_tuning_report.py <INTEGRITY_DIAGNOSTICS_DIR>
+```
+
+Los archivos JSONL contienen datos de sesiones reales: borrá la carpeta al terminar.
+
 ## 7. Autenticación, sesiones y catálogo (HU-07, HU-08, HU-09, HU-10 y HU-12)
 
 ### Identidades y credenciales
@@ -288,30 +305,3 @@ La migración de catálogo conserva los registros y rehúsa nombres normalizados
 - `DELETE` de categoría/habilidad desactiva, no borra físicamente. La eliminación de habilidades con miembros vinculados devuelve 409; `PATCH` con `is_active=false` conserva las asociaciones.
 
 Las pruebas HTTP de esta entrega usan PostgreSQL aislado y mocks de Google. No acreditan disponibilidad de Google real, configuración de sus clientes ni ejecución en hardware nativo.
-
-### Agendamiento de sesiones HU-38
-
-La guía operativa para el equipo, incluidos el semillero determinista, los usuarios QA, la limpieza y los comandos de pruebas, está disponible en [`scripts/README_HU38_QA.md`](scripts/README_HU38_QA.md).
-
-- `GET /api/matches/{match_id}/session-options` es el contrato productivo previo a `POST /api/sessions`; no es una ruta de prueba y no reemplaza los cinco endpoints de sesiones.
-- Requiere MEMBER autenticado, pertenencia al match y estado `confirmed`. Un tercero obtiene 404 y un match no confirmado obtiene 409.
-- Devuelve únicamente direcciones de enseñanza respaldadas por `TeachingSkill` y `UserLearningSkill`, junto con `instructor_id`, `learner_id`, `teaching_skill_id`, modalidad y franjas comunes de 30/60 minutos para los próximos 14 días.
-- Las franjas ya consideran timezone IANA, disponibilidad activa de ambos miembros, modalidad, buffers, sesiones `PENDING`/`ACCEPTED` y bloqueos HU-26. Consultarlas no crea una sesión ni consume cupo.
-- El frontend debe usar esos identificadores y una franja devuelta para construir `POST /api/sessions`; nunca debe inferir UUID a partir de nombres.
-- `GET /api/sessions/{session_id}/calendar-export` permite a un participante exportar una sesión `ACCEPTED`. Devuelve en `APIResponse.data` `filename`, `content_type`, `ics_content` y `google_calendar_url`.
-- La exportación usa UTC y no constituye sincronización Google Calendar: no solicita scopes adicionales ni almacena tokens de Calendar.
-
-#### Procesos de recordatorios HU-38
-
-Con Redis disponible y `CELERY_TASK_ALWAYS_EAGER=False`, ejecutar en procesos separados desde `backend/`:
-
-```bash
-celery -A app.core.celery_app.celery_app worker --loglevel=info
-celery -A app.core.celery_app.celery_app beat --loglevel=info
-```
-
-- Beat ejecuta el barrido cada cinco minutos; desplegar una sola instancia de Beat.
-- Cada aviso de 24 h/1 h se persiste una sola vez por sesión, destinatario, umbral e inicio programado.
-- Una reprogramación usa una identidad nueva; sesiones pendientes, rechazadas o canceladas no son elegibles.
-- Redis transporta IDs ya confirmados hacia FastAPI para WebSocket. Una caída del canal no elimina la notificación durable de la bandeja.
-- En pruebas puede usarse `CELERY_TASK_ALWAYS_EAGER=True`; no se añadieron variables ni secretos nuevos.
