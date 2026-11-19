@@ -118,6 +118,30 @@ describe("SM-43 durable queue", () => {
     expect(queue.size).toBe(0)
   })
 
+  it("reserves the last slot of a full queue for a single STREAM_ERROR overflow marker and recovers after a sync", async () => {
+    const warning = vi.fn()
+    const sent: string[][] = []
+    const queue = new IncidentQueue("owner:trial", async (events) => {
+      sent.push(events.map((row) => row.kind))
+      return { accepted_ids: events.map((row) => row.event_id), event_count: events.length }
+    }, warning)
+    for (let i = 0; i < 499; i++) expect(queue.add({ kind: "COPY" })).toBe(true)
+    expect(warning).not.toHaveBeenCalled()
+    expect(queue.add({ kind: "PASTE" })).toBe(false) // the 500th ordinary event does not fit
+    expect(warning).toHaveBeenCalledWith(expect.stringMatching(/500 incidentes.*Reconectá/))
+    expect(queue.size).toBe(500)
+    expect(queue.add({ kind: "PASTE" })).toBe(false)
+    expect(queue.size).toBe(500) // a single marker, not one per dropped event
+    expect(JSON.parse(localStorage.getItem("owner:trial") ?? "[]").at(-1).kind).toBe("STREAM_ERROR")
+    await queue.flush()
+    expect(queue.size).toBe(0)
+    expect(sent.flat().filter((kind) => kind === "STREAM_ERROR")).toHaveLength(1)
+    expect(queue.add({ kind: "COPY" })).toBe(true) // accepting again after the sync
+    for (let i = 0; i < 498; i++) queue.add({ kind: "COPY" })
+    expect(queue.add({ kind: "COPY" })).toBe(false)
+    expect(JSON.parse(localStorage.getItem("owner:trial") ?? "[]").filter((row: { kind: string }) => row.kind === "STREAM_ERROR")).toHaveLength(1)
+  })
+
   it("fails visibly rather than silently dropping a full queue or accepting corrupted storage", () => {
     const warning = vi.fn()
     const queue = new IncidentQueue("owner:trial", vi.fn(), warning)

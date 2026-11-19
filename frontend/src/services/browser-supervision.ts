@@ -266,8 +266,21 @@ function validIncident(value: unknown): value is BrowserIncident {
   )
 }
 
-/** Persist before send; server acknowledgements are the only removal authority. */
+/** Local queue capacity. Ordinary events stop at `QUEUE_CAP - 1`; the last slot is reserved for one overflow marker. */
+export const QUEUE_CAP = 500
+const OVERFLOW_WARNING =
+  "La cola llegó a 500 incidentes y se descartan los nuevos hasta sincronizar; quedó registrado un fallo técnico. Reconectá y sincronizá antes de continuar."
+
+/**
+ * Persist before send; server acknowledgements are the only removal authority.
+ *
+ * Overflow policy: a full queue can no longer hold an incident that says "events were dropped", so ordinary events
+ * are accepted only up to `QUEUE_CAP - 1`. The first event refused at that point writes one local overflow marker
+ * into the reserved last slot — an existing allowed kind, `STREAM_ERROR` ("Fallo técnico en la captura") — and
+ * raises the visible warning; later refusals add nothing more. The marker is armed again once a sync leaves room.
+ */
 export class IncidentQueue {
+  private overflowMarked = false
   private events: BrowserIncident[]
   private sending: Promise<void> | null = null
   private key: string
@@ -278,9 +291,10 @@ export class IncidentQueue {
     this.send = send
     this.warning = warning
     const saved: unknown = JSON.parse(localStorage.getItem(key) ?? "[]")
-    if (!Array.isArray(saved) || saved.length > 500 || !saved.every(validIncident))
+    if (!Array.isArray(saved) || saved.length > QUEUE_CAP || !saved.every(validIncident))
       throw new Error("La cola local de incidentes no es válida. No se enviará contenido desconocido.")
     this.events = saved
+    this.overflowMarked = saved.length >= QUEUE_CAP
   }
   get size() {
     return this.events.length
@@ -294,18 +308,25 @@ export class IncidentQueue {
       return false
     }
   }
-  add(input: { kind: IncidentKind; duration_ms?: number }) {
-    if (this.events.length >= 500) {
-      this.warning("La cola llegó a 500 incidentes. Reconectá y sincronizá antes de continuar.")
-      return false
-    }
+  private push(kind: IncidentKind, durationMs: number) {
     this.events.push({
       event_id: crypto.randomUUID(),
-      kind: input.kind,
-      duration_ms: input.duration_ms ?? 0,
+      kind,
+      duration_ms: durationMs,
       observed_at: new Date().toISOString(),
     })
     return this.persist()
+  }
+  add(input: { kind: IncidentKind; duration_ms?: number }) {
+    if (this.events.length >= QUEUE_CAP - 1) {
+      if (!this.overflowMarked && this.events.length === QUEUE_CAP - 1) {
+        this.overflowMarked = true
+        this.push("STREAM_ERROR", 0)
+      }
+      this.warning(OVERFLOW_WARNING)
+      return false
+    }
+    return this.push(input.kind, input.duration_ms ?? 0)
   }
   flush(): Promise<void> {
     if (this.sending) return this.sending
@@ -322,6 +343,7 @@ export class IncidentQueue {
       if (!batch.every((row) => acknowledged.has(row.event_id)))
         throw new Error("El servidor no confirmó todo el lote; se conserva para reintentar.")
       this.events = this.events.filter((row) => !acknowledged.has(row.event_id))
+      if (this.events.length < QUEUE_CAP - 1) this.overflowMarked = false
       if (!this.persist()) throw new Error("No se pudo actualizar la cola local.")
     }
   }
