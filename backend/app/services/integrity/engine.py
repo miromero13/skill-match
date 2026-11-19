@@ -18,7 +18,10 @@ import numpy as np
 from app.services.integrity.audio_analyzer import AudioAnalyzer
 from app.services.integrity.frame_analyzer import FrameAnalyzer
 from app.services.integrity.gaze import check_telemetry, normalize_frame_times, sample_from_frame
-from app.services.integrity.models import GazeEvidence, GazeSample, GazeZone, WindowAssessment, WindowObservation
+from app.services.integrity import lipsync
+from app.services.integrity.models import (
+    AudioObservation, GazeEvidence, GazeSample, GazeZone, LipSyncResult, WindowAssessment, WindowObservation,
+)
 from app.services.integrity.policy import PolicyProfile, SupervisionProfile
 from app.services.integrity.state import InMemoryStateStore, SessionStateStore
 from app.services.integrity.sync_analyzer import SyncAnalyzer
@@ -78,18 +81,37 @@ class IntegrityEngine:
         )
         mouth_moving, movements = self.sync.mouth_movement(batch.frames) if batch.frames else (False, [])
         audio_missing = self.audio.is_missing(audio, duration_ms)
+        measured = self.audio.analyze(audio, session_key, voiceprint)
         return WindowObservation(
             frames=batch.frames,
             video_missing=batch.video_missing,
             model_unavailable=batch.model_unavailable,
-            audio=self.audio.analyze(audio, session_key, voiceprint),
+            audio=measured,
             audio_missing=audio_missing,
             mouth_moving=mouth_moving,
             mouth_movements=tuple(movements),
             duration_ms=duration_ms,
             gaze=evidence,
             frame_times_ms=batch.times_ms,
+            lip_sync=self.lip_sync(measured, server, evidence.client),
         )
+
+    @staticmethod
+    def lip_sync(
+        audio: AudioObservation, server: Sequence[GazeSample], trusted_client: Sequence[GazeSample]
+    ) -> LipSyncResult:
+        """Voice vs mouth over the window (S3, S11). The mouth series is the browser's ~15 fps telemetry when it
+        was trusted (it agreed with the server's own frames), else the aperture the server measured on the sampled
+        JPEG frames; the latter is usually too sparse to judge, which is reported as ``insufficient``, never ``synced``."""
+        if not audio.speech_detected:
+            return LipSyncResult()
+
+        def series(samples: Sequence[GazeSample]) -> list[tuple[int, float]]:
+            return [(s.t_ms, s.mouth_open) for s in samples if s.face_count == 1 and s.mouth_open is not None]
+
+        client = series(trusted_client)
+        mouth, source = (client, "telemetry") if client else (series(server), "server")
+        return lipsync.evaluate(audio.chunk_rms, audio.voiced_flags, mouth, source)
 
     def assess_window(
         self,

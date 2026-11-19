@@ -1,4 +1,7 @@
-"""Mouth movement and voice/mouth coexistence (the current lip-sync rule; T8 replaces it with correlation).
+"""Mouth movement and voice/mouth coexistence.
+
+Coexistence is now only the fallback: when a window has no usable mouth series (no trusted telemetry, sparse
+frames) the policy still uses it; with a series, ``lipsync.evaluate`` (temporal correlation, T8) decides.
 
 Calibration mapping (T9): ``CalibrationAVService`` (voice + mouth together) maps to ``voice_mouth_coexistence``.
 """

@@ -166,6 +166,28 @@ class SupervisionProfile:
             flag = audio.multiple_speakers
         return self.streaks.update("multi_speakers", session_key, flag) >= t.MULTI_SPEAKER_CONFIRM_EVALUATIONS
 
+    def _streak(self, name: str, session_key: Optional[str], audio: AudioObservation, flag: Optional[bool]) -> int:
+        """Consecutive evaluations that were flagged. A long silence (the voiced buffer was forgotten) restarts it."""
+        return self.streaks.update(name, session_key, False if audio.voice_reset else flag)
+
+    def _voice_ownership(self, audio: AudioObservation, session_key: Optional[str], anomalies: list[str]) -> Optional[bool]:
+        """S3 / S11: the voice must be the enrolled one. A mismatch needs two evaluations in a row (VOICE_MISMATCH);
+        speech with no voiceprint is VOICE_UNVERIFIED once it persists (never a clean pass by omission). Under one
+        second of voiced speech there is no verdict and the counts are left alone."""
+        status = audio.voice_status
+        mismatch = self._streak(
+            "voice_mismatch", session_key, audio,
+            None if status in (None, "insufficient", "unenrolled") else status == "mismatch",
+        )
+        unverified = self._streak(
+            "voice_unverified", session_key, audio, None if status in (None, "insufficient") else status == "unenrolled",
+        )
+        if mismatch >= t.VOICE_CONFIRM_EVALUATIONS:
+            anomalies.append("VOICE_MISMATCH")
+        if unverified >= t.VOICE_CONFIRM_EVALUATIONS:
+            anomalies.append("VOICE_UNVERIFIED")
+        return {"match": True, "mismatch": False}.get(status or "")
+
     def _background_audio(self, audio: AudioObservation, session_key: Optional[str], base: Optional[int]) -> bool:
         """S4: non-speech audio above the calibrated ambient floor, continuously for >= 2 s (across windows too)."""
         samples = [FlagSample(round((i + 0.5) * 1000 * t.VAD_CHUNK_SAMPLES / t.AUDIO_SAMPLE_RATE), flag)
@@ -238,11 +260,28 @@ class SupervisionProfile:
             anomalies.append("BACKGROUND_AUDIO")
         multiple_speakers = self._multiple_speakers(audio, audio_key)
 
+        mouth_covered = occlusion_mouth or occlusion_face
         verdict = self.coexistence(
             audio.speech_detected, multiple_speakers, visual_unavailable, face_count, window.mouth_moving
         )
+        lip_sync = window.lip_sync.verdict if audio.speech_detected else None
+        if audio.speech_detected and not multiple_speakers and not visual_unavailable and face_count == 1:
+            if mouth_covered:
+                verdict = SyncVerdict(False, "VOICE_DETECTED")  # a covered mouth is no mouth evidence
+            elif window.lip_sync.verdict != "insufficient":
+                # Real evidence: voice energy vs mouth aperture over time (S3, S11) replaces plain coexistence.
+                verdict = SyncVerdict(window.lip_sync.verdict == "synced")
+            # else: no usable mouth series (no telemetry, sparse frames): the coexistence verdict stands
+        lip_confirmed = self._streak(
+            "lip_sync", audio_key, audio,
+            None if lip_sync in (None, "insufficient") or verdict.anomaly or multiple_speakers or mouth_covered
+            or face_count != 1 else lip_sync == "unsynced",
+        ) >= t.LIPSYNC_CONFIRM_EVALUATIONS
         if verdict.anomaly:
             anomalies.append(verdict.anomaly)
+        elif lip_confirmed:
+            anomalies.append("LIP_SYNC_MISMATCH")
+        voice_match = self._voice_ownership(audio, audio_key, anomalies)
         if audio.speaker_model_unavailable and "MODEL_UNAVAILABLE" not in anomalies:
             anomalies.append("MODEL_UNAVAILABLE")  # speech that could not be checked is never a clean audio verdict
 
@@ -259,6 +298,8 @@ class SupervisionProfile:
             occlusion_face=occlusion_face,
             occlusion_mouth=occlusion_mouth,
             camera_blocked=camera_blocked,
+            voice_match=voice_match,
+            lip_sync=lip_sync,  # type: ignore[arg-type]
         )
 
 

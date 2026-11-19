@@ -27,6 +27,7 @@ REFERENCE[0] = 1.0
 WINDOW_KEYS = {
     "face_count", "head_orientation", "identity_match", "speech_detected", "mouth_moving",
     "mouth_sync", "multiple_speakers", "noise_level", "anomalies", "occlusion", "camera_blocked",
+    "voice_match", "lip_sync",
 }
 
 
@@ -177,6 +178,7 @@ def test_clean_window_reports_no_anomalies(run):
         "face_count": 1, "head_orientation": "CENTER", "identity_match": None, "speech_detected": False,
         "mouth_moving": False, "mouth_sync": None, "multiple_speakers": False, "noise_level": 0.0,
         "anomalies": [], "occlusion": {"face": False, "mouth": False}, "camera_blocked": False,
+        "voice_match": None, "lip_sync": None,
     }
 
 
@@ -269,7 +271,8 @@ def test_multiple_speakers(run, monkeypatch):
     first = run(frames(2), speech(), detector=SequenceDetector([[NEUTRAL]]), key="two-voices")
     assert "MULTIPLE_SPEAKERS" not in first["anomalies"] and first["multiple_speakers"] is False
     res = run(frames(2), speech(), detector=SequenceDetector([[NEUTRAL]]), key="two-voices")
-    assert res["anomalies"] == ["MULTIPLE_SPEAKERS"]
+    # speech with no enrolled voiceprint is also unverified once it persists (T8 / S3)
+    assert res["anomalies"] == ["MULTIPLE_SPEAKERS", "VOICE_UNVERIFIED"]
     assert (res["multiple_speakers"], res["mouth_sync"]) == (True, False)
 
 

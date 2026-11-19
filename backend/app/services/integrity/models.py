@@ -173,6 +173,12 @@ class AudioObservation:
     overlap_s: float = 0.0  # the longest overlap between two different speakers
     foreign_voice: bool = False  # a cluster is not the enrolled voice while another one is
     speaker_model_unavailable: bool = False  # the speaker models could not run: never a clean audio verdict
+    # Voice ownership (S3): vs the enrolled voiceprint over the trial's voiced buffer. None = no speech;
+    # "unenrolled" = speech with no voiceprint to compare with; "insufficient" = under 1 s of voiced speech buffered.
+    voice_status: Optional[Literal["match", "mismatch", "insufficient", "unenrolled"]] = None
+    voice_similarity: Optional[float] = None
+    voiced_chunks: int = 0  # VAD-voiced 30 ms chunks of this window
+    voice_reset: bool = False  # the rolling voiced buffer was forgotten (long silence): confirmation counts restart
     # Per 30 ms chunk: True = sustained-audio candidate (non-speech above the ambient floor), None = no verdict.
     background_flags: list[Optional[bool]] = field(default_factory=list)
 
@@ -206,6 +212,7 @@ class WindowObservation:
     duration_ms: Optional[int] = None
     gaze: Optional[GazeEvidence] = None
     frame_times_ms: tuple[int, ...] = ()  # capture offset of each frame (window start = 0); empty: evenly spaced
+    lip_sync: LipSyncResult = field(default_factory=LipSyncResult)
 
     @property
     def visual_unavailable(self) -> bool:
@@ -228,6 +235,8 @@ class WindowAssessment:
     occlusion_face: bool = False  # a confirmed run of covered-face frames (FACE_OCCLUDED)
     occlusion_mouth: bool = False  # a confirmed run of covered-mouth frames (MOUTH_OCCLUDED)
     camera_blocked: bool = False  # a confirmed blocked or frozen camera (CAMERA_BLOCKED)
+    voice_match: Optional[bool] = None  # the voice is the enrolled one (None: no speech, no voiceprint or no verdict)
+    lip_sync: Optional[Literal["synced", "unsynced", "insufficient"]] = None  # None: no speech in the window
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -242,6 +251,8 @@ class WindowAssessment:
             "anomalies": list(self.anomalies),
             "occlusion": {"face": self.occlusion_face, "mouth": self.occlusion_mouth},
             "camera_blocked": self.camera_blocked,
+            "voice_match": self.voice_match,
+            "lip_sync": self.lip_sync,
         }
 
 

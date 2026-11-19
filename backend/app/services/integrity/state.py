@@ -45,8 +45,8 @@ class SessionStateStore(Protocol):
         Without a session key nothing is remembered and ``voiced`` itself is returned.
         """
 
-    def note_silence(self, session_key: Optional[str], samples: int, clear_after: int) -> None:
-        """Counts non-speech samples; the rolling voiced buffer is forgotten once ``clear_after`` accumulate."""
+    def note_silence(self, session_key: Optional[str], samples: int, clear_after: int) -> bool:
+        """Counts non-speech samples; the rolling voiced buffer is forgotten (True) once ``clear_after`` accumulate."""
 
     def get_gaze_run(self, session_key: Optional[str]) -> Optional[dict[str, Any]]:
         """The out-of-zone run still open at the end of the session's previous window, if any."""
@@ -184,14 +184,16 @@ class InMemoryStateStore:
             entry["silent_samples"] = 0
             return entry["voiced_buffer"].copy()
 
-    def note_silence(self, session_key: Optional[str], samples: int, clear_after: int) -> None:
+    def note_silence(self, session_key: Optional[str], samples: int, clear_after: int) -> bool:
         if not session_key:
-            return
+            return False
         with self.lock:
             entry = self._audio_entry_locked(session_key)
             entry["silent_samples"] = int(entry.get("silent_samples", 0)) + max(0, samples)
             if entry["silent_samples"] >= clear_after:
                 entry.pop("voiced_buffer", None)
+                return True
+            return False
 
     def get_gaze_run(self, session_key: Optional[str]) -> Optional[dict[str, Any]]:
         if not session_key:

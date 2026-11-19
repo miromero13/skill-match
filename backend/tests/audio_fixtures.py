@@ -15,6 +15,7 @@ from app.services.integrity.engine import IntegrityEngine
 from app.services.integrity.frame_analyzer import FrameAnalyzer
 from app.services.integrity.policy import SupervisionProfile
 from app.services.integrity.state import InMemoryStateStore
+from app.services.integrity.models import FrameObservation, GazeSample
 from integrity_fixtures import BASE_MS, NEUTRAL, Scripted, textured_b64
 
 SR = 16_000
@@ -83,18 +84,51 @@ class LevelExtractor:
         return vec
 
 
+CHUNK = 480  # 30 ms at 16 kHz
+
+
+def syllables(seed, chunks=80, width=6):
+    """Syllable-like loudness per 30 ms chunk, in [0, 1] (smooth, aperiodic: a shifted copy decorrelates)."""
+    raw = np.random.default_rng(seed).normal(0, 1, chunks + width)
+    smooth = np.convolve(raw, np.ones(width) / width, mode="valid")[:chunks]
+    return (smooth - smooth.min()) / (smooth.max() - smooth.min())
+
+
+def speaking(env, speaker=1):
+    """A voice whose loudness follows ``env`` (0..1 per chunk): always above the fake VAD's speech level."""
+    amplitude = SPEAKER_AMPLITUDE[speaker] * (0.6 + 0.8 * np.repeat(env, CHUNK))
+    carrier = np.sin(2 * np.pi * 200.0 * np.arange(env.size * CHUNK) / SR)
+    return (amplitude * carrier).astype(np.float32)
+
+
+def mouth_samples(env, *, offset_ms=0, fps=15, still=False, invert=False, mouth=None):
+    """Browser telemetry: one reading per 1/fps s with the mouth aperture following ``env`` (or still / inverted)."""
+    centers = (np.arange(env.size) + 0.5) * 1000 * CHUNK / SR
+    shape = 1.0 - env if invert else env
+    out = []
+    for at in np.arange(0, env.size * 1000 * CHUNK / SR - 1, 1000 / fps).round().astype(int):
+        level = 0.0 if still else float(np.interp(at - offset_ms, centers, shape))
+        out.append(GazeSample(t_ms=int(at), face_count=1, head_pitch=0.0, head_yaw=0.0, gaze_h=0.0, gaze_v=0.0,
+                              mouth_open=0.05 + 0.25 * level if mouth is None else mouth))
+    return out
+
+
 class Trial:
     """One trial's engine over a shared state store; every ``window`` is 2.4 s starting where the last ended."""
 
-    def __init__(self, monkeypatch, segments=None, extractor=None):
+    def __init__(self, monkeypatch, segments=None, extractor=None, mediapipe=None, faces=((NEUTRAL,))):
         install_fake_vad(monkeypatch)
         self.segments = segments if segments is not None else []
         self.diarized_lengths = []
         self.extractor = extractor or LevelExtractor()
         self.state = InMemoryStateStore()
         audio = AudioAnalyzer(self.state, speaker_segments=self._diarize, extractor=self.extractor)
-        frames = FrameAnalyzer(self.state, vision_provider=lambda: (Scripted([[NEUTRAL]]), None),
-                               landmarker_provider=lambda: None)
+        self.mediapipe = mediapipe  # a FrameObservation every frame measures as, or None (YuNet only)
+        frames = FrameAnalyzer(
+            self.state, vision_provider=lambda: (Scripted([list(faces)]), None),
+            landmarker_provider=lambda: object() if mediapipe is not None else None,
+            mediapipe_runner=lambda _image, _key, _landmarker: self.mediapipe,
+        )
         self.engine = IntegrityEngine(frames, audio)
         self.profile = SupervisionProfile(gaze_runs=self.state)
         self.clock = 0

@@ -201,7 +201,8 @@ LIPSYNC_MIN_MOUTH_SAMPLES = 8  # fewer mouth readings: insufficient (a few spars
 LIPSYNC_MIN_MOUTH_SPAN_MS = 1000  # the mouth readings must cover at least this much time
 LIPSYNC_LAGS_MS = tuple(range(-90, 301, 30))  # tolerated mouth-vs-audio offset, ~ -100 ... +300 ms in 30 ms steps
 LIPSYNC_SMOOTH_CHUNKS = 5  # moving average of the speech envelope (150 ms): the jaw is slower than the voice
-LIPSYNC_MIN_CORRELATION = 0.30  # best normalized cross-correlation over the lags; below: voice and mouth unrelated
+LIPSYNC_MIN_CORRELATION = 0.45  # best normalized cross-correlation over the lags; below: voice and mouth unrelated
+# (unrelated envelopes reach ~0.3 by chance over 13 lags in 2.4 s, so 0.45; T11 tunes with real recordings)
 LIPSYNC_ACTIVITY_HALF_WINDOW_MS = 210  # the mouth "varies" at a voiced instant when its aperture moves within this
 LIPSYNC_ACTIVITY_MIN_RANGE = 0.02  # ...by at least this much (aperture score units, jitter is ~0.005)
 LIPSYNC_MIN_ACTIVITY_OVERLAP = 0.30  # fraction of voiced time with a varying mouth; below: voice with a still mouth

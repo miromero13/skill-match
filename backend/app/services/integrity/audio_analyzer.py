@@ -134,6 +134,21 @@ class AudioAnalyzer:
         )
         return self.diarize(buffer, voiced_chunks).multiple
 
+    def verify_voice(
+        self, buffer: np.ndarray, voiceprint: Optional[Mapping[str, Any]]
+    ) -> tuple[str, Optional[float], bool]:
+        """(status, similarity, model_unavailable) of the buffered voiced speech against the voiceprint (S3, S11)."""
+        if buffer.size < t.VOICEPRINT_MIN_VERIFY_VOICED_S * t.AUDIO_SAMPLE_RATE:
+            return "insufficient", None, False
+        if voiceprint is None:
+            return "unenrolled", None, False
+        try:
+            result = vp.match_voice(self.extractor, voiceprint, buffer)
+        except vp.SpeakerModelUnavailable as exc:
+            logger.warning("Huella de voz no disponible: %s", exc)
+            return "insufficient", None, True
+        return result.status, result.similarity, False
+
     @staticmethod
     def background_flags(
         chunk_rms: np.ndarray, voiced_flags: Sequence[bool], ambient_rms: Optional[float]
@@ -205,14 +220,18 @@ class AudioAnalyzer:
         high_noise = rms > t.HIGH_NOISE_RMS or (rms > t.HIGH_NOISE_NON_SPEECH_RMS and not speech_detected)
 
         report = SpeakerReport()
+        voice_status: Optional[str] = None
+        similarity: Optional[float] = None
+        voice_model_missing = voice_reset = False
         if speech_detected:
             buffer = self.state.append_voiced(
                 session_key, voiced_audio(audio, voiced_flags), t.VOICE_BUFFER_MAX_SAMPLES
             )
             report = self.diarize(buffer, sum(1 for v in voiced_flags if v), voiceprint)
+            voice_status, similarity, voice_model_missing = self.verify_voice(buffer, voiceprint)
         else:
             # Stale speech is forgotten after a long enough silence
-            self.state.note_silence(session_key, audio.size, t.VOICE_BUFFER_SILENCE_CLEAR_SAMPLES)
+            voice_reset = self.state.note_silence(session_key, audio.size, t.VOICE_BUFFER_SILENCE_CLEAR_SAMPLES)
 
         ambient = vp.ambient_rms_of(voiceprint) if voiceprint is not None else None
         return AudioObservation(
@@ -226,6 +245,10 @@ class AudioAnalyzer:
             speakers=report.speakers,
             overlap_s=report.overlap_s,
             foreign_voice=report.foreign_voice,
-            speaker_model_unavailable=report.model_unavailable,
+            speaker_model_unavailable=report.model_unavailable or voice_model_missing,
+            voice_status=voice_status,  # type: ignore[arg-type]
+            voice_similarity=similarity,
+            voiced_chunks=sum(1 for v in voiced_flags if v),
+            voice_reset=voice_reset,
             background_flags=self.background_flags(chunk_rms, voiced_flags, ambient),
         )
