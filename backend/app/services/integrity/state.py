@@ -4,6 +4,7 @@ Baselines (neutral head pose) and the rolling voiced-audio buffer are kept per s
 implementation is in-memory, bounded (LRU) and lock-protected; a Redis-backed store can replace it by
 implementing ``SessionStateStore`` without touching the analyzers.
 """
+import copy
 import threading
 from collections import OrderedDict
 from typing import Any, Optional, Protocol
@@ -44,6 +45,12 @@ class SessionStateStore(Protocol):
     def set_gaze_run(self, session_key: Optional[str], run: Optional[dict[str, Any]]) -> None:
         """Remembers (or, with None, forgets) the session's open out-of-zone run."""
 
+    def get_track(self, session_key: Optional[str], name: str) -> Optional[dict[str, Any]]:
+        """A named per-session record (open runs, streaks, references, ...), or None."""
+
+    def set_track(self, session_key: Optional[str], name: str, value: Optional[dict[str, Any]]) -> None:
+        """Remembers (or, with None, forgets) a named per-session record."""
+
 
 class InMemoryStateStore:
     """Bounded in-memory store. Inference runs on worker threads, so every access takes the lock.
@@ -58,10 +65,12 @@ class InMemoryStateStore:
         lock: Optional[Any] = None,
         max_sessions: int = MAX_TRACKED_SESSIONS,
         gaze_runs: Optional[OrderedDict[str, dict[str, Any]]] = None,
+        tracks: Optional[OrderedDict[str, dict[str, Any]]] = None,
     ) -> None:
         self.baselines: OrderedDict[str, dict[str, float]] = OrderedDict() if baselines is None else baselines
         self.audio_state: OrderedDict[str, dict[str, Any]] = OrderedDict() if audio_state is None else audio_state
         self.gaze_runs: OrderedDict[str, dict[str, Any]] = OrderedDict() if gaze_runs is None else gaze_runs
+        self.tracks: OrderedDict[str, dict[str, Any]] = OrderedDict() if tracks is None else tracks
         self.lock = threading.RLock() if lock is None else lock
         self.max_sessions = max_sessions
 
@@ -162,3 +171,23 @@ class InMemoryStateStore:
                 self.gaze_runs.popitem(last=False)
             self.gaze_runs[session_key] = {**run, "counts": dict(run["counts"])}
             self.gaze_runs.move_to_end(session_key)
+
+    def get_track(self, session_key: Optional[str], name: str) -> Optional[dict[str, Any]]:
+        if not session_key:
+            return None
+        with self.lock:
+            value = self.tracks.get(session_key, {}).get(name)
+            return None if value is None else copy.deepcopy(value)
+
+    def set_track(self, session_key: Optional[str], name: str, value: Optional[dict[str, Any]]) -> None:
+        if not session_key:
+            return
+        with self.lock:
+            if value is None:
+                if session_key in self.tracks:
+                    self.tracks[session_key].pop(name, None)
+                return
+            if session_key not in self.tracks and len(self.tracks) >= self.max_sessions:
+                self.tracks.popitem(last=False)
+            self.tracks.setdefault(session_key, {})[name] = copy.deepcopy(value)
+            self.tracks.move_to_end(session_key)

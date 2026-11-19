@@ -87,6 +87,7 @@ class IntegrityEngine:
             mouth_movements=tuple(movements),
             duration_ms=duration_ms,
             gaze=evidence,
+            frame_times_ms=batch.times_ms,
         )
 
     def assess_window(

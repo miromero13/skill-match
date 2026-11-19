@@ -38,6 +38,8 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
     _trial_audio_state: OrderedDict[str, dict[str, Any]] = OrderedDict()
     # Bounded in-memory out-of-zone gaze run still open at the end of each trial's last window
     _trial_gaze_runs: OrderedDict[str, dict[str, Any]] = OrderedDict()
+    # Bounded in-memory named records per trial: confirmation runs/streaks and the occlusion reference (T7)
+    _trial_tracks: OrderedDict[str, dict[str, Any]] = OrderedDict()
     # Inference runs on worker threads: the per-trial dictionaries are mutated concurrently.
     _state_lock = threading.RLock()
     # The landmarker is a shared native object; its detect() lock lives with the frame analyzer.
@@ -48,7 +50,8 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
     @classmethod
     def _store(cls) -> InMemoryStateStore:
         return InMemoryStateStore(
-            cls._trial_baselines, cls._trial_audio_state, cls._state_lock, gaze_runs=cls._trial_gaze_runs
+            cls._trial_baselines, cls._trial_audio_state, cls._state_lock, gaze_runs=cls._trial_gaze_runs,
+            tracks=cls._trial_tracks,
         )
 
     @classmethod

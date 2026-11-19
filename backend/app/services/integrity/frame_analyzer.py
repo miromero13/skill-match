@@ -108,6 +108,15 @@ def create_vision_models() -> tuple[Any, Any]:
     return detector, recognizer
 
 
+def credible_yunet_rows(rows: Sequence[np.ndarray], frame_height: int) -> list[np.ndarray]:
+    """YuNet detections that can be a second person: confident enough and not a tiny background face."""
+    return [
+        row for row in rows
+        if float(row[14]) >= t.MULTI_FACE_MIN_YUNET_SCORE
+        and float(row[3]) >= t.MULTI_FACE_MIN_HEIGHT_FRAC * max(frame_height, 1)
+    ]
+
+
 def parse_reference_embedding(embedding_json: Optional[str]) -> Optional[np.ndarray]:
     """Parses a stored 128-d SFace embedding into a unit vector; anything malformed is None."""
     if not embedding_json:
@@ -331,28 +340,41 @@ class FrameAnalyzer:
         if detector is not None:
             detector.setInputSize((w, h))
             _, faces = detector.detect(image)
-        yunet_count = 0 if faces is None else len(faces)
+        rows = [] if faces is None else list(faces)
+        credible = credible_yunet_rows(rows, h)
+
+        # An extra face needs every detector that ran to see it, at a credible size (and score for YuNet);
+        # whether it persists is judged over time by the policy (T7 / S6).
+        votes: list[int] = []
+        if mp_res is not None:
+            votes.append(mp_res.face_count)
+        if detector is not None:
+            votes.append(len(credible))
+        multi = any(count > 1 for count in votes)
+        agreed = all(count > 1 for count in votes)
+        primary = max(rows, key=lambda row: float(row[2]) * float(row[3])) if rows else None
 
         if mp_res is not None and mp_res.face_count > 0:
-            face_count = max(mp_res.face_count, yunet_count)
-            if face_count > 1:
-                return FrameObservation(face_count=face_count)
+            if multi:
+                return FrameObservation(face_count=max(votes), faces_agreed=agreed)
             similarity = match = None
             if (
                 recognizer is not None
                 and reference_embedding is not None
-                and yunet_count == 1
+                and primary is not None
                 and mp_res.orientation == "CENTER"
             ):
-                similarity, match = self._identity(image, faces[0], recognizer, reference_embedding)
+                similarity, match = self._identity(image, primary, recognizer, reference_embedding)
             return dataclasses.replace(
                 mp_res, face_count=1, identity_similarity=similarity, identity_match=match, mouth_patch=None
             )
 
         # Fallback to YuNet (MediaPipe saw 0 faces, or only a detector stub was provided)
-        if yunet_count == 0 or yunet_count > 1:
-            return FrameObservation(face_count=yunet_count)
-        return self._analyze_yunet(image, faces[0], recognizer, reference_embedding, session_key, h)
+        if primary is None:
+            return FrameObservation(face_count=0)
+        if multi:
+            return FrameObservation(face_count=len(credible), faces_agreed=agreed)
+        return self._analyze_yunet(image, primary, recognizer, reference_embedding, session_key, h)
 
     def _identity(
         self, image: np.ndarray, face: np.ndarray, recognizer: Any, reference_embedding: np.ndarray
@@ -385,13 +407,24 @@ class FrameAnalyzer:
                 result = landmarker.detect(mp_image)
 
             face_count = len(result.face_landmarks) if result.face_landmarks else 0
+            index = 0
+            if face_count > 1:
+                # Tiny faces (a poster far behind, a reflection) are not people: only credible ones count.
+                heights = [
+                    max(float(p.y) for p in face) - min(float(p.y) for p in face) for face in result.face_landmarks
+                ]
+                credible = sum(1 for height in heights if height >= t.MULTI_FACE_MIN_HEIGHT_FRAC)
+                if credible > 1:
+                    return FrameObservation(face_count=credible)
+                index = max(range(face_count), key=lambda i: heights[i])
+                face_count = 1
             if face_count != 1:
                 return FrameObservation(face_count=face_count)
 
-            lm = result.face_landmarks[0]
+            lm = result.face_landmarks[index]
             bs_map: dict[str, float] = {}
-            if result.face_blendshapes and len(result.face_blendshapes) > 0:
-                for cat in result.face_blendshapes[0]:
+            if result.face_blendshapes and len(result.face_blendshapes) > index:
+                for cat in result.face_blendshapes[index]:
                     bs_map[cat.category_name] = float(cat.score)
 
             # 1. Mouth opening: neural blendshapes + 3D inner-lip aspect ratio (MAR)
@@ -433,9 +466,9 @@ class FrameAnalyzer:
             matrix_yaw_deg = lm_yaw_deg
             if (
                 result.facial_transformation_matrixes
-                and len(result.facial_transformation_matrixes) > 0
+                and len(result.facial_transformation_matrixes) > index
             ):
-                M = np.asarray(result.facial_transformation_matrixes[0], dtype=np.float64)
+                M = np.asarray(result.facial_transformation_matrixes[index], dtype=np.float64)
                 if M.shape == (4, 4):
                     R = M[:3, :3]
                     forward = R[:, 2] / max(float(np.linalg.norm(R[:, 2])), 1e-6)

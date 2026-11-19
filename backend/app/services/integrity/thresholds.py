@@ -104,6 +104,19 @@ MOUTH_PATCH_MIN_ACTIVE_STEPS = 2
 # ---- window aggregation ------------------------------------------------------------------------
 FACE_ABSENT_MIN_EMPTY_FRAMES = 2  # also needs more than half of the frames to be empty
 
+# ---- confirmation over time (T7 / S6, S8): nothing fires on a single frame --------------------------
+FACE_ABSENT_MIN_RUN_MS = 1000  # no face for this long (across windows too) is an absent face
+MULTI_FACE_MIN_HEIGHT_FRAC = 0.08  # an extra face must be at least this tall (fraction of the frame height)
+MULTI_FACE_MIN_YUNET_SCORE = 0.70  # YuNet confidence an extra face needs (the detector itself starts at 0.50)
+MULTI_FACE_MIN_FRAMES = 2  # consecutive frames with an extra face, both detectors agreeing
+MULTI_FACE_SINGLE_DETECTOR_MIN_WINDOWS = 2  # one detector alone must see it persist across this many windows
+MULTI_FACE_TELEMETRY_MIN_MS = 500  # trusted browser telemetry with an extra face for this long also confirms
+MULTI_FACE_TELEMETRY_GAP_MS = 250  # telemetry samples further apart than this are different stretches
+IDENTITY_MIN_ELIGIBLE_FRAMES = 2  # frames with a verdict a window needs before it can be judged
+IDENTITY_BAD_FRACTION = 0.6  # share of non-matching frames that makes a window a mismatch
+IDENTITY_CONFIRM_WINDOWS = 2  # consecutive mismatching windows that make an incident
+IDENTITY_STATELESS_MIN_FRAMES = 3  # without per-trial state one window must carry this many judged frames
+
 # ---- gaze features (T6 / S5); the browser mirrors these in frontend/src/services/gaze-tracking.ts ------
 GAZE_BLINK_SCORE = 0.55  # mean eyeBlinkLeft/Right at or above this is a blink
 GAZE_CLOSED_LID_RATIO = 0.08  # without blendshapes: lid opening / eye width below this is a closed eye

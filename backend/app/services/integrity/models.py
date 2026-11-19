@@ -84,6 +84,8 @@ class FrameObservation:
     gaze_v: Optional[float] = None
     blink: bool = False  # eyes (nearly) closed: the frame says nothing about where the candidate looks
     model_unavailable: bool = False
+    # With face_count > 1 (extra faces already filtered by size and score): every detector that ran saw them.
+    faces_agreed: bool = True
 
     @classmethod
     def unavailable(cls) -> "FrameObservation":
@@ -108,6 +110,7 @@ class FrameObservation:
             gaze_v=raw.get("gaze_v"),
             blink=bool(raw.get("blink", False)),
             model_unavailable=bool(raw.get("model_unavailable", False)),
+            faces_agreed=bool(raw.get("faces_agreed", True)),
         )
 
     def to_legacy_dict(self) -> dict[str, Any]:
@@ -164,6 +167,7 @@ class WindowObservation:
     mouth_movements: tuple[float, ...] = ()
     duration_ms: Optional[int] = None
     gaze: Optional[GazeEvidence] = None
+    frame_times_ms: tuple[int, ...] = ()  # capture offset of each frame (window start = 0); empty: evenly spaced
 
     @property
     def visual_unavailable(self) -> bool:

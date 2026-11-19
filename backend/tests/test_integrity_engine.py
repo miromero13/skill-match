@@ -99,8 +99,10 @@ def with_segments(monkeypatch, segments) -> None:
 def run(request, monkeypatch):
     """Runs one window through the legacy facade or through a fresh engine with the same stubs."""
 
-    def execute(frames, audio, *, detector=None, recognizer=None, reference=None, duration_ms=2400):
-        key = f"t-{uuid.uuid4()}"
+    states: dict = {}
+
+    def execute(frames, audio, *, detector=None, recognizer=None, reference=None, duration_ms=2400, key=None):
+        key = key or f"t-{uuid.uuid4()}"
         if request.param == "facade":
             monkeypatch.setattr(Facade, "get_vision_models", staticmethod(lambda: (detector, recognizer)))
             monkeypatch.setattr(Facade, "get_mediapipe_landmarker", classmethod(lambda cls: None))
@@ -114,7 +116,7 @@ def run(request, monkeypatch):
         from app.services.integrity.policy import SupervisionProfile
         from app.services.integrity.state import InMemoryStateStore
 
-        state = InMemoryStateStore()
+        state = states.setdefault(key, InMemoryStateStore())
         engine = IntegrityEngine(
             frame_analyzer=FrameAnalyzer(
                 state, vision_provider=lambda: (detector, recognizer), landmarker_provider=lambda: None,
@@ -123,7 +125,7 @@ def run(request, monkeypatch):
         )
         result = engine.assess_window(
             frames, audio, duration_ms=duration_ms, reference_embedding=reference,
-            session_key=key, profile=SupervisionProfile(),
+            session_key=key, profile=SupervisionProfile(gaze_runs=state),
         )
         return result.to_dict()
 
@@ -176,8 +178,14 @@ def test_face_absent(run):
     assert res["face_count"] == 0
 
 
+def test_multiple_faces_in_a_single_frame_are_not_confirmed(run):
+    res = run([frame_b64()] * 3, quiet(), detector=SequenceDetector([[NEUTRAL], [NEUTRAL, SIDE], [NEUTRAL]]))
+    assert res["anomalies"] == []
+    assert res["face_count"] == 1
+
+
 def test_multiple_faces(run):
-    res = run([frame_b64()], quiet(), detector=SequenceDetector([[NEUTRAL, SIDE]]))
+    res = run([frame_b64()] * 2, quiet(), detector=SequenceDetector([[NEUTRAL, SIDE]]))
     assert res["anomalies"] == ["MULTIPLE_FACES"]
     assert res["face_count"] == 2
     assert res["head_orientation"] == "UNKNOWN"
@@ -204,15 +212,18 @@ def test_a_single_off_axis_frame_in_a_long_window_is_tolerated(run):
 
 # ---- identity ---------------------------------------------------------------------------------
 
-def test_identity_mismatch(run):
-    res = run([frame_b64()], quiet(), detector=SequenceDetector([[NEUTRAL]]),
-              recognizer=StubRecognizer(one_hot(1)), reference=REFERENCE)
-    assert res["anomalies"] == ["IDENTITY_MISMATCH"]
-    assert res["identity_match"] is False
+def test_identity_mismatch_is_confirmed_by_a_second_window(run):
+    window = dict(detector=SequenceDetector([[NEUTRAL]]), recognizer=StubRecognizer(one_hot(1)),
+                  reference=REFERENCE, key="mismatch")
+    first = run([frame_b64()] * 2, quiet(), **window)
+    assert (first["anomalies"], first["identity_match"]) == ([], None)
+    second = run([frame_b64()] * 2, quiet(), **window)
+    assert second["anomalies"] == ["IDENTITY_MISMATCH"]
+    assert second["identity_match"] is False
 
 
 def test_identity_match(run):
-    res = run([frame_b64()], quiet(), detector=SequenceDetector([[NEUTRAL]]),
+    res = run([frame_b64()] * 2, quiet(), detector=SequenceDetector([[NEUTRAL]]),
               recognizer=StubRecognizer(one_hot(0)), reference=REFERENCE)
     assert res["anomalies"] == []
     assert res["identity_match"] is True
@@ -420,13 +431,15 @@ def test_engine_matches_facade_for_a_window_with_everything_wrong(monkeypatch):
     """Same inputs, same stubs: engine and facade agree on every field, anomalies included and ordered."""
     fake_vad(monkeypatch, True)
     with_segments(monkeypatch, [Segment(0.0, 1.0, 0), Segment(1.0, 2.0, 1)])
-    frames = [frame_b64()] * 3
-    detector = SequenceDetector([[NEUTRAL], [DOWN], [DOWN]])
+    frames = [frame_b64()] * 4
+    detector = SequenceDetector([[NEUTRAL], [NEUTRAL], [DOWN], [DOWN]])
     monkeypatch.setattr(Facade, "get_vision_models", staticmethod(lambda: (detector, StubRecognizer(one_hot(1)))))
     monkeypatch.setattr(Facade, "get_mediapipe_landmarker", classmethod(lambda cls: None))
     legacy = Facade.assess_window(frames, loud(), trial_id="everything", duration_ms=2400,
                                   biometric_embedding_json="[" + ",".join(map(str, REFERENCE.tolist())) + "]")
-    assert legacy["anomalies"] == ["HEAD_POSE_DOWN", "IDENTITY_MISMATCH", "HIGH_NOISE", "MULTIPLE_SPEAKERS"]
+    # The first window of an identity mismatch is only pending (confirmed by a second one), so it is not listed.
+    assert legacy["anomalies"] == ["HEAD_POSE_DOWN", "HIGH_NOISE", "MULTIPLE_SPEAKERS"]
+    assert legacy["identity_match"] is None
 
     from app.services.integrity.audio_analyzer import AudioAnalyzer
     from app.services.integrity.engine import IntegrityEngine
@@ -440,6 +453,8 @@ def test_engine_matches_facade_for_a_window_with_everything_wrong(monkeypatch):
                       landmarker_provider=lambda: None),
         AudioAnalyzer(state),
     )
+    from app.services.integrity.policy import SupervisionProfile
+
     modern = engine.assess_window(frames, loud(), duration_ms=2400, reference_embedding=REFERENCE,
-                                  session_key="everything").to_dict()
+                                  session_key="everything", profile=SupervisionProfile(gaze_runs=state)).to_dict()
     assert modern == legacy
