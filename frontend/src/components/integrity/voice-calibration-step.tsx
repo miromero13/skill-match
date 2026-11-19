@@ -5,28 +5,28 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { assembleVoiceRequest, createFrameSampler, VOICE_FRAME_INTERVAL_MS, type FrameSampler, type VoiceRecorder } from "@/services/av-capture"
 import type { VoiceCalibrationRequest } from "@/services/browser-supervision"
 import type { MouthSampleDTO } from "@/services/gaze-tracking"
 
+export type { VoiceRecorder }
+
 /** The control phrase the candidate reads aloud: long enough for several seconds of continuous speech. */
 export const VOICE_PHRASE = "Hoy rindo esta prueba yo solo, y mi voz es la que se escucha en este micrófono."
-
-/** Captures 16 kHz mono audio between `start()` and `stop()`; `startedAt` is the epoch ms of the first sample. */
-export interface VoiceRecorder {
-  start: () => void
-  stop: () => { samples: number[]; startedAt: number } | null
-}
 
 type Phase =
   | { name: "idle" }
   | { name: "silence"; remainingMs: number }
   | { name: "reading"; remainingMs: number }
+  | { name: "pause"; remainingMs: number }
   | { name: "sending" }
   | { name: "done"; message: string }
   | { name: "error"; message: string }
 
 export interface VoiceCalibrationStepProps {
   recorder: VoiceRecorder
+  /** Returns the current camera frame as a JPEG data URL (at most 80000 chars), or null while the camera is not ready. */
+  captureFrame: () => string | null
   /** Mouth-aperture readings of [startedAt, startedAt + durationMs], as offsets from `startedAt`. */
   readMouth: (startedAt: number, durationMs: number) => MouthSampleDTO[]
   /** Sends the recording; resolves with the server message (shown verbatim) or rejects with its error. */
@@ -38,6 +38,10 @@ export interface VoiceCalibrationStepProps {
   ambientMs?: number
   /** Time given to read the phrase aloud. */
   phraseMs?: number
+  /** Silent pause after the phrase (nothing may be said or mouthed); 0 means the phrase runs to the end. */
+  pauseMs?: number
+  /** Time between the sampled server frames (they are required by the server and measured on the same clock). */
+  frameIntervalMs?: number
   /** Refresh interval of the countdown. */
   tickMs?: number
   phrase?: string
@@ -57,11 +61,14 @@ const CAPTURE_ERROR = "No se pudo capturar el micrófono. Verificá que esté ac
 export function VoiceCalibrationStep({
   recorder,
   readMouth,
+  captureFrame,
   submit,
   onCalibrated,
   disabled = false,
   ambientMs = 2000,
   phraseMs = 7000,
+  pauseMs = 0,
+  frameIntervalMs = VOICE_FRAME_INTERVAL_MS,
   tickMs = 250,
   phrase = VOICE_PHRASE,
   className,
@@ -69,21 +76,29 @@ export function VoiceCalibrationStep({
   const [phase, setPhase] = useState<Phase>({ name: "idle" })
   const running = useRef(false)
   const mounted = useRef(true)
-  const latest = useRef({ recorder, readMouth, submit, onCalibrated })
+  const sampler = useRef<FrameSampler | null>(null)
+  const latest = useRef({ recorder, readMouth, captureFrame, submit, onCalibrated })
 
   useEffect(() => {
-    latest.current = { recorder, readMouth, submit, onCalibrated }
+    latest.current = { recorder, readMouth, captureFrame, submit, onCalibrated }
   })
   useEffect(() => {
     mounted.current = true
     return () => {
       mounted.current = false
+      sampler.current?.dispose()
     }
   }, [])
 
-  async function countdown(total: number, name: "silence" | "reading") {
+  async function countdown(total: number, name: "silence" | "reading" | "pause") {
     for (let left = total; left > 0 && mounted.current; left -= tickMs) {
-      setPhase(name === "silence" ? { name: "silence", remainingMs: left } : { name: "reading", remainingMs: left })
+      setPhase(
+        name === "silence"
+          ? { name: "silence", remainingMs: left }
+          : name === "reading"
+            ? { name: "reading", remainingMs: left }
+            : { name: "pause", remainingMs: left },
+      )
       await sleep(Math.min(tickMs, left))
     }
   }
@@ -95,21 +110,29 @@ export function VoiceCalibrationStep({
     try {
       latest.current.recorder.start()
       recording = true
+      sampler.current = createFrameSampler(() => latest.current.captureFrame(), frameIntervalMs)
+      sampler.current.start()
       await countdown(ambientMs, "silence")
       await countdown(phraseMs, "reading")
+      if (pauseMs > 0) await countdown(pauseMs, "pause")
+      if (!mounted.current) return // the finally block stops the recorder and the frame timer
       recording = false
       const captured = latest.current.recorder.stop()
+      const frames = sampler.current.stop()
       if (!mounted.current) return
       if (!captured || captured.samples.length === 0) {
         setPhase({ name: "error", message: CAPTURE_ERROR })
         return
       }
       setPhase({ name: "sending" })
-      const outcome = await latest.current.submit({
-        audio_samples: captured.samples,
-        ambient_ms: ambientMs,
-        mouth_samples: latest.current.readMouth(captured.startedAt, ambientMs + phraseMs),
-      })
+      const outcome = await latest.current.submit(
+        assembleVoiceRequest(
+          captured,
+          frames,
+          latest.current.readMouth(captured.startedAt, ambientMs + phraseMs + pauseMs),
+          ambientMs,
+        ),
+      )
       if (!mounted.current) return
       setPhase({ name: "done", message: outcome.message })
       latest.current.onCalibrated?.(outcome.message)
@@ -117,19 +140,22 @@ export function VoiceCalibrationStep({
       if (mounted.current) setPhase({ name: "error", message: failure(cause) })
     } finally {
       if (recording) latest.current.recorder.stop() // leaving midway never leaves the microphone buffer filling up
+      sampler.current?.dispose()
+      sampler.current = null
       running.current = false
     }
   }
 
-  const busy = phase.name === "silence" || phase.name === "reading" || phase.name === "sending"
+  const busy = phase.name === "silence" || phase.name === "reading" || phase.name === "pause" || phase.name === "sending"
+  const totalMs = ambientMs + phraseMs + pauseMs
+  const elapsedBefore = { silence: 0, reading: ambientMs, pause: ambientMs + phraseMs }
+  const length = { silence: ambientMs, reading: phraseMs, pause: pauseMs }
   const progress =
-    phase.name === "silence"
-      ? ((ambientMs - phase.remainingMs) / (ambientMs + phraseMs)) * 100
-      : phase.name === "reading"
-        ? ((ambientMs + phraseMs - phase.remainingMs) / (ambientMs + phraseMs)) * 100
-        : phase.name === "sending" || phase.name === "done"
-          ? 100
-          : 0
+    phase.name === "silence" || phase.name === "reading" || phase.name === "pause"
+      ? ((elapsedBefore[phase.name] + length[phase.name] - phase.remainingMs) / totalMs) * 100
+      : phase.name === "sending" || phase.name === "done"
+        ? 100
+        : 0
 
   return (
     <Card className={className} data-testid="voice-calibration">
@@ -163,7 +189,9 @@ export function VoiceCalibrationStep({
             ? `Quedate en silencio: ${seconds(phase.remainingMs)} s`
             : phase.name === "reading"
               ? `Leé en voz alta la frase: ${seconds(phase.remainingMs)} s`
-              : phase.name === "sending"
+              : phase.name === "pause"
+                ? `No hables ni muevas la boca: ${seconds(phase.remainingMs)} s`
+                : phase.name === "sending"
                 ? "Registrando tu voz…"
                 : phase.name === "idle"
                   ? "Listo para empezar cuando quieras."

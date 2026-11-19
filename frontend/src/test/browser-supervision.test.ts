@@ -179,7 +179,12 @@ describe("T8 voice calibration service", () => {
       message: "Voz calibrada.",
       data: { voice_enrolled: true, voiced_seconds: 4.2 },
     } as never)
-    const request = { audio_samples: [0.1], ambient_ms: 2000, mouth_samples: [{ t_ms: 10, mouth_open: 0.2 }] }
+    const request = {
+      audio_samples: [0.1],
+      ambient_ms: 2000,
+      mouth_samples: [{ t_ms: 10, mouth_open: 0.2 }],
+      frames: [{ t_ms: 0, image: "data:image/jpeg;base64,AAAA" }],
+    }
     const outcome = await calibrateVoice("trial-1", "tab-1", request)
     expect(post).toHaveBeenCalledWith(
       "/browser-supervision/trials/trial-1/voice-calibration",

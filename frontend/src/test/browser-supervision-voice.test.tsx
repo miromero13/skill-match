@@ -197,16 +197,22 @@ it("records the silence and the phrase, posts audio and mouth telemetry and mark
   await act(async () => {
     await vi.advanceTimersByTimeAsync(3000)
   })
-  act(() => feedAudio(3200)) // 200 ms of microphone audio at 16 kHz reaches the recording
+  act(() => feedAudio(144_000)) // 9 s of microphone audio at 16 kHz reaches the recording
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(7000)
+    await vi.advanceTimersByTimeAsync(6000)
   })
   await waitFor(() => expect(api.calibrateVoice).toHaveBeenCalledTimes(1))
   const [trialId, , request] = vi.mocked(api.calibrateVoice).mock.calls[0]
   expect(trialId).toBe(baseTrial.id)
-  expect(request.audio_samples.length).toBe(3200)
+  expect(request.audio_samples.length).toBe(144_000)
   expect(request.ambient_ms).toBe(2000)
   expect(request.mouth_samples).toEqual([{ t_ms: 120, mouth_open: 0.2 }])
+  // Contract B: 20-130 server frames, offsets from the recording start, inside the audio, at least 40 ms apart.
+  expect(request.frames.length).toBeGreaterThanOrEqual(20)
+  expect(request.frames.length).toBeLessThanOrEqual(130)
+  expect(request.frames.every((frame) => frame.image.startsWith("data:image/jpeg;base64,"))).toBe(true)
+  expect(request.frames.every((frame, index) => index === 0 || frame.t_ms - request.frames[index - 1].t_ms >= 40)).toBe(true)
+  expect(request.frames.at(-1)!.t_ms).toBeLessThanOrEqual(9000)
   expect(tracker.takeMouthSamples).toHaveBeenCalledWith(expect.any(Number), 9000)
   expect(await screen.findByText("Voz calibrada.")).toBeInTheDocument()
   expect(screen.getByTestId("voice-status")).toHaveTextContent("Huella de voz: calibrada")
@@ -221,7 +227,7 @@ it("shows the server message verbatim when the voice calibration is rejected", a
   show()
   await activate()
   fireEvent.click(await screen.findByRole("button", { name: "Empezar calibración de voz" }))
-  act(() => feedAudio(1600))
+  act(() => feedAudio(144_000))
   await act(async () => {
     await vi.advanceTimersByTimeAsync(9500)
   })

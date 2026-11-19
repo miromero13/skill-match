@@ -176,12 +176,19 @@ export async function calibrateGaze(id: string, tabId: string, points: GazeCalib
   )
   return { result: response.data, message: response.message }
 }
+/** A JPEG sampled while recording; `t_ms` counts from the start of `audio_samples` (the server measures the mouth on it). */
+export interface VoiceCalibrationFrame {
+  t_ms: number
+  image: string
+}
 /** Recording of the voice calibration: `ambient_ms` of silence first, then the control phrase read aloud (16 kHz mono). */
 export interface VoiceCalibrationRequest {
   audio_samples: number[]
   ambient_ms: number
   /** Mouth aperture readings, `t_ms` counted from the start of `audio_samples`. */
   mouth_samples: MouthSampleDTO[]
+  /** 20 to 130 sampled JPEGs, at least 40 ms apart and inside the audio; required by the server. */
+  frames: VoiceCalibrationFrame[]
 }
 export interface VoiceCalibrationResult {
   voice_enrolled: boolean

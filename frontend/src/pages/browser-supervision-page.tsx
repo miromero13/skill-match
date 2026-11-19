@@ -1009,6 +1009,7 @@ export function BrowserSupervisionPage() {
       {avActive && active && trial && !trial.closed_at && trial.gaze_zone && (
         <VoiceCalibrationStep
           recorder={voiceRecorder}
+          captureFrame={captureJpeg}
           readMouth={(startedAt, durationMs) => trackerRef.current?.takeMouthSamples(startedAt, durationMs) ?? []}
           submit={submitVoiceCalibration}
         />
