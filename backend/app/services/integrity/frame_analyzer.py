@@ -263,6 +263,11 @@ class FrameAnalyzer:
         self.keep_landmarks = keep_landmarks
         self.identity_any_pose = identity_any_pose
 
+    def identity_models_ready(self) -> bool:
+        """YuNet + SFace (identity) and the 3D landmarker are all usable: what a calibration needs, none optional."""
+        detector, recognizer = self.vision_provider()
+        return detector is not None and recognizer is not None and self.landmarker_provider() is not None
+
     # ---- window level ---------------------------------------------------------------------------
 
     def analyze_frames(

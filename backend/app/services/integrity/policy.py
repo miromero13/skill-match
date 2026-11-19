@@ -301,16 +301,3 @@ class SupervisionProfile:
             voice_match=voice_match,
             lip_sync=lip_sync,  # type: ignore[arg-type]
         )
-
-
-class CalibrationProfile:
-    """Pre-exam calibration: skeleton only, filled by T9.
-
-    Calibration asks the same questions as supervision (one face, centered, one voice, no noise) but as
-    guided steps that must *pass* instead of incidents to log: look at each screen corner (gaze zone),
-    stay silent, read a phrase (voiceprint capture). T9 implements ``evaluate`` to return a
-    ``WindowAssessment`` whose anomalies mean "step not passed", reusing the same engine and analyzers.
-    """
-
-    def evaluate(self, window: WindowObservation) -> WindowAssessment:
-        raise NotImplementedError("CalibrationProfile is implemented by T9; use SupervisionProfile for now.")

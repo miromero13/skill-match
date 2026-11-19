@@ -1,52 +1,53 @@
-"""Synthetic timing policy tests; not real-device/lip-reading efficacy evidence."""
-from types import SimpleNamespace
+"""Synthetic timing policy tests; not real-device/lip-reading efficacy evidence.
 
-import numpy as np
+Rewritten in T9: the old tests stubbed ``CalibrationAVService.voice_activity`` / ``mouth_trace`` (mouth-patch
+statistics, removed). The same rules are asserted on the engine: voice must follow the mouth the server measures on the
+spoken frames (lip-sync correlation), nothing may be said in the pause, and sparse or old video cannot stand in.
+"""
 import pytest
-from app.core.exceptions import SkillMatchException
+
+from app.services.integrity import messages as m
+from audio_fixtures import syllables, voice
+from integrity_fixtures import face_b64  # noqa: F401
+from test_integrity_calibration import AMBIENT_MS, Calibration, face
 
 
-def evidence():
-    return [SimpleNamespace(time_ms=index * 100, image="mock-jpeg") for index in range(80)]
+@pytest.fixture
+def good(monkeypatch):
+    return Calibration(monkeypatch)
 
 
-def activity(pause=False):
-    return [(index * 0.03 + 0.015, 1 <= index * 0.03 < 3 or (pause and 5 <= index * 0.03 < 6)) for index in range(266)]
+def set_mouth(good, level_at):
+    for frame, at in zip(good.voice, good.times):
+        good.fake.by_frame[frame] = face(mouth_open_score=level_at((at - AMBIENT_MS) / 1000))
 
 
-@pytest.mark.parametrize("moving,message", [
-    (lambda t: False, "Se detectó voz sin movimiento de boca coincidente. Repetí mirando a cámara y hablando solo cuando se indique."),
-    (lambda t: 5 <= t < 7, "Se detectó voz sin movimiento de boca coincidente. Repetí mirando a cámara y hablando solo cuando se indique."),
-])
-def test_voice_without_corresponding_mouth_activity_rejects(monkeypatch, moving, message):
-    from app.services.calibration_av_service import CalibrationAVService
-    monkeypatch.setattr(CalibrationAVService, "voice_activity", staticmethod(lambda audio: activity()))
-    monkeypatch.setattr(CalibrationAVService, "mouth_trace", staticmethod(lambda frames, enrollment: [(i * .1, .04 if moving(i * .1) else 0) for i in range(1, 80)]))
-    with pytest.raises(SkillMatchException) as caught:
-        CalibrationAVService.assess(evidence(), np.zeros(128000, dtype=np.float32), "enrollment")
-    assert caught.value.statuscode == 400 and caught.value.message == message
+def run(good, **changes):
+    return good.rejected(gaze_points=None, mouth=None, **changes)
 
 
-def test_synchronized_motion_and_voice_can_pass_but_does_not_prove_words(monkeypatch):
-    from app.services.calibration_av_service import CalibrationAVService
-    monkeypatch.setattr(CalibrationAVService, "voice_activity", staticmethod(lambda audio: activity()))
-    monkeypatch.setattr(CalibrationAVService, "mouth_trace", staticmethod(lambda frames, enrollment: [(i * .1, .04 if 1 <= i * .1 < 3 else 0) for i in range(1, 80)]))
-    assert CalibrationAVService.assess(evidence(), np.zeros(128000, dtype=np.float32), "enrollment") == {"mouth_audio_sync": True, "speech_pause": True}
+@pytest.mark.parametrize("moving", [lambda t: 0.05, lambda t: 0.05 + 0.25 * float(syllables(5, chunks=400)[int(t * 33)]) if t >= 5 else 0.05])
+def test_voice_without_corresponding_mouth_activity_rejects(good, moving):
+    set_mouth(good, moving)  # a still mouth, or one that only moves after the phrase
+    error = run(good)
+    assert (error.check, error.status, error.message) == ("mouth_audio_sync", 400, m.VOICE_WITHOUT_MOUTH)
 
 
-def test_speech_during_requested_pause_never_approves(monkeypatch):
-    from app.services.calibration_av_service import CalibrationAVService
-    monkeypatch.setattr(CalibrationAVService, "voice_activity", staticmethod(lambda audio: activity(pause=True)))
-    with pytest.raises(SkillMatchException) as caught:
-        CalibrationAVService.assess(evidence(), np.zeros(128000, dtype=np.float32), "enrollment")
-    assert caught.value.statuscode == 400
-    assert caught.value.message == "Se detectó voz durante la pausa. Guardá silencio cuando termine la frase y pausá llamadas o conversaciones."
+def test_synchronized_motion_and_voice_can_pass_but_does_not_prove_words(good):
+    output = good.run(gaze_points=None, mouth=None)
+    assert output.checks["mouth_audio_sync"] and output.checks["speech_pause"]
 
 
-def test_sparse_or_old_video_cannot_substitute_spoken_video():
-    from app.services.calibration_av_service import CalibrationAVService
-    for frames in (evidence()[:12], evidence()[::5], list(reversed(evidence()))):
-        with pytest.raises(SkillMatchException) as caught:
-            CalibrationAVService.assess(frames, np.zeros(128000, dtype=np.float32), "enrollment")
-        assert caught.value.statuscode == 400
-        assert caught.value.message == "No se obtuvo video sincronizado suficiente. Mantené la página visible y repetí la comprobación."
+def test_speech_during_requested_pause_never_approves(good):
+    audio = good.audio.copy()
+    start = (AMBIENT_MS + 5000) * 16  # five seconds into the speech segment: the pause has begun
+    audio[start:start + 16000] = voice(1.0)
+    error = run(good, audio=audio)
+    assert (error.check, error.message) == ("speech_pause", m.SPEECH_DURING_PAUSE)
+
+
+def test_sparse_or_old_video_cannot_substitute_spoken_video(good):
+    frames = list(zip(good.times, good.voice))
+    for bad in (frames[:12], frames[::5], list(reversed(frames))):
+        error = run(good, voice_frames=bad)
+        assert (error.check, error.status, error.message) == ("frames", 400, m.VOICE_VIDEO)

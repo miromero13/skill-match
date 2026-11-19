@@ -305,20 +305,23 @@ def test_moderate_noise_is_high_only_when_it_is_not_speech(run, monkeypatch):
 # ---- engine-only surface ----------------------------------------------------------------------
 
 def test_package_layout_exposes_the_documented_components():
-    from app.services.integrity import audio_analyzer, engine, frame_analyzer, models, policy, state, sync_analyzer
+    from app.services.integrity import audio_analyzer, calibration, engine, frame_analyzer, models, policy, state, sync_analyzer
 
     assert engine.IntegrityEngine and frame_analyzer.FrameAnalyzer and audio_analyzer.AudioAnalyzer
     assert sync_analyzer.SyncAnalyzer and state.InMemoryStateStore and state.SessionStateStore
-    assert policy.SupervisionProfile and policy.CalibrationProfile
+    assert policy.SupervisionProfile and calibration.CalibrationProfile and calibration.CalibrationEngine
     assert models.FrameObservation and models.AudioObservation and models.WindowObservation
 
 
-def test_calibration_profile_is_an_unfilled_skeleton():
-    from app.services.integrity.models import WindowObservation
-    from app.services.integrity.policy import CalibrationProfile
+def test_calibration_profile_is_implemented_and_shares_the_engine_analyzers():
+    from app.services.integrity import calibration, policy
+    from app.services.integrity.audio_analyzer import AudioAnalyzer
+    from app.services.integrity.frame_analyzer import FrameAnalyzer
 
-    with pytest.raises(NotImplementedError):
-        CalibrationProfile().evaluate(WindowObservation())
+    assert not hasattr(policy, "CalibrationProfile")  # the unfilled skeleton is gone
+    engine = calibration.CalibrationEngine.create(vision_provider=lambda: (None, None), extractor=object())
+    assert isinstance(engine.frames, FrameAnalyzer) and isinstance(engine.audio, AudioAnalyzer)
+    assert isinstance(engine.profile, calibration.CalibrationProfile)
 
 
 def test_frame_observation_keeps_the_legacy_dict_shape():

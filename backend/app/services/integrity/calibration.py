@@ -264,8 +264,16 @@ class CalibrationEngine:
         """Wires the default analyzers for one calibration: per-request state, the process-wide landmarker."""
         store = state if state is not None else InMemoryStateStore()
         extractor = extractor or vp.default_extractor()
+        loaded: list[tuple[Any, Any]] = []
+
+        def models() -> tuple[Any, Any]:
+            """The YuNet/SFace pair is created once per calibration, not once per step."""
+            if not loaded:
+                loaded.append((vision_provider or create_vision_models)())
+            return loaded[0]
+
         return cls(
-            FrameAnalyzer(store, vision_provider=vision_provider or create_vision_models,
+            FrameAnalyzer(store, vision_provider=models,
                           landmarker_provider=landmarker_provider, identity_any_pose=True),
             AudioAnalyzer(store, speaker_segments=speaker_segments, extractor=extractor, vad_floor=0.0,
                           min_speaker_s=t.CAL_SPEAKER_MIN_DURATION_S),
@@ -274,6 +282,8 @@ class CalibrationEngine:
 
     def assess(self, evidence: CalibrationEvidence) -> CalibrationOutput:
         """Runs every step in order and raises ``CalibrationRejected`` at the first failing check."""
+        if not self.frames.identity_models_ready():
+            raise CalibrationRejected("models", m.VISION_UNAVAILABLE, 503)
         session = f"calibration:{uuid.uuid4()}"
         checks = _Checks()
         self._movement(evidence, session, checks)
@@ -388,6 +398,8 @@ class CalibrationEngine:
             raise CalibrationRejected("single_speaker", m.SPEAKER_MODELS_UNAVAILABLE, 503) from error
 
         voice_images = [raw for _, raw in evidence.voice_frames]
+        if any(image.shape[1] > t.CAL_VOICE_FRAME_MAX_WIDTH for image in self._decode(voice_images)):
+            raise CalibrationRejected("frames", m.VOICE_VIDEO)
         batch = self._measure(voice_images, None, session, times)
         observed = batch.frames
         checks.add(self.profile.faces(observed, times, True, spoken=True))

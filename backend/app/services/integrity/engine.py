@@ -2,14 +2,11 @@
 
 ``IntegrityEngine.assess_window`` runs the frame, audio and sync analyzers over one audiovisual window and
 hands the resulting ``WindowObservation`` to a policy profile (``SupervisionProfile`` for exams,
-``CalibrationProfile`` for calibration, T9). Supervision (``ContinuousSupervisionService``) is a thin facade
+``integrity.calibration.CalibrationProfile`` for calibration). Supervision (``ContinuousSupervisionService``) is a thin facade
 over this class.
 
-Calibration reuse map (T9 migrates these services; nothing here depends on them except diarization):
-    CalibrationVisionService   -> FrameAnalyzer.analyze_frame  (pose, face count, identity)
-    CalibrationAudioService    -> AudioAnalyzer.analyze        (RMS, VAD speech, noise)
-    CalibrationSpeakerService  -> AudioAnalyzer.detect_multiple_speakers (diarization via .segments)
-    CalibrationAVService       -> sync_analyzer.voice_mouth_coexistence / SyncAnalyzer.mouth_movement
+Calibration runs on the same analyzers: ``integrity.calibration.CalibrationEngine`` measures the guided steps with
+``FrameAnalyzer`` / ``AudioAnalyzer`` and judges them with ``CalibrationProfile`` (named pass/fail checks).
 """
 from typing import Any, Callable, Mapping, Optional, Sequence
 

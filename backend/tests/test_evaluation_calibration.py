@@ -110,14 +110,17 @@ async def test_environment_rejection_does_not_authorize_or_consume(scenario, mon
 @pytest.mark.asyncio
 async def test_invalid_images_never_use_profile_synthetic_fallback(scenario):
     import base64
-    client, _, _, offer = scenario
+    import json
+    client, db, user, offer = scenario
+    user.biometric_embedding = json.dumps([1.0] + [0.0] * 127)  # a valid reference: the images are what is rejected
+    await db.commit()
     evaluation_id = await prepare(scenario)
     challenge = (await client.post(f"/api/evaluations/{evaluation_id}/liveness/challenge")).json()["data"]
     body = {**PAYLOAD, "challenge_id": challenge["id"],
             "frames": [base64.b64encode(b"not-an-image" * 10).decode()] * 3}
     response = await client.post(f"/api/evaluations/{evaluation_id}/liveness/verify-identity", json=body)
     assert response.status_code == 400
-    assert response.json()["data"] is None
+    assert response.json() == {"statuscode": 400, "message": "La captura de calibración no es una imagen JPEG válida.", "data": None}
     state = (await client.get(f"/api/evaluations/{evaluation_id}/environment/verify")).json()["data"]
     assert state["ready"] is False
     quota = (await client.get(endpoint(offer, "preflight"))).json()["data"]
@@ -130,11 +133,11 @@ async def test_missing_models_fail_closed_without_consuming(scenario, monkeypatc
     import json
     import cv2
     import numpy as np
-    import app.services.calibration_vision_service as vision
+    from app.services import vision_models
     client, db, user, offer = scenario
     user.biometric_embedding = json.dumps([1.0] + [0.0] * 127)
     await db.commit()
-    monkeypatch.setattr(vision, "YUNET_MODEL_PATH", tmp_path / "missing.onnx")
+    monkeypatch.setattr(vision_models, "YUNET_MODEL_PATH", tmp_path / "missing.onnx")  # read at call time
     frames = []
     for value in (100, 110, 120):
         ok, encoded = cv2.imencode(".jpg", np.full((240, 320, 3), value, dtype=np.uint8))

@@ -24,6 +24,16 @@ PHRASE_S, PAUSE_S = 4.0, 4.0  # the speech segment is 8 s: phrase first, silent 
 REFERENCE = np.eye(1, 128, dtype=np.float32)[0]
 
 
+_IMAGES: dict = {}
+
+
+def _image(seed):
+    """Real JPEGs are generated once per run (hundreds of tests would otherwise re-encode them)."""
+    if seed not in _IMAGES:
+        _IMAGES[seed] = face_b64(seed)
+    return _IMAGES[seed]
+
+
 def face(yaw=0.0, pitch=0.0, **kw):
     base = dict(face_count=1, orientation="CENTER", pitch_deg=pitch, yaw_deg=yaw, gaze_h=0.0, gaze_v=0.0,
                 identity_match=True, identity_similarity=0.9, face_box=BOX, face_score=0.9, pose_3d=True,
@@ -39,7 +49,11 @@ class FakeFrames:
         self.state = InMemoryStateStore()
         self.by_frame: dict = {}
         self.unavailable = False
+        self.ready = True
         self.calls: list = []
+
+    def identity_models_ready(self):
+        return self.ready
 
     def analyze_frames(self, frames, reference, session_key, times_ms=None):
         self.calls.append((list(frames), reference is not None, session_key))
@@ -64,7 +78,7 @@ class Calibration:
         self.segments = lambda audio: [Segment(0.0, len(audio) / SR, 0)]
         self.extractor = LevelExtractor()
         sign = -1 if action == "TURN_LEFT" else 1
-        self.movement = [face_b64(i) for i in range(12)]
+        self.movement = [_image(i) for i in range(12)]
         for index, frame in enumerate(self.movement):
             self.fake.by_frame[frame] = face(yaw=sign * 25.0 if 4 <= index < 8 else 0.0)
         self.points = {}
@@ -78,9 +92,15 @@ class Calibration:
         self.times = list(range(AMBIENT_MS, duration_ms + 1, 100))
         telemetry = mouth_samples(np.concatenate([env, np.zeros(int(PAUSE_S * 1000 / 30))]))  # still mouth in the pause
         self.mouth = [(s.t_ms + AMBIENT_MS, s.mouth_open) for s in telemetry]
-        self.voice = [f"voice-{i}" for i in range(len(self.times))]
+        self.voice = [_image(500 + i) for i in range(len(self.times))]
+        self.telemetry = telemetry
+        self.reset_mouth()
+
+    def reset_mouth(self):
+        """The server measures, on every spoken frame, the aperture the telemetry says (a mouth that follows the voice)."""
         for frame, at in zip(self.voice, self.times):
-            level = float(np.interp(at - AMBIENT_MS, [s.t_ms for s in telemetry], [s.mouth_open for s in telemetry]))
+            level = float(np.interp(at - AMBIENT_MS, [s.t_ms for s in self.telemetry],
+                                    [s.mouth_open for s in self.telemetry]))
             self.fake.by_frame[frame] = face(mouth_open_score=level)
 
     def evidence(self, **changes):
@@ -364,8 +384,18 @@ def test_the_spoken_frames_must_cover_the_recording(good):
         assert good.rejected(voice_frames=bad).message == m.VOICE_VIDEO
 
 
+def test_spoken_frames_larger_than_the_thumbnail_size_are_rejected(good):
+    import cv2
+    from integrity_fixtures import b64, face_image
+    wide = b64(cv2.resize(face_image(9), (800, 600)))
+    good.fake.by_frame[wide] = face()
+    frames = list(zip(good.times, good.voice))
+    frames[10] = (frames[10][0], wide)
+    assert good.rejected(voice_frames=frames).message == m.VOICE_VIDEO
+
+
 def test_a_second_face_while_speaking_is_rejected(good):
-    good.fake.by_frame["voice-30"] = face(face_count=2)
+    good.fake.by_frame[good.voice[30]] = face(face_count=2)
     error = good.rejected()
     assert (error.check, error.message) == ("single_face", m.VOICE_SINGLE_FACE)
 
@@ -406,6 +436,12 @@ def test_the_server_measuring_no_mouth_on_its_frames_leaves_the_telemetry_unveri
 
 
 # ---- fail closed: missing models -------------------------------------------------------------------------------
+
+
+def test_vision_models_that_are_not_all_ready_fail_closed_before_any_measurement(good):
+    good.fake.ready = False
+    error = good.rejected()
+    assert (error.status, error.message) == (503, m.VISION_UNAVAILABLE) and good.fake.calls == []
 
 
 def test_missing_vision_models_fail_closed_with_503(good):
@@ -480,3 +516,21 @@ def test_the_server_mouth_series_still_judges_a_voice_with_a_still_mouth(good):
 def test_without_zone_points_the_movement_rules_still_reject(good):
     only(good, 5, face_count=2, orientation="UNKNOWN", pitch_deg=None, yaw_deg=None, occlusion=None)
     assert good.rejected(gaze_points=None, mouth=None).check == "single_face"
+
+
+# ---- helpers for the HTTP-level calibration tests (the engine runs for real over a faked frame boundary) ----------
+
+
+def http_body(good, challenge_id, audio=None):
+    """The ``CalibrationVerifyRequest`` JSON equivalent of the evidence of ``good`` (the pre-exam contract)."""
+    samples = good.audio if audio is None else audio
+    split = AMBIENT_MS * SR // 1000
+    return {"challenge_id": challenge_id, "frames": good.movement,
+            "ambient_audio_samples": [float(v) for v in samples[:split]],
+            "audio_samples": [float(v) for v in samples[split:]],
+            "spoken_frames": [{"time_ms": at - AMBIENT_MS, "image": image} for at, image in zip(good.times, good.voice)],
+            "camera_label": "Physical webcam"}
+
+
+def valid_reference():
+    return json.dumps(REFERENCE.tolist())

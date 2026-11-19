@@ -25,12 +25,6 @@ MIN_FRAME_BYTES = 16
 # se instalan con scripts/install_vision_models.py (SHA-256 fijado).
 MODEL_INIT_RETRY_COOLDOWN_S = 30.0
 
-# Re-exports de compatibilidad (los usa calibration_vision_service). Estos alias son solo una
-# instantánea; el código nuevo debe leer app.services.vision_models en cada llamada.
-MODELS_DIR = vision_models.MODELS_DIR
-YUNET_MODEL_PATH = vision_models.YUNET_MODEL_PATH
-SFACE_MODEL_PATH = vision_models.SFACE_MODEL_PATH
-
 # Umbral estándar de similitud coseno de SFace (OpenCV Zoo)
 # Cosine threshold >= 0.363 indica misma persona con bajo FAR (False Acceptance Rate)
 SFACE_COSINE_THRESHOLD = 0.363

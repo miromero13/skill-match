@@ -3,7 +3,7 @@
 Coexistence is now only the fallback: when a window has no usable mouth series (no trusted telemetry, sparse
 frames) the policy still uses it; with a series, ``lipsync.evaluate`` (temporal correlation, T8) decides.
 
-Calibration mapping (T9): ``CalibrationAVService`` (voice + mouth together) maps to ``voice_mouth_coexistence``.
+Calibration mapping (T9): ``integrity.calibration`` judges voice + mouth together with lip-sync (the coexistence verdict is the supervision fallback).
 """
 from dataclasses import dataclass
 from typing import Optional, Sequence

@@ -1,52 +1,57 @@
-"""Public no-consumption checks; only visual/model extraction is simulated."""
-from types import SimpleNamespace
+"""Public no-consumption checks; only visual/model extraction is simulated (the engine runs for real).
 
-import numpy as np
+Rewritten in T9: the old test stubbed the four ``Calibration*Service`` classes one by one; the same four rejections and
+messages are produced here by the real engine over a faked frame boundary, and a repeat with the same challenge succeeds.
+"""
 import pytest
+
 from tests.test_evaluation_preflight import endpoint, isolated_db, scenario  # noqa: F401
-from tests.test_evaluation_calibration import PAYLOAD, prepare
-from tests.test_calibration_audio import Detector
+from tests.test_calibration_audio import consented
+from audio_fixtures import Segment, SR, voice
+from integrity_fixtures import face_b64  # noqa: F401
+from test_calibration_audiovisual import set_mouth
+from test_integrity_calibration import AMBIENT_MS, http_body
+from app.services.integrity import messages as m
+
+
+def break_it(good, failure):
+    """Returns the audio to send for ``failure`` after breaking the corresponding part of the calibration."""
+    audio = good.audio.copy()
+    if failure == "multiple":
+        good.segments = lambda a: [Segment(0.3, 1.5, 0), Segment(2, 3.5, 1)]
+    elif failure == "overlap":
+        good.segments = lambda a: [Segment(0.3, 2, 0), Segment(1.5, 3.5, 1)]
+    elif failure == "mouth":
+        set_mouth(good, lambda t: 0.05)
+    elif failure == "pause":
+        start = (AMBIENT_MS + 5000) * SR // 1000
+        audio[start:start + SR] = voice(1.0)
+    return audio
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure,message", [
-    ("multiple", "Se detectaron indicios de más de una voz. Pausá llamadas y conversaciones y repetí la comprobación."),
-    ("overlap", "Se detectaron indicios de voces superpuestas. Buscá un ambiente sin conversaciones y repetí la comprobación."),
-    ("mouth", "Se detectó voz sin movimiento de boca coincidente. Repetí mirando a cámara y hablando solo cuando se indique."),
-    ("pause", "Se detectó voz durante la pausa. Guardá silencio cuando termine la frase y pausá llamadas o conversaciones."),
+    ("multiple", m.MORE_THAN_ONE_VOICE),
+    ("overlap", m.OVERLAPPING_VOICES),
+    ("mouth", m.VOICE_WITHOUT_MOUTH),
+    ("pause", m.SPEECH_DURING_PAUSE),
 ])
 async def test_integrity_rejection_keeps_state_and_quota_and_allows_retry(scenario, monkeypatch, failure, message):
-    from app.services.calibration_audio_service import CalibrationAudioService as Audio
-    from app.services.calibration_av_service import CalibrationAVService as AV
-    from app.services.calibration_speaker_service import CalibrationSpeakerService as Speakers
-    from app.services.calibration_vision_service import CalibrationVisionService as Vision
-    monkeypatch.setattr(Audio, "detector", staticmethod(lambda: Detector()))
-    def speakers(audio):
-        if failure == "multiple": return [SimpleNamespace(start=.3, end=1.5, speaker=0), SimpleNamespace(start=2, end=3.5, speaker=1)]
-        if failure == "overlap": return [SimpleNamespace(start=.3, end=2, speaker=0), SimpleNamespace(start=1.5, end=3.5, speaker=1)]
-        return [SimpleNamespace(start=1, end=3, speaker=0)]
-    monkeypatch.setattr(Speakers, "segments", staticmethod(speakers))
-    monkeypatch.setattr(AV, "mouth_trace", staticmethod(lambda frames, enrollment: [(i * .1, .04 if failure != "mouth" and 1 <= i * .1 < 3 else 0) for i in range(1, 80)]))
-    def assess(frames, audio, label, action, enrollment, ambient, spoken_frames):
-        return {"lighting": True, "framing": True, "single_face": True, "identity": True,
-                "liveness": True, "passive_screen_check": True, **Audio.assess(ambient, audio),
-                **Speakers.assess(np.asarray(audio, dtype=np.float32)), **AV.assess(spoken_frames, audio, enrollment)}
-    monkeypatch.setattr(Vision, "assess", assess)
-    client, _, _, offer = scenario
-    evaluation_id = await prepare(scenario)
-    root = f"/api/evaluations/{evaluation_id}"
-    challenge = (await client.post(root + "/liveness/challenge")).json()["data"]
+    client, offer, root, challenge, good = await consented(scenario, monkeypatch)
     state = (await client.get(root + "/environment/verify")).json()
     quota = (await client.get(endpoint(offer, "preflight"))).json()
-    spoken = [0.1 if 16000 <= i < 48000 or (failure == "pause" and 80000 <= i < 96000) else 0 for i in range(128000)]
-    body = {**PAYLOAD, "challenge_id": challenge["id"], "audio_samples": spoken}
-    rejected = await client.post(root + "/liveness/verify-identity", json=body)
+    original = http_body(good, challenge["id"])
+    rejected = await client.post(root + "/liveness/verify-identity",
+                                 json={**http_body(good, challenge["id"], break_it(good, failure))})
     assert rejected.status_code == 400
     assert rejected.json() == {"statuscode": 400, "message": message, "data": None}
     assert (await client.get(root + "/environment/verify")).json() == state
     assert (await client.get(endpoint(offer, "preflight"))).json() == quota
-    failure = "none"
-    success = await client.post(root + "/liveness/verify-identity", json={**body, "audio_samples": [0.1 if 16000 <= i < 48000 else 0 for i in range(128000)]})
+    # Repeating with the same challenge after fixing the problem succeeds: a rejection consumes nothing.
+    fixed = [Segment(0.0, 8.0, 0)]
+    good.segments = lambda a: fixed
+    good.reset_mouth()
+    success = await client.post(root + "/liveness/verify-identity", json=original)
     assert success.status_code == 200
     data = success.json()["data"]
     assert data["ready"] is True and data["started_at"] is None
