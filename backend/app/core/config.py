@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     THEORY_GRADING_TIMEOUT_SECONDS: int = Field(default=20, ge=1, le=60)
     THEORY_ASR_ENABLED: bool = Field(default=True, description="Enable the installed local ASR runtime for theory exams")
 
+    # Deterministic programming sandbox. The image must be pre-pulled by deployment; the
+    # request path never enables Docker networking or downloads an image.
+    SANDBOX_DOCKER_IMAGE: str = Field(default="python:3.12-slim", description="Pinned Python image used by the programming sandbox")
+    SANDBOX_DOCKER_BINARY: str = Field(default="docker", description="Docker-compatible executable for isolated code execution")
+    SANDBOX_MAX_CONCURRENT_RUNS: int = Field(default=2, ge=1, le=16, description="Maximum concurrent sandbox executions")
+
     # Almacenamiento MinIO / S3
     MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Endpoint de MinIO/S3")
     MINIO_ROOT_USER: str = Field(default="minioadmin", description="Usuario root de MinIO")

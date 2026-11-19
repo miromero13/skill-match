@@ -76,6 +76,11 @@ GEMINI_API_KEY=""                  # [SECRETO] Si provider=gemini
 THEORY_GRADING_TIMEOUT_SECONDS=20
 THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory exams
 
+# --- Sandbox seguro de programación (la imagen debe estar pre-descargada) ---
+SANDBOX_DOCKER_IMAGE="python:3.12-slim"
+SANDBOX_DOCKER_BINARY="docker"
+SANDBOX_MAX_CONCURRENT_RUNS=2
+
 
 
 # --- Almacenamiento de Evidencias y MinIO / Garage S3 (Coolify VPS) ---

@@ -35,6 +35,7 @@ from app.models.exchange_session import (
 from app.models.match import Match
 from app.models.match_proposal import MatchDismissal, MatchMessage, MatchProposal
 from app.models.notification import Notification, NotificationCategory, NotificationType
+from app.models.programming import ProgrammingChallenge, ProgrammingSubmission, ProgrammingTestCase
 from app.models.notification_preference import NotificationPreference
 from app.models.revoked_token import RevokedToken
 from app.models.skill_evidence import EvidenceType, SkillEvidence
@@ -79,6 +80,9 @@ __all__ = [
     "NotificationCategory",
     "NotificationPreference",
     "NotificationType",
+    "ProgrammingChallenge",
+    "ProgrammingSubmission",
+    "ProgrammingTestCase",
     "ReportReason",
     "ReportStatus",
     "RevokedToken",

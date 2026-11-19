@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useParams } from "react-router-dom"
+import { Link, useParams } from "react-router-dom"
 import { theoryExam, type OralSubmission } from "@/services/theory-exam-service"
 import { useTheoryExamStore } from "@/stores/theory-exam-store"
 import { startOralRecording, type OralRecording } from "@/services/oral-recording"
@@ -148,6 +148,7 @@ export function TheoryExamPage() {
         : <><p>{state.grading_state === "ERROR" ? "La corrección no pudo completarse; no se asignó nota. Tus respuestas permanecen guardadas." : "Corrección pendiente; todavía no se asignó nota."}</p>
           <Button disabled={busy} onClick={() => void run(async () => { const response = await theoryExam.retryGrading(id); setNotice(response.message); await refresh() })}>{state.grading_state === "ERROR" ? "Reintentar corrección" : "Solicitar corrección"}</Button></>}
       <p className="text-sm text-muted-foreground">No se emite sello ni certificado automático.</p>
+      {(state.status === "THEORY_PENDING_REVIEW" || state.grading_state === "COMPLETE" || state.grading_state === "ERROR") && <Link to={`/evaluation/${id}/code`}><Button variant="outline">Continuar a la evaluación práctica</Button></Link>}
     </CardContent></Card>}
     <Button variant="outline" disabled={busy} onClick={() => void run(refresh)}>Actualizar estado</Button>
   </main>

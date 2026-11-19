@@ -12,6 +12,7 @@ import {
   Scale,
   Brain,
   Video,
+  Code2,
   Menu,
   X,
   LogOut,
@@ -81,6 +82,12 @@ export function AdminLayout() {
       visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-17 / RF-IA-18)
     },
     {
+      label: "Retos de Programación",
+      to: "/admin/programming",
+      icon: Code2,
+      visible: user?.role === "ADMIN",
+    },
+    {
       label: "IA & Datasets",
       to: "/admin/ai-datasets",
       icon: Brain,
@@ -112,6 +119,9 @@ export function AdminLayout() {
     }
     if (location.pathname.includes("/admin/capture") || location.pathname.includes("/admin/ai-datasets")) {
       return "Ingesta y Captura de Muestras Multimedia"
+    }
+    if (location.pathname.includes("/admin/programming")) {
+      return "Retos de Programación"
     }
     return "Panel Central de Control"
   }
