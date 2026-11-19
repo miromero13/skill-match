@@ -309,10 +309,11 @@ async def test_new_kinds_are_accepted_in_the_ledger_only_from_the_server_side(sc
     assert "VOICE_MISMATCH" in service.AV_KINDS
 
 
-def test_alembic_has_a_single_head_that_adds_the_voiceprint_on_top_of_the_gaze_zone():
+def test_alembic_has_a_single_head_and_the_voiceprint_sits_on_top_of_the_gaze_zone():
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
     config.set_main_option("script_location", str(Path(__file__).parents[1] / "alembic"))
     script = ScriptDirectory.from_config(config)
     assert len(script.get_heads()) == 1
     head = script.get_revision(script.get_heads()[0])
-    assert head.revision == "e5b1c7d3a962" and head.down_revision == "c4e8a1f27b95"
+    assert head.revision == "f3a8d2c19e47" and head.down_revision == "e5b1c7d3a962"  # T9: calibration inputs on top
+    assert script.get_revision(head.down_revision).down_revision == "c4e8a1f27b95"

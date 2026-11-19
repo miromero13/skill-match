@@ -196,7 +196,10 @@ def test_alembic_has_a_single_head_and_last_av_window_at_is_in_its_history():
     script = ScriptDirectory.from_config(config)
     assert len(script.get_heads()) == 1
     head = script.get_revision(script.get_heads()[0])
-    assert head.revision == "e5b1c7d3a962"  # T8 adds the per-trial voiceprint on top of the gaze zone
+    assert head.revision == "f3a8d2c19e47"  # T9 adds the calibration supervision inputs on top of the voiceprint
+    voiceprint = script.get_revision(head.down_revision)
+    assert voiceprint.revision == "e5b1c7d3a962"  # T8 adds the per-trial voiceprint on top of the gaze zone
+    head = voiceprint
     gaze = script.get_revision(head.down_revision)
     assert gaze.revision == "c4e8a1f27b95"  # T6 adds the per-trial gaze zone on top of last_av_window_at
     window = script.get_revision(gaze.down_revision)
