@@ -78,6 +78,9 @@ const labels: Record<string, string> = {
   VIDEO_MISSING: "Sin video",
   AUDIO_MISSING: "Sin audio",
   WINDOW_GAP: "Supervisión interrumpida",
+  FACE_OCCLUDED: "Rostro cubierto",
+  MOUTH_OCCLUDED: "Boca cubierta",
+  CAMERA_BLOCKED: "Cámara tapada o congelada",
 }
 
 const message = (error: unknown) =>
@@ -120,11 +123,15 @@ export function BrowserSupervisionPage() {
   const [faceCount, setFaceCount] = useState<number>(1)
   const [headOrientation, setHeadOrientation] = useState<string>("CENTER")
   const [identityMatch, setIdentityMatch] = useState<boolean | null>(null)
+  const [faceCovered, setFaceCovered] = useState(false)
+  const [mouthCovered, setMouthCovered] = useState(false)
+  const [cameraBlocked, setCameraBlocked] = useState(false)
   const [speechDetected, setSpeechDetected] = useState(false)
   const [mouthMoving, setMouthMoving] = useState(false)
   const [mouthSync, setMouthSync] = useState<boolean | null>(null)
   const [multipleSpeakers, setMultipleSpeakers] = useState(false)
   const [noiseLevel, setNoiseLevel] = useState(0)
+  const presenceAlert = cameraBlocked || faceCovered || mouthCovered
   const [vuLevel, setVuLevel] = useState(0)
   const [deviceError, setDeviceError] = useState("")
   const [avStatus, setAvStatus] = useState("")
@@ -409,6 +416,9 @@ export function BrowserSupervisionPage() {
               setFaceCount(res.face_count)
               setHeadOrientation(res.head_orientation)
               setIdentityMatch(res.identity_match)
+              setFaceCovered(Boolean(res.occlusion?.face || res.anomalies.includes("FACE_OCCLUDED")))
+              setMouthCovered(Boolean(res.occlusion?.mouth || res.anomalies.includes("MOUTH_OCCLUDED")))
+              setCameraBlocked(Boolean(res.camera_blocked || res.anomalies.includes("CAMERA_BLOCKED")))
               setSpeechDetected(res.speech_detected)
               setMouthMoving(Boolean(res.mouth_moving))
               setMouthSync(res.mouth_sync ?? null)
@@ -785,10 +795,16 @@ export function BrowserSupervisionPage() {
                       <User className="size-3.5" /> Presencia facial
                     </span>
                     <Badge
-                      variant={faceCount === 1 ? "secondary" : "destructive"}
+                      variant={faceCount === 1 && !presenceAlert ? "secondary" : "destructive"}
                       className="text-[11px]"
                     >
-                      {faceCount === 0
+                      {cameraBlocked
+                        ? "Cámara tapada o congelada"
+                        : faceCovered
+                        ? "Rostro cubierto"
+                        : mouthCovered
+                        ? "Boca cubierta"
+                        : faceCount === 0
                         ? "Ausente"
                         : faceCount === 1
                         ? "1 en encuadre"
@@ -796,7 +812,13 @@ export function BrowserSupervisionPage() {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {faceCount === 1
+                    {cameraBlocked
+                      ? "Alerta: La cámara está tapada, sin imagen o congelada."
+                      : faceCovered
+                      ? "Alerta: El rostro está cubierto. Descubrilo para continuar."
+                      : mouthCovered
+                      ? "Alerta: La boca está cubierta. Descubrila para continuar."
+                      : faceCount === 1
                       ? "Rostro único validado con YuNet."
                       : faceCount === 0
                       ? "Alerta: No se detecta persona frente a la cámara."
@@ -854,7 +876,9 @@ export function BrowserSupervisionPage() {
                       }
                       className="text-[11px]"
                     >
-                      {identityMatch === true
+                      {presenceAlert
+                        ? "No verificable"
+                        : identityMatch === true
                         ? "Coincide"
                         : identityMatch === false
                         ? "Discrepancia"
@@ -862,7 +886,9 @@ export function BrowserSupervisionPage() {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {identityMatch === true
+                    {presenceAlert
+                      ? "El rostro no está visible por completo: no se puede cotejar."
+                      : identityMatch === true
                       ? "Embedding SFace coincide con registro oficial."
                       : identityMatch === false
                       ? "Alerta: Posible suplantación a mitad de prueba."

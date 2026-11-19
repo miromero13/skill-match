@@ -296,3 +296,49 @@ it("labels the new evidence incidents in Spanish", async () => {
   for (const label of ["Sin video", "Sin audio", "Supervisión interrumpida", "Modelo de IA no disponible"])
     expect(await screen.findByText(new RegExp(label))).toBeInTheDocument()
 })
+
+it("labels the occlusion and camera incidents in Spanish", async () => {
+  vi.mocked(api.readBrowserLedger).mockResolvedValue({
+    statuscode: 200,
+    message: "Bitácora de prueba recuperada.",
+    data: (["FACE_OCCLUDED", "MOUTH_OCCLUDED", "CAMERA_BLOCKED"] as const).map((kind, index) => ({
+      event_id: `00000000-0000-4000-8000-00000000001${index}`,
+      kind,
+      observed_at: new Date().toISOString(),
+      duration_ms: 1200,
+      sequence: index + 1,
+      received_at: new Date().toISOString(),
+    })),
+    count: 3,
+  })
+  localStorage.setItem("sm43:last:member", trial.id)
+  vi.mocked(api.readBrowserTrial).mockResolvedValue(trial)
+  show()
+  for (const label of ["Rostro cubierto", "Boca cubierta", "Cámara tapada o congelada"])
+    expect(await screen.findByText(new RegExp(label))).toBeInTheDocument()
+})
+
+it.each([
+  [{ occlusion: { face: true, mouth: false } }, "Rostro cubierto"],
+  [{ occlusion: { face: false, mouth: true } }, "Boca cubierta"],
+  [{ camera_blocked: true }, "Cámara tapada o congelada"],
+])("shows %j in the facial presence card and stops verifying the profile", async (flags, label) => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  const { feed } = stubCapture(2048)
+  vi.mocked(api.sendAVWindow).mockResolvedValue({
+    window_id: "covered",
+    face_count: 1,
+    head_orientation: "CENTER",
+    identity_match: null,
+    speech_detected: false,
+    noise_level: 0,
+    anomalies: [],
+    incidents_created: [],
+    ...flags,
+  })
+  show()
+  await activate()
+  await runWindows(1, feed)
+  await waitFor(() => expect(screen.getAllByText(label).length).toBeGreaterThan(0))
+  expect(screen.getByText("No verificable")).toBeInTheDocument()
+})

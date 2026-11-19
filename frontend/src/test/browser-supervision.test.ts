@@ -150,7 +150,16 @@ describe("S8/S13 audiovisual evidence helpers", () => {
     expect(tracker.failure()).toBe(true)
   })
 
-  it.each(["STREAM_ERROR", "MODEL_UNAVAILABLE", "VIDEO_MISSING", "AUDIO_MISSING", "WINDOW_GAP"] as const)(
+  it.each([
+    "STREAM_ERROR",
+    "MODEL_UNAVAILABLE",
+    "VIDEO_MISSING",
+    "AUDIO_MISSING",
+    "WINDOW_GAP",
+    "FACE_OCCLUDED",
+    "MOUTH_OCCLUDED",
+    "CAMERA_BLOCKED",
+  ] as const)(
     "keeps %s in the durable queue and restores it from storage",
     kind => {
       const send = vi.fn()

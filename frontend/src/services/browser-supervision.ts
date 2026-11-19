@@ -32,6 +32,9 @@ export type IncidentKind =
   | "VIDEO_MISSING"
   | "AUDIO_MISSING"
   | "WINDOW_GAP"
+  | "FACE_OCCLUDED"
+  | "MOUTH_OCCLUDED"
+  | "CAMERA_BLOCKED"
 
 export interface BrowserIncident {
   event_id: string
@@ -81,6 +84,9 @@ export interface AVWindowResponse {
   mouth_sync?: boolean | null
   multiple_speakers?: boolean
   noise_level: number
+  /** Confirmed (continuous >= 1 s) covered face / covered mouth, and blocked or frozen camera. */
+  occlusion?: { face: boolean; mouth: boolean }
+  camera_blocked?: boolean
   anomalies: string[]
   incidents_created: LedgerIncident[]
 }
@@ -195,6 +201,9 @@ const kinds: IncidentKind[] = [
   "VIDEO_MISSING",
   "AUDIO_MISSING",
   "WINDOW_GAP",
+  "FACE_OCCLUDED",
+  "MOUTH_OCCLUDED",
+  "CAMERA_BLOCKED",
 ]
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 function validIncident(value: unknown): value is BrowserIncident {
