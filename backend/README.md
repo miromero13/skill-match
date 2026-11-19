@@ -84,6 +84,9 @@ THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory 
 SANDBOX_DOCKER_IMAGE="python:3.12-slim"
 SANDBOX_DOCKER_BINARY="docker"
 SANDBOX_MAX_CONCURRENT_RUNS=2
+# Directorio padre de los workspaces temporales de cada ejecución. Vacío/sin definir = directorio temporal del SO.
+# docker compose lo fija en "/sandbox-work" (volumen compartido) para que el daemon dind vea la misma ruta.
+# SANDBOX_WORK_DIR=""
 
 
 
@@ -107,6 +110,32 @@ GARAGE_S3_FORCE_PATH_STYLE=True
 # --- Cola de Procesamiento Asíncrono (Celery + Redis) ---
 REDIS_URL="redis://localhost:6379/0"
 CELERY_TASK_ALWAYS_EAGER=False
+
+# --- Correo Transaccional (Recordatorios de Sesión, SMTP) ---
+# Si EMAIL_ENABLED=True pero faltan credenciales, el envío se omite y se registra un error.
+EMAIL_ENABLED=False
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USERNAME=""
+SMTP_PASSWORD=""
+SMTP_STARTTLS=True
+SMTP_TIMEOUT_SECONDS=15
+EMAIL_FROM_ADDRESS="no-reply@skillmatch.io"
+EMAIL_FROM_NAME="SkillMatch"
+EMAIL_REPLY_TO=""
+
+# URL base pública del frontend, usada para construir enlaces en emails
+FRONTEND_BASE_URL="http://localhost:5173"
+
+# --- Notificaciones Web Push (VAPID) ---
+# WEB_PUSH_ENABLED=True exige VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY y VAPID_SUBJECT (mailto: o https://);
+# si falta alguno, la aplicación no arranca (error de validación de Settings).
+# Con WEB_PUSH_ENABLED=False el endpoint de clave pública responde 503 "Web Push no está configurado.".
+# VAPID_PRIVATE_KEY acepta la clave en base64url o la ruta a un archivo PEM (comportamiento de pywebpush).
+WEB_PUSH_ENABLED=False
+VAPID_PUBLIC_KEY=""
+VAPID_PRIVATE_KEY=""
+VAPID_SUBJECT="mailto:admin@skillmatch.io"
 ```
 
 ---

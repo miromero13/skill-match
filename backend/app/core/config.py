@@ -1,8 +1,8 @@
 import os
 import tempfile
 from pathlib import Path
-from typing import List, Union, Optional
-from pydantic import Field, SecretStr, field_validator
+from typing import List, Union, Optional, Self
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Rutas absolutas para resolución de archivos .env (ejecución desde /backend o raíz)
@@ -106,6 +106,13 @@ class Settings(BaseSettings):
     SANDBOX_DOCKER_IMAGE: str = Field(default="python:3.12-slim", description="Pinned Python image used by the programming sandbox")
     SANDBOX_DOCKER_BINARY: str = Field(default="docker", description="Docker-compatible executable for isolated code execution")
     SANDBOX_MAX_CONCURRENT_RUNS: int = Field(default=2, ge=1, le=16, description="Maximum concurrent sandbox executions")
+    SANDBOX_WORK_DIR: Optional[str] = Field(
+        default=None,
+        description=(
+            "Parent directory for per-run sandbox workspaces; must be the same path for the backend and "
+            "the Docker daemon (e.g. a shared volume under dind). Unset = system temp directory"
+        ),
+    )
 
     # Almacenamiento MinIO / S3
     MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Endpoint de MinIO/S3")
@@ -162,6 +169,56 @@ class Settings(BaseSettings):
         description="Ejecutar tareas Celery en proceso (True para pruebas sin broker activo)",
     )
 
+    # Correo transaccional (SMTP). El proveedor inicial puede ser Google,
+    # pero el contrato permanece desacoplado para permitir su sustitución.
+    EMAIL_ENABLED: bool = Field(
+        default=False,
+        description="Habilitar el envío de correo transaccional",
+    )
+    SMTP_HOST: str = Field(default="smtp.gmail.com", description="Servidor SMTP")
+    SMTP_PORT: int = Field(default=587, ge=1, le=65535, description="Puerto SMTP")
+    SMTP_USERNAME: SecretStr | None = Field(
+        default=None,
+        description="Usuario SMTP (Secreto .env)",
+    )
+    SMTP_PASSWORD: SecretStr | None = Field(
+        default=None,
+        description="Contraseña de aplicación SMTP (Secreto .env)",
+    )
+    SMTP_STARTTLS: bool = Field(default=True, description="Elevar la conexión SMTP mediante STARTTLS")
+    SMTP_TIMEOUT_SECONDS: int = Field(
+        default=15,
+        ge=1,
+        le=120,
+        description="Timeout de conexión y envío SMTP",
+    )
+    EMAIL_FROM_ADDRESS: str | None = Field(default=None, description="Dirección remitente")
+    EMAIL_FROM_NAME: str = Field(default="SkillMatch", description="Nombre visible del remitente")
+    EMAIL_REPLY_TO: str | None = Field(default=None, description="Dirección de respuesta")
+    FRONTEND_BASE_URL: str = Field(
+        default="http://localhost:5173",
+        description="URL pública del frontend usada en enlaces transaccionales",
+    )
+
+    # Web Push navegador/PWA. La clave pública puede exponerse a miembros
+    # autenticados; la privada nunca abandona el proceso backend.
+    WEB_PUSH_ENABLED: bool = Field(
+        default=False,
+        description="Habilitar entregas Web Push mediante VAPID",
+    )
+    VAPID_PUBLIC_KEY: str | None = Field(
+        default=None,
+        description="Clave pública VAPID en formato URL-safe Base64",
+    )
+    VAPID_PRIVATE_KEY: SecretStr | None = Field(
+        default=None,
+        description="Clave privada VAPID (Secreto .env)",
+    )
+    VAPID_SUBJECT: str | None = Field(
+        default=None,
+        description="Contacto VAPID, normalmente mailto:soporte@dominio",
+    )
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
@@ -170,6 +227,19 @@ class Settings(BaseSettings):
         elif isinstance(v, list):
             return v
         return ["*"]
+
+    @model_validator(mode="after")
+    def validate_web_push_configuration(self) -> Self:
+        if not self.WEB_PUSH_ENABLED:
+            return self
+        if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY or not self.VAPID_SUBJECT:
+            raise ValueError(
+                "WEB_PUSH_ENABLED requiere VAPID_PUBLIC_KEY, "
+                "VAPID_PRIVATE_KEY y VAPID_SUBJECT",
+            )
+        if not self.VAPID_SUBJECT.startswith(("mailto:", "https://")):
+            raise ValueError("VAPID_SUBJECT debe usar mailto: o https://")
+        return self
 
     @property
     def integrity_diagnostics_enabled(self) -> bool:

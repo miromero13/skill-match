@@ -36,9 +36,14 @@ class DockerSandboxRunner:
         if binary is None:
             raise SandboxUnavailableError("El sandbox de programación no está disponible en este servidor.")
 
-        with tempfile.TemporaryDirectory(prefix="skillmatch-sandbox-") as directory:
+        # SANDBOX_WORK_DIR lets the Docker daemon (e.g. dind via a shared volume) see the same path.
+        with tempfile.TemporaryDirectory(prefix="skillmatch-sandbox-", dir=settings.SANDBOX_WORK_DIR) as directory:
             root = Path(directory)
-            (root / "solution.py").write_text(code, encoding="utf-8")
+            solution = root / "solution.py"
+            solution.write_text(code, encoding="utf-8")
+            # Read-only access for the unprivileged sandbox uid (65532); still no write access.
+            root.chmod(0o755)
+            solution.chmod(0o644)
             command = [
                 binary,
                 "run",
