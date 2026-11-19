@@ -55,6 +55,8 @@ from app.models.wallet import (
     PointTransactionType,
     Wallet,
 )
+from app.models.wallet_transaction import WalletTransaction
+from app.models.session_review import SessionReview
 from app.models.web_push_subscription import WebPushSubscription
 
 
@@ -108,6 +110,7 @@ __all__ = [
     "SessionReminderDispatch",
     "SessionReminderEmailDelivery",
     "SessionReminderWebPushDelivery",
+    "SessionReview",
     "Skill",
     "SkillEvidence",
     "SkillLevel",
@@ -126,6 +129,7 @@ __all__ = [
     "ValidationSession",
     "ValidationSessionState",
     "Wallet",
+    "WalletTransaction",
     "WebPushSubscription",
     "WeeklySessionQuota",
 ]

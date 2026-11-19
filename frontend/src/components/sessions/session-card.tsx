@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { CalendarDays, CheckCircle2, Clock3, Hourglass, MapPin, Monitor } from "lucide-react"
+import { CalendarDays, CheckCircle2, Clock3, Hourglass, MapPin, Monitor, Star } from "lucide-react"
 
 import { localToUtc } from "@/components/sessions/session-booking-form"
 import { SessionCalendarExportDialog } from "@/components/sessions/session-calendar-export"
@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { useReputationStore } from "@/stores/reputation-store"
 import type { ExchangeSession } from "@/types/exchange-session"
 
 interface Props {
@@ -187,6 +188,18 @@ export function SessionCard({
       </CardContent>
 
       <CardFooter className="flex flex-wrap gap-2 border-t p-4 sm:justify-end">
+        {(session.status === "ACCEPTED" || session.status === "COMPLETED") && (
+          <Button
+            type="button"
+            size="sm"
+            className="bg-[#00786F] hover:bg-[#006058] dark:bg-primary dark:hover:bg-primary/90 text-white font-bold text-xs shadow-sm w-full sm:w-auto"
+            onClick={() => useReputationStore.getState().openReviewModal(session.id)}
+          >
+            <Star className="mr-1.5 h-3.5 w-3.5 fill-amber-400 text-amber-400 shrink-0" />
+            Calificar Sesión
+          </Button>
+        )}
+
         {session.status === "ACCEPTED" && <SessionCalendarExportDialog sessionId={session.id} />}
 
         {session.status === "ACCEPTED" && session.modality === "PRESENCIAL" && (

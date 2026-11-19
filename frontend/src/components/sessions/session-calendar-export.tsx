@@ -76,8 +76,8 @@ export function SessionCalendarExportDialog({ sessionId }: SessionCalendarExport
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full sm:w-auto">
-          <CalendarPlus aria-hidden="true" />
+        <Button variant="outline" size="sm" className="w-full sm:w-auto">
+          <CalendarPlus aria-hidden="true" className="mr-1.5 size-3.5" />
           Añadir al calendario
         </Button>
       </DialogTrigger>
