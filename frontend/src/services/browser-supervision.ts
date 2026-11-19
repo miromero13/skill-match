@@ -79,6 +79,8 @@ export interface AVWindowPayload {
   frame_times_ms?: number[]
   /** Browser MediaPipe readings (~15 fps); the server only trusts them when they agree with its own frames. */
   gaze_samples?: GazeSampleDTO[]
+  /** Tuning label (DEV only): the backend ignores it unless integrity diagnostics are enabled. */
+  label?: string
 }
 export interface AVWindowResponse {
   window_id: string

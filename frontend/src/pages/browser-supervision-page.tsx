@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { CalibrationGate, isCalibrated } from "@/components/integrity/calibration-gate"
+import { TrialLabelSelect, type TrialLabel } from "@/components/integrity/trial-label-select"
 import { useAvSupervision } from "@/hooks/use-av-supervision"
 import { useTrialSession } from "@/hooks/use-trial-session"
 import { useAuthStore } from "@/stores/auth-store"
@@ -77,6 +78,7 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [accepted, setAccepted] = useState(false)
+  const [trialLabel, setTrialLabel] = useState<TrialLabel>("normal")
 
   const session = useTrialSession({
     owner,
@@ -92,6 +94,7 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
     canvasRef,
     windowsEnabled: active && isCalibrated(trial),
     onAnomalies: () => void session.refreshLedger().catch(() => undefined),
+    label: import.meta.env.DEV ? trialLabel : undefined,
   })
   const { avActive, vuLevel, deviceError, avStatus, lookingAway, gazeNotice } = av
   const {
@@ -179,6 +182,8 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
           SM-43 & SM-49 · Navegador, cámara y micrófono en tiempo real. No inicia un examen, no consume intentos ni aplica sanciones automáticas.
         </p>
       </div>
+
+      {import.meta.env.DEV && <TrialLabelSelect value={trialLabel} onChange={setTrialLabel} />}
 
       <Card>
         <CardContent className="space-y-4 p-5">

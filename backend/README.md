@@ -278,6 +278,21 @@ La variable `POSTGRES_DB` debe identificar esa base descartable durante las migr
 
 
 
+### Afinado de umbrales de integridad con sesiones reales (T11)
+
+Los umbrales de `app/services/integrity/thresholds.py` se ajustaron solo con datos sintéticos. Para afinarlos hacen falta sesiones reales etiquetadas:
+
+1. En el `.env` del backend (solo development; production lo fuerza apagado): `INTEGRITY_DIAGNOSTICS_ENABLED=true` y, opcionalmente, `INTEGRITY_DIAGNOSTICS_DIR`. Reiniciá el backend. Con el flag apagado no se escribe nada ni se crea la carpeta.
+2. Abrí `/app/browser-supervision-test` con el frontend en modo DEV, completá la calibración y elegí una **Etiqueta de prueba** (`normal`, `mirando_abajo`, `mirando_costado`, `mirando_arriba`, `ojos_abajo`, `boca_tapada`, `cara_tapada`, `camara_tapada`, `dos_personas`, `otra_voz`, `audio_dispositivo`, `hablando_yo`). Cada ventana de ~2,4 s se envía con esa etiqueta; cambiala cada vez que cambies de comportamiento y grabá un minuto o más de `normal` para medir falsas alarmas.
+3. Cada ventana agrega una línea JSON a `<INTEGRITY_DIAGNOSTICS_DIR>/<trial_id>.jsonl` con la etiqueta, las anomalías y solo medidas numéricas (pose, mirada, parpadeo, boca, oclusión, cámara, RMS y segundos con voz, similitud de voz, hablantes, correlación y solapamiento labios-voz). Nunca se escriben imágenes, audio, embeddings, la huella de voz, la zona de mirada ni la referencia de oclusión. La etiqueta no se guarda en la bitácora.
+4. Resumen por etiqueta (mín / p5 / mediana / p95 / máx, tasa de detección y falsas alarmas):
+
+```bash
+cd backend && .venv/bin/python scripts/integrity_tuning_report.py /tmp/skillmatch-integrity-diagnostics
+```
+
+Los archivos JSONL contienen datos de sesiones reales: borrá la carpeta al terminar.
+
 ## 7. Autenticación, sesiones y catálogo (HU-07, HU-08, HU-09, HU-10 y HU-12)
 
 ### Identidades y credenciales

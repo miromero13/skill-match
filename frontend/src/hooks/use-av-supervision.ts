@@ -68,6 +68,8 @@ export interface UseAvSupervisionOptions {
   windowsEnabled: boolean
   /** A window reported anomalies: refresh the ledger. */
   onAnomalies?: () => void
+  /** DEV tuning label sent with each window; omitted from the payload when undefined. */
+  label?: string
 }
 
 interface Resources {
@@ -93,12 +95,13 @@ const vuScale = (rms: number) => (rms < 0.002 ? 0 : Math.min(100, Math.round(Mat
  * restart, unmount) bumps the generation and releases everything, and every `await` in `start()` re-checks the
  * generation, so a stream, an audio pipeline or a tracker that arrives late is stopped instead of adopted.
  */
-export function useAvSupervision({ videoRef, canvasRef, windowsEnabled, onAnomalies }: UseAvSupervisionOptions) {
+export function useAvSupervision({ videoRef, canvasRef, windowsEnabled, onAnomalies, label }: UseAvSupervisionOptions) {
   const generation = useRef(0)
   const resources = useRef<Resources | null>(null)
   const zone = useRef<GazeZone | null>(null)
   const enabled = useRef(windowsEnabled)
   const anomalies = useRef(onAnomalies)
+  const labelRef = useRef(label)
   const [avActive, setAvActive] = useState(false)
   const [telemetry, setTelemetry] = useState<AvTelemetry>(EMPTY_TELEMETRY)
   const [vuLevel, setVuLevel] = useState(0)
@@ -110,6 +113,7 @@ export function useAvSupervision({ videoRef, canvasRef, windowsEnabled, onAnomal
   useEffect(() => {
     enabled.current = windowsEnabled
     anomalies.current = onAnomalies
+    labelRef.current = label
   })
 
   /** One 320x240 JPEG of the camera, the size the supervision windows and the calibration steps use. */
@@ -300,6 +304,7 @@ export function useAvSupervision({ videoRef, canvasRef, windowsEnabled, onAnomal
           audio_samples: taken.audio,
           frame_times_ms: taken.frames.map((frame) => Math.min(durationMs, Math.max(0, frame.at - startedAt))),
           gaze_samples: (held.tracker?.takeSamples(startedAt, durationMs) ?? []).slice(-WINDOW_LIMITS.gazeSamples),
+          ...(labelRef.current ? { label: labelRef.current } : {}),
         })
           .then((response) => {
             if (!live()) return
