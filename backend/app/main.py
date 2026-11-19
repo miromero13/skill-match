@@ -46,6 +46,7 @@ from app.football.api import router as football_router
 from app.schemas.response import APIResponse
 from app.services.notification_connection_manager import notification_connection_manager
 from app.services.realtime_notification_broker import consume_notification_events
+from app.services.vision_models import report_vision_models_readiness
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -67,6 +68,9 @@ async def lifespan(app: FastAPI):
             await ensure_initial_admin(db)
     except Exception as exc:
         logger.error(f"Fallo crítico durante el seed del administrador inicial: {exc}")
+
+    # Modelos de visión locales: se informa en ERROR si faltan, pero la app sigue sirviendo el resto.
+    await report_vision_models_readiness()
 
     broker_listener = asyncio.create_task(consume_notification_events())
     yield

@@ -29,6 +29,7 @@ IncidentKind = Literal[
     "HIGH_NOISE",
     "DEVICE_DISCONNECTED",
     "STREAM_ERROR",
+    "MODEL_UNAVAILABLE",
 ]
 
 

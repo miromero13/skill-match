@@ -3,10 +3,9 @@ import difflib
 import hashlib
 import json
 import logging
-import math
+import time
 import unicodedata
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Optional, Union
 
 import cv2
@@ -14,6 +13,7 @@ import numpy as np
 from fastapi import status
 
 from app.core.exceptions import SkillMatchException
+from app.services import vision_models
 
 logger = logging.getLogger("skillmatch.biometrics")
 
@@ -21,10 +21,15 @@ EMBEDDING_DIMENSIONS = 128
 MIN_LIGHTING_SCORE = 0.25
 MIN_FRAME_BYTES = 16
 
-# Rutas canónicas a los modelos ONNX open-source locales (OpenCV Model Zoo)
-MODELS_DIR = Path(__file__).resolve().parent.parent / "models" / "weights"
-YUNET_MODEL_PATH = MODELS_DIR / "face_detection_yunet_2023mar.onnx"
-SFACE_MODEL_PATH = MODELS_DIR / "face_recognition_sface_2021dec.onnx"
+# Las rutas de los modelos ONNX locales (OpenCV Model Zoo) viven en app.services.vision_models;
+# se instalan con scripts/install_vision_models.py (SHA-256 fijado).
+MODEL_INIT_RETRY_COOLDOWN_S = 30.0
+
+# Re-exports de compatibilidad (los usa calibration_vision_service). Estos alias son solo una
+# instantánea; el código nuevo debe leer app.services.vision_models en cada llamada.
+MODELS_DIR = vision_models.MODELS_DIR
+YUNET_MODEL_PATH = vision_models.YUNET_MODEL_PATH
+SFACE_MODEL_PATH = vision_models.SFACE_MODEL_PATH
 
 # Umbral estándar de similitud coseno de SFace (OpenCV Zoo)
 # Cosine threshold >= 0.363 indica misma persona con bajo FAR (False Acceptance Rate)
@@ -43,42 +48,66 @@ class BiometricService:
 
     _detector: Optional[cv2.FaceDetectorYN] = None
     _recognizer: Optional[cv2.FaceRecognizerSF] = None
-    _models_initialized: bool = False
+    _init_failed_at: Optional[float] = None
 
     @classmethod
-    def _initialize_models(cls) -> None:
-        """Inicializa y cachea los modelos neuronales ONNX de OpenCV de forma perezosa (lazy)."""
-        if cls._models_initialized:
-            return
+    def _initialize_models(cls) -> bool:
+        """Carga perezosa de YuNet + SFace. Retorna True solo si ambos están listos.
 
-        if not YUNET_MODEL_PATH.exists() or not SFACE_MODEL_PATH.exists():
-            logger.warning(
-                "Modelos ONNX biométricos no encontrados en %s. Se utilizará modo de degradación controlada.",
-                MODELS_DIR,
+        Un modelo ausente nunca se cachea como "inicializado": se reintenta en la siguiente
+        solicitud (comprobar el archivo es barato). Un fallo de carga se reintenta tras un enfriamiento.
+        """
+        if cls._detector is not None and cls._recognizer is not None:
+            return True
+
+        yunet_path = vision_models.YUNET_MODEL_PATH
+        sface_path = vision_models.SFACE_MODEL_PATH
+        if not yunet_path.is_file() or not sface_path.is_file():
+            logger.error(
+                "Modelos biométricos YuNet/SFace no encontrados en %s. Instalalos con %s.",
+                vision_models.MODELS_DIR,
+                vision_models.INSTALL_COMMAND,
             )
-            cls._models_initialized = True
-            return
+            return False
+
+        failed_at = cls._init_failed_at
+        if failed_at is not None and time.monotonic() - failed_at < MODEL_INIT_RETRY_COOLDOWN_S:
+            return False
 
         try:
             cls._detector = cv2.FaceDetectorYN.create(
-                model=str(YUNET_MODEL_PATH),
+                model=str(yunet_path),
                 config="",
                 input_size=(320, 320),
                 score_threshold=0.6,
                 nms_threshold=0.3,
                 top_k=5,
             )
-            cls._recognizer = cv2.FaceRecognizerSF.create(
-                model=str(SFACE_MODEL_PATH),
-                config="",
-            )
-            logger.info("Modelos OpenCV YuNet y SFace cargados exitosamente.")
+            cls._recognizer = cv2.FaceRecognizerSF.create(model=str(sface_path), config="")
         except Exception as exc:
             logger.error("Error al inicializar modelos neuronales de OpenCV: %s", exc)
             cls._detector = None
             cls._recognizer = None
+            cls._init_failed_at = time.monotonic()
+            return False
 
-        cls._models_initialized = True
+        cls._init_failed_at = None
+        logger.info("Modelos OpenCV YuNet y SFace cargados exitosamente.")
+        return True
+
+    @staticmethod
+    def _models_unavailable() -> SkillMatchException:
+        return SkillMatchException(
+            statuscode=status.HTTP_503_SERVICE_UNAVAILABLE,
+            message="Servicio biométrico no disponible en este momento. Intentá nuevamente más tarde; tu enrolamiento no fue modificado.",
+        )
+
+    @staticmethod
+    def _undecodable_image() -> SkillMatchException:
+        return SkillMatchException(
+            statuscode=status.HTTP_400_BAD_REQUEST,
+            message="No se pudo decodificar la imagen biométrica. Capturá una fotografía válida (JPEG o PNG) e intentá nuevamente.",
+        )
 
     @staticmethod
     def _decode_base64_frame(raw_frame: str) -> bytes:
@@ -121,24 +150,12 @@ class BiometricService:
         Decodifica el frame a imagen RGB/BGR con OpenCV, mide luminosidad real,
         detecta rostro centrado con YuNet y extrae el embedding L2 con SFace.
         """
-        cls._initialize_models()
-
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-        # Si el búfer no es una imagen decodificable (por ej. payloads sintéticos de test unitario rápido)
+        # Una imagen no decodificable nunca produce un embedding: se rechaza.
         if img is None:
-            if not face_centered:
-                raise SkillMatchException(
-                    statuscode=status.HTTP_400_BAD_REQUEST,
-                    message="El rostro no se encuentra centrado en la guía oval. Ubicá tu rostro en el centro para enrolarte.",
-                )
-            if lighting_score < MIN_LIGHTING_SCORE:
-                raise SkillMatchException(
-                    statuscode=status.HTTP_400_BAD_REQUEST,
-                    message="Iluminación insuficiente para el enrolamiento biométrico. Mejorá la luz del entorno e intentá nuevamente.",
-                )
-            return cls._fallback_128d_embedding([image_bytes])
+            raise cls._undecodable_image()
 
         # 1. Análisis real de iluminación y contraste
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -156,14 +173,9 @@ class BiometricService:
                 message="La imagen presenta exceso de luz o reflejos intensos. Reducí el brillo e intentá nuevamente.",
             )
 
-        # Si los modelos neuronales no están disponibles en el entorno, usar fallback sobre imagen
-        if cls._detector is None or cls._recognizer is None:
-            if not face_centered:
-                raise SkillMatchException(
-                    statuscode=status.HTTP_400_BAD_REQUEST,
-                    message="El rostro no se encuentra centrado en la guía oval. Ubicá tu rostro en el centro para enrolarte.",
-                )
-            return cls._fallback_128d_embedding([image_bytes])
+        # Sin modelos neuronales no hay biometría: falla en cerrado (nunca un embedding sintético).
+        if not cls._initialize_models() or cls._detector is None or cls._recognizer is None:
+            raise cls._models_unavailable()
 
         # 2. Detección Facial con YuNet
         h, w = img.shape[:2]
@@ -218,26 +230,6 @@ class BiometricService:
         norm = float(np.linalg.norm(feature))
         feature_norm = feature / norm if norm > 0 else feature
         return [round(float(v), 6) for v in feature_norm[0]]
-
-    @staticmethod
-    def _fallback_128d_embedding(frame_bytes_list: list[bytes]) -> list[float]:
-        """Extractor espectral determinístico de respaldo en caso de datos no decodificables o tests."""
-        accum = [0.0] * EMBEDDING_DIMENSIONS
-        for frame_bytes in frame_bytes_list:
-            n = len(frame_bytes)
-            for dim in range(EMBEDDING_DIMENSIONS):
-                seed = hashlib.sha256(frame_bytes + dim.to_bytes(2, "big")).digest()
-                idx_a = (dim * 13) % n
-                idx_b = (dim * 29 + n // 3) % n
-                idx_c = (dim * 47 + (2 * n) // 3) % n
-                grad = ((frame_bytes[idx_a] - frame_bytes[idx_b]) + (frame_bytes[idx_c] - 128)) / 255.0
-                proj = (int.from_bytes(seed[:4], "big") / 0xFFFFFFFF) * 2.0 - 1.0
-                accum[dim] += 0.65 * proj + 0.35 * grad
-
-        count = float(len(frame_bytes_list))
-        avg = [v / count for v in accum]
-        norm = math.sqrt(sum(x * x for x in avg)) or 1.0
-        return [round(x / norm, 6) for x in avg]
 
     @classmethod
     def enroll_face(
@@ -364,14 +356,11 @@ class BiometricService:
         2. Detecta la fotografía del titular con YuNet.
         3. Extrae y normaliza el vector L2 de 128 dimensiones con SFace.
         """
-        cls._initialize_models()
-
         nparr = np.frombuffer(card_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         if img is None:
-            # Fallback seguro para pruebas unitarias con búfers sintéticos
-            return cls._fallback_128d_embedding([card_bytes])
+            raise cls._undecodable_image()
 
         # 1. Comprobación de nitidez / enfoque (Laplacian variance)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -382,8 +371,8 @@ class BiometricService:
                 message="La fotografía del carnet de identidad está muy borrosa o desenfocada. Por favor capturá una imagen nítida y bien iluminada.",
             )
 
-        if cls._detector is None or cls._recognizer is None:
-            return cls._fallback_128d_embedding([card_bytes])
+        if not cls._initialize_models() or cls._detector is None or cls._recognizer is None:
+            raise cls._models_unavailable()
 
         # 2. Detección facial en el documento
         h, w = img.shape[:2]

@@ -20,6 +20,30 @@ def create_dummy_jpeg():
     return "data:image/jpeg;base64," + base64.b64encode(buf).decode("ascii")
 
 
+class EmptySceneDetector:
+    """Injected YuNet stand-in that sees no face (keeps the API tests independent of local weights)."""
+
+    def setInputSize(self, _size):
+        pass
+
+    def detect(self, _img):
+        return 1, None
+
+
+@pytest.fixture
+def empty_scene_models(monkeypatch):
+    monkeypatch.setattr(
+        ContinuousSupervisionService, "get_vision_models", staticmethod(lambda: (EmptySceneDetector(), None))
+    )
+    monkeypatch.setattr(ContinuousSupervisionService, "get_mediapipe_landmarker", classmethod(lambda cls: None))
+
+
+@pytest.fixture
+def no_models_at_all(monkeypatch):
+    monkeypatch.setattr(ContinuousSupervisionService, "get_vision_models", staticmethod(lambda: (None, None)))
+    monkeypatch.setattr(ContinuousSupervisionService, "get_mediapipe_landmarker", classmethod(lambda cls: None))
+
+
 async def start_trial(client, tab=None):
     tab = tab or str(uuid.uuid4())
     resp = await client.post(ROOT, json={"tab_id": tab, "accepted": True})
@@ -28,7 +52,7 @@ async def start_trial(client, tab=None):
 
 
 @pytest.mark.asyncio
-async def test_av_window_detection_and_ledger_integration(scenario):
+async def test_av_window_detection_and_ledger_integration(scenario, empty_scene_models):
     client, _, _, _ = scenario
     trial, tab = await start_trial(client)
 
@@ -66,7 +90,7 @@ async def test_av_window_detection_and_ledger_integration(scenario):
 
 
 @pytest.mark.asyncio
-async def test_av_window_idempotency_retry(scenario):
+async def test_av_window_idempotency_retry(scenario, empty_scene_models):
     client, _, _, _ = scenario
     trial, tab = await start_trial(client)
 
@@ -97,6 +121,29 @@ async def test_av_window_idempotency_retry(scenario):
     # Check total events in ledger did not double
     ledger_resp = await client.get(f"{ROOT}/{trial['id']}/events")
     assert ledger_resp.json()["count"] == created1
+
+
+@pytest.mark.asyncio
+async def test_av_window_without_vision_models_is_an_incident_not_a_clean_face(scenario, no_models_at_all):
+    client, _, _, _ = scenario
+    trial, tab = await start_trial(client)
+    payload = {
+        "tab_id": tab,
+        "window_id": str(uuid.uuid4()),
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "duration_ms": 2400,
+        "mode": "UNIFIED",
+        "frames": [create_dummy_jpeg()],
+        "audio_samples": [],
+    }
+    resp = await client.post(f"{ROOT}/{trial['id']}/av-window", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert "MODEL_UNAVAILABLE" in data["anomalies"]
+    assert data["face_count"] != 1
+    assert data["identity_match"] is None
+    ledger = await client.get(f"{ROOT}/{trial['id']}/events")
+    assert "MODEL_UNAVAILABLE" in [row["kind"] for row in ledger.json()["data"]]
 
 
 @pytest.mark.asyncio

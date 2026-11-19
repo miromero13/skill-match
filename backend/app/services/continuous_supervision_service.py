@@ -10,23 +10,18 @@ import base64
 import binascii
 import json
 import logging
+import threading
+import time
 from collections import OrderedDict
-from pathlib import Path
 from typing import Any, Literal, Optional
 
 import cv2
 import numpy as np
 
-from app.services.biometric_service import (
-    MODELS_DIR,
-    SFACE_COSINE_THRESHOLD,
-    SFACE_MODEL_PATH,
-    YUNET_MODEL_PATH,
-)
+from app.services import vision_models
+from app.services.biometric_service import SFACE_COSINE_THRESHOLD
 
 logger = logging.getLogger("skillmatch.continuous_supervision")
-
-MEDIAPIPE_TASK_PATH = MODELS_DIR / "face_landmarker.task"
 
 
 class ContinuousSupervisionService:
@@ -35,37 +30,58 @@ class ContinuousSupervisionService:
     # Bounded in-memory rolling 2.4s audio buffer & speaker state per trial
     _trial_audio_state: OrderedDict[str, dict[str, Any]] = OrderedDict()
     _mp_landmarker: Any = None
-    _mp_init_attempted: bool = False
+    # Monotonic time of the last failed MediaPipe init; a failure is retried after the cooldown.
+    _mp_failed_at: Optional[float] = None
+    _mp_lock = threading.Lock()
+    MP_RETRY_COOLDOWN_S = 30.0
+
+    @staticmethod
+    def _monotonic() -> float:
+        return time.monotonic()
+
+    @staticmethod
+    def _build_landmarker() -> Any:
+        """Creates the local MediaPipe FaceLandmarker (blendshapes + 3D matrices). Raises on failure."""
+        task_path = vision_models.MEDIAPIPE_TASK_PATH
+        if not task_path.is_file():
+            raise FileNotFoundError(f"Modelo MediaPipe no encontrado en {task_path}")
+        from mediapipe.tasks import python
+        from mediapipe.tasks.python import vision
+
+        base_options = python.BaseOptions(model_asset_path=str(task_path))
+        options = vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            output_face_blendshapes=True,
+            output_facial_transformation_matrixes=True,
+            num_faces=3,
+            min_face_detection_confidence=0.45,
+            min_face_presence_confidence=0.45,
+        )
+        return vision.FaceLandmarker.create_from_options(options)
 
     @classmethod
     def get_mediapipe_landmarker(cls) -> Any:
-        """Lazily initializes the local MediaPipe FaceLandmarker with blendshapes and 3D matrices."""
+        """Lazily initializes the landmarker; a failed init is retried after MP_RETRY_COOLDOWN_S."""
         if cls._mp_landmarker is not None:
             return cls._mp_landmarker
-        if cls._mp_init_attempted:
-            return None
-        cls._mp_init_attempted = True
-        if not MEDIAPIPE_TASK_PATH.is_file():
-            logger.warning("Modelo MediaPipe no encontrado en %s", MEDIAPIPE_TASK_PATH)
-            return None
-        try:
-            from mediapipe.tasks import python
-            from mediapipe.tasks.python import vision
-
-            base_options = python.BaseOptions(model_asset_path=str(MEDIAPIPE_TASK_PATH))
-            options = vision.FaceLandmarkerOptions(
-                base_options=base_options,
-                output_face_blendshapes=True,
-                output_facial_transformation_matrixes=True,
-                num_faces=3,
-                min_face_detection_confidence=0.45,
-                min_face_presence_confidence=0.45,
-            )
-            cls._mp_landmarker = vision.FaceLandmarker.create_from_options(options)
-            return cls._mp_landmarker
-        except Exception as exc:
-            logger.warning("No se pudo inicializar MediaPipe FaceLandmarker: %s", exc)
-            return None
+        with cls._mp_lock:
+            if cls._mp_landmarker is not None:
+                return cls._mp_landmarker
+            now = cls._monotonic()
+            if cls._mp_failed_at is not None and now - cls._mp_failed_at < cls.MP_RETRY_COOLDOWN_S:
+                return None
+            try:
+                cls._mp_landmarker = cls._build_landmarker()
+                cls._mp_failed_at = None
+                return cls._mp_landmarker
+            except Exception as exc:
+                cls._mp_failed_at = now
+                logger.error(
+                    "MediaPipe FaceLandmarker no disponible (reintento en %.0fs): %s",
+                    cls.MP_RETRY_COOLDOWN_S,
+                    exc,
+                )
+                return None
 
     @classmethod
     def _get_or_update_baseline(
@@ -130,16 +146,16 @@ class ContinuousSupervisionService:
         """Creates per-request YuNet detector and SFace recognizer instances."""
         detector = None
         recognizer = None
-        if YUNET_MODEL_PATH.is_file():
+        if vision_models.YUNET_MODEL_PATH.is_file():
             try:
                 detector = cv2.FaceDetectorYN.create(
-                    str(YUNET_MODEL_PATH), "", (320, 240), 0.50, 0.3, 5
+                    str(vision_models.YUNET_MODEL_PATH), "", (320, 240), 0.50, 0.3, 5
                 )
             except Exception as exc:
                 logger.warning("No se pudo instanciar detector YuNet: %s", exc)
-        if SFACE_MODEL_PATH.is_file():
+        if vision_models.SFACE_MODEL_PATH.is_file():
             try:
-                recognizer = cv2.FaceRecognizerSF.create(str(SFACE_MODEL_PATH), "")
+                recognizer = cv2.FaceRecognizerSF.create(str(vision_models.SFACE_MODEL_PATH), "")
             except Exception as exc:
                 logger.warning("No se pudo instanciar reconocedor SFace: %s", exc)
         return detector, recognizer
@@ -149,9 +165,9 @@ class ContinuousSupervisionService:
         cls,
         image_bgr: np.ndarray,
         trial_key: Optional[str],
+        landmarker: Any,
     ) -> Optional[dict[str, Any]]:
-        """Runs MediaPipe 3D FaceLandmarker for exact 3D Euler angles and blendshape mouth aperture."""
-        landmarker = cls.get_mediapipe_landmarker()
+        """Runs the injected MediaPipe 3D FaceLandmarker for 3D Euler angles and blendshape mouth aperture."""
         if landmarker is None:
             return None
         try:
@@ -348,6 +364,17 @@ class ContinuousSupervisionService:
         except Exception:
             return None
 
+    @staticmethod
+    def _model_unavailable_frame() -> dict[str, Any]:
+        return {
+            "face_count": 0,
+            "orientation": "UNKNOWN",
+            "identity_match": None,
+            "mouth_open_score": 0.0,
+            "mouth_patch": None,
+            "model_unavailable": True,
+        }
+
     @classmethod
     def analyze_frame_face(
         cls,
@@ -356,22 +383,20 @@ class ContinuousSupervisionService:
         recognizer: Any,
         reference_embedding: Optional[np.ndarray],
         trial_key: Optional[str] = None,
+        landmarker: Any = None,
     ) -> dict[str, Any]:
-        """Analyzes a single video frame using MediaPipe 3D FaceLandmarker + OpenCV SFace."""
+        """Analyzes one frame with the injected models: MediaPipe landmarker (optional), YuNet, SFace.
+
+        Every model is passed in explicitly; ``landmarker=None`` means MediaPipe is not used.
+        When no model produced a result the frame is flagged ``model_unavailable`` and never
+        reported as a clean face (fail closed).
+        """
         h, w = image.shape[:2]
 
-        # 1. Try MediaPipe 3D FaceLandmarker first (unless a unit-test stub detector is injected)
-        is_real_yunet = detector is None or type(detector).__name__ == "FaceDetectorYN"
-        mp_res = cls._analyze_with_mediapipe(image, trial_key) if is_real_yunet else None
+        mp_res = cls._analyze_with_mediapipe(image, trial_key, landmarker) if landmarker is not None else None
 
         if detector is None and mp_res is None:
-            return {
-                "face_count": 1,
-                "orientation": "CENTER",
-                "identity_match": True,
-                "mouth_open_score": 0.0,
-                "mouth_patch": None,
-            }
+            return cls._model_unavailable_frame()
 
         # Run YuNet for face bounding box (needed for SFace identity alignment) or fallback pose
         faces = None
@@ -747,8 +772,13 @@ class ContinuousSupervisionService:
         mode: str = "UNIFIED",
         biometric_embedding_json: Optional[str] = None,
         trial_id: Optional[str] = None,
+        use_mediapipe: bool = True,
     ) -> dict[str, Any]:
-        """Evaluates an audiovisual supervision window and determines anomalies."""
+        """Evaluates an audiovisual supervision window and determines anomalies.
+
+        Fails closed: when no vision model is usable the window reports ``MODEL_UNAVAILABLE`` with
+        ``face_count`` 0 and no identity verdict instead of a clean face.
+        """
         reference_embedding: Optional[np.ndarray] = None
         if biometric_embedding_json:
             try:
@@ -760,14 +790,23 @@ class ContinuousSupervisionService:
                 pass
 
         detector, recognizer = cls.get_vision_models()
+        landmarker = cls.get_mediapipe_landmarker() if use_mediapipe else None
+        vision_available = detector is not None or landmarker is not None
 
         frame_results = []
-        for raw in frames_b64:
-            img = cls.decode_frame(raw)
-            if img is not None:
+        model_unavailable = not vision_available
+        if vision_available:
+            for raw in frames_b64:
+                img = cls.decode_frame(raw)
+                if img is None:
+                    continue
                 res = cls.analyze_frame_face(
-                    img, detector, recognizer, reference_embedding, trial_key=trial_id
+                    img, detector, recognizer, reference_embedding, trial_key=trial_id,
+                    landmarker=landmarker,
                 )
+                if res.get("model_unavailable"):
+                    model_unavailable = True
+                    continue
                 frame_results.append(res)
 
         anomalies: list[str] = []
@@ -777,6 +816,13 @@ class ContinuousSupervisionService:
         mouth_moving = False
         mouth_open_scores: list[float] = []
         mouth_movements: list[float] = []
+
+        visual_unavailable = model_unavailable and not frame_results
+        if model_unavailable:
+            anomalies.append("MODEL_UNAVAILABLE")
+        if visual_unavailable:
+            face_count = 0
+            head_orientation = "UNKNOWN"
 
         if frame_results:
             counts = [f["face_count"] for f in frame_results]
@@ -840,6 +886,8 @@ class ContinuousSupervisionService:
             if multiple_speakers:
                 mouth_sync = False
                 anomalies.append("MULTIPLE_SPEAKERS")
+            elif visual_unavailable:
+                mouth_sync = None  # lip-sync cannot be assessed without a vision model
             elif face_count == 1 and mouth_moving:
                 mouth_sync = True
             else:
