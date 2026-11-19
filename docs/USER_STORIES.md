@@ -1435,11 +1435,13 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
       - Si la cancelación es válida y oportuna, se **restaura automáticamente la sesión gratuita** de la semana.
       - Registro de cancelaciones mensuales: si el miembro acumula cancelaciones reiteradas (más de 3 al mes o sobre la hora), se activa un bloqueo temporal de 7 días para agendar.
     - [ ] Endpoints documentados en Swagger UI (`/docs`):
+      - `GET /api/matches/{match_id}/session-options`: Opciones productivas de agendamiento para un match confirmado; devuelve habilidades autorizadas, IDs canónicos y franjas comunes de 30/60 minutos durante 14 días sin crear sesión ni consumir cupo.
       - `GET /api/sessions`: Listado con `count` y detalle de cupos semanales restantes (`free_sessions_left`).
       - `POST /api/sessions`: Agendar sesión (valida cupo o puntos).
       - `POST /api/sessions/{id}/cancel`: Cancelación con `cancellation_reason` obligatorio.
       - `PUT /api/sessions/{id}/reschedule`: Reprogramación de fecha/hora.
       - `PATCH /api/sessions/{id}/status`: Aceptación o rechazo.
+      - `GET /api/sessions/{id}/calendar-export`: Exportación manual `.ics` y enlace Google para participantes de una sesión aceptada, sin OAuth Calendar ni sincronización automática.
   - **Frontend:**
     - [ ] Widget en Sidebar/Navbar: *"Sesiones gratuitas restantes esta semana: X/2 (máx. 1h c/u)"*.
     - [ ] Calendario interactivo de agendamiento y modal estricto de cancelación con campo de motivo obligatorio.
