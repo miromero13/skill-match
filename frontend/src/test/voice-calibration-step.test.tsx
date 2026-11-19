@@ -1,3 +1,4 @@
+import { StrictMode } from "react"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import {
@@ -157,4 +158,29 @@ it("stops the recording, the frame timer and sends nothing when it is unmounted 
   expect(submit).not.toHaveBeenCalled()
   expect(captureFrame.mock.calls.length).toBe(grabbed)
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it("autoStart under React StrictMode (dev double effect) still samples frames for the whole recording", async () => {
+  // StrictMode mounts, unmounts and remounts: the first run used to survive with its frame sampler disposed, so the
+  // browser sent one frame and the member saw "No se obtuvo video sincronizado suficiente" on every first attempt.
+  let startedAt = 0
+  const start = vi.fn(() => { startedAt = Date.now() })
+  const stop = vi.fn(() => ({ samples: new Array<number>(9 * 16_000).fill(0.1), startedAt }))
+  const submit = vi.fn<VoiceCalibrationStepProps["submit"]>(async () => ({ message: "Voz calibrada." }))
+  render(
+    <StrictMode>
+      <VoiceCalibrationStep
+        autoStart
+        recorder={{ start, stop }}
+        readMouth={() => Array.from({ length: 60 }, (_, index) => ({ t_ms: index * 140, mouth_open: 0.2 }))}
+        captureFrame={() => "jpeg-frame"}
+        submit={submit}
+      />
+    </StrictMode>,
+  )
+  await elapse(9_500)
+  expect(submit).toHaveBeenCalledTimes(1)
+  expect(submit.mock.calls[0][0].frames.length).toBeGreaterThanOrEqual(20)
+  expect(screen.getByRole("alert")).toHaveTextContent("Voz calibrada.")
+  expect(screen.getByText("Calibrada")).toBeInTheDocument()
 })

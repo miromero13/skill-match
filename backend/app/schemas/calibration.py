@@ -47,7 +47,7 @@ class CalibrationVerifyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     challenge_id: UUID
     frames: list[Annotated[str, Field(min_length=1, max_length=MAX_CALIBRATION_FRAME_CHARS)]] = Field(min_length=3, max_length=12)
-    gaze_points: list[CalibrationGazePoint] = Field(min_length=5, max_length=5)
+    gaze_points: list[CalibrationGazePoint] = Field(default_factory=list, max_length=5)
     audio_samples: list[Annotated[float, Field(ge=-1, le=1, allow_inf_nan=False)]] = Field(min_length=112000, max_length=160000)
     spoken_frames: list[SpokenVideoFrame] = Field(min_length=20, max_length=100)
     mouth_samples: list[CalibrationMouthSample] = Field(min_length=8, max_length=MAX_MOUTH_SAMPLES)
@@ -56,7 +56,7 @@ class CalibrationVerifyRequest(BaseModel):
 
     @model_validator(mode="after")
     def evidence_is_coherent(self):
-        if sorted(point.target for point in self.gaze_points) != sorted(GAZE_TARGETS):
+        if self.gaze_points and sorted(point.target for point in self.gaze_points) != sorted(GAZE_TARGETS):
             raise ValueError("Hace falta exactamente un punto por cada objetivo de calibración.")
         stamps = [sample.t_ms for sample in self.mouth_samples]
         duration_ms = len(self.audio_samples) * 1000 // 16_000
