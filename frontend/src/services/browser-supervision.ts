@@ -1,4 +1,5 @@
 import { apiClient } from "@/services/api-client"
+import type { GazeSampleDTO, GazeZone } from "@/services/gaze-tracking"
 
 export type IncidentKind =
   | "AWAY"
@@ -19,6 +20,9 @@ export type IncidentKind =
   | "IDENTITY_MISMATCH"
   | "HEAD_POSE_DOWN"
   | "HEAD_POSE_SIDE"
+  | "HEAD_POSE_UP"
+  | "GAZE_AWAY"
+  | "CLIENT_MISMATCH"
   | "VOICE_DETECTED"
   | "MULTIPLE_SPEAKERS"
   | "HIGH_NOISE"
@@ -47,6 +51,8 @@ export interface Trial {
   closed_at: string | null
   lease_until: string | null
   event_count: number
+  /** Calibrated screen zone of this trial; null until the candidate calibrates. */
+  gaze_zone?: GazeZone | null
 }
 export interface BatchResult {
   accepted_ids: string[]
@@ -60,11 +66,15 @@ export interface AVWindowPayload {
   mode?: "QUIET" | "SPEAKING" | "UNIFIED"
   frames: string[]
   audio_samples?: number[]
+  /** Capture offset (ms from `observed_at`, the window start) of each frame, aligned with `frames`. */
+  frame_times_ms?: number[]
+  /** Browser MediaPipe readings (~15 fps); the server only trusts them when they agree with its own frames. */
+  gaze_samples?: GazeSampleDTO[]
 }
 export interface AVWindowResponse {
   window_id: string
   face_count: number
-  head_orientation: "CENTER" | "DOWN" | "LEFT" | "RIGHT" | "UNKNOWN"
+  head_orientation: "CENTER" | "DOWN" | "UP" | "LEFT" | "RIGHT" | "UNKNOWN"
   identity_match: boolean | null
   speech_detected: boolean
   mouth_moving?: boolean
@@ -132,6 +142,24 @@ export async function sendAVWindow(id: string, payload: AVWindowPayload) {
   const response = await apiClient.post<AVWindowResponse>(`${root}/${id}/av-window`, payload, silent)
   return response.data
 }
+export type GazeTarget = "CENTER" | "TOP_LEFT" | "TOP_RIGHT" | "BOTTOM_LEFT" | "BOTTOM_RIGHT"
+export interface GazeCalibrationPoint {
+  target: GazeTarget
+  frames: string[]
+}
+export interface GazeCalibrationResult {
+  zone: GazeZone
+  frames_used: number
+}
+/** Sends the frames captured at the center and the four corners; the server computes and stores the zone. */
+export async function calibrateGaze(id: string, tabId: string, points: GazeCalibrationPoint[]) {
+  const response = await apiClient.post<GazeCalibrationResult>(
+    `${root}/${id}/gaze-calibration`,
+    { tab_id: tabId, points },
+    silent,
+  )
+  return { result: response.data, message: response.message }
+}
 export async function readBrowserLedger(id: string, after = 0) {
   return apiClient.get<LedgerIncident[]>(`${root}/${id}/events`, { ...silent, params: { after, limit: 200 } })
 }
@@ -155,6 +183,9 @@ const kinds: IncidentKind[] = [
   "IDENTITY_MISMATCH",
   "HEAD_POSE_DOWN",
   "HEAD_POSE_SIDE",
+  "HEAD_POSE_UP",
+  "GAZE_AWAY",
+  "CLIENT_MISMATCH",
   "VOICE_DETECTED",
   "MULTIPLE_SPEAKERS",
   "HIGH_NOISE",
