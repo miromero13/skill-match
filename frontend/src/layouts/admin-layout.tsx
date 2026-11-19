@@ -51,6 +51,12 @@ export function AdminLayout() {
       visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-10)
     },
     {
+      label: "Banco de Preguntas",
+      to: "/admin/theory/questions",
+      icon: BookOpen,
+      visible: user?.role === "ADMIN",
+    },
+    {
       label: "Catálogo de Habilidades",
       to: "/admin/catalog",
       icon: BookOpen,
@@ -94,6 +100,7 @@ export function AdminLayout() {
 
   // Título dinámico para el breadcrumb de la barra superior
   const getBreadcrumbTitle = () => {
+    if (location.pathname.includes("/admin/theory/questions")) return "Banco de Preguntas"
     if (location.pathname.includes("/admin/dashboard")) {
       return "Dashboard & Analítica"
     }

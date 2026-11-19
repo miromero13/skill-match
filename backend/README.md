@@ -68,6 +68,14 @@ ADMIN_FULL_NAME="Administrador Principal"
 # Obtener en Google Cloud Console -> APIs & Services -> Credentials -> OAuth 2.0 Client IDs
 GOOGLE_CLIENT_ID="tu-google-client-id.apps.googleusercontent.com"
 
+# --- Corrección teórica opcional (texto; consentimiento explícito requerido) ---
+THEORY_GRADING_PROVIDER="disabled" # disabled | openai | gemini
+THEORY_GRADING_MODEL=""            # Identificador explícito, sin modelo por defecto
+OPENAI_API_KEY=""                  # [SECRETO] Si provider=openai
+GEMINI_API_KEY=""                  # [SECRETO] Si provider=gemini
+THEORY_GRADING_TIMEOUT_SECONDS=20
+THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory exams
+
 
 
 # --- Almacenamiento de Evidencias y MinIO / Garage S3 (Coolify VPS) ---

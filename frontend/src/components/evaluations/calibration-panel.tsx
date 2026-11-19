@@ -201,7 +201,7 @@ export function CalibrationPanel({ evaluationId, onBack }: { evaluationId: strin
           <ul className="grid gap-2 sm:grid-cols-2">{Object.entries(result.checks).map(([key, passed]) =>
             <li key={key} className="flex items-start gap-2 text-xs leading-relaxed"><Badge variant={passed ? "secondary" : "destructive"}>{passed ? "Correcto" : "Revisar"}</Badge>{labels[key] ?? key}</li>,
           )}</ul>
-          <p className="text-xs leading-relaxed text-muted-foreground">El examen no comenzó y tu intento no se descontó. El inicio de teoría y la supervisión continua se integrarán en las siguientes tareas.</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">El examen no comenzó y tu intento no se descontó. Continuá a la pantalla oral para revisar los requisitos antes de confirmar el inicio. La supervisión continua aún no está conectada.</p>
         </> : <>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             {!prepared && <Button className="h-auto min-h-11 whitespace-normal py-2" disabled={busy} onClick={() => void prepare()}>Preparar cámara y micrófono</Button>}
@@ -216,7 +216,9 @@ export function CalibrationPanel({ evaluationId, onBack }: { evaluationId: strin
     </Card>
     <div className="flex flex-col-reverse justify-between gap-3 sm:flex-row">
       {onBack && <Button variant="outline" className="h-11" onClick={onBack}><ArrowLeft aria-hidden="true" />Volver a Normas</Button>}
-      <Button disabled className="h-11 sm:ml-auto sm:px-6" title="El inicio del examen teórico todavía no está integrado">Comenzar primera prueba<ArrowRight aria-hidden="true" /></Button>
+      {result?.ready
+        ? <Button asChild className="h-11 sm:ml-auto sm:px-6"><a href={`/evaluation/${evaluationId}/theory`}>Continuar al examen oral<ArrowRight aria-hidden="true" /></a></Button>
+        : <Button disabled className="h-11 sm:ml-auto sm:px-6" title="Completá primero la calibración">Comenzar primera prueba<ArrowRight aria-hidden="true" /></Button>}
     </div>
   </section>
 }
