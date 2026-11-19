@@ -116,8 +116,10 @@ class AudioAnalyzer:
         except Exception as exc:
             logger.warning("Diarización continua no disponible: %s", exc)
             return SpeakerReport(model_unavailable=True)
+        duration = buffer.size / t.AUDIO_SAMPLE_RATE
         if any(not (math.isfinite(item.start) and math.isfinite(item.end)) or item.start < 0 or item.end <= item.start
-               for item in segments):
+               or item.end > duration + t.DIARIZATION_SEGMENT_SLACK_S for item in segments):
+            # Segments outside the audio that was diarized (as the pre-exam check always rejected) are never trusted.
             logger.warning("Diarización con intervalos inválidos: se descarta (nunca una sola voz).")
             return SpeakerReport(model_unavailable=True)
         usable = [item for item in segments if item.speaker >= 0]

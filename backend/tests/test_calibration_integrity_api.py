@@ -48,8 +48,7 @@ async def test_integrity_rejection_keeps_state_and_quota_and_allows_retry(scenar
     assert (await client.get(root + "/environment/verify")).json() == state
     assert (await client.get(endpoint(offer, "preflight"))).json() == quota
     # Repeating with the same challenge after fixing the problem succeeds: a rejection consumes nothing.
-    fixed = [Segment(0.0, 8.0, 0)]
-    good.segments = lambda a: fixed
+    good.segments = lambda a: [Segment(0.0, len(a) / SR, 0)]
     good.reset_mouth()
     success = await client.post(root + "/liveness/verify-identity", json=original)
     assert success.status_code == 200

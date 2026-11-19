@@ -90,6 +90,7 @@ DIARIZATION_MIN_SAMPLES = 24_000  # 1.5 s
 DIARIZATION_MIN_VOICED_CHUNKS = 8
 SPEAKER_MIN_DURATION_S = 0.25
 SPEAKER_OVERLAP_MIN_S = 0.12
+DIARIZATION_SEGMENT_SLACK_S = 0.1  # a diarized segment may end this far past the audio before it is rejected
 
 # ---- mouth movement ----------------------------------------------------------------------------
 MOUTH_OPEN_FRAME_SCORE = 0.035
