@@ -18,6 +18,8 @@ from app.schemas.browser_supervision import (
     TabRequest,
     TrialRequest,
     TrialResponse,
+    VoiceCalibrationRequest,
+    VoiceCalibrationResponse,
 )
 from app.schemas.response import APIResponse
 from app.services.browser_supervision_service import BrowserSupervisionService as Service
@@ -91,3 +93,12 @@ async def gaze_calibration(trial_id: UUID, payload: GazeCalibrationRequest, db: 
                            user: User = Depends(get_current_user)):
     result = await Service.calibrate_gaze(db, user, trial_id, payload)
     return APIResponse.ok(data=GazeCalibrationResponse.model_validate(result), message="Zona de mirada calibrada.")
+
+
+@router.post("/{trial_id}/voice-calibration", response_model=APIResponse[VoiceCalibrationResponse],
+             response_model_exclude={"count"},
+             summary="Calibrar la huella de voz (silencio y frase de control, con movimiento de labios) de esta prueba")
+async def voice_calibration(trial_id: UUID, payload: VoiceCalibrationRequest, db: AsyncSession = Depends(get_db),
+                            user: User = Depends(get_current_user)):
+    result = await Service.calibrate_voice(db, user, trial_id, payload)
+    return APIResponse.ok(data=VoiceCalibrationResponse.model_validate(result), message="Voz calibrada.")

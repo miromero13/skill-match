@@ -196,8 +196,10 @@ def test_alembic_has_a_single_head_and_last_av_window_at_is_in_its_history():
     script = ScriptDirectory.from_config(config)
     assert len(script.get_heads()) == 1
     head = script.get_revision(script.get_heads()[0])
-    assert head.revision == "c4e8a1f27b95"  # T6 adds the per-trial gaze zone on top of last_av_window_at
-    window = script.get_revision(head.down_revision)
+    assert head.revision == "e5b1c7d3a962"  # T8 adds the per-trial voiceprint on top of the gaze zone
+    gaze = script.get_revision(head.down_revision)
+    assert gaze.revision == "c4e8a1f27b95"  # T6 adds the per-trial gaze zone on top of last_av_window_at
+    window = script.get_revision(gaze.down_revision)
     assert window.revision == "dbe2f44f08c2"
     # The merge lives in its own empty revision so `downgrade -1` stays unambiguous.
     merge = script.get_revision(window.down_revision)

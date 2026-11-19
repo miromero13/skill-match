@@ -173,7 +173,7 @@ class AudioAnalyzer:
         voiceprint: Optional[Mapping[str, Any]] = None,
     ) -> AudioObservation:
         """Measures RMS, strict WebRTC VAD(3) speech, speakers over the voiced buffer and background audio."""
-        if not samples or len(samples) < t.AUDIO_MIN_SAMPLES:
+        if samples is None or len(samples) < t.AUDIO_MIN_SAMPLES:
             return AudioObservation()
 
         audio = np.asarray(samples, dtype=np.float32)

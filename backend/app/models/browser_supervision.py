@@ -25,6 +25,13 @@ class BrowserTrial(Base):
     last_av_window_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Per-trial calibrated screen zone (head pitch/yaw bounds and gaze bounds); None until calibrated.
     gaze_zone: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Enrolled voiceprint (unit embedding + ambient noise floor, see integrity/voiceprint.py): a biometric that
+    # stays on the server; responses only expose ``voice_enrolled``.
+    voiceprint: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    @property
+    def voice_enrolled(self) -> bool:
+        return self.voiceprint is not None
 
 
 class BrowserIncident(Base):

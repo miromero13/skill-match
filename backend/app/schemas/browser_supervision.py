@@ -109,6 +109,37 @@ class GazeCalibrationResponse(BaseModel):
     frames_used: int
 
 
+MAX_VOICE_SAMPLES = 192_000  # 12 s at 16 kHz
+
+
+class MouthSampleRequest(BaseModel):
+    """One mouth-aperture reading while the control phrase is read; ``t_ms`` counts from the recording start."""
+    model_config = ConfigDict(extra="forbid")
+    t_ms: int = Field(ge=0, le=12_000, strict=True)
+    mouth_open: float = Field(ge=0, le=2)
+
+
+class VoiceCalibrationRequest(TabRequest):
+    """16 kHz mono audio: ``ambient_ms`` of silence first, then the candidate reading the control phrase."""
+    audio_samples: list[float] = Field(min_length=1, max_length=MAX_VOICE_SAMPLES)
+    ambient_ms: int = Field(ge=500, le=3000, strict=True)
+    mouth_samples: list[MouthSampleRequest] = Field(default_factory=list, max_length=450)
+
+    @model_validator(mode="after")
+    def mouth_is_coherent(self):
+        stamps = [sample.t_ms for sample in self.mouth_samples]
+        duration_ms = len(self.audio_samples) * 1000 // 16_000
+        if any(later - earlier < 30 for earlier, later in zip(stamps, stamps[1:])) or any(
+                value > duration_ms for value in stamps):
+            raise ValueError("mouth_samples debe ser creciente, a menos de ~33 muestras por segundo y dentro del audio.")
+        return self
+
+
+class VoiceCalibrationResponse(BaseModel):
+    voice_enrolled: bool
+    voiced_seconds: float
+
+
 class TrialResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -119,6 +150,7 @@ class TrialResponse(BaseModel):
     lease_until: datetime | None
     event_count: int
     gaze_zone: GazeZoneModel | None = None
+    voice_enrolled: bool = False  # the embedding itself is never exposed
 
 
 class IncidentResponse(IncidentRequest):
@@ -188,7 +220,10 @@ class AVWindowResponse(BaseModel):
     identity_match: Optional[bool]
     speech_detected: bool
     mouth_moving: bool = False
-    mouth_sync: Optional[bool] = None
+    mouth_sync: Optional[bool] = None  # kept for compatibility: ``lip_sync == "synced"`` when a verdict exists
+    # Voice ownership (the voice is the enrolled one) and temporal voice/mouth correlation; null = no speech or no verdict.
+    voice_match: Optional[bool] = None
+    lip_sync: Optional[Literal["synced", "unsynced", "insufficient"]] = None
     multiple_speakers: bool = False
     noise_level: float
     # Confirmed (continuous >= 1 s) covered face / covered mouth and blocked or frozen camera (S7, S8).

@@ -12,10 +12,11 @@ from app.core.exceptions import SkillMatchException
 from app.models.browser_supervision import BrowserIncident, BrowserTrial
 from app.models.user import User, UserRole
 from app.schemas.browser_supervision import (
-    AVWindowRequest, GazeCalibrationRequest, IncidentKind, IncidentResponse,
+    AVWindowRequest, GazeCalibrationRequest, IncidentKind, IncidentResponse, VoiceCalibrationRequest,
 )
 from app.services.continuous_supervision_service import ContinuousSupervisionService
 from app.services.integrity.gaze import GazeCalibrationError, compute_zone
+from app.services.integrity.voiceprint import EnrollmentError, SpeakerModelUnavailable
 
 LOCKED = "Esta prueba está activa en otra pestaña o perdió su autorización. Esperá hasta 20 segundos y reintentá."
 DEFAULT_CADENCE_MS = 2400  # expected spacing of audiovisual windows when the client does not say
@@ -46,6 +47,21 @@ GAZE_CALIBRATION_ERRORS = {
                                  "cabeza hacia esa esquina y repetí la calibración."),
     "MODEL_UNAVAILABLE": (503, "El análisis de mirada no está disponible en este momento. Reintentá más tarde."),
 }
+
+VOICE_CALIBRATION_ERRORS = {
+    "INSUFFICIENT_SPEECH": (400, "No escuchamos suficiente voz. Leé la frase completa en voz alta y repetí la "
+                                 "calibración."),
+    "MULTIPLE_SPEAKERS": (400, "Se detectó más de una voz durante la calibración. Tiene que hablar solo vos, sin otras "
+                                "personas ni audio reproducido, y repetí la calibración."),
+    "INCONSISTENT": (400, "No pudimos confirmar una sola voz constante. Repetí la frase en un ambiente silencioso."),
+    "UNSYNCED": (400, "Tu voz no coincide con el movimiento de tus labios. Mirá la cámara, leé la frase en voz alta y "
+                      "repetí la calibración."),
+    "NO_MOUTH": (400, "No pudimos ver el movimiento de tu boca. Ubicate frente a la cámara con la boca descubierta y "
+                      "repetí la calibración."),
+    "AMBIENT_NOT_QUIET": (400, "Había voces o ruido durante el silencio inicial. Buscá un ambiente en silencio y "
+                               "repetí la calibración."),
+}
+VOICE_UNAVAILABLE = (503, "La verificación de voz no está disponible en este momento. Reintentá más tarde.")
 
 # Bounded pool: inference is CPU-heavy and native models are shared, so only a few run at once.
 _AV_EXECUTOR = ThreadPoolExecutor(max_workers=AV_INFERENCE_WORKERS, thread_name_prefix="av-inference")
@@ -223,6 +239,7 @@ class BrowserSupervisionService:
         trial_key = str(trial.id)
         embedding = user.biometric_embedding
         gaze_zone = dict(trial.gaze_zone) if trial.gaze_zone else None
+        voiceprint = dict(trial.voiceprint) if trial.voiceprint else None
         await db.commit()
 
         # Phase 2: CPU-heavy inference on a bounded worker pool, off the event loop and without any lock.
@@ -238,6 +255,7 @@ class BrowserSupervisionService:
             frame_times_ms=payload.frame_times_ms,
             gaze_samples=payload.gaze_samples,
             observed_at_ms=int(payload.observed_at.timestamp() * 1000),
+            voiceprint=voiceprint,
         ))
 
         # Phase 3: the lease may have been lost meanwhile; re-lock, re-verify and only then persist.
@@ -290,6 +308,8 @@ class BrowserSupervisionService:
             "speech_detected": result["speech_detected"],
             "mouth_moving": result["mouth_moving"],
             "mouth_sync": result["mouth_sync"],
+            "voice_match": result.get("voice_match"),
+            "lip_sync": result.get("lip_sync"),
             "multiple_speakers": result["multiple_speakers"],
             "noise_level": result["noise_level"],
             "occlusion": result.get("occlusion", {"face": False, "mouth": False}),
@@ -321,3 +341,28 @@ class BrowserSupervisionService:
         trial.gaze_zone = zone.to_dict()
         await db.commit()
         return {"zone": trial.gaze_zone, "frames_used": sum(len(batch.frames) for batch in batches.values())}
+
+    @classmethod
+    async def calibrate_voice(cls, db, user, trial_id, payload: VoiceCalibrationRequest):
+        """Enrolls the trial's voiceprint from the silence + control-phrase recording (S3, S4, S11)."""
+        # Phase 1: authorize under the row lock, then release it before the CPU-heavy inference.
+        trial = await cls.owned(db, user, trial_id, lock=True)
+        cls.leased(trial, payload.tab_id, utcnow())
+        await db.commit()
+
+        mouth = [(sample.t_ms, sample.mouth_open) for sample in payload.mouth_samples]
+        try:
+            record = await asyncio.get_running_loop().run_in_executor(
+                _AV_EXECUTOR, ContinuousSupervisionService.enroll_voice, payload.audio_samples, payload.ambient_ms, mouth)
+        except EnrollmentError as error:
+            status, message = VOICE_CALIBRATION_ERRORS[error.code]
+            reject(status, message)
+        except SpeakerModelUnavailable:
+            reject(*VOICE_UNAVAILABLE)
+
+        # Phase 3: the lease may have been lost meanwhile; re-lock, re-verify and only then persist.
+        trial = await cls.owned(db, user, trial_id, lock=True)
+        cls.leased(trial, payload.tab_id, utcnow())
+        trial.voiceprint = record
+        await db.commit()
+        return {"voice_enrolled": True, "voiced_seconds": round(float(record["voiced_s"]), 2)}

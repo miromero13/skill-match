@@ -17,6 +17,7 @@ import numpy as np
 
 from app.services.integrity import frame_analyzer as frames
 from app.services.integrity.audio_analyzer import AudioAnalyzer
+from app.services.integrity import enrollment
 from app.services.integrity.engine import IntegrityEngine
 from app.services.integrity.frame_analyzer import FrameAnalyzer, LandmarkerLifecycle
 from app.services.integrity.models import FrameBatch, FrameObservation, GazeSample, GazeZone, MouthPatch
@@ -157,6 +158,11 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
     @staticmethod
     def _audio_missing(samples: Optional[list[float]], duration_ms: Optional[int]) -> bool:
         return AudioAnalyzer.is_missing(samples, duration_ms)
+
+    @staticmethod
+    def enroll_voice(audio: Sequence[float], ambient_ms: int, mouth: Sequence[tuple[int, float]]) -> dict[str, Any]:
+        """The voiceprint record of a calibration recording (raises ``EnrollmentError`` / ``SpeakerModelUnavailable``)."""
+        return enrollment.enroll_voice(audio, ambient_ms, mouth)
 
     # ---- window ---------------------------------------------------------------------------------
 
