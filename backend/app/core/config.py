@@ -141,6 +141,43 @@ class Settings(BaseSettings):
         description="Ejecutar tareas Celery en proceso (True para pruebas sin broker activo)",
     )
 
+    # Economía de Puntos y Pasarela de Pagos (HU-42 / RF-SES-09 / RF-WAL-02)
+    PAYMENT_GATEWAY_PROVIDER: str = Field(
+        default="sandbox",
+        description="Proveedor de pasarela de pagos: sandbox | stripe | paypal",
+    )
+    STRIPE_SECRET_KEY: Optional[SecretStr] = Field(
+        default=None,
+        description="Clave secreta de Stripe para recargas en vivo (Secreto .env)",
+    )
+    STRIPE_PUBLISHABLE_KEY: Optional[str] = Field(
+        default=None,
+        description="Clave pública de Stripe para integración de frontend",
+    )
+    PAYPAL_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        description="Client ID de PayPal para checkout",
+    )
+    PAYPAL_CLIENT_SECRET: Optional[SecretStr] = Field(
+        default=None,
+        description="Client Secret de PayPal para checkout (Secreto .env)",
+    )
+    WALLET_POINTS_PER_USD: int = Field(
+        default=10,
+        description="Tasa de conversión canónica: 10 SkillPoints (SP) equivalen a $1.00 USD",
+    )
+    WALLET_CASHOUT_MIN_POINTS: int = Field(
+        default=100,
+        ge=10,
+        description="Monto mínimo en SkillPoints para solicitar retiro a cuenta bancaria",
+    )
+    WALLET_PLATFORM_FEE_PERCENTAGE: float = Field(
+        default=15.0,
+        ge=0.0,
+        le=50.0,
+        description="Comisión institucional porcentual retenida por la plataforma en retiros (ej. 15.0%)",
+    )
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:

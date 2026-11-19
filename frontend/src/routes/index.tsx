@@ -30,6 +30,7 @@ import { MatchesPage } from "@/pages/matches-page"
 import { SearchPage } from "@/pages/search-page"
 import { SessionsPage } from "@/pages/sessions-page"
 import { ComingSoonPage } from "@/pages/coming-soon-page"
+import { WalletPage } from "@/pages/wallet/wallet-page"
 
 import { NotificationLayout } from "@/components/notifications/notification-layout"
 import { NotificationInboxPage } from "@/pages/notifications/notification-inbox-page"
@@ -65,6 +66,10 @@ export const router = createBrowserRouter([
       </MemberRouteGuard>
     ),
     children: [{ index: true, element: <MatchesPage /> }],
+  },
+  {
+    path: "/wallet",
+    element: <Navigate to="/app/wallet" replace />,
   },
   // 1. Public Layout (Landing Page, Institucional)
   {
@@ -160,14 +165,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "wallet",
-        element: (
-          <ComingSoonPage
-            featureKey="wallet"
-            title="Billetera de SkillPoints"
-            subtitle="Historial de movimientos, canjes y transferencias"
-            description="Tu saldo actual está sincronizado con el backend. La visualización de transacciones históricas y canje de puntos estará disponible próximamente."
-          />
-        ),
+        element: <WalletPage />,
       },
       {
         path: "availability",

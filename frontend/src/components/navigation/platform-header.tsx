@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { Home, Users, Calendar, Award, ShieldCheck, Plus, Search, CreditCard, LogOut } from "lucide-react"
@@ -14,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuthStore } from "@/stores"
+import { useWalletStore } from "@/stores/wallet-store"
 import { logoutSession } from "@/services/auth-service"
 import { ModeToggle } from "@/components/mode-toggle"
 
@@ -37,6 +39,12 @@ export function PlatformHeader() {
       .toUpperCase() || "MB"
 
   const balancePoints = user?.skillPointsBalance ?? 0
+
+  useEffect(() => {
+    if (user?.id) {
+      useWalletStore.getState().loadBalance()
+    }
+  }, [user?.id])
 
 
   const navItems = [

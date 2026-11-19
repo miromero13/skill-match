@@ -32,6 +32,7 @@ from app.api.users.notification_preferences import router as notification_prefer
 from app.api.users.profile import router as user_profile_router
 from app.api.users.skill_evidences import router as skill_evidences_router
 from app.api.users.teaching_skills import router as teaching_skills_router
+from app.api.wallet.router import router as wallet_router
 from app.core.config import settings
 from app.core.exceptions import (
     SkillMatchException,
@@ -133,6 +134,7 @@ def create_application() -> FastAPI:
     app.include_router(search_router, prefix="/api")
     app.include_router(user_moderation_router, prefix="/api")
     app.include_router(sessions_router, prefix="/api")
+    app.include_router(wallet_router, prefix="/api")
 
     return app
 
