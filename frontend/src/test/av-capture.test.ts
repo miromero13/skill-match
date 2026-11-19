@@ -3,7 +3,6 @@ import {
   assembleVoiceRequest,
   createFrameSampler,
   createMicrophoneRecorder,
-  downsample,
   frameEvidence,
   type TimedFrame,
 } from "@/services/av-capture"
@@ -57,17 +56,6 @@ describe("assembleVoiceRequest", () => {
   it("rejects frames above the 80000 character limit instead of sending them", () => {
     const heavy = frames(70, 125).map((frame, index) => (index === 3 ? { ...frame, image: "x".repeat(80_001) } : frame))
     expect(() => assembleVoiceRequest(recording, heavy, mouth(60, 140), 2000)).toThrow(/demasiado grande/)
-  })
-})
-
-describe("downsample", () => {
-  it("averages blocks down to 16 kHz and clamps to [-1, 1]", () => {
-    const input = new Float32Array(480).fill(0.5)
-    input[0] = 4
-    const out = downsample(input, 3)
-    expect(out).toHaveLength(160)
-    expect(out[0]).toBe(1)
-    expect(out[1]).toBeCloseTo(0.5)
   })
 })
 
@@ -141,9 +129,14 @@ describe("createMicrophoneRecorder", () => {
     feed(0.25)
     const taken = recorder.stop()
     expect(output.every((sample) => sample === 0)).toBe(true)
-    expect(taken?.samples).toHaveLength(2 * Math.floor(4096 / 3))
-    expect(taken?.samples[0]).toBeCloseTo(0.25)
+    // FIR decimation keeps ~50 input samples of look-ahead, so the tail of the last block is not out yet.
+    expect(Math.abs((taken?.samples.length ?? 0) - 2 * Math.floor(4096 / 3))).toBeLessThanOrEqual(40)
+    expect(taken?.samples.at(-1)).toBeCloseTo(0.25)
     expect(taken?.startedAt).toBeGreaterThan(0)
+    expect(processors[0].onaudioprocess).not.toBeNull() // the shared pipeline keeps running until close()
+    feed(0.25)
+    expect(recorder.stop()).toBeNull()
+    await recorder.close()
     expect(processors[0].onaudioprocess).toBeNull()
     expect(processors[0].disconnect).toHaveBeenCalled()
   })

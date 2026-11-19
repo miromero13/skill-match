@@ -41,12 +41,14 @@ describe("microphone recorder", () => {
     const quiet = recorder.stop()
     recorder.start(); feed(0.1, 35)
     const spoken = recorder.stop()
-    expect(quiet?.samples).toHaveLength(35 * Math.floor(4096 / 3))
+    // The FIR decimator keeps ~50 input samples of look-ahead per recording.
+    expect(Math.abs((quiet?.samples.length ?? 0) - 35 * Math.floor(4096 / 3))).toBeLessThanOrEqual(40)
     expect(quiet?.samples.every(sample => sample === 0)).toBe(true)
-    expect(spoken?.samples).toHaveLength(35 * Math.floor(4096 / 3))
-    expect(spoken?.samples[0]).toBeCloseTo(0.1)
-    expect(processors.every(processor => processor.onaudioprocess === null)).toBe(true)
+    expect(Math.abs((spoken?.samples.length ?? 0) - 35 * Math.floor(4096 / 3))).toBeLessThanOrEqual(40)
+    expect(spoken?.samples.at(-1)).toBeCloseTo(0.1)
+    expect(processors.every(processor => processor.onaudioprocess !== null)).toBe(true) // one pipeline until close()
     await recorder.close()
+    expect(processors.every(processor => processor.onaudioprocess === null)).toBe(true)
     expect(close).toHaveBeenCalledOnce()
   })
 
