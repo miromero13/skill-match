@@ -54,12 +54,17 @@ import {
   FootballValidationWizard,
   FootballTrainingStudio,
 } from "@/features/football-validation"
+import { FluteGuidedCapture } from "@/components/admin/flute/flute-guided-capture"
+import { FluteTrainingStudio } from "@/components/admin/flute/flute-training-studio"
+import { FluteLiveValidator } from "@/components/admin/flute/flute-live-validator"
 import { getSkills, getCategories } from "@/services/admin-catalog-service"
 import {
   calculateFileSha256,
+  getDatasetSampleContent,
   uploadDatasetSample,
 } from "@/services/dataset-sample-service"
 import type { Skill, Category } from "@/types/catalog"
+import type { DatasetSampleContent } from "@/types/dataset-sample"
 
 interface BatchFileItem {
   id: string
@@ -141,6 +146,9 @@ export function AdminDatasetCapturePage() {
   const [batchFiles, setBatchFiles] = useState<BatchFileItem[]>([])
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; filename: string } | null>(null)
   const [batchSplitMode, setBatchSplitMode] = useState<"auto" | "train" | "val" | "test">("auto")
+  const [previewSampleContent, setPreviewSampleContent] = useState<DatasetSampleContent | null>(null)
+  const [previewSampleTitle, setPreviewSampleTitle] = useState<string>("")
+  const [isLoadingSamplePreview, setIsLoadingSamplePreview] = useState<boolean>(false)
 
   useEffect(() => {
     let isMounted = true
@@ -167,9 +175,22 @@ export function AdminDatasetCapturePage() {
               )
             }) || items[0]
 
+          const sportCat = cats.find((c) => c.id === sportSkill.category_id)
+          const sportSlug = sportCat ? sportCat.slug.toLowerCase() : ""
+          const isMusicDefault =
+            sportSlug.includes("music") ||
+            sportSlug === "musica" ||
+            sportSkill.name.toLowerCase().includes("flauta") ||
+            sportSkill.name.toLowerCase().includes("guitarra")
+
           setSelectedSkillId(sportSkill.id)
           setSelectedSkillName(sportSkill.name)
-          setDiscipline("fútbol")
+          if (isMusicDefault) {
+            setActiveCategorySlug("musica")
+            setDiscipline("musica")
+          } else {
+            setDiscipline("futbol")
+          }
           setChallenge(sportSkill.name)
         }
       }).catch(() => {
@@ -192,7 +213,7 @@ export function AdminDatasetCapturePage() {
         if (activeCategorySlug === "programacion") return cSlug === "programacion" || cSlug.includes("prog")
       }
       const name = sk.name.toLowerCase()
-      if (activeCategorySlug === "musica") return name.includes("guitarra") || name.includes("piano") || name.includes("audio")
+      if (activeCategorySlug === "musica") return name.includes("flauta") || name.includes("guitarra") || name.includes("piano") || name.includes("audio") || name.includes("música") || name.includes("musica")
       if (activeCategorySlug === "deporte") return name.includes("dominada") || name.includes("fútbol") || name.includes("balón")
       if (activeCategorySlug === "programacion") return name.includes("python") || name.includes("react") || name.includes("código")
       return true
@@ -201,6 +222,7 @@ export function AdminDatasetCapturePage() {
 
   const handleSelectCategory = (slug: string) => {
     setActiveCategorySlug(slug)
+    setDiscipline(slug === "deporte" ? "futbol" : slug)
     const skillsInCat = catalogSkills.filter((sk) => {
       const cat = categories.find((c) => c.id === sk.category_id)
       const cSlug = cat ? cat.slug.toLowerCase() : ""
@@ -210,7 +232,7 @@ export function AdminDatasetCapturePage() {
         if (slug === "programacion") return cSlug === "programacion" || cSlug.includes("prog")
       }
       const name = sk.name.toLowerCase()
-      if (slug === "musica") return name.includes("guitarra") || name.includes("piano") || name.includes("audio")
+      if (slug === "musica") return name.includes("flauta") || name.includes("guitarra") || name.includes("piano") || name.includes("audio") || name.includes("música") || name.includes("musica")
       if (slug === "deporte") return name.includes("dominada") || name.includes("fútbol") || name.includes("balón")
       if (slug === "programacion") return name.includes("python") || name.includes("react") || name.includes("código")
       return true
@@ -221,15 +243,16 @@ export function AdminDatasetCapturePage() {
       setSelectedSkillId(first.id)
       setSelectedSkillName(first.name)
       const isFb =
+        slug === "deporte" ||
         first.name.toLowerCase().includes("fútbol") ||
         first.name.toLowerCase().includes("dominada") ||
         first.name.toLowerCase().includes("balón")
-      setDiscipline(isFb ? "fútbol" : slug)
+      setDiscipline(isFb ? "futbol" : slug)
       setChallenge(first.name)
     } else {
       setSelectedSkillId("")
-      setSelectedSkillName("")
-      setChallenge("")
+      setSelectedSkillName(slug === "musica" ? "Flauta" : "")
+      setChallenge(slug === "musica" ? "Flauta" : "")
     }
   }
 
@@ -239,10 +262,11 @@ export function AdminDatasetCapturePage() {
     if (found) {
       setSelectedSkillName(found.name)
       const isFb =
+        activeCategorySlug === "deporte" ||
         found.name.toLowerCase().includes("fútbol") ||
         found.name.toLowerCase().includes("dominada") ||
         found.name.toLowerCase().includes("balón")
-      setDiscipline(isFb ? "fútbol" : activeCategorySlug)
+      setDiscipline(isFb ? "futbol" : activeCategorySlug)
       setChallenge(found.name)
     } else {
       setSelectedSkillName("")
@@ -682,17 +706,43 @@ export function AdminDatasetCapturePage() {
         </TabsList>
 
         <TabsContent value="football-training" className="space-y-6">
-          <FootballTrainingStudio
-            skillId={selectedSkillId}
-            skillName={selectedSkillName}
-          />
+          {activeCategorySlug === "musica" ? (
+            <FluteTrainingStudio
+              skillId={selectedSkillId}
+              skillName={selectedSkillName || "Flauta Dulce"}
+            />
+          ) : (
+            <FootballTrainingStudio
+              skillId={selectedSkillId}
+              skillName={selectedSkillName}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="football-live-validation" className="space-y-6">
-          <FootballValidationWizard skillId={selectedSkillId} />
+          {activeCategorySlug === "musica" ? (
+            <FluteLiveValidator
+              skillId={selectedSkillId}
+              skillName={selectedSkillName || "Flauta Dulce"}
+            />
+          ) : (
+            <FootballValidationWizard skillId={selectedSkillId} />
+          )}
         </TabsContent>
 
         <TabsContent value="dataset-ingest" className="space-y-6">
+          {activeCategorySlug === "musica" && (
+            <FluteGuidedCapture
+              skillName={selectedSkillName || "Flauta"}
+              samples={samples}
+              signedConsent={signedConsent}
+              hardwareInfo={hardwareInfo}
+              onSampleUploaded={async () => {
+                await fetchSamples(filterDiscipline === "all" ? undefined : filterDiscipline)
+              }}
+            />
+          )}
+
           {/* Grid Central Responsive */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Columna Izquierda: Panel de Grabación & Ingesta */}
@@ -1192,6 +1242,46 @@ export function AdminDatasetCapturePage() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
+              {previewSampleContent && (
+                <div className="p-3 border-b border-border/60 bg-muted/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground truncate max-w-[240px]">
+                      Reproduciendo: {previewSampleTitle}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={() => setPreviewSampleContent(null)}
+                    >
+                      Cerrar
+                    </Button>
+                  </div>
+                  {previewSampleContent.file_format === "mp4" && previewSampleContent.data_url && (
+                    <video
+                      src={previewSampleContent.data_url}
+                      controls
+                      autoPlay
+                      className="w-full rounded-lg max-h-48 bg-black"
+                    />
+                  )}
+                  {previewSampleContent.file_format === "wav" && previewSampleContent.data_url && (
+                    <audio
+                      src={previewSampleContent.data_url}
+                      controls
+                      autoPlay
+                      className="w-full"
+                    />
+                  )}
+                  {previewSampleContent.file_format === "py" && (
+                    <pre className="p-2 rounded bg-neutral-950 text-emerald-400 font-mono text-[11px] max-h-40 overflow-auto">
+                      {previewSampleContent.text_preview || "# Sin contenido"}
+                    </pre>
+                  )}
+                </div>
+              )}
+
               {filteredSamples.length === 0 ? (
                 <div className="text-center py-12 px-4 text-muted-foreground space-y-2">
                   <UploadCloud className="w-10 h-10 mx-auto stroke-1 opacity-40 text-muted-foreground" />
@@ -1222,6 +1312,8 @@ export function AdminDatasetCapturePage() {
                               </div>
                               <p className="text-[11px] text-muted-foreground capitalize">
                                 {sample.discipline} • {(sample.file_size_bytes / 1024).toFixed(0)} KB
+                                {sample.level_label ? ` • ${sample.level_label}` : ""}
+                                {sample.surface ? ` (${sample.surface})` : ""}
                               </p>
                               <p className="text-[10px] text-muted-foreground truncate max-w-[160px]">
                                 {sample.hardware_info}
@@ -1234,15 +1326,38 @@ export function AdminDatasetCapturePage() {
                             </div>
                           </TableCell>
                           <TableCell className="py-3 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                              onClick={() => deleteSampleById(sample.id)}
-                              title="Eliminar muestra defectuosa"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={isLoadingSamplePreview}
+                                className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700"
+                                onClick={async () => {
+                                  setIsLoadingSamplePreview(true)
+                                  try {
+                                    const res = await getDatasetSampleContent(sample.id)
+                                    if (res.statuscode === 200 && res.data) {
+                                      setPreviewSampleTitle(sample.challenge)
+                                      setPreviewSampleContent(res.data)
+                                    }
+                                  } finally {
+                                    setIsLoadingSamplePreview(false)
+                                  }
+                                }}
+                                title="Reproducir o ver muestra"
+                              >
+                                <Play className="w-4 h-4 fill-current" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                onClick={() => deleteSampleById(sample.id)}
+                                title="Eliminar muestra defectuosa"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
