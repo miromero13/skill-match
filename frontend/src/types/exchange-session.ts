@@ -4,6 +4,7 @@ export const exchangeSessionStatuses = [
   "ACCEPTED",
   "REJECTED",
   "CANCELLED",
+  "COMPLETED",
 ] as const
 
 export type ExchangeSessionModality = (typeof exchangeSessionModalities)[number]
@@ -27,6 +28,51 @@ export interface ExchangeSession {
   cancelled_at: string | null
   quota_restored: boolean
   booking_blocked_until: string | null
+  actual_minutes?: number | null
+  completed_at?: string | null
+  can_confirm?: boolean
+  can_report_noshow?: boolean
+  my_confirmation?: boolean
+  counterpart_confirmation?: boolean
+}
+
+export interface SessionConfirmRequest {
+  request_key: string
+  actual_minutes: number
+  topics?: string[]
+  presence_pin?: string
+}
+
+export interface SessionConfirmResponse {
+  session_id: string
+  status: ExchangeSessionStatus
+  my_confirmation: boolean
+  counterpart_confirmation: boolean
+  actual_minutes: number | null
+  completed_at: string | null
+  escrow_release: "NOT_APPLICABLE" | "PENDING_HU42" | "RELEASED"
+}
+
+export interface SessionNoShowRequest {
+  request_key: string
+  reason: string
+}
+
+export interface SessionNoShowResponse {
+  session_id: string
+  reported_by_id: string
+  absent_user_id: string
+  reason: string
+  status: "PENDING_REPUTATION" | "PROCESSED" | "DISMISSED"
+  reported_at: string
+}
+
+export interface SessionPresencePinResponse {
+  session_id: string
+  presence_pin: string
+  expires_at: string
+  attempt_count: number
+  is_locked: boolean
 }
 
 export interface ExchangeSessionCreate {

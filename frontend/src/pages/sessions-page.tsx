@@ -78,20 +78,38 @@ export function SessionsPage() {
         </div>
       ) : !error && loaded ? (
         <Tabs value={filter} onValueChange={(value) => setFilter(value as SessionFilter)}>
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-5">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-6">
             <TabsTrigger value="ALL">Todas</TabsTrigger>
             <TabsTrigger value="PENDING">Pendientes</TabsTrigger>
             <TabsTrigger value="ACCEPTED">Confirmadas</TabsTrigger>
+            <TabsTrigger value="COMPLETED">Completadas</TabsTrigger>
             <TabsTrigger value="REJECTED">Rechazadas</TabsTrigger>
             <TabsTrigger value="CANCELLED">Canceladas</TabsTrigger>
           </TabsList>
-          {["ALL", "PENDING", "ACCEPTED", "REJECTED", "CANCELLED"].map((value) => (
+          {["ALL", "PENDING", "ACCEPTED", "COMPLETED", "REJECTED", "CANCELLED"].map((value) => (
             <TabsContent key={value} value={value} className="mt-5">
               {filtered.length === 0 ? (
                 <Card className="border-dashed"><CardContent className="flex min-h-56 flex-col items-center justify-center gap-3 p-6 text-center"><div className="rounded-full bg-primary/10 p-3"><CalendarDays aria-hidden="true" className="size-6 text-primary" /></div><div><p className="font-semibold">No tienes sesiones programadas.</p><p className="mt-1 text-sm text-muted-foreground">Las propuestas de tus coincidencias aparecerán aquí.</p></div></CardContent></Card>
               ) : (
                 <div className="grid gap-4 xl:grid-cols-2">
-                  {filtered.map((session) => <SessionCard key={session.id} session={session} currentUserId={userId} pending={Boolean(pending[`status:${session.id}`] || pending[`reschedule:${session.id}`] || pending[`cancel:${session.id}`])} onAccept={accept} onReject={reject} onReschedule={(id, startsAt, endsAt) => reschedule(id, { starts_at: startsAt, ends_at: endsAt })} onCancel={cancel} />)}
+                  {filtered.map((session) => (
+                    <SessionCard
+                      key={session.id}
+                      session={session}
+                      currentUserId={userId}
+                      pending={Boolean(
+                        pending[`status:${session.id}`] ||
+                        pending[`reschedule:${session.id}`] ||
+                        pending[`cancel:${session.id}`] ||
+                        pending[`confirm:${session.id}`] ||
+                        pending[`noshow:${session.id}`]
+                      )}
+                      onAccept={accept}
+                      onReject={reject}
+                      onReschedule={(id, startsAt, endsAt) => reschedule(id, { starts_at: startsAt, ends_at: endsAt })}
+                      onCancel={cancel}
+                    />
+                  ))}
                 </div>
               )}
             </TabsContent>
