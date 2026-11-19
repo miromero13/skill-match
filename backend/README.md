@@ -11,6 +11,9 @@ Backend asíncrono para la plataforma de intercambio colaborativo de habilidades
 - **Contrato de Respuesta:** Sobre unificado y estándar `APIResponse[T]` (`statuscode`, `message`, `data`, `count`).
 - **Seguridad:** Middlewares de CORS, compresión GZip, cabeceras preventivas y tokens JWT con claim dinámico de rol (`MEMBER` o `ADMIN`).
 - **Documentación Viva:** Swagger UI interactivo en `/docs` y ReDoc en `/redoc`.
+- **Prueba de navegador (SM-43):** sesiones de ensayo e incidentes reales en `/api/browser-supervision/trials`, separados del examen y de los cupos. Requiere la migración aditiva `bc43a710d962` con autorización explícita, no se aplica al arrancar. Vista MEMBER `/app/browser-supervision-test`; guía, límites y pruebas: [`docs/browser-supervision.md`](../docs/browser-supervision.md). No incluye cámara/audio continuo ni sanciones.
+- **Integridad audiovisual local (SM-44) y calibración sobre el motor de integridad:** `webrtcvad-wheels==2.0.14` y `sherpa-onnx==2.0.1`, sin API de audio en la nube. La calibración previa al examen (`POST /api/evaluations/{id}/liveness/verify-identity`) usa los mismos analizadores y umbrales que la supervisión (`app/services/integrity/`): movimiento con pose 3D, centro y cuatro esquinas de mirada, silencio, frase de control con video y lecturas de boca del navegador; guarda zona de mirada, huella de voz y referencia de oclusión (columnas JSON, migración `f3a8d2c19e47`) que nunca se devuelven. La evidencia nueva es obligatoria y sin el modelo de embeddings de hablante no hay calibración lista (503). Instalar dependencias y ejecutar desde `backend`: `.venv/bin/python scripts/install_calibration_audio_models.py`; verificar sin red con `--verify-only`. Modelos/hashes/licencias: [`docs/models/audio-integrity/README.md`](../docs/models/audio-integrity/README.md); contrato, comprobaciones y límites: [`docs/evaluation-calibration.md`](../docs/evaluation-calibration.md). `POST /api/browser-supervision/trials/{id}/voice-calibration` exige además `frames` muestreados para verificar la telemetría de boca. No hay descargas durante solicitudes ni aprobación degradada sin detector/modelos. Prototipo pendiente de prueba física/revisión independiente, no garantía anticopia.
+- **Modelos faciales locales (S13 / T2):** YuNet, SFace (OpenCV Zoo, Apache-2.0) y MediaPipe `face_landmarker.task` (Apache-2.0) no se versionan (`*.onnx`, `weights/` ignorados). Descargar una vez con SHA-256 fijado, desde `backend`: `.venv/bin/python scripts/install_vision_models.py` (escritura atómica; rechaza cualquier archivo cuyo hash no coincida y nunca sobrescribe uno existente); verificar sin red con `--verify-only`. Se instalan en `app/models/weights/`. Al arrancar, la API registra un `ERROR` por cada modelo ausente o no cargable y sigue sirviendo el resto. Sin modelos el sistema **falla en cerrado**: el enrolamiento y la verificación de identidad responden `400` (imagen no decodificable) o `503` ("Servicio biométrico no disponible…", sin persistir nada ni rechazar al miembro), y las ventanas de supervisión registran el incidente `MODEL_UNAVAILABLE` con `face_count` 0 e identidad sin veredicto, nunca un rostro limpio ni un embedding sintético. MediaPipe se reintenta cada 30 s tras un fallo. Requiere `mediapipe>=1.2.3,<1.3` (en `requirements.txt` y `pyproject.toml`). Pruebas: `tests/test_vision_models_fail_closed.py`.
 
 ---
 
@@ -65,6 +68,22 @@ ADMIN_FULL_NAME="Administrador Principal"
 # Google OAuth 2.0 (Google Identity Services / Web Client)
 # Obtener en Google Cloud Console -> APIs & Services -> Credentials -> OAuth 2.0 Client IDs
 GOOGLE_CLIENT_ID="tu-google-client-id.apps.googleusercontent.com"
+
+# --- Corrección teórica opcional (texto; consentimiento explícito requerido) ---
+THEORY_GRADING_PROVIDER="disabled" # disabled | openai | gemini
+THEORY_GRADING_MODEL=""            # Identificador explícito, sin modelo por defecto
+OPENAI_API_KEY=""                  # [SECRETO] Si provider=openai
+GEMINI_API_KEY=""                  # [SECRETO] Si provider=gemini
+THEORY_GRADING_TIMEOUT_SECONDS=20
+THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory exams
+# BROWSER_SUPERVISION_TRIAL_ENABLED=true  # Sin definir = activo solo en development/test, nunca en production (production lo fuerza apagado aunque sea true)
+# INTEGRITY_DIAGNOSTICS_ENABLED=false  # Registro numérico por ventana AV para afinar umbrales (nunca imágenes, audio ni huellas); production lo fuerza apagado
+# INTEGRITY_DIAGNOSTICS_DIR="/tmp/skillmatch-integrity-diagnostics"  # Carpeta de los <trial_id>.jsonl; por defecto bajo el directorio temporal del SO
+
+# --- Sandbox seguro de programación (la imagen debe estar pre-descargada) ---
+SANDBOX_DOCKER_IMAGE="python:3.12-slim"
+SANDBOX_DOCKER_BINARY="docker"
+SANDBOX_MAX_CONCURRENT_RUNS=2
 
 
 
@@ -228,12 +247,31 @@ Una vez levantado el servidor (`uvicorn app.main:app --reload`):
 
 ## 6. Ejecución de Pruebas Automatizadas (Pytest)
 
-Para ejecutar las pruebas:
+Usá una **base PostgreSQL nueva y descartable**, nunca la base con datos de la aplicación. Primero confirmá que la configuración efectiva apunta a esa base y aplicá allí las migraciones. No ejecutes la suite completa con la configuración de datos habitual.
+
+Con la base de pruebas ya preparada, desde `backend/`:
 ```bash
-pytest -v
+PYTHONPATH=.:tests ADMIN_EMAIL=admin@example.com .venv/bin/python -m pytest tests -q -ra
 ```
 
+La variable `POSTGRES_DB` debe identificar esa base descartable durante las migraciones y las pruebas. Consultá [aislamiento, pasos y diagnóstico de la suite](../docs/backend-test-isolation.md) para preparar y retirar únicamente la base de pruebas.
 
+
+
+### Afinado de umbrales de integridad con sesiones reales (T11)
+
+Los umbrales de `app/services/integrity/thresholds.py` se ajustaron solo con datos sintéticos. Para afinarlos hacen falta sesiones reales etiquetadas:
+
+1. En el `.env` del backend (solo development; production lo fuerza apagado): `INTEGRITY_DIAGNOSTICS_ENABLED=true` y, opcionalmente, `INTEGRITY_DIAGNOSTICS_DIR`. Reiniciá el backend. Con el flag apagado no se escribe nada ni se crea la carpeta.
+2. Abrí `/app/browser-supervision-test` con el frontend en modo DEV, completá la calibración y elegí una **Etiqueta de prueba** (`normal`, `mirando_abajo`, `mirando_costado`, `mirando_arriba`, `ojos_abajo`, `boca_tapada`, `cara_tapada`, `camara_tapada`, `dos_personas`, `otra_voz`, `audio_dispositivo`, `hablando_yo`). Cada ventana de ~2,4 s se envía con esa etiqueta; cambiala cada vez que cambies de comportamiento y grabá un minuto o más de `normal` para medir falsas alarmas.
+3. Cada ventana agrega una línea JSON a `<INTEGRITY_DIAGNOSTICS_DIR>/<trial_id>.jsonl` con la etiqueta, las anomalías y solo medidas numéricas (pose, mirada, parpadeo, boca, oclusión, cámara, RMS y segundos con voz, similitud de voz, hablantes, correlación y solapamiento labios-voz). Nunca se escriben imágenes, audio, embeddings, la huella de voz, la zona de mirada ni la referencia de oclusión. La etiqueta no se guarda en la bitácora.
+4. Resumen por etiqueta (mín / p5 / mediana / p95 / máx, tasa de detección y falsas alarmas):
+
+```bash
+cd backend && .venv/bin/python scripts/integrity_tuning_report.py <INTEGRITY_DIAGNOSTICS_DIR>
+```
+
+Los archivos JSONL contienen datos de sesiones reales: borrá la carpeta al terminar.
 
 ## 7. Autenticación, sesiones y catálogo (HU-07, HU-08, HU-09, HU-10 y HU-12)
 

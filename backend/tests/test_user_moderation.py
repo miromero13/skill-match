@@ -3,10 +3,11 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.security import create_access_token
-from app.db.session import async_engine, get_db
+from app.core.config import settings
+from app.db.session import get_db
 from app.main import create_application
 from app.models.catalog import Category, Skill
 from app.models.match import Match
@@ -18,8 +19,18 @@ from app.models.user_learning_skill import UserLearningSkill
 from app.models.user_report import ReportReason, ReportStatus, UserReport
 
 
+@pytest.fixture
+async def async_engine():
+    """Keep pooled connections on the event loop that created them."""
+    engine = create_async_engine(settings.async_database_url)
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
+
+
 @pytest.mark.asyncio
-async def test_user_block_unblock_and_matching_annulment():
+async def test_user_block_unblock_and_matching_annulment(async_engine):
     """Verifica bloqueo preventivo, anulación automática de trueques y desbloqueo (HU-26 / RF-MAT-14)."""
     suffix = uuid4().hex[:8]
     async with async_engine.connect() as connection:
@@ -123,11 +134,10 @@ async def test_user_block_unblock_and_matching_annulment():
                     assert res_list_after.json()["count"] == 0
         finally:
             await transaction.rollback()
-            await async_engine.dispose()
 
 
 @pytest.mark.asyncio
-async def test_user_report_to_moderation_queue():
+async def test_user_report_to_moderation_queue(async_engine):
     """Verifica el envío de reportes formales a la cola de moderación (HU-26 / RF-NOT-06)."""
     suffix = uuid4().hex[:8]
     async with async_engine.connect() as connection:
@@ -200,11 +210,10 @@ async def test_user_report_to_moderation_queue():
                     assert block_in_db is not None
         finally:
             await transaction.rollback()
-            await async_engine.dispose()
 
 
 @pytest.mark.asyncio
-async def test_blocked_user_exclusion_in_search_and_matches():
+async def test_blocked_user_exclusion_in_search_and_matches(async_engine):
     """Verifica que los usuarios bloqueados queden excluidos inmediatamente de búsquedas y matches (RF-MAT-14)."""
     suffix = uuid4().hex[:8]
     async with async_engine.connect() as connection:
@@ -279,4 +288,3 @@ async def test_blocked_user_exclusion_in_search_and_matches():
                     assert str(user_tutor.id) not in ids_after
         finally:
             await transaction.rollback()
-            await async_engine.dispose()

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link, useBlocker } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,11 +17,22 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useNotificationStore } from "@/stores/notification-store"
 import { useAuthStore, getAuthSessionVersion } from "@/stores/auth-store"
+import {
+  getWebPushCapability,
+  requestWebPushSubscription,
+  revokeWebPushSubscription,
+  type WebPushCapability,
+} from "@/services/web-push-service"
+import { toast } from "sonner"
 
 export function NotificationSettingsPage() {
   const state = useNotificationStore()
   const title = useRef<HTMLHeadingElement>(null)
   const version = useAuthStore(() => getAuthSessionVersion())
+  const [pushCapability, setPushCapability] = useState<WebPushCapability | null>(
+    null
+  )
+  const [pushBusy, setPushBusy] = useState(false)
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
       useAuthStore.getState().isAuthenticated &&
@@ -36,6 +47,15 @@ export function NotificationSettingsPage() {
     }
     window.addEventListener("focus", refresh)
     return () => window.removeEventListener("focus", refresh)
+  }, [version])
+  useEffect(() => {
+    let active = true
+    void getWebPushCapability().then((capability) => {
+      if (active) setPushCapability(capability)
+    })
+    return () => {
+      active = false
+    }
   }, [version])
   useEffect(() => {
     if (!state.dirty) return
@@ -104,6 +124,99 @@ export function NotificationSettingsPage() {
                   />
                 </div>
               ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Notificaciones en este dispositivo</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {!pushCapability && <p role="status">Comprobando navegador…</p>}
+              {pushCapability?.status === "UNSUPPORTED" && (
+                <p className="text-sm text-muted-foreground">
+                  Este navegador no admite notificaciones Web Push.
+                </p>
+              )}
+              {pushCapability?.status === "DENIED" && (
+                <p role="alert" className="text-sm text-muted-foreground">
+                  Para recibir avisos, habilita las notificaciones desde la
+                  configuración del navegador y vuelve a esta página.
+                </p>
+              )}
+              {pushCapability?.status === "SUBSCRIBED" && (
+                <p role="status" className="text-sm font-medium text-primary">
+                  Activo en este dispositivo
+                </p>
+              )}
+              {pushCapability?.status === "UNSUBSCRIBED" && (
+                <p role="status" className="text-sm text-muted-foreground">
+                  Desactivado en este dispositivo
+                </p>
+              )}
+              <div className="flex flex-wrap gap-3">
+                {(pushCapability?.status === "AVAILABLE" ||
+                  pushCapability?.status === "UNSUBSCRIBED") && (
+                  <Button
+                    disabled={
+                      pushBusy ||
+                      !state.preferences?.channels.push ||
+                      state.dirty
+                    }
+                    onClick={async () => {
+                      setPushBusy(true)
+                      try {
+                        const result = await requestWebPushSubscription(
+                          navigator.userAgent || "Navegador web"
+                        )
+                        setPushCapability(result)
+                        if (result.message) toast.success(result.message)
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : "No se pudo activar Web Push."
+                        )
+                      } finally {
+                        setPushBusy(false)
+                      }
+                    }}
+                  >
+                    Activar notificaciones en este dispositivo
+                  </Button>
+                )}
+                {pushCapability?.status === "SUBSCRIBED" &&
+                  pushCapability.subscriptionId && (
+                    <Button
+                      variant="outline"
+                      disabled={pushBusy}
+                      onClick={async () => {
+                        setPushBusy(true)
+                        try {
+                          const result = await revokeWebPushSubscription(
+                            pushCapability.subscriptionId ?? ""
+                          )
+                          setPushCapability(result)
+                          if (result.message) toast.success(result.message)
+                        } catch (error) {
+                          toast.error(
+                            error instanceof Error
+                              ? error.message
+                              : "No se pudo desactivar Web Push."
+                          )
+                        } finally {
+                          setPushBusy(false)
+                        }
+                      }}
+                    >
+                      Desactivar en este dispositivo
+                    </Button>
+                  )}
+              </div>
+              {(!state.preferences?.channels.push || state.dirty) && (
+                <p className="text-xs text-muted-foreground">
+                  Activa primero el canal Push y guarda tus preferencias.
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card>

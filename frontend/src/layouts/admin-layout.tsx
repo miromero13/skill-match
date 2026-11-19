@@ -12,12 +12,12 @@ import {
   Scale,
   Brain,
   Video,
+  Code2,
   Menu,
   X,
   LogOut,
   Loader2,
   Circle,
-  Bell,
 } from "lucide-react"
 
 export function AdminLayout() {
@@ -39,13 +39,6 @@ export function AdminLayout() {
 
   // Menú con restricción RBAC: 'Gestión de Usuarios' (Equipo Administrador) solo visible para rol ADMIN (HU-10 / Vista 15A)
   const navItems = [
-    { label: "Notificaciones personales", to: "/notifications", icon: Bell, visible: true },
-    {
-      label: "Mis habilidades y evidencias",
-      to: "/admin/my-teaching-skills",
-      icon: BookOpen,
-      visible: user?.role === "ADMIN",
-    },
     {
       label: "Dashboard & Analítica",
       to: "/admin/dashboard",
@@ -57,6 +50,12 @@ export function AdminLayout() {
       to: "/admin/administrators",
       icon: Users,
       visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-10)
+    },
+    {
+      label: "Banco de Preguntas",
+      to: "/admin/theory/questions",
+      icon: BookOpen,
+      visible: user?.role === "ADMIN",
     },
     {
       label: "Catálogo de Habilidades",
@@ -83,6 +82,12 @@ export function AdminLayout() {
       visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-17 / RF-IA-18)
     },
     {
+      label: "Retos",
+      to: "/admin/challenges",
+      icon: Code2,
+      visible: user?.role === "ADMIN",
+    },
+    {
       label: "IA & Datasets",
       to: "/admin/ai-datasets",
       icon: Brain,
@@ -102,6 +107,10 @@ export function AdminLayout() {
 
   // Título dinámico para el breadcrumb de la barra superior
   const getBreadcrumbTitle = () => {
+    if (location.pathname.includes("/admin/theory/questions")) return "Banco de Preguntas"
+    if (location.pathname.includes("/admin/dashboard")) {
+      return "Dashboard & Analítica"
+    }
     if (location.pathname.includes("/admin/administrators")) {
       return "Directorio de Miembros & Control de Acceso"
     }
@@ -111,13 +120,16 @@ export function AdminLayout() {
     if (location.pathname.includes("/admin/capture") || location.pathname.includes("/admin/ai-datasets")) {
       return "Ingesta y Captura de Muestras Multimedia"
     }
+    if (location.pathname.includes("/admin/challenges")) {
+      return "Retos"
+    }
     return "Panel Central de Control"
   }
 
   return (
-    <div className="min-h-screen w-full flex bg-[#0F1416] text-[#F0FDFA] dark">
-      {/* 1. SIDEBAR DESKTOP (Fiel a OpenPencil n6740: w: 260px, fill: #0F1416, stroke: #1E2629) */}
-      <aside className="hidden lg:flex flex-col w-[260px] bg-[#0F1416] text-[#FFFFFF] border-r border-[#1E2629] shrink-0 justify-between p-[20px_16px]">
+    <div className="h-screen w-full flex overflow-hidden bg-[#0F1416] text-[#F0FDFA] dark">
+      {/* 1. SIDEBAR DESKTOP (Fijo en el lateral izquierdo, no se desplaza con el scroll del contenido) */}
+      <aside className="hidden lg:flex flex-col w-[260px] h-full bg-[#0F1416] text-[#FFFFFF] border-r border-[#1E2629] shrink-0 justify-between p-[20px_16px] overflow-y-auto">
         <div className="flex flex-col gap-5">
           {/* BrandRow (n6742) */}
           <div className="flex items-center gap-2.5">
@@ -184,10 +196,10 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      {/* 2. CONTENIDO PRINCIPAL Y TOPBAR */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#0F1416]">
-        {/* Admin_Topbar (OpenPencil: height: 54px, fill: #0F1416, stroke: #1E2629) */}
-        <header className="h-[54px] px-4 sm:px-6 bg-[#0F1416] border-b border-[#1E2629] flex items-center justify-between sticky top-0 z-30 shadow-2xs">
+      {/* 2. CONTENIDO PRINCIPAL Y TOPBAR (Área con scroll vertical independiente) */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto bg-[#0F1416]">
+        {/* Admin_Topbar (Sticky en la parte superior del contenido) */}
+        <header className="h-[54px] shrink-0 px-4 sm:px-6 bg-[#0F1416] border-b border-[#1E2629] flex items-center justify-between sticky top-0 z-30 shadow-2xs">
           {/* Izquierda: Hamburguesa en mobile + Breadcrumb */}
           <div className="flex items-center gap-3">
             <button

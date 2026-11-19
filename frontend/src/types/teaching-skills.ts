@@ -1,8 +1,8 @@
 export const declaredLevels = [
-    { value: "BEGINNER", label: "Principiante" },
-    { value: "INTERMEDIATE", label: "Intermedio" },
-    { value: "ADVANCED", label: "Avanzado" },
-    { value: "EXPERT", label: "Experto" },
+    { value: "BEGINNER", label: "Nivel 1 · Principiante", levelNumber: 1 },
+    { value: "INTERMEDIATE", label: "Nivel 3 · Intermedio", levelNumber: 3 },
+    { value: "ADVANCED", label: "Nivel 4 · Avanzado", levelNumber: 4 },
+    { value: "EXPERT", label: "Nivel 5 · Experto / Master Pedagogo", levelNumber: 5 },
 ] as const
 
 export type DeclaredLevel = typeof declaredLevels[number]["value"]

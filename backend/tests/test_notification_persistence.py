@@ -2,21 +2,22 @@
 
 Every downgrade is restricted to hu25_persist_<uuid>; public is never downgraded.
 """
+
 import asyncio
-from datetime import datetime, timezone
-from pathlib import Path
 import re
+from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
-from alembic import command
+import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
-import pytest
-from sqlalchemy import inspect, MetaData, text
+from sqlalchemy import MetaData, inspect, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
+from alembic import command
 from app.core.config import settings
 from app.models import Base, User
 
@@ -27,14 +28,20 @@ pytestmark = pytest.mark.hu25
 
 def signature(connection, schema):
     inspector = inspect(connection)
-    return {name: (
-        [(col["name"], str(col["type"]), col["nullable"], col.get("default")) for col in inspector.get_columns(name, schema=schema)],
-        inspector.get_pk_constraint(name, schema=schema),
-        inspector.get_foreign_keys(name, schema=schema),
-        inspector.get_unique_constraints(name, schema=schema),
-        inspector.get_check_constraints(name, schema=schema),
-        inspector.get_indexes(name, schema=schema),
-    ) for name in inspector.get_table_names(schema=schema)}
+    return {
+        name: (
+            [
+                (col["name"], str(col["type"]), col["nullable"], col.get("default"))
+                for col in inspector.get_columns(name, schema=schema)
+            ],
+            inspector.get_pk_constraint(name, schema=schema),
+            inspector.get_foreign_keys(name, schema=schema),
+            inspector.get_unique_constraints(name, schema=schema),
+            inspector.get_check_constraints(name, schema=schema),
+            inspector.get_indexes(name, schema=schema),
+        )
+        for name in inspector.get_table_names(schema=schema)
+    }
 
 
 async def migrate(connection, schema, revision, downgrade=False):
@@ -46,6 +53,7 @@ async def migrate(connection, schema, revision, downgrade=False):
         config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
         config.attributes["connection"] = sync_connection
         (command.downgrade if downgrade else command.upgrade)(config, revision)
+
     await connection.run_sync(run)
 
 
@@ -96,29 +104,56 @@ async def persistence():
                     await connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
                     await connection.commit()
                 assert await connection.run_sync(lambda c: signature(c, "public")) == before
-                assert await connection.scalar(text("SELECT count(*) FROM pg_namespace WHERE nspname=:name"), {"name": schema}) == 0
+                assert (
+                    await connection.scalar(
+                        text("SELECT count(*) FROM pg_namespace WHERE nspname=:name"),
+                        {"name": schema},
+                    )
+                    == 0
+                )
     finally:
         await engine.dispose()
 
 
 def notification_values(owner_id, **changes):
-    return {"id": uuid4(), "event_id": uuid4(), "user_id": owner_id, "type": "MATCH_RECEIVED",
-            "title": "Title", "message": "Message", **changes}
+    return {
+        "id": uuid4(),
+        "event_id": uuid4(),
+        "user_id": owner_id,
+        "type": "MATCH_RECEIVED",
+        "title": "Title",
+        "message": "Message",
+        **changes,
+    }
 
 
 def preference_values(owner_id, **changes):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return {"user_id": owner_id, "created_at": now, "updated_at": now, **changes}
 
 
 def test_models_registered_and_categories_are_derived():
     from app.models.notification import Notification, NotificationCategory, NotificationType
     from app.models.notification_preference import NotificationPreference
+
     assert Base.metadata.tables["notifications"] is Notification.__table__
     assert Base.metadata.tables["notification_preferences"] is NotificationPreference.__table__
     assert "category" not in Notification.__table__.c
-    expected = {"MATCH_RECEIVED": "INTERCHANGES", "MATCH_CONFIRMED": "INTERCHANGES",
-                "SESSION_PROPOSED": "INTERCHANGES", "POINTS_RECEIVED": "POINTS", "OTHER": "GENERAL"}
+    expected = {
+        "MATCH_RECEIVED": "INTERCHANGES",
+        "MATCH_CONFIRMED": "INTERCHANGES",
+        "SESSION_PROPOSED": "INTERCHANGES",
+        "SESSION_ACCEPTED": "INTERCHANGES",
+        "SESSION_REJECTED": "INTERCHANGES",
+        "SESSION_RESCHEDULED": "INTERCHANGES",
+        "SESSION_CANCELLED": "INTERCHANGES",
+        "SESSION_REMINDER": "INTERCHANGES",
+        "SESSION_CONFIRMATION_RECORDED": "INTERCHANGES",
+        "SESSION_COMPLETED": "INTERCHANGES",
+        "SESSION_NO_SHOW_REPORTED": "INTERCHANGES",
+        "POINTS_RECEIVED": "POINTS",
+        "OTHER": "GENERAL",
+    }
     assert {kind.value for kind in NotificationType} == set(expected)
     assert {kind.value for kind in NotificationCategory} == set(expected.values())
     for kind, category in expected.items():
@@ -138,12 +173,17 @@ async def test_upgrade_metadata_and_roundtrip_preserve_existing_tables(persisten
         for table in Base.metadata.tables.values():
             table.to_metadata(metadata)
         names = {"notifications", "notification_preferences"}
-        context = MigrationContext.configure(sync_connection, opts={
-            "compare_server_default": True,
-            "include_object": lambda obj, name, kind, reflected, other:
-                name in names if kind == "table" else obj.table.name in names,
-        })
+        context = MigrationContext.configure(
+            sync_connection,
+            opts={
+                "compare_server_default": True,
+                "include_object": lambda obj, name, kind, reflected, other: (
+                    name in names if kind == "table" else obj.table.name in names
+                ),
+            },
+        )
         assert compare_metadata(context, metadata) == []
+
     await connection.run_sync(compare)
     await migrate(connection, schema, PARENT, downgrade=True)
     assert await connection.run_sync(lambda c: signature(c, schema)) == previous
@@ -157,7 +197,9 @@ async def test_indexes_are_partial_and_foreign_keys_cascade(persistence):
 
     def verify(sync_connection):
         inspector = inspect(sync_connection)
-        indexes = {idx["name"]: idx for idx in inspector.get_indexes("notifications", schema=schema)}
+        indexes = {
+            idx["name"]: idx for idx in inspector.get_indexes("notifications", schema=schema)
+        }
         visible = indexes["ix_notifications_user_visible_order"]
         assert visible["column_names"] == ["user_id", "created_at", "id"]
         assert "deleted_at IS NULL" in str(visible["dialect_options"]["postgresql_where"])
@@ -166,16 +208,23 @@ async def test_indexes_are_partial_and_foreign_keys_cascade(persistence):
         assert "read_at IS NULL" in str(unread["dialect_options"]["postgresql_where"])
         assert "deleted_at IS NULL" in str(unread["dialect_options"]["postgresql_where"])
         for name in ["notifications", "notification_preferences"]:
-            assert inspector.get_foreign_keys(name, schema=schema)[0]["options"]["ondelete"] == "CASCADE"
+            assert (
+                inspector.get_foreign_keys(name, schema=schema)[0]["options"]["ondelete"]
+                == "CASCADE"
+            )
+
     await connection.run_sync(verify)
 
 
 async def test_orm_defaults_timestamps_and_read_state(persistence):
     from app.models.notification import Notification
     from app.models.notification_preference import NotificationPreference
+
     connection, _, users, _ = persistence
     async with AsyncSession(bind=connection, expire_on_commit=False) as db:
-        item = Notification(user_id=users[0], event_id=uuid4(), type="OTHER", title="Title", message="Message")
+        item = Notification(
+            user_id=users[0], event_id=uuid4(), type="OTHER", title="Title", message="Message"
+        )
         prefs = NotificationPreference(user_id=users[0])
         db.add_all([item, prefs])
         await db.commit()
@@ -194,54 +243,101 @@ async def test_orm_defaults_timestamps_and_read_state(persistence):
         assert stored.category == "GENERAL" and stored.read_at is None
 
 
-@pytest.mark.parametrize("changes", [
-    {"type": "INVALID"}, {"type": None}, {"user_id": uuid4()}, {"event_id": None},
-    {"title": " "}, {"title": "x" * 151}, {"title": None},
-    {"message": " "}, {"message": "x" * 2001}, {"message": None},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"type": "INVALID"},
+        {"type": None},
+        {"user_id": uuid4()},
+        {"event_id": None},
+        {"title": " "},
+        {"title": "x" * 151},
+        {"title": None},
+        {"message": " "},
+        {"message": "x" * 2001},
+        {"message": None},
+    ],
+)
 async def test_database_rejects_invalid_notification(persistence, changes):
     from app.models.notification import Notification
+
     connection, _, users, _ = persistence
     with pytest.raises(DBAPIError):
         async with connection.begin_nested():
-            await connection.execute(Notification.__table__.insert().values(**notification_values(users[0], **changes)))
+            await connection.execute(
+                Notification.__table__.insert().values(**notification_values(users[0], **changes))
+            )
 
 
-@pytest.mark.parametrize("changes", [
-    {"revision": 0}, {"revision": -1}, {"revision": None}, {"user_id": uuid4()},
-    {"in_app": None}, {"push": None}, {"email": None}, {"interchanges": None}, {"points": None}, {"general": None},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"revision": 0},
+        {"revision": -1},
+        {"revision": None},
+        {"user_id": uuid4()},
+        {"in_app": None},
+        {"push": None},
+        {"email": None},
+        {"interchanges": None},
+        {"points": None},
+        {"general": None},
+    ],
+)
 async def test_database_rejects_invalid_preferences(persistence, changes):
     from app.models.notification_preference import NotificationPreference
+
     connection, _, users, _ = persistence
     with pytest.raises(DBAPIError):
         async with connection.begin_nested():
-            await connection.execute(NotificationPreference.__table__.insert().values(**preference_values(users[0], **changes)))
+            await connection.execute(
+                NotificationPreference.__table__.insert().values(
+                    **preference_values(users[0], **changes)
+                )
+            )
 
 
 async def test_event_uniqueness_survives_logical_delete_and_is_per_user(persistence):
     from app.models.notification import Notification
+
     connection, _, users, _ = persistence
     event = uuid4()
-    await connection.execute(Notification.__table__.insert().values(**notification_values(users[0], event_id=event, deleted_at=datetime.now(timezone.utc))))
+    await connection.execute(
+        Notification.__table__.insert().values(
+            **notification_values(users[0], event_id=event, deleted_at=datetime.now(UTC))
+        )
+    )
     with pytest.raises(IntegrityError) as failure:
         async with connection.begin_nested():
-            await connection.execute(Notification.__table__.insert().values(**notification_values(users[0], event_id=event)))
+            await connection.execute(
+                Notification.__table__.insert().values(
+                    **notification_values(users[0], event_id=event)
+                )
+            )
     assert "uq_notifications_user_event" in str(failure.value.orig)
-    await connection.execute(Notification.__table__.insert().values(**notification_values(users[1], event_id=event)))
+    await connection.execute(
+        Notification.__table__.insert().values(**notification_values(users[1], event_id=event))
+    )
     assert await connection.scalar(text("SELECT count(*) FROM notifications")) == 2
 
 
 async def test_preferences_unique_per_user_and_user_delete_cascades(persistence):
     from app.models.notification import Notification
     from app.models.notification_preference import NotificationPreference
+
     connection, _, users, _ = persistence
     for user in users:
-        await connection.execute(Notification.__table__.insert().values(**notification_values(user)))
-        await connection.execute(NotificationPreference.__table__.insert().values(**preference_values(user)))
+        await connection.execute(
+            Notification.__table__.insert().values(**notification_values(user))
+        )
+        await connection.execute(
+            NotificationPreference.__table__.insert().values(**preference_values(user))
+        )
     with pytest.raises(IntegrityError):
         async with connection.begin_nested():
-            await connection.execute(NotificationPreference.__table__.insert().values(**preference_values(users[0])))
+            await connection.execute(
+                NotificationPreference.__table__.insert().values(**preference_values(users[0]))
+            )
     await connection.execute(User.__table__.delete().where(User.id == users[0]))
     for name in ["notifications", "notification_preferences"]:
         assert await connection.scalar(text(f"SELECT count(*) FROM {name}")) == 1
@@ -249,10 +345,23 @@ async def test_preferences_unique_per_user_and_user_delete_cascades(persistence)
 
 async def test_exact_text_limits_and_timezone_roundtrip(persistence):
     from app.models.notification import Notification
+
     connection, _, users, _ = persistence
-    now = datetime.now(timezone.utc)
-    await connection.execute(Notification.__table__.insert().values(**notification_values(users[0], title="x"*150, message="x"*2000, read_at=now, deleted_at=now)))
-    row = (await connection.execute(text("SELECT length(title), length(message), created_at, read_at, deleted_at FROM notifications"))).one()
+    now = datetime.now(UTC)
+    await connection.execute(
+        Notification.__table__.insert().values(
+            **notification_values(
+                users[0], title="x" * 150, message="x" * 2000, read_at=now, deleted_at=now
+            )
+        )
+    )
+    row = (
+        await connection.execute(
+            text(
+                "SELECT length(title), length(message), created_at, read_at, deleted_at FROM notifications"
+            )
+        )
+    ).one()
     assert row[0:2] == (150, 2000)
     assert all(value.utcoffset() is not None for value in row[2:])
 
@@ -261,16 +370,29 @@ async def test_exact_text_limits_and_timezone_roundtrip(persistence):
 async def test_concurrent_database_inserts_have_one_winner(persistence, table_name):
     from app.models.notification import Notification
     from app.models.notification_preference import NotificationPreference
+
     connection, schema, users, _ = persistence
     await connection.commit()
-    engine = create_async_engine(settings.async_database_url, connect_args={"server_settings": {"search_path": schema}})
+    engine = create_async_engine(
+        settings.async_database_url, connect_args={"server_settings": {"search_path": schema}}
+    )
     event = uuid4()
-    table = Notification.__table__ if table_name == "notifications" else NotificationPreference.__table__
+    table = (
+        Notification.__table__
+        if table_name == "notifications"
+        else NotificationPreference.__table__
+    )
     try:
+
         async def insert():
-            values = notification_values(users[0], event_id=event) if table_name == "notifications" else preference_values(users[0])
+            values = (
+                notification_values(users[0], event_id=event)
+                if table_name == "notifications"
+                else preference_values(users[0])
+            )
             async with engine.begin() as writer:
                 await writer.execute(table.insert().values(**values))
+
         outcomes = await asyncio.gather(insert(), insert(), return_exceptions=True)
         assert sum(result is None for result in outcomes) == 1
         assert sum(isinstance(result, IntegrityError) for result in outcomes) == 1

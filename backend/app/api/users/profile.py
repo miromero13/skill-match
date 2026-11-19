@@ -7,6 +7,7 @@ from app.models.user import User
 from app.schemas.response import APIResponse
 from app.schemas.user_profile import (
     BiometricEnrollRequest,
+    IdentityVerifyRequest,
     UserProfilePatch,
     UserProfileResponse,
     UserProfileUpdate,
@@ -83,4 +84,26 @@ async def enroll_my_biometrics(
     return APIResponse.ok(
         data=data,
         message="Rostro testigo enrolado y verificado exitosamente con biometría local.",
+    )
+
+
+@router.post(
+    "/identity/verify",
+    response_model=APIResponse[UserProfileResponse],
+    response_model_exclude={"count"},
+)
+async def verify_my_identity(
+    payload: IdentityVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Verifica automáticamente la identidad del usuario cotejando el anverso de su
+    carnet de identidad CI/DNI contra su rostro en vivo frente a la cámara web.
+    """
+    data = await UserProfileService.verify_identity(db, current_user, payload)
+    similarity_pct = round((data.id_face_similarity_score or 0.0) * 100.0, 1)
+    return APIResponse.ok(
+        data=data,
+        message=f"Identidad verificada exitosamente con carnet de identidad CI/DNI (Cotejo facial: {similarity_pct}%).",
     )

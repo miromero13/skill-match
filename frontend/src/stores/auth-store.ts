@@ -98,7 +98,16 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "skillmatch-auth-storage",
       storage: createJSONStorage(() => hybridAuthStorage),
-      onRehydrateStorage: onAuthRehydrate,
+      onRehydrateStorage: () => {
+        const finish = onAuthRehydrate()
+        return (state, error) => {
+          if (state?.user && state.user.role === "MEMBER" && state.user.reputationScore === 5.0) {
+            state.user.reputationScore = 0
+            state.user.trustLevel = 0
+          }
+          finish(state, error)
+        }
+      },
     }
   )
 )

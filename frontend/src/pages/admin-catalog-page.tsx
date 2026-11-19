@@ -3,7 +3,6 @@ import { useAdminCatalogStore } from "@/stores/admin-catalog-store"
 import { categoryPath, isCategoryWithin } from "@/lib/catalog-tree"
 import type { Category, SkillLevel, RubricCriterion } from "@/types/catalog"
 import {
-  Sparkles,
   Plus,
   Search,
   FolderPlus,
@@ -132,7 +131,18 @@ export function AdminCatalogPage() {
     setSkillFormDescription("")
     setSkillFormThreshold(80)
     setSkillFormIsReady(false)
-    setSkillFormLevels([])
+    setSkillFormLevels(
+      CANONICAL_LEVELS_DEF.map((lvl) => ({
+        level_number: lvl.level_number,
+        name: lvl.name,
+        description: "",
+        rubric: {
+          min_score: lvl.defaultMinScore,
+          instructions: "",
+          criteria: [],
+        },
+      }))
+    )
     setActiveLevelTab("1")
     openCreateSkillModal()
   }
@@ -145,7 +155,21 @@ export function AdminCatalogPage() {
     setSkillFormThreshold(skill.min_approval_threshold)
     setSkillFormIsReady(skill.is_ready_to_publish)
 
-    const existingLevels = (skill.levels || []).map((l) => ({
+    const rawLevels =
+      skill.levels && skill.levels.length > 0
+        ? skill.levels
+        : CANONICAL_LEVELS_DEF.map((lvl) => ({
+            level_number: lvl.level_number,
+            name: lvl.name,
+            description: "",
+            rubric: {
+              min_score: lvl.defaultMinScore,
+              instructions: "",
+              criteria: [],
+            },
+          }))
+
+    const existingLevels = rawLevels.map((l) => ({
       level_number: l.level_number,
       name: l.name,
       description: l.description || "",
@@ -348,46 +372,53 @@ export function AdminCatalogPage() {
     )
   }
 
+  const stats = useMemo(() => {
+    const readyCount = skills.filter((s) => s.is_ready_to_publish).length
+    const draftCount = skills.filter((s) => !s.is_ready_to_publish).length
+    const activeCategoriesCount = categories.filter((c) => c.is_active).length
+    return {
+      total: totalSkills || skills.length,
+      ready: readyCount,
+      draft: draftCount,
+      categories: activeCategoriesCount,
+    }
+  }, [skills, totalSkills, categories])
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1E2629] pb-6">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-[#00786F]/20 text-[#2DD4BF] border border-[#00786F]/40 rounded-xl">
-              <Sparkles className="h-6 w-6" />
-            </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#F0FDFA]">
-              Catálogo de Habilidades
-            </h1>
-          </div>
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#F0FDFA]">
+            Catálogo de Habilidades
+          </h1>
           <p className="text-sm text-[#8B9D9F] mt-1.5 max-w-2xl leading-relaxed">
             Organiza las disciplinas por categoría, configura la escalera canónica de 5 niveles con rúbricas de IA y marca las habilidades listas para producción.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-row items-center gap-2.5 shrink-0 overflow-x-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={() => handleOpenCategoryModal()}
-            className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
           >
-            <FolderPlus className="h-4 w-4 text-[#8B9D9F]" />
+            <FolderPlus className="h-4 w-4 text-[#2DD4BF]" />
             <span>+ Categoría</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={openChallengeTypeModal}
-            className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
           >
-            <Cpu className="h-4 w-4 text-[#8B9D9F]" />
+            <Cpu className="h-4 w-4 text-indigo-400" />
             <span>+ Tipo Desafío IA</span>
           </Button>
           <Button
             onClick={handleOpenCreateModal}
-            className="bg-[#00786F] hover:bg-[#00665E] text-[#F0FDFA] font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="bg-[#00786F] hover:bg-[#00665E] text-[#F0FDFA] font-bold flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
           >
             <Plus className="h-4 w-4" />
             <span>Nueva Habilidad</span>
@@ -395,95 +426,176 @@ export function AdminCatalogPage() {
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[#141C1E] p-4 rounded-xl border border-[#1E2629] shadow-sm">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#8B9D9F]" />
-          <Input
-            placeholder="Buscar por habilidad o descripción..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C] focus-visible:border-[#00786F]"
-          />
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-[#141C1E] border border-[#1E2629] rounded-xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="p-2.5 rounded-lg bg-[#1A2225] text-[#2DD4BF] border border-[#1E2629]">
+            <BookOpen className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs text-[#8B9D9F] font-medium">Habilidades</p>
+            <p className="text-xl font-bold text-[#F0FDFA]">{stats.total}</p>
+          </div>
         </div>
 
-        {/* Category Filter Pills / Dropdown */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="bg-[#141C1E] border border-[#1E2629] rounded-xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs text-[#8B9D9F] font-medium">Listas para publicar</p>
+            <p className="text-xl font-bold text-[#F0FDFA]">{stats.ready}</p>
+          </div>
+        </div>
+
+        <div className="bg-[#141C1E] border border-[#1E2629] rounded-xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <Clock className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs text-[#8B9D9F] font-medium">En preparación</p>
+            <p className="text-xl font-bold text-[#F0FDFA]">{stats.draft}</p>
+          </div>
+        </div>
+
+        <div className="bg-[#141C1E] border border-[#1E2629] rounded-xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="p-2.5 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/20">
+            <FolderPlus className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs text-[#8B9D9F] font-medium">Categorías activas</p>
+            <p className="text-xl font-bold text-[#F0FDFA]">{stats.categories}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Toolbar */}
+      <div className="space-y-3 bg-[#141C1E] p-4 rounded-xl border border-[#1E2629] shadow-xs">
+        {/* Row 1: Search & Status Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#8B9D9F]" />
+            <Input
+              placeholder="Buscar por habilidad o descripción..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-8 bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] placeholder:text-[#67787C] focus-visible:border-[#00786F]"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2.5 top-2.5 text-[#8B9D9F] hover:text-[#F0FDFA] cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Ready status filter */}
+          <div className="flex items-center gap-1 bg-[#0F1416] border border-[#1E2629] p-1 rounded-lg self-start sm:self-auto">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setReadyFilter("all")}
+              className={
+                readyFilter === "all"
+                  ? "h-7 text-xs font-bold bg-[#1A2225] text-[#F0FDFA] shadow-xs cursor-pointer"
+                  : "h-7 text-xs font-medium text-[#8B9D9F] hover:text-[#F0FDFA] cursor-pointer"
+              }
+            >
+              Todas ({skills.length})
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setReadyFilter("ready")}
+              className={
+                readyFilter === "ready"
+                  ? "h-7 text-xs font-bold bg-[#00786F] hover:bg-[#00665E] text-white shadow-xs cursor-pointer"
+                  : "h-7 text-xs font-medium text-[#8B9D9F] hover:text-[#F0FDFA] cursor-pointer"
+              }
+            >
+              Listas ({stats.ready})
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setReadyFilter("draft")}
+              className={
+                readyFilter === "draft"
+                  ? "h-7 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-xs cursor-pointer"
+                  : "h-7 text-xs font-medium text-[#8B9D9F] hover:text-[#F0FDFA] cursor-pointer"
+              }
+            >
+              En preparación ({stats.draft})
+            </Button>
+          </div>
+        </div>
+
+        {/* Row 2: Category Filter Ribbon */}
+        <div className="flex items-center gap-2 pt-2 border-t border-[#1E2629]/60 overflow-x-auto pb-1 scrollbar-none">
+          <span className="text-xs font-medium text-[#8B9D9F] whitespace-nowrap mr-1">Categoría:</span>
           <Button
             variant={selectedCategoryId === null ? "default" : "outline"}
             size="sm"
             onClick={() => setSelectedCategoryId(null)}
             className={
               selectedCategoryId === null
-                ? "bg-[#00786F] hover:bg-[#00665E] text-white font-bold shadow-xs cursor-pointer"
-                : "border-[#1E2629] bg-[#0F1416] text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer"
+                ? "h-7 text-xs px-3 bg-[#00786F] hover:bg-[#00665E] text-white font-bold shadow-xs cursor-pointer whitespace-nowrap"
+                : "h-7 text-xs px-3 border-[#1E2629] bg-[#0F1416] text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer whitespace-nowrap"
             }
           >
             Todas ({totalSkills})
           </Button>
-          {orderedCategories.map((cat) => (
-            <div key={cat.id} className="flex items-center gap-1">
-            <Button
-              variant={selectedCategoryId === cat.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedCategoryId(cat.id)}
-              className={
-                selectedCategoryId === cat.id
-                  ? "bg-[#00786F] hover:bg-[#00665E] text-white font-bold shadow-xs cursor-pointer"
-                  : "border-[#1E2629] bg-[#0F1416] text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-[#1A2225] cursor-pointer"
-              }
-            >
-              {categoryPath(cat, categories)}{!cat.is_active && " (inactiva)"}
-            </Button>
-            <Button variant="ghost" size="icon" aria-label={`Editar categoría ${categoryPath(cat, categories)}`} onClick={() => handleOpenCategoryModal(cat)}>
-              <Edit3 className="h-3.5 w-3.5" />
-            </Button>
-            </div>
-          ))}
-        </div>
-
-        {/* Ready status filter */}
-        <div className="flex items-center gap-1 bg-[#0F1416] border border-[#1E2629] p-1 rounded-lg">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setReadyFilter("all")}
-            className={
-              readyFilter === "all"
-                ? "h-7 text-xs font-bold bg-[#1A2225] text-[#F0FDFA]"
-                : "h-7 text-xs font-medium text-[#8B9D9F] hover:text-[#F0FDFA]"
-            }
-          >
-            Todas
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setReadyFilter("ready")}
-            className={
-              readyFilter === "ready"
-                ? "h-7 text-xs font-bold bg-[#00786F] hover:bg-[#00665E] text-white"
-                : "h-7 text-xs font-medium text-[#8B9D9F] hover:text-[#F0FDFA]"
-            }
-          >
-            Listas
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setReadyFilter("draft")}
-            className={
-              readyFilter === "draft"
-                ? "h-7 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white"
-                : "h-7 text-xs font-medium text-[#8B9D9F] hover:text-[#F0FDFA]"
-            }
-          >
-            En preparación
-          </Button>
+          {orderedCategories.map((cat) => {
+            const isSelected = selectedCategoryId === cat.id
+            const pathName = categoryPath(cat, categories)
+            return (
+              <div
+                key={cat.id}
+                className={`inline-flex items-center rounded-lg border text-xs transition-colors shrink-0 overflow-hidden ${
+                  isSelected
+                    ? "bg-[#00786F] border-[#00786F] text-white font-semibold"
+                    : "bg-[#0F1416] border-[#1E2629] text-[#8B9D9F] hover:text-[#F0FDFA] hover:border-[#2DD4BF]/30"
+                }`}
+              >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedCategoryId(cat.id)}
+                  className={`h-7 text-xs px-2.5 rounded-none cursor-pointer flex items-center gap-1.5 focus:outline-none ${
+                    isSelected
+                      ? "text-white font-semibold hover:bg-transparent"
+                      : "text-[#8B9D9F] hover:text-[#F0FDFA] hover:bg-transparent"
+                  }`}
+                >
+                  <span>{pathName}</span>
+                  {!cat.is_active && (
+                    <span className="text-[10px] opacity-75">(inactiva)</span>
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Editar categoría ${pathName}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleOpenCategoryModal(cat)
+                  }}
+                  className={`h-7 w-7 rounded-none border-l hover:bg-black/20 transition-colors cursor-pointer ${
+                    isSelected ? "border-white/20 text-white" : "border-[#1E2629] text-[#8B9D9F] hover:text-[#2DD4BF]"
+                  }`}
+                  title={`Editar categoría ${pathName}`}
+                >
+                  <Edit3 className="h-3 w-3" />
+                </Button>
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -508,7 +620,7 @@ export function AdminCatalogPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-3">
           {filteredSkills.map((skill) => {
             const category = categories.find((c) => c.id === skill.category_id)
             const challenge = challengeTypes.find((ct) => ct.id === skill.challenge_type_id)
@@ -516,13 +628,13 @@ export function AdminCatalogPage() {
             return (
               <Card
                 key={skill.id}
-                className="bg-[#141C1E] border-[#1E2629] hover:border-[#00786F]/50 transition-all shadow-sm rounded-xl text-[#F0FDFA]"
+                className="bg-[#141C1E] border-[#1E2629] hover:border-[#00786F]/40 transition-colors shadow-xs rounded-xl text-[#F0FDFA]"
               >
-                <CardContent className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <CardContent className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   {/* Info Column */}
-                  <div className="space-y-2 flex-1">
+                  <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-lg font-bold text-[#F0FDFA]">{skill.name}</span>
+                      <span className="text-base font-bold text-[#F0FDFA]">{skill.name}</span>
                       <Badge className="bg-[#1A2225] text-[#8B9D9F] border-[#1E2629] text-xs font-normal">
                         {category?.name || "Sin categoría"}
                       </Badge>
@@ -542,9 +654,9 @@ export function AdminCatalogPage() {
                     )}
 
                     {/* Canonical Levels ladder mini-progress */}
-                    <div className="flex items-center gap-1.5 pt-1">
-                      <span className="text-xs text-[#8B9D9F] mr-1 flex items-center gap-1">
-                        <Layers className="h-3 w-3 text-[#67787C]" />
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-xs text-[#8B9D9F] mr-1 flex items-center gap-1 font-medium">
+                        <Layers className="h-3.5 w-3.5 text-[#67787C]" />
                         Escalera:
                       </span>
                       {CANONICAL_LEVELS_DEF.map((lvl) => {
@@ -555,14 +667,15 @@ export function AdminCatalogPage() {
                           <div
                             key={lvl.level_number}
                             title={`Nivel ${lvl.level_number}: ${lvl.name} (${hasRubric ? "Rúbrica configurada" : "Sin criterios"})`}
-                            className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-md border transition-colors ${
                               hasRubric
-                                ? "bg-[#00786F]/20 text-[#2DD4BF] border-[#00786F]/40"
+                                ? "bg-[#00786F]/15 text-[#2DD4BF] border-[#00786F]/40"
                                 : "bg-[#0F1416] text-[#67787C] border-[#1E2629]"
                             }`}
                           >
-                            <span className="font-semibold">{lvl.level_number}</span>
-                            <span className="hidden sm:inline">{lvl.name}</span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${hasRubric ? "bg-[#2DD4BF]" : "bg-[#2A3438]"}`} />
+                            <span className="font-semibold">{lvl.level_number}.</span>
+                            <span className="hidden sm:inline text-[11px]">{lvl.name}</span>
                           </div>
                         )
                       })}
@@ -570,36 +683,33 @@ export function AdminCatalogPage() {
                   </div>
 
                   {/* Status and Action Column */}
-                  <div className="flex flex-wrap items-center gap-3 border-t border-[#1E2629] md:border-t-0 pt-3 md:pt-0">
+                  <div className="flex flex-wrap lg:flex-nowrap items-center gap-3 shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-[#1E2629]">
                     {/* Ready to publish badge/toggle */}
-                    <div className="flex items-center gap-2 bg-[#0F1416] px-3 py-1.5 rounded-lg border border-[#1E2629]">
-                      <span className="text-xs font-medium text-[#8B9D9F]">¿Lista para publicar?</span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => toggleReady(skill.id, skill.is_ready_to_publish)}
-                        className={`h-7 text-xs px-2.5 rounded-full font-semibold transition-colors cursor-pointer ${
-                          skill.is_ready_to_publish
-                            ? "bg-[#00786F] hover:bg-[#00665E] text-white"
-                            : "bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40"
-                        }`}
-                      >
-                        {skill.is_ready_to_publish ? (
-                          <>
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-white" />
-                            <span>Lista</span>
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="h-3.5 w-3.5 mr-1" />
-                            <span>En preparación</span>
-                          </>
-                        )}
-                      </Button>
-                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => toggleReady(skill.id, skill.is_ready_to_publish)}
+                      className={`h-8 text-xs px-3 rounded-lg font-semibold transition-all cursor-pointer shadow-xs ${
+                        skill.is_ready_to_publish
+                          ? "bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30"
+                          : "bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40"
+                      }`}
+                    >
+                      {skill.is_ready_to_publish ? (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
+                          <span>Lista</span>
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-3.5 w-3.5 mr-1.5 text-amber-400" />
+                          <span>En preparación</span>
+                        </>
+                      )}
+                    </Button>
 
                     {/* Public Active Switch */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 bg-[#0F1416] px-2.5 py-1.5 rounded-lg border border-[#1E2629]">
                       <Switch
                         checked={skill.is_active}
                         onCheckedChange={() => toggleStatus(skill.id, skill.is_active)}
@@ -616,28 +726,30 @@ export function AdminCatalogPage() {
                     </div>
 
                     {/* Edit and Delete Buttons */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenEditModal(skill)}
-                      className="border-[#1E2629] bg-[#0F1416] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Edit3 className="h-3.5 w-3.5 text-[#8B9D9F]" />
-                      <span>Editar y Rúbricas</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm(`¿Dar de baja "${skill.name}" sin borrar su historial? Si tiene miembros vinculados, usá el interruptor de publicación para desactivarla.`)) {
-                          deleteSkill(skill.id)
-                        }
-                      }}
-                      aria-label={`Baja lógica de ${skill.name}`}
-                      className="text-[#8B9D9F] hover:text-red-400 hover:bg-red-500/10 h-8 w-8 cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenEditModal(skill)}
+                        className="h-8 border-[#1E2629] bg-[#0F1416] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-[#00786F]/50 flex items-center gap-1.5 cursor-pointer shadow-xs text-xs font-medium"
+                      >
+                        <Edit3 className="h-3.5 w-3.5 text-[#2DD4BF]" />
+                        <span>Editar y Rúbricas</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          if (confirm(`¿Dar de baja "${skill.name}" sin borrar su historial? Si tiene miembros vinculados, usá el interruptor de publicación para desactivarla.`)) {
+                            deleteSkill(skill.id)
+                          }
+                        }}
+                        aria-label={`Baja lógica de ${skill.name}`}
+                        className="h-8 w-8 text-[#8B9D9F] hover:text-red-400 hover:bg-red-500/10 cursor-pointer rounded-lg transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
