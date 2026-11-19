@@ -123,3 +123,19 @@ DEFAULT_ZONE_PITCH_DEG = (-15.0, 20.0)
 DEFAULT_ZONE_YAW_DEG = (-16.0, 16.0)
 DEFAULT_ZONE_GAZE_H = (-0.6, 0.6)
 DEFAULT_ZONE_GAZE_V = (-0.5, 0.6)
+
+# ---- sustained gaze rule (T6 / S5) -------------------------------------------------------------
+GAZE_TOLERANCE_MS = 1000  # a continuous stretch outside the screen zone shorter than this is tolerated
+GAZE_BLINK_MAX_MS = 800  # eyes closed longer than this are not a blink: attention cannot be verified
+GAZE_MAX_SAMPLE_SPAN_MS = 500  # the time a single sample stands for at most (sparse JPEG frames)
+GAZE_RUN_GAP_MS = 1500  # away samples further apart than this are different runs
+FRAME_TIME_MIN_TOLERANCE_MS = 150  # client frame timestamps may deviate this much (or half a slot) from even spacing
+
+# ---- browser telemetry cross-check (T6 / S12) --------------------------------------------------
+CLIENT_MATCH_MAX_DT_MS = 150  # a telemetry sample is comparable to a frame when it is this close in time
+CLIENT_MISMATCH_HEAD_DEG = 12.0  # head pitch/yaw difference that counts as a disagreement
+CLIENT_MISMATCH_GAZE = 0.4  # gaze_h/gaze_v difference that counts as a disagreement
+CLIENT_MISMATCH_MIN_FRAMES = 2  # disagreeing frames that make the browser a mismatch
+CLIENT_MIN_COMPARABLE = 2  # frames that must be comparable before the telemetry is trusted
+TELEMETRY_MIN_SPACING_MS = 30  # telemetry faster than ~33 fps is not credible
+TELEMETRY_MAX_SAMPLES = 60

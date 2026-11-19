@@ -4,10 +4,11 @@ A profile turns a ``WindowObservation`` into a ``WindowAssessment`` (aggregated 
 anomaly list). The numeric thresholds behind the measurements live in ``thresholds.py``; this module owns
 only the aggregation rules (how many frames make a sustained pose, when a face is absent, ...).
 """
-from typing import Callable, Optional, Protocol
+from typing import Any, Callable, Optional, Protocol
 
 from app.services.integrity import thresholds as t
-from app.services.integrity.models import Orientation, WindowAssessment, WindowObservation
+from app.services.integrity.gaze import GazeRunTracker, normalize_frame_times, sample_from_frame
+from app.services.integrity.models import GazeEvidence, Orientation, WindowAssessment, WindowObservation
 from app.services.integrity.sync_analyzer import SyncVerdict, voice_mouth_coexistence
 
 Coexistence = Callable[[bool, bool, bool, int, bool], SyncVerdict]
@@ -21,10 +22,22 @@ class PolicyProfile(Protocol):
 
 
 class SupervisionProfile:
-    """Continuous exam supervision: the window aggregation rules and anomaly codes used since SM-49."""
+    """Continuous exam supervision: the window aggregation rules and anomaly codes used since SM-49.
 
-    def __init__(self, coexistence: Coexistence = voice_mouth_coexistence) -> None:
+    Where the candidate looks (head and eyes) follows the sustained rule of S5: an incident needs a continuous
+    stretch outside the screen zone of at least ``GAZE_TOLERANCE_MS``. ``gaze_runs`` is the session state store
+    that lets such a stretch continue across windows; without it each window is judged on its own.
+    """
+
+    def __init__(self, coexistence: Coexistence = voice_mouth_coexistence, gaze_runs: Optional[Any] = None) -> None:
         self.coexistence = coexistence
+        self.gaze = GazeRunTracker(gaze_runs)
+
+    @staticmethod
+    def _frame_evidence(window: WindowObservation) -> GazeEvidence:
+        """Evidence for callers that measured frames without timestamps: evenly spread over the window."""
+        times = normalize_frame_times(None, len(window.frames), window.duration_ms)
+        return GazeEvidence(server=tuple(sample_from_frame(f, at) for f, at in zip(window.frames, times)))
 
     def evaluate(self, window: WindowObservation) -> WindowAssessment:
         anomalies: list[str] = []
@@ -58,18 +71,12 @@ class SupervisionProfile:
             else:
                 face_count = 1
 
-            down_count = sum(1 for o in orientations if o == "DOWN")
-            side_frames = [o for o in orientations if o in ("LEFT", "RIGHT")]
-
-            min_sustained = 1 if len(orientations) == 1 else max(2, len(orientations) // 2)
-            if down_count >= min_sustained:
-                head_orientation = "DOWN"
-                anomalies.append("HEAD_POSE_DOWN")
-            elif len(side_frames) >= min_sustained:
-                head_orientation = side_frames[-1]
-                anomalies.append("HEAD_POSE_SIDE")
-            else:
-                head_orientation = "CENTER" if "CENTER" in orientations else orientations[-1]
+            evidence = window.gaze or self._frame_evidence(window)
+            verdict = self.gaze.evaluate(evidence)
+            anomalies.extend(verdict.kinds)
+            if evidence.client_mismatch:
+                anomalies.append("CLIENT_MISMATCH")
+            head_orientation = verdict.orientation or ("CENTER" if "CENTER" in orientations else orientations[-1])
 
             if identities:
                 identity_match = all(identities)

@@ -17,7 +17,8 @@ import numpy as np
 
 from app.services.integrity.audio_analyzer import AudioAnalyzer
 from app.services.integrity.frame_analyzer import FrameAnalyzer
-from app.services.integrity.models import WindowAssessment, WindowObservation
+from app.services.integrity.gaze import check_telemetry, normalize_frame_times, sample_from_frame
+from app.services.integrity.models import GazeEvidence, GazeSample, GazeZone, WindowAssessment, WindowObservation
 from app.services.integrity.policy import PolicyProfile, SupervisionProfile
 from app.services.integrity.state import InMemoryStateStore, SessionStateStore
 from app.services.integrity.sync_analyzer import SyncAnalyzer
@@ -55,9 +56,25 @@ class IntegrityEngine:
         duration_ms: Optional[int] = None,
         reference_embedding: Optional[np.ndarray] = None,
         session_key: Optional[str] = None,
+        gaze_zone: Optional[GazeZone] = None,
+        frame_times_ms: Optional[Sequence[int]] = None,
+        gaze_samples: Sequence[GazeSample] = (),
+        window_start_ms: Optional[int] = None,
     ) -> WindowObservation:
-        """Measures a window: ``frames`` are base64 JPEGs, ``audio`` 16 kHz mono samples in [-1, 1]."""
-        batch = self.frames.analyze_frames(frames, reference_embedding, session_key)
+        """Measures a window: ``frames`` are base64 JPEGs, ``audio`` 16 kHz mono samples in [-1, 1].
+
+        ``frame_times_ms`` are the frames' capture offsets from the window start and ``gaze_samples`` the
+        browser's own ~15 fps readings (S12): the server measurement is authoritative, so the telemetry is
+        only kept when it agrees with the server's frames and contradicting telemetry is flagged.
+        """
+        times = normalize_frame_times(frame_times_ms, len(frames), duration_ms)
+        batch = self.frames.analyze_frames(frames, reference_embedding, session_key, times_ms=times)
+        server = tuple(sample_from_frame(f, at) for f, at in zip(batch.frames, batch.times_ms))
+        check = check_telemetry(server, gaze_samples)
+        evidence = GazeEvidence(
+            server=server, client=tuple(gaze_samples) if check.trusted else (), client_mismatch=check.mismatch,
+            window_start_ms=window_start_ms, zone=gaze_zone, session_key=session_key,
+        )
         mouth_moving, movements = self.sync.mouth_movement(batch.frames) if batch.frames else (False, [])
         audio_missing = self.audio.is_missing(audio, duration_ms)
         return WindowObservation(
@@ -69,6 +86,7 @@ class IntegrityEngine:
             mouth_moving=mouth_moving,
             mouth_movements=tuple(movements),
             duration_ms=duration_ms,
+            gaze=evidence,
         )
 
     def assess_window(
@@ -79,6 +97,10 @@ class IntegrityEngine:
         reference_embedding: Optional[np.ndarray] = None,
         session_key: Optional[str] = None,
         profile: Optional[PolicyProfile] = None,
+        gaze_zone: Optional[GazeZone] = None,
+        frame_times_ms: Optional[Sequence[int]] = None,
+        gaze_samples: Sequence[GazeSample] = (),
+        window_start_ms: Optional[int] = None,
     ) -> WindowAssessment:
         """Measures a window and judges it with ``profile`` (default: ``SupervisionProfile``).
 
@@ -86,5 +108,9 @@ class IntegrityEngine:
         verdict; no decodable frame reports VIDEO_MISSING; absent or length-inconsistent audio (against
         ``duration_ms`` at 16 kHz) reports AUDIO_MISSING.
         """
-        observation = self.observe_window(frames, audio, duration_ms, reference_embedding, session_key)
+        observation = self.observe_window(
+            frames, audio, duration_ms, reference_embedding, session_key,
+            gaze_zone=gaze_zone, frame_times_ms=frame_times_ms, gaze_samples=gaze_samples,
+            window_start_ms=window_start_ms,
+        )
         return (profile or SupervisionProfile()).evaluate(observation)

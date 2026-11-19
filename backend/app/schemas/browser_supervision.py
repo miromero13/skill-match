@@ -27,6 +27,9 @@ IncidentKind = Literal[
     "IDENTITY_MISMATCH",
     "HEAD_POSE_DOWN",
     "HEAD_POSE_SIDE",
+    "HEAD_POSE_UP",
+    "GAZE_AWAY",
+    "CLIENT_MISMATCH",
     "VOICE_DETECTED",
     "MULTIPLE_SPEAKERS",
     "HIGH_NOISE",
@@ -122,6 +125,19 @@ class BatchResponse(BaseModel):
     event_count: int
 
 
+class GazeSampleRequest(BaseModel):
+    """One browser reading (MediaPipe in the page, ~15 fps) of where the candidate looks; ``t_ms`` is the offset
+    from the window's ``observed_at``. The server only uses it when it agrees with its own frame measurements."""
+    model_config = ConfigDict(extra="forbid")
+    t_ms: int = Field(ge=0, le=30000, strict=True)
+    head_pitch: Optional[float] = Field(default=None, ge=-180, le=180)
+    head_yaw: Optional[float] = Field(default=None, ge=-180, le=180)
+    gaze_h: Optional[float] = Field(default=None, ge=-2, le=2)
+    gaze_v: Optional[float] = Field(default=None, ge=-2, le=2)
+    blink: bool
+    face_count: int = Field(ge=0, le=10, strict=True)
+
+
 class AVWindowRequest(TabRequest):
     window_id: UUID
     observed_at: AwareDatetime
@@ -130,12 +146,31 @@ class AVWindowRequest(TabRequest):
     frames: list[Annotated[str, StringConstraints(max_length=MAX_FRAME_B64_CHARS)]] = Field(
         default_factory=list, max_length=12)
     audio_samples: Optional[list[float]] = Field(default=None, max_length=160000)
+    # Capture offset (ms from observed_at) of each frame, aligned with ``frames``.
+    frame_times_ms: Optional[list[Annotated[int, Field(ge=0, le=30000, strict=True)]]] = Field(
+        default=None, max_length=12)
+    gaze_samples: list[GazeSampleRequest] = Field(default_factory=list, max_length=60)
+
+    @model_validator(mode="after")
+    def timestamps_are_coherent(self):
+        times = self.frame_times_ms
+        if times is not None:
+            if len(times) != len(self.frames):
+                raise ValueError("frame_times_ms debe tener un valor por cada frame.")
+            if any(later < earlier for earlier, later in zip(times, times[1:])) or any(
+                    value > self.duration_ms for value in times):
+                raise ValueError("frame_times_ms debe ser creciente y caer dentro de la ventana.")
+        stamps = [sample.t_ms for sample in self.gaze_samples]
+        if any(later - earlier < 30 for earlier, later in zip(stamps, stamps[1:])) or any(
+                value > self.duration_ms for value in stamps):
+            raise ValueError("gaze_samples debe ser creciente, a menos de ~33 muestras por segundo y dentro de la ventana.")
+        return self
 
 
 class AVWindowResponse(BaseModel):
     window_id: UUID
     face_count: int
-    head_orientation: Literal["CENTER", "DOWN", "LEFT", "RIGHT", "UNKNOWN"]
+    head_orientation: Literal["CENTER", "DOWN", "UP", "LEFT", "RIGHT", "UNKNOWN"]
     identity_match: Optional[bool]
     speech_detected: bool
     mouth_moving: bool = False

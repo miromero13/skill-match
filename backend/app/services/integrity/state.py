@@ -38,6 +38,12 @@ class SessionStateStore(Protocol):
     def clear_voiced_audio(self, session_key: Optional[str]) -> None:
         """Forgets the session's buffered voiced audio (stale speech must not carry over a silent window)."""
 
+    def get_gaze_run(self, session_key: Optional[str]) -> Optional[dict[str, Any]]:
+        """The out-of-zone run still open at the end of the session's previous window, if any."""
+
+    def set_gaze_run(self, session_key: Optional[str], run: Optional[dict[str, Any]]) -> None:
+        """Remembers (or, with None, forgets) the session's open out-of-zone run."""
+
 
 class InMemoryStateStore:
     """Bounded in-memory store. Inference runs on worker threads, so every access takes the lock.
@@ -51,9 +57,11 @@ class InMemoryStateStore:
         audio_state: Optional[OrderedDict[str, dict[str, Any]]] = None,
         lock: Optional[Any] = None,
         max_sessions: int = MAX_TRACKED_SESSIONS,
+        gaze_runs: Optional[OrderedDict[str, dict[str, Any]]] = None,
     ) -> None:
         self.baselines: OrderedDict[str, dict[str, float]] = OrderedDict() if baselines is None else baselines
         self.audio_state: OrderedDict[str, dict[str, Any]] = OrderedDict() if audio_state is None else audio_state
+        self.gaze_runs: OrderedDict[str, dict[str, Any]] = OrderedDict() if gaze_runs is None else gaze_runs
         self.lock = threading.RLock() if lock is None else lock
         self.max_sessions = max_sessions
 
@@ -135,3 +143,22 @@ class InMemoryStateStore:
         with self.lock:
             if session_key in self.audio_state:
                 self.audio_state[session_key].pop("prev_voiced_audio", None)
+
+    def get_gaze_run(self, session_key: Optional[str]) -> Optional[dict[str, Any]]:
+        if not session_key:
+            return None
+        with self.lock:
+            run = self.gaze_runs.get(session_key)
+            return None if run is None else {**run, "counts": dict(run["counts"])}
+
+    def set_gaze_run(self, session_key: Optional[str], run: Optional[dict[str, Any]]) -> None:
+        if not session_key:
+            return
+        with self.lock:
+            if run is None:
+                self.gaze_runs.pop(session_key, None)
+                return
+            if session_key not in self.gaze_runs and len(self.gaze_runs) >= self.max_sessions:
+                self.gaze_runs.popitem(last=False)
+            self.gaze_runs[session_key] = {**run, "counts": dict(run["counts"])}
+            self.gaze_runs.move_to_end(session_key)

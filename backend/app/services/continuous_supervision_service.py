@@ -19,7 +19,7 @@ from app.services.integrity import frame_analyzer as frames
 from app.services.integrity.audio_analyzer import AudioAnalyzer
 from app.services.integrity.engine import IntegrityEngine
 from app.services.integrity.frame_analyzer import FrameAnalyzer, LandmarkerLifecycle
-from app.services.integrity.models import FrameBatch, FrameObservation, MouthPatch
+from app.services.integrity.models import FrameBatch, FrameObservation, GazeSample, GazeZone, MouthPatch
 from app.services.integrity.policy import SupervisionProfile
 from app.services.integrity.state import InMemoryStateStore
 from app.services.integrity.sync_analyzer import SyncAnalyzer
@@ -36,6 +36,8 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
     _trial_baselines: OrderedDict[str, dict[str, float]] = OrderedDict()
     # Bounded in-memory rolling 2.4s audio buffer & speaker state per trial
     _trial_audio_state: OrderedDict[str, dict[str, Any]] = OrderedDict()
+    # Bounded in-memory out-of-zone gaze run still open at the end of each trial's last window
+    _trial_gaze_runs: OrderedDict[str, dict[str, Any]] = OrderedDict()
     # Inference runs on worker threads: the per-trial dictionaries are mutated concurrently.
     _state_lock = threading.RLock()
     # The landmarker is a shared native object; its detect() lock lives with the frame analyzer.
@@ -45,7 +47,9 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
 
     @classmethod
     def _store(cls) -> InMemoryStateStore:
-        return InMemoryStateStore(cls._trial_baselines, cls._trial_audio_state, cls._state_lock)
+        return InMemoryStateStore(
+            cls._trial_baselines, cls._trial_audio_state, cls._state_lock, gaze_runs=cls._trial_gaze_runs
+        )
 
     @classmethod
     def _frame_analyzer(cls, use_mediapipe: bool = True) -> FrameAnalyzer:
@@ -163,8 +167,17 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
         trial_id: Optional[str] = None,
         use_mediapipe: bool = True,
         duration_ms: Optional[int] = None,
+        gaze_zone: Optional[Mapping[str, float]] = None,
+        frame_times_ms: Optional[Sequence[int]] = None,
+        gaze_samples: Sequence[Any] = (),
+        observed_at_ms: Optional[int] = None,
     ) -> dict[str, Any]:
         """Evaluates an audiovisual supervision window and determines anomalies.
+
+        ``gaze_zone`` is the trial's calibrated screen zone (None: conservative defaults), ``frame_times_ms``
+        the capture offset of each frame from the window start (``observed_at_ms``, epoch ms) and
+        ``gaze_samples`` the browser's ~15 fps readings, which the server only trusts when they agree with
+        its own measurement of the frames (S5 / S12).
 
         Fails closed: when no vision model is usable the window reports ``MODEL_UNAVAILABLE`` with
         ``face_count`` 0 and no identity verdict instead of a clean face. Missing evidence is never clean
@@ -178,6 +191,16 @@ class ContinuousSupervisionService(LandmarkerLifecycle):
             duration_ms=duration_ms,
             reference_embedding=frames.parse_reference_embedding(biometric_embedding_json),
             session_key=trial_id,
-            profile=SupervisionProfile(),
+            profile=SupervisionProfile(gaze_runs=cls._store()),
+            gaze_zone=GazeZone.from_dict(gaze_zone) if gaze_zone else None,
+            frame_times_ms=frame_times_ms,
+            gaze_samples=[
+                GazeSample(
+                    t_ms=sample.t_ms, face_count=sample.face_count, head_pitch=sample.head_pitch,
+                    head_yaw=sample.head_yaw, gaze_h=sample.gaze_h, gaze_v=sample.gaze_v, blink=sample.blink,
+                )
+                for sample in gaze_samples
+            ],
+            window_start_ms=observed_at_ms,
         )
         return assessment.to_dict()

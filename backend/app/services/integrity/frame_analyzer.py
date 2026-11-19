@@ -265,17 +265,25 @@ class FrameAnalyzer:
         frames_b64: Sequence[str],
         reference_embedding: Optional[np.ndarray],
         session_key: Optional[str],
+        times_ms: Optional[Sequence[int]] = None,
     ) -> FrameBatch:
-        """Decodes and measures every frame. Missing models and missing frames are reported, never hidden."""
+        """Decodes and measures every frame. Missing models and missing frames are reported, never hidden.
+
+        ``times_ms`` (one capture offset per input frame) is carried over to the usable observations.
+        """
         detector, recognizer = self.vision_provider()
         landmarker = self.landmarker_provider()
         vision_available = detector is not None or landmarker is not None
 
-        images = [img for img in (decode_frame(raw) for raw in frames_b64) if img is not None]
+        images = [
+            (index, img) for index, img in ((i, decode_frame(raw)) for i, raw in enumerate(frames_b64))
+            if img is not None
+        ]
         model_unavailable = not vision_available
         usable: list[FrameObservation] = []
+        usable_times: list[int] = []
         if vision_available:
-            for img in images:
+            for index, img in images:
                 obs = self.analyze_frame(
                     img, detector, recognizer, reference_embedding, session_key=session_key,
                     landmarker=landmarker,
@@ -284,7 +292,12 @@ class FrameAnalyzer:
                     model_unavailable = True
                     continue
                 usable.append(obs)
-        return FrameBatch(frames=tuple(usable), video_missing=not images, model_unavailable=model_unavailable)
+                if times_ms is not None and index < len(times_ms):
+                    usable_times.append(int(times_ms[index]))
+        return FrameBatch(
+            frames=tuple(usable), video_missing=not images, model_unavailable=model_unavailable,
+            times_ms=tuple(usable_times) if len(usable_times) == len(usable) else (),
+        )
 
     # ---- single frame ---------------------------------------------------------------------------
 

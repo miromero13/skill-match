@@ -29,8 +29,8 @@ AV_INFERENCE_WORKERS = 2
 
 # Kinds produced by server-side audiovisual analysis; every other kind is browser-reported.
 AV_KINDS = (
-    "FACE_ABSENT", "MULTIPLE_FACES", "IDENTITY_MISMATCH", "HEAD_POSE_DOWN", "HEAD_POSE_SIDE",
-    "VOICE_DETECTED", "MULTIPLE_SPEAKERS", "HIGH_NOISE", "MODEL_UNAVAILABLE",
+    "FACE_ABSENT", "MULTIPLE_FACES", "IDENTITY_MISMATCH", "HEAD_POSE_DOWN", "HEAD_POSE_SIDE", "HEAD_POSE_UP",
+    "GAZE_AWAY", "CLIENT_MISMATCH", "VOICE_DETECTED", "MULTIPLE_SPEAKERS", "HIGH_NOISE", "MODEL_UNAVAILABLE",
     "VIDEO_MISSING", "AUDIO_MISSING", "WINDOW_GAP",
 )
 BROWSER_KINDS = tuple(kind for kind in get_args(IncidentKind) if kind not in AV_KINDS)
@@ -221,6 +221,7 @@ class BrowserSupervisionService:
         cls.leased(trial, payload.tab_id, utcnow())
         trial_key = str(trial.id)
         embedding = user.biometric_embedding
+        gaze_zone = dict(trial.gaze_zone) if trial.gaze_zone else None
         await db.commit()
 
         # Phase 2: CPU-heavy inference on a bounded worker pool, off the event loop and without any lock.
@@ -232,6 +233,10 @@ class BrowserSupervisionService:
             biometric_embedding_json=embedding,
             trial_id=trial_key,
             duration_ms=payload.duration_ms,
+            gaze_zone=gaze_zone,
+            frame_times_ms=payload.frame_times_ms,
+            gaze_samples=payload.gaze_samples,
+            observed_at_ms=int(payload.observed_at.timestamp() * 1000),
         ))
 
         # Phase 3: the lease may have been lost meanwhile; re-lock, re-verify and only then persist.

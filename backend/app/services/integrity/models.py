@@ -8,9 +8,60 @@ from typing import Any, Literal, Mapping, Optional
 
 import numpy as np
 
-Orientation = Literal["CENTER", "DOWN", "LEFT", "RIGHT", "UNKNOWN"]
+Orientation = Literal["CENTER", "DOWN", "UP", "LEFT", "RIGHT", "UNKNOWN"]
 # (aligned 28x40 mouth crop, cheek pixels): the patch-based mouth fallback used when only YuNet ran.
 MouthPatch = tuple[np.ndarray, np.ndarray]
+
+
+@dataclass(frozen=True)
+class GazeZone:
+    """Bounds of (head pitch/yaw in degrees, gaze_h/gaze_v) while the candidate looks at the screen (T6)."""
+
+    pitch_min: float
+    pitch_max: float
+    yaw_min: float
+    yaw_max: float
+    gaze_h_min: float
+    gaze_h_max: float
+    gaze_v_min: float
+    gaze_v_max: float
+
+    def to_dict(self) -> dict[str, float]:
+        return {name: float(getattr(self, name)) for name in self.__dataclass_fields__}
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> "GazeZone":
+        return cls(**{name: float(raw[name]) for name in cls.__dataclass_fields__})
+
+
+@dataclass(frozen=True)
+class GazeSample:
+    """One timed gaze/head reading: a server-measured JPEG frame or a browser telemetry sample.
+
+    ``t_ms`` is the offset from the window start. ``orientation`` (the baseline-adaptive head class) only exists
+    for server frames and is the head signal when no gaze could be measured (YuNet-only fallback).
+    """
+
+    t_ms: int
+    face_count: int
+    head_pitch: Optional[float] = None
+    head_yaw: Optional[float] = None
+    gaze_h: Optional[float] = None
+    gaze_v: Optional[float] = None
+    blink: bool = False
+    orientation: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class GazeEvidence:
+    """Everything the sustained-gaze rule needs for one window."""
+
+    server: tuple[GazeSample, ...] = ()  # authoritative: measured on the JPEG frames the server decoded
+    client: tuple[GazeSample, ...] = ()  # browser telemetry, present only when consistent with the server frames
+    client_mismatch: bool = False  # the browser contradicted the server on the same frames
+    window_start_ms: Optional[int] = None  # absolute epoch ms; None disables the cross-window run state
+    zone: Optional[GazeZone] = None  # the trial's calibrated screen zone; None means the default limits
+    session_key: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -112,6 +163,7 @@ class WindowObservation:
     mouth_moving: bool = False
     mouth_movements: tuple[float, ...] = ()
     duration_ms: Optional[int] = None
+    gaze: Optional[GazeEvidence] = None
 
     @property
     def visual_unavailable(self) -> bool:
@@ -153,3 +205,4 @@ class FrameBatch:
     frames: tuple[FrameObservation, ...] = ()  # usable observations only
     video_missing: bool = False  # nothing decodable
     model_unavailable: bool = False  # no vision model, or a frame no model could judge
+    times_ms: tuple[int, ...] = ()  # capture offset of each usable frame (window start = 0), when requested
