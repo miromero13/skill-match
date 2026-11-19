@@ -180,3 +180,16 @@ CAMERA_BLOCKED_MIN_MS = 1000  # dark or flat frames for at least this long are a
 CAMERA_FROZEN_MAX_DIFF = 0.30  # mean abs difference of consecutive thumbnails at or below this: the same image
 CAMERA_FROZEN_MIN_MS = 1500  # the same image for at least this long is a frozen or looped camera
 CAMERA_THUMB_SIZE = (64, 48)
+
+# ---- voiceprint (T8 / S3, S11) -----------------------------------------------------------------
+# Cosine similarity of 3D-Speaker ERes2Net embeddings. Tuned on synthetic signals only; T11 tunes them with
+# real recordings, so treat every value below as a starting point.
+VOICEPRINT_MIN_ENROLL_VOICED_S = 3.0  # voiced speech an enrollment needs; less is "insufficient", never a voiceprint
+VOICEPRINT_MIN_VERIFY_VOICED_S = 1.0  # voiced speech a verification needs; less is "insufficient", never a verdict
+VOICEPRINT_MAX_ENROLL_AUDIO_S = 12.0  # bound of the calibration recording (silence segment included)
+VOICEPRINT_SEGMENT_S = 2.0  # enrollment embeds consecutive segments of this length and averages them
+VOICEPRINT_MIN_SEGMENTS = 2  # segments an enrollment needs (so it can be checked for consistency)
+VOICEPRINT_ENROLL_MIN_CONSISTENCY = 0.35  # lowest cosine between two enrollment segments; below: not one voice
+VOICEPRINT_MATCH_THRESHOLD = 0.45  # similarity at or above this is the enrolled voice
+VOICEPRINT_CLUSTER_MIN_VOICED_S = 1.0  # a diarized cluster needs this much speech to be compared with the voiceprint
+VOICE_CONFIRM_EVALUATIONS = 2  # consecutive evaluations that make VOICE_MISMATCH / VOICE_UNVERIFIED
