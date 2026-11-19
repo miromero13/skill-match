@@ -81,6 +81,15 @@ class Settings(BaseSettings):
     THEORY_GRADING_TIMEOUT_SECONDS: int = Field(default=20, ge=1, le=60)
     THEORY_ASR_ENABLED: bool = Field(default=True, description="Enable the installed local ASR runtime for theory exams")
 
+    # Browser/audiovisual supervision trial (SM-43): never reachable in production.
+    BROWSER_SUPERVISION_TRIAL_ENABLED: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Expose the browser supervision trial routes. Unset = on only in development/test; "
+            "always off in production, even if set to true"
+        ),
+    )
+
     # Almacenamiento MinIO / S3
     MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Endpoint de MinIO/S3")
     MINIO_ROOT_USER: str = Field(default="minioadmin", description="Usuario root de MinIO")
@@ -207,6 +216,16 @@ class Settings(BaseSettings):
         if not self.VAPID_SUBJECT.startswith(("mailto:", "https://")):
             raise ValueError("VAPID_SUBJECT debe usar mailto: o https://")
         return self
+
+    @property
+    def browser_supervision_trial_enabled(self) -> bool:
+        """Hard deny in production; otherwise the explicit flag, else on only in development/test."""
+        environment = self.ENVIRONMENT.strip().lower()
+        if environment == "production":
+            return False
+        if self.BROWSER_SUPERVISION_TRIAL_ENABLED is not None:
+            return self.BROWSER_SUPERVISION_TRIAL_ENABLED
+        return environment in ("development", "test", "testing")
 
     @property
     def async_database_url(self) -> str:

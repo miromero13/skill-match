@@ -20,6 +20,7 @@ import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { EvaluationSetupPage } from "@/pages/evaluation-setup-page"
 import { TheoryExamPage } from "@/pages/theory-exam-page"
 import { BrowserSupervisionPage } from "@/pages/browser-supervision-page"
+import { browserSupervisionTrialEnabled } from "@/lib/feature-flags"
 import { ProfilePage } from "@/pages/profile-page"
 import { AdminDatasetCapturePage } from "@/pages/admin-dataset-capture-page"
 import { FootballValidationWizard } from "@/features/football-validation"
@@ -143,10 +144,9 @@ export const router = createBrowserRouter([
         path: "teaching-skills",
         element: <TeachingSkillsPage />,
       },
-      {
-        path: "browser-supervision-test",
-        element: <BrowserSupervisionPage />,
-      },
+      ...(browserSupervisionTrialEnabled
+        ? [{ path: "browser-supervision-test", element: <BrowserSupervisionPage /> }]
+        : []),
       {
         path: "football-validation",
         element: (

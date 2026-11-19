@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useEvaluationPreflightStore } from "@/stores/evaluation-preflight-store"
+import { browserSupervisionTrialEnabled } from "@/lib/feature-flags"
 import { CalibrationPanel } from "@/components/evaluations/calibration-panel"
 
 const steps = [
@@ -127,7 +128,7 @@ export function EvaluationSetupPage() {
             </div>
           </>}
           <p className="text-xs leading-relaxed text-muted-foreground">Leer las instrucciones y aceptar el consentimiento no consume tu intento.</p>
-          <Button asChild variant="outline"><Link to="/app/browser-supervision-test">Probar controles del navegador (SM-43, sin examen)</Link></Button>
+          {browserSupervisionTrialEnabled && <Button asChild variant="outline"><Link to="/app/browser-supervision-test">Probar controles del navegador (SM-43, sin examen)</Link></Button>}
           {currentStep !== 2 && <p className="text-xs text-muted-foreground">Habilidades gratuitas disponibles: {preflight.free_evaluations_left}/3 · Intentos utilizados para esta habilidad: {preflight.attempts_used}/1</p>}
         </>}
       </CardContent>

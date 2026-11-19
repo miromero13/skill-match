@@ -75,6 +75,7 @@ OPENAI_API_KEY=""                  # [SECRETO] Si provider=openai
 GEMINI_API_KEY=""                  # [SECRETO] Si provider=gemini
 THEORY_GRADING_TIMEOUT_SECONDS=20
 THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory exams
+# BROWSER_SUPERVISION_TRIAL_ENABLED=true  # Sin definir = activo solo en development/test, nunca en production (production lo fuerza apagado aunque sea true)
 
 
 

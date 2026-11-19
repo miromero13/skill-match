@@ -31,7 +31,7 @@ from app.api.users.notification_preferences import router as notification_prefer
 from app.api.users.profile import router as user_profile_router
 from app.api.users.skill_evidences import router as skill_evidences_router
 from app.api.users.teaching_skills import router as teaching_skills_router
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.exceptions import (
     SkillMatchException,
     http_exception_handler,
@@ -76,6 +76,12 @@ async def lifespan(app: FastAPI):
     logger.info("Cerrando conexiones y apagando servicios de SkillMatch API...")
 
 
+def register_browser_supervision_router(app: FastAPI, app_settings: Settings) -> None:
+    """Mount the SM-43 trial only when allowed; otherwise the routes do not exist (404)."""
+    if app_settings.browser_supervision_trial_enabled:
+        app.include_router(browser_supervision_router, prefix="/api")
+
+
 def create_application() -> FastAPI:
     """Fábrica para instanciar y configurar la aplicación FastAPI."""
     app = FastAPI(
@@ -112,7 +118,7 @@ def create_application() -> FastAPI:
     app.include_router(auth_router, prefix="/api")
     app.include_router(evaluation_preflight_router, prefix="/api")
     app.include_router(theory_exam_router, prefix="/api")
-    app.include_router(browser_supervision_router, prefix="/api")
+    register_browser_supervision_router(app, settings)
     app.include_router(public_skills_router, prefix="/api")
     app.include_router(user_learning_skills_router, prefix="/api")
     app.include_router(teaching_skills_router, prefix="/api")
