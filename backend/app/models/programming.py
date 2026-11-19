@@ -13,6 +13,7 @@ class ProgrammingChallenge(Base, TimestampMixin):
     __tablename__ = "programming_challenges"
     __table_args__ = (
         UniqueConstraint("skill_id", "level_number", "version", name="uq_programming_challenge_version"),
+        CheckConstraint("level_number BETWEEN 1 AND 5", name="ck_programming_challenge_level"),
         CheckConstraint("language = 'python'", name="ck_programming_challenge_python"),
         CheckConstraint("status IN ('DRAFT', 'PUBLISHED', 'ARCHIVED')", name="ck_programming_challenge_status"),
         CheckConstraint("time_limit_ms BETWEEN 100 AND 30000", name="ck_programming_challenge_time_limit"),

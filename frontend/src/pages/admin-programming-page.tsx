@@ -11,6 +11,14 @@ import { createProgrammingChallenge, listProgrammingChallenges, publishProgrammi
 import type { Skill } from "@/types/catalog"
 import type { ProgrammingChallenge, ProgrammingChallengePayload, ProgrammingTestCase } from "@/types/programming"
 
+const PROGRAMMING_LEVELS = [
+  { value: "1", label: "Nivel 1 · Principiante" },
+  { value: "2", label: "Nivel 2 · Elemental" },
+  { value: "3", label: "Nivel 3 · Intermedio" },
+  { value: "4", label: "Nivel 4 · Avanzado" },
+  { value: "5", label: "Nivel 5 · Master Pedagogo" },
+] as const
+
 const emptyTest = (orderIndex: number): ProgrammingTestCase => ({
   name: `Caso ${orderIndex + 1}`,
   stdin_data: "",
@@ -95,7 +103,7 @@ export function AdminProgrammingPage() {
             <form onSubmit={submit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2"><Label htmlFor="programming-skill">Habilidad</Label><Select value={selectedSkill} onValueChange={setSelectedSkill}><SelectTrigger id="programming-skill"><SelectValue placeholder="Seleccioná una habilidad" /></SelectTrigger><SelectContent>{skills.map((skill) => <SelectItem key={skill.id} value={skill.id}>{skill.name}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-2"><Label htmlFor="programming-level">Nivel</Label><Input id="programming-level" type="number" min={1} max={20} value={level} onChange={(event) => setLevel(event.target.value)} /></div>
+                <div className="space-y-2"><Label htmlFor="programming-level">Nivel</Label><Select value={level} onValueChange={setLevel}><SelectTrigger id="programming-level"><SelectValue placeholder="Seleccioná un nivel" /></SelectTrigger><SelectContent>{PROGRAMMING_LEVELS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
               </div>
               <div className="space-y-2"><Label htmlFor="programming-title">Título</Label><Input id="programming-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Suma de dos números" /></div>
               <div className="space-y-2"><Label htmlFor="programming-statement">Consigna</Label><Textarea id="programming-statement" value={statement} onChange={(event) => setStatement(event.target.value)} rows={6} placeholder="Explicá qué debe resolver el miembro..." /></div>

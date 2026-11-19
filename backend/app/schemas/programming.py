@@ -19,7 +19,7 @@ class ProgrammingChallengeCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     skill_id: UUID
-    level_number: int = Field(ge=1, le=20)
+    level_number: int = Field(ge=1, le=5)
     title: str = Field(min_length=3, max_length=160)
     statement: str = Field(min_length=10, max_length=20_000)
     language: Literal["python"] = "python"
