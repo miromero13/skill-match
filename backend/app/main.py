@@ -11,6 +11,8 @@ from app.api.admin.catalog import router as admin_catalog_router
 from app.api.admin.router import router as admin_management_router
 from app.api.ai.datasets import router as ai_dataset_router
 from app.api.auth import auth_router
+from app.api.browser_supervision import router as browser_supervision_router
+from app.api.evaluations import router as evaluation_preflight_router
 from app.api.health import health_router
 from app.api.matches.router import router as matches_router
 from app.api.notifications.router import router as notifications_router
@@ -35,7 +37,7 @@ from app.core.exceptions import (
     validation_exception_handler,
 )
 from app.core.middlewares import setup_middlewares
-from app.db.seed import ensure_initial_admin, ensure_initial_catalog
+from app.db.seed import ensure_initial_admin
 from app.db.session import AsyncSessionLocal
 from app.football.api import router as football_router
 from app.schemas.response import APIResponse
@@ -48,18 +50,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger("skillmatch.main")
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Ciclo de vida de la aplicación FastAPI (startup y shutdown)."""
-    logger.info(f"Iniciando {settings.PROJECT_NAME} v{settings.VERSION} en entorno '{settings.ENVIRONMENT}'...")
-    
-    # Provisionamiento seguro del Administrador Inicial y Catálogo Maestro Canónico
+    logger.info(
+        f"Iniciando {settings.PROJECT_NAME} v{settings.VERSION} en entorno '{settings.ENVIRONMENT}'..."
+    )
+
+    # Provisionamiento seguro del Administrador Inicial desde variables de entorno (.env)
     try:
         async with AsyncSessionLocal() as db:
             await ensure_initial_admin(db)
-            await ensure_initial_catalog(db)
     except Exception as exc:
-        logger.error(f"Fallo crítico durante el seed de inicio: {exc}")
+        logger.error(f"Fallo crítico durante el seed del administrador inicial: {exc}")
 
     broker_listener = asyncio.create_task(consume_notification_events())
     yield
@@ -102,6 +106,8 @@ def create_application() -> FastAPI:
     app.include_router(admin_management_router, prefix="/api")
     app.include_router(admin_catalog_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
+    app.include_router(evaluation_preflight_router, prefix="/api")
+    app.include_router(browser_supervision_router, prefix="/api")
     app.include_router(public_skills_router, prefix="/api")
     app.include_router(user_learning_skills_router, prefix="/api")
     app.include_router(teaching_skills_router, prefix="/api")
@@ -121,5 +127,6 @@ def create_application() -> FastAPI:
     app.include_router(sessions_router, prefix="/api")
 
     return app
+
 
 app = create_application()

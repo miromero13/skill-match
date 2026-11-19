@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User, ExchangeModality
 from app.schemas.user_profile import (
     BiometricEnrollRequest,
+    IdentityVerifyRequest,
     UserProfilePatch,
     UserProfileResponse,
     UserProfileUpdate,
@@ -74,6 +75,12 @@ class UserProfileService:
             biometric_enrolled_at=user.biometric_enrolled_at,
             biometric_face_hash=user.biometric_face_hash,
             embedding_dimensions=dims,
+            identity_status=getattr(user, "identity_status", "NOT_VERIFIED") or "NOT_VERIFIED",
+            id_document_number=getattr(user, "id_document_number", None),
+            id_document_type=getattr(user, "id_document_type", "CI") or "CI",
+            id_face_similarity_score=getattr(user, "id_face_similarity_score", None),
+            identity_verified_at=getattr(user, "identity_verified_at", None),
+            identity_rejection_reason=getattr(user, "identity_rejection_reason", None),
         )
 
     @classmethod
@@ -176,3 +183,47 @@ class UserProfileService:
         await db.commit()
         await db.refresh(user)
         return cls.to_response(user)
+
+    @classmethod
+    async def verify_identity(
+        cls,
+        db: AsyncSession,
+        user: User,
+        payload: IdentityVerifyRequest,
+    ) -> UserProfileResponse:
+        """
+        Verifica la identidad del usuario de forma 100% automática contrastando
+        la fotografía de su carnet de identidad CI/DNI contra su rostro en vivo.
+        Previene completamente el fraude de suplantación en el origen.
+        """
+        cls._ensure_defaults(user)
+        try:
+            embedding_json, face_hash, similarity, verified_at = (
+                BiometricService.verify_identity_with_id_card(
+                    id_card_base64=payload.id_card_base64,
+                    selfie_base64=payload.selfie_base64,
+                    id_number=payload.id_number,
+                    declared_full_name=payload.full_name,
+                    account_full_name=user.full_name,
+                    lighting_score=payload.lighting_score,
+                    face_centered=payload.face_centered,
+                )
+            )
+            user.identity_status = "VERIFIED"
+            user.id_document_number = payload.id_number.strip().upper()
+            user.id_document_type = "CI"
+            user.id_face_similarity_score = similarity
+            user.identity_verified_at = verified_at
+            user.identity_rejection_reason = None
+            user.biometric_embedding = embedding_json
+            user.biometric_face_hash = face_hash
+            user.biometric_enrolled_at = verified_at
+
+            await db.commit()
+            await db.refresh(user)
+            return cls.to_response(user)
+        except Exception as exc:
+            user.identity_status = "REJECTED"
+            user.identity_rejection_reason = getattr(exc, "message", str(exc))
+            await db.commit()
+            raise exc

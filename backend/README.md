@@ -11,6 +11,8 @@ Backend asíncrono para la plataforma de intercambio colaborativo de habilidades
 - **Contrato de Respuesta:** Sobre unificado y estándar `APIResponse[T]` (`statuscode`, `message`, `data`, `count`).
 - **Seguridad:** Middlewares de CORS, compresión GZip, cabeceras preventivas y tokens JWT con claim dinámico de rol (`MEMBER` o `ADMIN`).
 - **Documentación Viva:** Swagger UI interactivo en `/docs` y ReDoc en `/redoc`.
+- **Prueba de navegador (SM-43):** sesiones de ensayo e incidentes reales en `/api/browser-supervision/trials`, separados del examen y de los cupos. Requiere la migración aditiva `bc43a710d962` con autorización explícita, no se aplica al arrancar. Vista MEMBER `/app/browser-supervision-test`; guía, límites y pruebas: [`docs/browser-supervision.md`](../docs/browser-supervision.md). No incluye cámara/audio continuo ni sanciones.
+- **Integridad audiovisual local (SM-44):** `webrtcvad-wheels==2.0.14` y `sherpa-onnx==2.0.1`, sin API de audio en la nube. Tras movimiento y fondo se capturan8s de voz/pausa con video sincronizado para estimar varios hablantes, superposición y movimiento de boca coincidente. Instalar dependencias y ejecutar desde `backend`: `.venv/bin/python scripts/install_calibration_audio_models.py`; verificar sin red con `--verify-only`. Modelos/hashes/licencias: [`docs/models/audio-integrity/README.md`](../docs/models/audio-integrity/README.md); contrato/límites/pruebas: [`docs/evaluation-calibration.md`](../docs/evaluation-calibration.md). No hay descargas durante solicitudes ni aprobación degradada sin detector/modelos. Prototipo pendiente de prueba física/revisión independiente, no garantía anticopia.
 
 ---
 
@@ -253,10 +255,14 @@ Una vez levantado el servidor (`uvicorn app.main:app --reload`):
 
 ## 6. Ejecución de Pruebas Automatizadas (Pytest)
 
-Para ejecutar las pruebas:
+Usá una **base PostgreSQL nueva y descartable**, nunca la base con datos de la aplicación. Primero confirmá que la configuración efectiva apunta a esa base y aplicá allí las migraciones. No ejecutes la suite completa con la configuración de datos habitual.
+
+Con la base de pruebas ya preparada, desde `backend/`:
 ```bash
-pytest -v
+PYTHONPATH=.:tests ADMIN_EMAIL=admin@example.com .venv/bin/python -m pytest tests -q -ra
 ```
+
+La variable `POSTGRES_DB` debe identificar esa base descartable durante las migraciones y las pruebas. Consultá [aislamiento, pasos y diagnóstico de la suite](../docs/backend-test-isolation.md) para preparar y retirar únicamente la base de pruebas.
 
 
 

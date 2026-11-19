@@ -13,8 +13,11 @@ from app.football.models import (
     ValidationSession,
     ValidationSessionState,
 )
+from app.models.browser_supervision import BrowserIncident, BrowserTrial
+from app.models.calibration import CalibrationChallenge
 from app.models.catalog import Category, ChallengeType, Rubric, Skill, SkillLevel
 from app.models.dataset_sample import DatasetSample
+from app.models.evaluation import Evaluation
 from app.models.exchange_session import (
     BookingRestriction,
     ExchangeSession,
@@ -44,6 +47,9 @@ from app.models.web_push_subscription import WebPushSubscription
 __all__ = [
     "Base",
     "BookingRestriction",
+    "BrowserIncident",
+    "BrowserTrial",
+    "CalibrationChallenge",
     "Category",
     "ChallengeSegment",
     "ChallengeSegmentType",
@@ -52,6 +58,7 @@ __all__ = [
     "DetectedEvent",
     "DetectedEventStatus",
     "DetectedEventType",
+    "Evaluation",
     "EvidenceFile",
     "EvidenceType",
     "ExchangeModality",

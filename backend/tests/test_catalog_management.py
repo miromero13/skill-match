@@ -7,6 +7,8 @@ from app.core.deps import get_current_admin_user
 from app.db.session import get_db
 from app.main import app
 from app.models.user import User, UserRole
+from auth_catalog_fixtures import isolated_db  # noqa: F401
+from test_catalog_hierarchy import catalog_client  # noqa: F401
 
 
 class CatalogTestSession:
@@ -201,20 +203,47 @@ async def test_admin_can_list_skills(client):
 
 
 @pytest.mark.asyncio
-async def test_admin_cannot_create_non_canonical_category(client):
-    res = await client.post("/api/admin/catalog/categories", json={"name": "Arte y Pintura"})
-    assert res.status_code == 400
-    assert "fijas (Música, Deporte, Programación)" in res.json()["message"]
+async def test_admin_can_create_categories_outside_original_three(catalog_client):
+    ctx = catalog_client
+    res = await ctx.client.post("/api/admin/catalog/categories", headers=ctx.admin, json={"name": "Arte y Pintura"})
+    assert res.status_code == 201
+    assert res.json()["statuscode"] == 201
+    assert res.json()["message"] == "Categoría creada exitosamente."
+    item = res.json()["data"]
+    assert item["name"] == "Arte y Pintura" and item["parent_id"] is None
+    listed = (await ctx.client.get("/api/admin/catalog/categories", headers=ctx.admin)).json()
+    assert listed["count"] == 1 and listed["data"][0]["id"] == item["id"]
 
 
 @pytest.mark.asyncio
-async def test_admin_cannot_update_or_delete_category(client):
-    cat_id = uuid.uuid4()
-    update_res = await client.put(f"/api/admin/catalog/categories/{cat_id}", json={"name": "Otra"})
-    assert update_res.status_code == 400
-    assert "no se pueden editar" in update_res.json()["message"]
+async def test_admin_can_update_and_soft_delete_category_without_erasing_it(catalog_client):
+    ctx = catalog_client
+    created = await ctx.client.post("/api/admin/catalog/categories", headers=ctx.admin, json={"name": "Área temporal"})
+    assert created.status_code == 201
+    cat_id = created.json()["data"]["id"]
+    update_res = await ctx.client.put(f"/api/admin/catalog/categories/{cat_id}", headers=ctx.admin, json={"name": "Área actualizada"})
+    assert update_res.status_code == 200
+    assert update_res.json()["message"] == "Categoría actualizada exitosamente."
+    assert update_res.json()["data"]["id"] == cat_id
+    assert update_res.json()["data"]["name"] == "Área actualizada"
 
-    delete_res = await client.delete(f"/api/admin/catalog/categories/{cat_id}")
-    assert delete_res.status_code == 400
-    assert "no se pueden eliminar" in delete_res.json()["message"]
+    delete_res = await ctx.client.delete(f"/api/admin/catalog/categories/{cat_id}", headers=ctx.admin)
+    assert delete_res.status_code == 200
+    assert delete_res.json()["statuscode"] == 200
+    assert delete_res.json()["message"] == "Categoría desactivada exitosamente."
+    assert delete_res.json()["data"] is None
+    listed = (await ctx.client.get("/api/admin/catalog/categories", headers=ctx.admin)).json()
+    assert listed["count"] == 1
+    assert listed["data"][0]["id"] == cat_id and listed["data"][0]["name"] == "Área actualizada"
+    assert listed["data"][0]["is_active"] is False
+
+    # Missing resources still reject both mutations and leave the catalog unchanged.
+    missing = f"/api/admin/catalog/categories/{uuid.uuid4()}"
+    for response in (
+        await ctx.client.put(missing, headers=ctx.admin, json={"name": "Otra"}),
+        await ctx.client.delete(missing, headers=ctx.admin),
+    ):
+        assert response.status_code == 404
+        assert response.json() == {"statuscode": 404, "message": "Categoría no encontrada", "data": None}
+    assert (await ctx.client.get("/api/admin/catalog/categories", headers=ctx.admin)).json() == listed
 
