@@ -223,6 +223,9 @@ class UserProfileService:
             await db.refresh(user)
             return cls.to_response(user)
         except Exception as exc:
+            if getattr(exc, "statuscode", None) == 503:
+                # Un fallo de la plataforma (modelos biométricos ausentes) no es un rechazo del miembro.
+                raise
             user.identity_status = "REJECTED"
             user.identity_rejection_reason = getattr(exc, "message", str(exc))
             await db.commit()

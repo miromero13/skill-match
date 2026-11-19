@@ -1,3 +1,5 @@
+import os
+import tempfile
 from pathlib import Path
 from typing import List, Union, Optional
 from pydantic import Field, SecretStr, field_validator
@@ -80,6 +82,25 @@ class Settings(BaseSettings):
     THEORY_GRADING_TIMEOUT_SECONDS: int = Field(default=20, ge=1, le=60)
     THEORY_ASR_ENABLED: bool = Field(default=True, description="Enable the installed local ASR runtime for theory exams")
 
+    # Browser/audiovisual supervision trial (SM-43): never reachable in production.
+    BROWSER_SUPERVISION_TRIAL_ENABLED: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Expose the browser supervision trial routes. Unset = on only in development/test; "
+            "always off in production, even if set to true"
+        ),
+    )
+
+    # Integrity tuning diagnostics (T11): numeric per-window measurements, never reachable in production.
+    INTEGRITY_DIAGNOSTICS_ENABLED: bool = Field(
+        default=False,
+        description="Append one numeric JSON line per audiovisual window to INTEGRITY_DIAGNOSTICS_DIR; off in production",
+    )
+    INTEGRITY_DIAGNOSTICS_DIR: str = Field(
+        default_factory=lambda: os.path.join(tempfile.gettempdir(), "skillmatch-integrity-diagnostics"),
+        description="Directory of the <trial_id>.jsonl diagnostics files (only created when enabled)",
+    )
+
     # Deterministic programming sandbox. The image must be pre-pulled by deployment; the
     # request path never enables Docker networking or downloads an image.
     SANDBOX_DOCKER_IMAGE: str = Field(default="python:3.12-slim", description="Pinned Python image used by the programming sandbox")
@@ -149,6 +170,21 @@ class Settings(BaseSettings):
         elif isinstance(v, list):
             return v
         return ["*"]
+
+    @property
+    def integrity_diagnostics_enabled(self) -> bool:
+        """Hard deny in production; otherwise the explicit flag (default off)."""
+        return self.ENVIRONMENT.strip().lower() != "production" and self.INTEGRITY_DIAGNOSTICS_ENABLED
+
+    @property
+    def browser_supervision_trial_enabled(self) -> bool:
+        """Hard deny in production; otherwise the explicit flag, else on only in development/test."""
+        environment = self.ENVIRONMENT.strip().lower()
+        if environment == "production":
+            return False
+        if self.BROWSER_SUPERVISION_TRIAL_ENABLED is not None:
+            return self.BROWSER_SUPERVISION_TRIAL_ENABLED
+        return environment in ("development", "test", "testing")
 
     @property
     def async_database_url(self) -> str:

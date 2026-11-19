@@ -311,3 +311,72 @@ async def test_admin_delete_non_existent_sample_returns_404(ai_dataset_api):
     )
     assert res.status_code == 404
     assert "no encontrada" in res.json()["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_admin_gets_presigned_preview_url_for_s3_sample(ai_dataset_api):
+    client = ai_dataset_api["client"]
+    admin_token = ai_dataset_api["admin_token"]
+    db: AsyncSession = ai_dataset_api["db"]
+
+    sample = DatasetSample(
+        id=uuid.uuid4(),
+        discipline="futbol",
+        challenge="Dominadas de Balón",
+        hardware_info="Logitech C920",
+        signed_consent=True,
+        file_format="mp4",
+        file_size_bytes=2048,
+        file_hash_sha256="c" * 64,
+        storage_path="s3://skillmatch-football/datasets/futbol/preview-test.mp4",
+    )
+    db.add(sample)
+    await db.flush()
+
+    res = await client.get(
+        f"/api/ai/datasets/samples/{sample.id}/preview-url",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert res.status_code == 200
+    body = res.json()["data"]
+    assert body["file_format"] == "mp4"
+    assert body["preview_url"].startswith("http")
+
+
+@pytest.mark.asyncio
+async def test_preview_url_returns_404_for_local_only_sample(ai_dataset_api):
+    client = ai_dataset_api["client"]
+    admin_token = ai_dataset_api["admin_token"]
+    db: AsyncSession = ai_dataset_api["db"]
+
+    sample = DatasetSample(
+        id=uuid.uuid4(),
+        discipline="futbol",
+        challenge="Dominadas de Balón",
+        hardware_info="Logitech C920",
+        signed_consent=True,
+        file_format="mp4",
+        file_size_bytes=2048,
+        file_hash_sha256="d" * 64,
+        storage_path="datasets/futbol/local-only.mp4",
+    )
+    db.add(sample)
+    await db.flush()
+
+    res = await client.get(
+        f"/api/ai/datasets/samples/{sample.id}/preview-url",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_preview_url_endpoint_requires_admin(ai_dataset_api):
+    client = ai_dataset_api["client"]
+    member_token = ai_dataset_api["member_token"]
+
+    res = await client.get(
+        f"/api/ai/datasets/samples/{uuid.uuid4()}/preview-url",
+        headers={"Authorization": f"Bearer {member_token}"},
+    )
+    assert res.status_code == 404

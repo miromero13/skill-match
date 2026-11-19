@@ -71,6 +71,19 @@ La aplicación estará disponible en `http://localhost:5173`.
 npm run build
 ```
 
+### 3. Assets de visión autoalojados (seguimiento de mirada en el navegador)
+La prueba de supervisión corre MediaPipe FaceLandmarker en el navegador (~15 fps, `@mediapipe/tasks-vision` 1.2.3) para la
+mirada y las señales en vivo; el servidor vuelve a medir los frames muestreados y es quien decide. No se usa ningún CDN en
+tiempo de ejecución: los assets se sirven desde `public/mediapipe/` (ignorado por git) y los provee
+`scripts/install-vision-assets.mjs`:
+
+| Comando | Qué hace |
+|---|---|
+| `npm install` (`postinstall`) | Copia los `.wasm` de `node_modules/@mediapipe/tasks-vision/wasm` a `public/mediapipe/wasm/` (sin red). |
+| `npm run prepare-vision` | Lo anterior + instala `public/mediapipe/face_landmarker.task`: lo copia de `backend/app/models/weights/` si existe con el hash correcto; si no, lo descarga por HTTPS y verifica el SHA-256 fijado (`64184e22…c9ff`, el mismo que usa el backend). Nunca sobrescribe un archivo existente con otro hash. |
+| `npm run dev` / `npm run build` (`predev`/`prebuild`) | Ejecutan el script con `--soft`: un modelo que no se puede instalar es solo un aviso y el seguimiento del navegador queda deshabilitado (el servidor igual controla la mirada). |
+| `node scripts/install-vision-assets.mjs --verify-only` | Verifica los assets instalados sin copiar ni descargar. |
+
 ---
 
 ## ⚙️ Variables de Entorno (.env)
