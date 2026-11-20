@@ -6,7 +6,8 @@ Stack completo (API, Celery worker/beat, PostgreSQL, Redis, sandbox de programac
 |---|---|---|
 | `compose.yaml` | Base prod-like, autosuficiente | Siempre |
 | `compose.override.yaml` | Desarrollo local: hot reload, puertos en `127.0.0.1`, Vite | Automático con `docker compose ...` |
-| `compose.prod.yaml` | Overlay Coolify/VPS: entorno forzado, variables estrictas, límites | `-f compose.yaml -f compose.prod.yaml` |
+| `compose.prod.yaml` | Overlay VPS: entorno forzado, variables estrictas, límites | `-f compose.yaml -f compose.prod.yaml` |
+| `compose.coolify.yaml` | Producción en Coolify: autocontenido, migra en cada deploy, secretos generados | *Docker Compose Location* en Coolify |
 | `docker.env.template` | Plantilla de variables → `.env` en la raíz (ignorado por Git) | `cp docker.env.template .env` |
 
 Requisitos: Docker Engine con Compose **≥ 2.24** (`!reset`/`!override`). Imágenes: [`backend/Dockerfile`](../../backend/Dockerfile), [`frontend/Dockerfile`](../../frontend/Dockerfile).
@@ -64,44 +65,63 @@ SPA + API en http://localhost:8080 (`/api/` y `/ws/` por nginx). `ENVIRONMENT=pr
 
 ## Producción en Coolify (VPS)
 
-1. **Recurso:** Docker Compose desde el repositorio, rama de despliegue, *Docker Compose Location* `/compose.yaml`.
-2. **Comandos personalizados** (para aplicar el overlay):
-   - Build: `docker compose -f compose.yaml -f compose.prod.yaml build`
-   - Start: `docker compose -f compose.yaml -f compose.prod.yaml up -d`
-3. **Variables** en la UI de Coolify (las del `docker.env.template`). Obligatorias (`${VAR:?}`, el despliegue falla si faltan o están vacías):
+Coolify lee **un solo archivo** de compose y de él saca dominios, etiquetas y variables. Por eso existe [`compose.coolify.yaml`](../../compose.coolify.yaml): equivale a `compose.yaml` + `compose.prod.yaml`, pero autocontenido. Si cambias uno de los compose de producción, replica el cambio en `compose.coolify.yaml`.
+
+1. **Recurso:** *+ New* → repositorio Git → build strategy **Docker Compose**.
+   - **Branch:** la rama a desplegar (hoy el trabajo está en `dev-luis`).
+   - **Base Directory:** `/` · **Docker Compose Location:** `/compose.coolify.yaml`.
+   - **Sin** *Custom Build Command* ni *Custom Start Command*.
+2. **Variables** (*Environment Variables*). Coolify crea una por cada `${VAR}` del archivo.
+
+   Obligatorias (`${VAR:?}`: Coolify no despliega mientras estén vacías):
 
    | Variable | Ejemplo / regla |
    |---|---|
-   | `SECRET_KEY` | `openssl rand -hex 32` |
-   | `POSTGRES_PASSWORD` | `openssl rand -hex 24` (solo alfanumérico: la DSN no se URL-encodea) |
-   | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Administrador inicial (seed al arrancar) |
+   | `ADMIN_EMAIL` | Correo del administrador inicial |
    | `ALLOWED_ORIGINS` | `https://app.tu-dominio.com` |
    | `FRONTEND_BASE_URL` | `https://app.tu-dominio.com` |
    | `VITE_API_URL` | `https://app.tu-dominio.com/api` (build arg: se incrusta en el bundle) |
-   | `GOOGLE_CLIENT_ID` | Client ID Web de Google (también se usa para `VITE_GOOGLE_CLIENT_ID` si este queda vacío) |
+   | `GOOGLE_CLIENT_ID` | Client ID Web de Google (también alimenta `VITE_GOOGLE_CLIENT_ID` si este queda vacío) |
    | `GARAGE_S3_ACCESS_KEY_ID`, `GARAGE_S3_SECRET_ACCESS_KEY` | Credenciales de Garage S3 |
 
-   El overlay fuerza `ENVIRONMENT=production`, `DEBUG=False`, `VITE_APP_ENV=production` y `UVICORN_WORKERS` por defecto `2`.
-4. **Dominio:** asígnalo al servicio `frontend`, puerto `8080` (p. ej. `https://app.tu-dominio.com:8080` en Coolify). Traefik termina TLS y enruta a `frontend:8080`; ningún otro servicio publica puertos.
+   Generadas por Coolify (persisten entre despliegues; se ven y editan en la misma pantalla):
 
-### Primer despliegue (L6: migraciones explícitas)
+   | Variable generada | Se usa como |
+   |---|---|
+   | `SERVICE_HEX_64_SECRETKEY` | `SECRET_KEY` (JWT y enlaces firmados de video) |
+   | `SERVICE_PASSWORD_64_POSTGRES` | `POSTGRES_PASSWORD` (Postgres y app) |
+   | `SERVICE_PASSWORD_ADMIN` | `ADMIN_PASSWORD` (léela ahí para el primer login) |
+
+   El resto tiene valor por defecto de producción. `ENVIRONMENT=production`, `DEBUG=False` y `VITE_APP_ENV=production` están fijos en el archivo. Garage se alcanza por su URL pública (`GARAGE_S3_ENDPOINT_URL`); no hace falta *Connect to predefined network*.
+3. **Dominio:** *Domains* → servicio `frontend` → `https://app.tu-dominio.com:8080`. El `:8080` indica el puerto interno; el público sigue siendo 443. nginx sirve el SPA y reenvía `/api/` y `/ws/`; ningún servicio publica puertos.
+4. **Deploy** y comprobar `https://app.tu-dominio.com/api/health` → `data.status: "healthy"` y el login del admin.
+
+### Migraciones
+
+`migrate` (`alembic upgrade heads`) corre en **cada** despliegue, antes de `backend`, `worker` y `beat`; sin migraciones nuevas no hace nada. Esto reemplaza, solo en Coolify, la regla L6 de migrar a mano. **Haz backup de Postgres antes de desplegar una versión que traiga migraciones** (ver [Backups](#backups)).
+
+Los one-shots (`init-volumes`, `sandbox-init`, `migrate`) llevan `restart: "no"` y `exclude_from_hc: true` (extensión de Coolify: no cuentan para la salud del recurso). `docker compose` a secas no conoce esa clave; para validar el archivo en local quítala antes:
+
+```bash
+grep -v exclude_from_hc compose.coolify.yaml > /tmp/coolify.yaml
+docker compose -f /tmp/coolify.yaml config -q   # con las variables obligatorias exportadas
+```
+
+### A confirmar en el primer build
+
+- `additional_contexts` (el backend necesita `ml/`): la documentación de Coolify no lo menciona.
+- `privileged: true` en `sandbox-docker` (dind): ídem.
+- `pull_policy: never` en los servicios que reusan la imagen del backend: depende de que Coolify construya antes de levantar.
+
+### Fuera de Coolify (VPS con Docker a mano)
 
 ```bash
 P="docker compose -f compose.yaml -f compose.prod.yaml"
 $P build
-$P up -d postgres                          # solo la base de datos
-$P --profile ops run --rm migrate          # alembic upgrade heads
-$P up -d                                   # resto del stack
+$P up -d postgres
+$P --profile ops run --rm migrate          # tras un backup
+$P up -d
 ```
-
-### Actualizaciones
-
-1. **Backup** (siempre antes de migrar): ver [Backups](#backups).
-2. `$P build`
-3. Si la versión trae migraciones: `$P --profile ops run --rm migrate`.
-4. `$P up -d` (Coolify lo hace al redeploy).
-
-> Si Coolify no acepta los comandos personalizados o los tags `!reset`/`!override`, genera un único archivo sin resolver secretos: `docker compose -f compose.yaml -f compose.prod.yaml config --no-interpolate > compose.coolify.yaml` y úsalo como *Docker Compose Location*. Regenéralo cuando cambien los compose.
 
 ### Límites de memoria (`compose.prod.yaml`)
 
