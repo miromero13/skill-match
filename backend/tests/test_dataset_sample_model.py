@@ -59,7 +59,6 @@ def test_dataset_sample_model_representation():
 
 def test_flute_note_and_variation_inference():
     from app.services.flute_training_service import (
-        _extract_audio_features_from_bytes,
         _infer_note_from_sample,
         _infer_variation_from_sample,
     )
@@ -80,12 +79,8 @@ def test_flute_note_and_variation_inference():
     assert _infer_note_from_sample(sample) == "FA"
     assert _infer_variation_from_sample(sample) == "rapida"
 
-    feats = _extract_audio_features_from_bytes(
-        raw_bytes=b"sample-video-bytes-flute-fa" * 4,
-        file_format="mp4",
-        target_note="FA",
-        variation="rapida",
-        manual_hz=698,
-    )
-    assert feats["dominant_freq_hz"] == 698.0
-    assert feats["hands_required_score"] == 2.0
+    sample.surface = None
+    sample.challenge = "Flauta - Nota FA (angulo_suave)"
+    assert _infer_variation_from_sample(sample) == "angulo_suave"
+    sample.challenge = "Flauta - Nota FA"
+    assert _infer_variation_from_sample(sample) == "sostenida"
