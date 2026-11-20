@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sparkles, Trash2, Bot, User, Loader2 } from 'lucide-react'
 import { useAssistantStore } from '@/stores/assistant-store'
 import { AssistantInput } from './assistant-input'
@@ -24,11 +23,26 @@ export function AssistantChatDrawer() {
   const clearConversation = useAssistantStore((s) => s.clearConversation)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior,
+      })
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior })
+    }
+  }
 
   // Auto-scroll al recibir mensajes
   useEffect(() => {
     if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      const timer = setTimeout(() => {
+        scrollToBottom('smooth')
+      }, 60)
+      return () => clearTimeout(timer)
     }
   }, [messages, isLoading, isOpen])
 
@@ -36,10 +50,10 @@ export function AssistantChatDrawer() {
     <Sheet open={isOpen} onOpenChange={(open) => !open && closeAssistant()}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-[420px] p-0 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden bg-background border-l border-border/80 shadow-2xl z-[100]"
+        className="w-full sm:max-w-[420px] p-0 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden bg-background border-l border-border/80 shadow-2xl z-[100] gap-0"
       >
         {/* Encabezado */}
-        <SheetHeader className="px-4 py-3 border-b border-border flex flex-row items-center justify-between space-y-0 bg-muted/20">
+        <SheetHeader className="px-4 py-3 border-b border-border flex flex-row items-center justify-between space-y-0 bg-muted/20 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-sm">
               <Bot className="h-4.5 w-4.5" />
@@ -79,8 +93,13 @@ export function AssistantChatDrawer() {
           </div>
         </SheetHeader>
 
-        {/* Lista de Mensajes */}
-        <ScrollArea className="flex-1 px-4 py-3.5">
+        {/* Lista de Mensajes con Scroll Fluido y Táctil */}
+        <div
+          ref={scrollContainerRef}
+          data-slot="assistant-messages-container"
+          className="flex-1 min-h-0 overflow-y-auto px-4 py-3.5 space-y-3.5 overscroll-contain touch-pan-y"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4 my-auto min-h-[300px]">
               <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
@@ -175,11 +194,11 @@ export function AssistantChatDrawer() {
               <div ref={messagesEndRef} />
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         {/* Píldoras de sugerencias rápidas arriba del input cuando hay mensajes */}
         {messages.length > 0 && suggestedPrompts.length > 0 && !isLoading && (
-          <div className="px-3 py-1.5 flex gap-1.5 overflow-x-auto no-scrollbar border-t border-border/40 bg-muted/10">
+          <div className="px-3 py-1.5 flex gap-1.5 overflow-x-auto no-scrollbar border-t border-border/40 bg-muted/10 shrink-0">
             {suggestedPrompts.slice(0, 3).map((prompt, idx) => (
               <button
                 key={idx}
