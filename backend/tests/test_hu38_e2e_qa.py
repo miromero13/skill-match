@@ -18,7 +18,7 @@ Cubre los dos niveles solicitados:
    - Cancelar oportunamente con motivo justificado (>=24h) y restituir cupo
    - Comprobar aislamiento y ofuscación 404 estricta para el usuario C
    - Agotar los dos cupos semanales gratuitos
-   - Rechazar el tercer intento sin integración de pago HU-42
+   - Reservar el tercer agendamiento pagado mediante escrow HU-42
    - Comprobar restricción por bloqueo bilateral HU-26
    - Provocar una cancelación tardía (<24h)
    - Confirmar la sanción de 7 días (BookingRestriction) que impide agendar sin bloquear la cuenta
@@ -29,6 +29,7 @@ from collections import Counter
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -38,7 +39,7 @@ from app.core.security import create_access_token
 from app.db.session import AsyncSessionLocal
 from app.main import create_application
 from app.models.catalog import Category, Skill
-from app.models.exchange_session import BookingRestriction, ExchangeSession
+from app.models.exchange_session import BookingRestriction, ExchangeSession, WeeklySessionQuota
 from app.models.match import Match
 from app.models.notification import Notification
 from app.models.teaching_skill import TeachingSkill
@@ -46,6 +47,8 @@ from app.models.user import User, UserRole
 from app.models.user_availability import UserAvailability
 from app.models.user_block import UserBlock
 from app.models.user_learning_skill import UserLearningSkill
+from app.models.wallet import Wallet
+from app.services.exchange_session_policy import local_week_bounds
 
 
 def future_start(*, days: int) -> datetime:
@@ -70,6 +73,20 @@ def check_envelope(response: httpx.Response, expected_status: int) -> dict:
     assert "data" in payload
     assert "error" not in payload
     return payload
+
+
+async def free_sessions_for(user: User, starts_at: datetime) -> int:
+    week_start = local_week_bounds(starts_at, user.timezone)[0].astimezone(
+        ZoneInfo(user.timezone)
+    ).date()
+    async with AsyncSessionLocal() as db:
+        quota = await db.scalar(
+            select(WeeklySessionQuota).where(
+                WeeklySessionQuota.user_id == user.id,
+                WeeklySessionQuota.week_start == week_start,
+            )
+        )
+        return 2 - (quota.used if quota else 0)
 
 
 @asynccontextmanager
@@ -117,7 +134,8 @@ async def seeded_qa_context():
             skill_id=skill.id,
             declared_level="ADVANCED",
             years_of_experience=4,
-            accepts_points=False,
+            accepts_points=True,
+            hourly_points_rate=40,
         )
         learning_interest = UserLearningSkill(
             user_id=user_b.id,
@@ -145,7 +163,14 @@ async def seeded_qa_context():
             for d in range(7)
         ]
 
-        db.add_all([teaching_offer, learning_interest, match, *availability_slots])
+        db.add_all([
+            teaching_offer,
+            learning_interest,
+            match,
+            Wallet(user_id=user_b.id, balance=200),
+            Wallet(user_id=user_a.id, balance=0),
+            *availability_slots,
+        ])
         await db.commit()
 
         for item in (category, skill, teaching_offer, user_a, user_b, user_c, match):
@@ -251,7 +276,7 @@ async def test_hu38_full_e2e_qa_lifecycle():
                 await client.get("/api/sessions", headers=auth_headers(learner)),
                 200,
             )
-            assert list_after_p1["data"]["free_sessions_left"] == 1
+            assert await free_sessions_for(learner, start_p1) == 1
             assert list_after_p1["count"] == 1
 
             # ------------------------------------------------------------------
@@ -309,11 +334,11 @@ async def test_hu38_full_e2e_qa_lifecycle():
             assert p2_rejected["status"] == "REJECTED"
 
             # Al rechazar, el cupo de P2 se restituye: free_sessions_left sigue en 1 (por P1)
-            list_after_p2 = check_envelope(
+            check_envelope(
                 await client.get("/api/sessions", headers=auth_headers(learner)),
                 200,
             )
-            assert list_after_p2["data"]["free_sessions_left"] == 1
+            assert await free_sessions_for(learner, start_p1) == 1
 
             # ------------------------------------------------------------------
             # 5. Reprogramar Sesión 1
@@ -359,11 +384,11 @@ async def test_hu38_full_e2e_qa_lifecycle():
             assert p1_cancelled["booking_blocked_until"] is None
 
             # Cupo de P1 restituido: volvemos a tener 2 cupos disponibles
-            list_after_cancel = check_envelope(
+            check_envelope(
                 await client.get("/api/sessions", headers=auth_headers(learner)),
                 200,
             )
-            assert list_after_cancel["data"]["free_sessions_left"] == 2
+            assert await free_sessions_for(learner, start_p1) == 2
 
             # ------------------------------------------------------------------
             # 7. Comprobar aislamiento y ofuscación 404 para el usuario C (Outsider)
@@ -457,14 +482,14 @@ async def test_hu38_full_e2e_qa_lifecycle():
             )
 
             # Cupos agotados: free_sessions_left == 0
-            list_depleted = check_envelope(
+            check_envelope(
                 await client.get("/api/sessions", headers=auth_headers(learner)),
                 200,
             )
-            assert list_depleted["data"]["free_sessions_left"] == 0
+            assert await free_sessions_for(learner, slot1_start) == 0
 
             # ------------------------------------------------------------------
-            # 9. Rechazar el tercer intento sin HU-42 (billetera/puntos)
+            # 9. Reservar el tercer agendamiento con SkillPoints (HU-42)
             # ------------------------------------------------------------------
             slot3_start = slot1_start + timedelta(hours=4)
             slot3_resp = check_envelope(
@@ -479,12 +504,19 @@ async def test_hu38_full_e2e_qa_lifecycle():
                         "ends_at": (slot3_start + timedelta(minutes=60)).isoformat(),
                         "timezone": learner.timezone,
                         "modality": "VIRTUAL",
+                        "payment_method": "POINTS",
                     },
                 ),
-                409,
+                201,
             )
-            assert slot3_resp["data"] is None
-            assert "pago" in slot3_resp["message"].lower()
+            assert slot3_resp["data"]["is_free"] is False
+            assert slot3_resp["data"]["points_required"] == 40
+            assert slot3_resp["data"]["payment_state"] == "RESERVED"
+            async with AsyncSessionLocal() as paid_db:
+                learner_wallet = await paid_db.get(Wallet, learner.id)
+                assert learner_wallet is not None
+                assert learner_wallet.balance == 160
+                assert learner_wallet.escrow_balance == 40
 
             # ------------------------------------------------------------------
             # 10. Comprobar bloqueo bilateral HU-26

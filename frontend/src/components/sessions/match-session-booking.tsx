@@ -16,6 +16,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { getMatchSessionOptions } from "@/services/match-service"
 import { useExchangeSessionStore } from "@/stores/exchange-session-store"
+import { useWalletStore } from "@/stores/wallet-store"
 import type { CommonSessionSlot, MatchSessionOptions } from "@/types/match"
 
 interface MatchSessionBookingProps {
@@ -48,6 +49,10 @@ export function MatchSessionBooking({ matchId }: MatchSessionBookingProps) {
   const creating = useExchangeSessionStore((state) =>
     Boolean(state.pending.create)
   )
+  const freeSessionsLeft = useExchangeSessionStore((state) => state.freeSessionsLeft)
+  const quotaLoaded = useExchangeSessionStore((state) => state.loaded)
+  const availableBalance = useWalletStore((state) => state.availableBalance)
+  const loadBalance = useWalletStore((state) => state.loadBalance)
   const [options, setOptions] = useState<MatchSessionOptions | null>(null)
   const [directionIndex, setDirectionIndex] = useState("0")
   const [selectedSlot, setSelectedSlot] = useState("")
@@ -97,6 +102,17 @@ export function MatchSessionBooking({ matchId }: MatchSessionBookingProps) {
       direction?.common_slots.find((item) => slotKey(item) === selectedSlot),
     [direction, selectedSlot]
   )
+  const slotFreeSessionsLeft = slot?.free_sessions_left ?? freeSessionsLeft
+  const quotaKnown = slot?.free_sessions_left !== undefined || quotaLoaded
+  const requiresPoints = quotaKnown && slotFreeSessionsLeft === 0
+  const pointsRequired = direction?.hourly_points_rate ?? 0
+  const canPayWithPoints = Boolean(
+    direction?.accepts_points && pointsRequired > 0 && availableBalance >= pointsRequired
+  )
+
+  useEffect(() => {
+    if (requiresPoints) void loadBalance()
+  }, [loadBalance, requiresPoints])
 
   function changeDirection(value: string) {
     setDirectionIndex(value)
@@ -116,6 +132,7 @@ export function MatchSessionBooking({ matchId }: MatchSessionBookingProps) {
         ends_at: slot.ends_at,
         timezone: slot.timezone,
         modality: slot.modality,
+        payment_method: requiresPoints ? "POINTS" : "FREE",
       })
       if (success) setCreated(true)
     } finally {
@@ -295,12 +312,35 @@ export function MatchSessionBooking({ matchId }: MatchSessionBookingProps) {
         </Alert>
       )}
 
+      {requiresPoints && direction && (
+        <Alert
+          variant={canPayWithPoints ? "default" : "destructive"}
+          role="status"
+        >
+          <AlertDescription>
+            {direction.accepts_points && pointsRequired > 0
+              ? `Esta sesión requiere ${pointsRequired} SkillPoints. Tu saldo disponible es ${availableBalance} SkillPoints.`
+              : "Esta oferta no admite sesiones adicionales con SkillPoints."}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Button
         className="w-full"
-        disabled={!slot || creating || submitting}
+        disabled={
+          !slot ||
+          creating ||
+          submitting ||
+          !quotaKnown ||
+          (requiresPoints && !canPayWithPoints)
+        }
         onClick={() => void submit()}
       >
-        {creating || submitting ? "Agendando…" : "Agendar sesión"}
+        {creating || submitting
+          ? "Agendando…"
+          : requiresPoints
+            ? `Agendar por ${pointsRequired} SkillPoints`
+            : "Agendar sesión gratuita"}
       </Button>
     </section>
   )
