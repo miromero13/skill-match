@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, time, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -47,6 +48,8 @@ from app.services.session_calendar_service import build_ics_export, is_calendar_
 ACTIVE_STATUSES = ("PENDING", "ACCEPTED")
 FREE_LIMIT = 2
 SESSION_OPTIONS_HORIZON_DAYS = 14
+
+logger = logging.getLogger("skillmatch.exchange_session")
 
 
 def _conflict(message: str) -> SkillMatchException:

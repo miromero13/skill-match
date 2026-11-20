@@ -1,8 +1,8 @@
 """Servicio de Dominio de Billetera, Puntos, Pasarela y Escrow (HU-42)."""
 import asyncio
-from datetime import datetime, timezone
+import logging
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
@@ -30,8 +30,10 @@ from app.schemas.wallet import (
     TopupResult,
     WalletBalanceData,
 )
-from app.services.notification_service import NotificationService
 from app.services.fcm_service import FCMService
+from app.services.notification_service import NotificationService
+
+logger = logging.getLogger("skillmatch.wallet")
 
 # Catálogo canónico de paquetes de compra de SkillPoints
 PACKAGES_CATALOG: dict[str, PointPackageItem] = {
@@ -80,7 +82,7 @@ PACKAGES_CATALOG: dict[str, PointPackageItem] = {
 
 class WalletService:
     @staticmethod
-    def get_available_packages() -> List[PointPackageItem]:
+    def get_available_packages() -> list[PointPackageItem]:
         """Devuelve los paquetes de puntos configurados."""
         return list(PACKAGES_CATALOG.values())
 
@@ -152,7 +154,7 @@ class WalletService:
         wallet.balance += total_to_add
 
         tx_id = uuid4()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         receipt = f"REC-{now.strftime('%Y%m%d')}-{tx_id.hex[:6].upper()}"
 
         card_detail = f"Tarjeta •••• {payload.card_last_four}" if payload.card_last_four and payload.payment_method == "card" else ("PayPal" if payload.payment_method == "paypal" else "Pasarela")
@@ -203,7 +205,7 @@ class WalletService:
                     "amount": str(total_to_add),
                 },
             )
-        except Exception as fcm_err:
+        except Exception as fcm_err:  # noqa: BLE001
             logger.warning(f"No se pudo enviar push FCM tras recarga: {fcm_err}")
 
         return TopupResult(
@@ -278,7 +280,6 @@ class WalletService:
         wallet.balance -= payload.points_amount
 
         req_id = uuid4()
-        now = datetime.now(timezone.utc)
 
         cashout_req = CashoutRequest(
             id=req_id,
@@ -361,10 +362,10 @@ class WalletService:
     async def list_transactions(
         db: AsyncSession,
         user_id: UUID,
-        type_filter: Optional[str] = None,
+        type_filter: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[PointTransactionItem], int]:
+    ) -> tuple[list[PointTransactionItem], int]:
         """Devuelve el historial paginado de movimientos contables."""
         query = select(PointTransaction).where(PointTransaction.user_id == user_id)
         if type_filter and type_filter != "ALL":
