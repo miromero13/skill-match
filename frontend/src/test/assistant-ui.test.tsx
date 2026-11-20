@@ -165,4 +165,80 @@ describe('Asistente Virtual UI & Store Suite', () => {
       expect(useAssistantStore.getState().messages.length).toBe(0)
     })
   })
+
+  it('renderiza tarjeta de acción cuando el asistente crea una habilidad para enseñar', async () => {
+    vi.mocked(assistantService.sendAssistantMessage).mockResolvedValueOnce({
+      reply: '¡Habilidad registrada exitosamente en tu perfil!',
+      action: {
+        type: 'skill_created',
+        data: {
+          skill_name: 'Programación en Python',
+          level: 'ADVANCED',
+          experience_years: 3,
+          hourly_points_rate: 25,
+          accepts_points: true,
+        },
+      },
+      suggested_prompts: ['¿Cuál es mi saldo actual?'],
+    })
+
+    useAssistantStore.setState({ isOpen: true })
+
+    render(
+      <MemoryRouter>
+        <AssistantChatDrawer />
+      </MemoryRouter>
+    )
+
+    const input = screen.getByPlaceholderText(/Pregunta sobre tus sesiones/i)
+    fireEvent.change(input, { target: { value: 'Quiero enseñar Programación en Python' } })
+
+    const sendBtn = screen.getByLabelText('Enviar mensaje')
+    fireEvent.click(sendBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText('¡Habilidad registrada exitosamente en tu perfil!')).toBeDefined()
+      expect(screen.getByText('Habilidad Registrada')).toBeDefined()
+      expect(screen.getByText('Programación en Python')).toBeDefined()
+      expect(screen.getByText('25 SP / hora')).toBeDefined()
+      expect(screen.getByText('Buscar Alumnos')).toBeDefined()
+    })
+  })
+
+  it('renderiza tarjeta de acción cuando el asistente registra un interés de aprendizaje', async () => {
+    vi.mocked(assistantService.sendAssistantMessage).mockResolvedValueOnce({
+      reply: '¡Interés de aprendizaje registrado exitosamente!',
+      action: {
+        type: 'learning_skill_created',
+        data: {
+          skill_name: 'Dominadas con el balón',
+          current_level: 1,
+          target_level: 3,
+          urgency: 'HIGH',
+        },
+      },
+      suggested_prompts: ['Buscar tutores de Fútbol'],
+    })
+
+    useAssistantStore.setState({ isOpen: true })
+
+    render(
+      <MemoryRouter>
+        <AssistantChatDrawer />
+      </MemoryRouter>
+    )
+
+    const input = screen.getByPlaceholderText(/Pregunta sobre tus sesiones/i)
+    fireEvent.change(input, { target: { value: 'Quiero aprender Dominadas con el balón' } })
+
+    const sendBtn = screen.getByLabelText('Enviar mensaje')
+    fireEvent.click(sendBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText('¡Interés de aprendizaje registrado exitosamente!')).toBeDefined()
+      expect(screen.getByText('Interés de Aprendizaje')).toBeDefined()
+      expect(screen.getByText('Dominadas con el balón')).toBeDefined()
+      expect(screen.getByText('Buscar Tutores')).toBeDefined()
+    })
+  })
 })

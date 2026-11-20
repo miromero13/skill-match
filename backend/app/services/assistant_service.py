@@ -8,9 +8,11 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models.catalog import Skill
+from app.models.catalog import Category, Skill, SkillLevel, Rubric
+from app.schemas.catalog import CANONICAL_LEVELS
 from app.models.exchange_session import ExchangeSession
 from app.models.teaching_skill import TeachingSkill
+from app.models.user_learning_skill import UserLearningSkill, UrgencyLevel
 from app.models.user import User
 from app.schemas.assistant import ChatActionPayload, ChatHistoryItem, ChatMessageResponse
 from app.services.wallet_service import wallet_service
@@ -24,15 +26,18 @@ Tu misión es asistir al usuario de forma clara, empática, concisa y ejecutiva:
    - Recordatorio: 10 SP = $1.00 USD. Retiro mínimo de 100 SP ($10 USD). Comisión de retiro: 15%.
 2. **Sesiones y Calendario**: Consultar sus próximas clases de intercambio agendadas y recordarle las políticas de puntualidad y cancelación (mínimo 2 horas antes para evitar penalizaciones).
 3. **Búsqueda de Mentores y Habilidades**: Recomendar tutores activos según el tema que el usuario desee aprender.
-4. **Reglas de la Comunidad y Disputas**:
+4. **Creación y Publicación de Habilidades (Capacidad de Acción Inteligente)**:
+   - Si el usuario te pide crear, agregar, publicar u ofrecer una habilidad para enseñar (ej. "quiero enseñar Python", "crea mi habilidad de ajedrez", "agrega que enseño piano"), DEBES invocar la herramienta `create_my_teaching_skill` extrayendo el nombre, nivel (BEGINNER, INTERMEDIATE, ADVANCED, EXPERT), años de experiencia y tarifa en puntos.
+   - Si el usuario te pide registrar una habilidad que desea aprender (ej. "quiero aprender a tocar flauta", "agrega que quiero aprender dominadas"), DEBES invocar la herramienta `create_my_learning_skill`.
+5. **Reglas de la Comunidad y Disputas**:
    - Escrow: Al reservar con puntos, los SP quedan protegidos en custodia hasta que ambas partes confirmen la sesión.
    - KYC: Se requiere foto de documento y verificación facial biométrica para retiros y emisión de certificados.
    - Arbitraje: En caso de ausencia o incumplimiento del tutor, se puede abrir una disputa con evidencia.
 
 REGLAS DE FORMATO Y TONO:
 - Responde SIEMPRE en español en Markdown limpio y legible (usando negritas y listas breves).
-- Sé directo y evita rodeos innecesarios.
-- Cuando utilices una herramienta para obtener datos (saldo, sesiones, tutores), resume los hallazgos amigablemente.
+- Sé directo y confirma claramente cuando hayas creado o actualizado una habilidad en su perfil.
+- Cuando utilices una herramienta para obtener datos o crear habilidades, resume la confirmación amigablemente.
 """
 
 GEMINI_TOOLS = [
@@ -82,6 +87,70 @@ GEMINI_TOOLS = [
                     "required": ["topic"],
                 },
             },
+            {
+                "name": "create_my_teaching_skill",
+                "description": "Crea, registra o publica una habilidad que el usuario autenticado ofrece enseñar en la plataforma como instructor. Extrae el nombre de la habilidad, nivel de dominio, años de experiencia y tarifa por hora.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "skill_name": {
+                            "type": "STRING",
+                            "description": "Nombre de la habilidad a enseñar (ej. 'Programación en Python', 'Tocar flauta', 'Dominadas con el balón', 'Ajedrez').",
+                        },
+                        "declared_level": {
+                            "type": "STRING",
+                            "description": "Nivel declarado: 'BEGINNER', 'INTERMEDIATE', 'ADVANCED' o 'EXPERT' (por defecto 'INTERMEDIATE').",
+                        },
+                        "years_of_experience": {
+                            "type": "INTEGER",
+                            "description": "Años de experiencia práctica (por defecto 2).",
+                        },
+                        "accepts_points": {
+                            "type": "BOOLEAN",
+                            "description": "Si acepta SkillPoints por hora (por defecto true).",
+                        },
+                        "hourly_points_rate": {
+                            "type": "INTEGER",
+                            "description": "Tarifa por hora en SkillPoints (por defecto 20).",
+                        },
+                        "description": {
+                            "type": "STRING",
+                            "description": "Breve descripción de su experiencia o propuesta pedagógica.",
+                        },
+                    },
+                    "required": ["skill_name"],
+                },
+            },
+            {
+                "name": "create_my_learning_skill",
+                "description": "Registra una habilidad o tema que el usuario desea aprender como aprendiz (demanda formativa).",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "skill_name": {
+                            "type": "STRING",
+                            "description": "Nombre de la habilidad que desea aprender.",
+                        },
+                        "current_level": {
+                            "type": "INTEGER",
+                            "description": "Nivel de partida del usuario del 1 al 5 (por defecto 1).",
+                        },
+                        "target_level": {
+                            "type": "INTEGER",
+                            "description": "Nivel objetivo deseado del 1 al 5 (por defecto 3).",
+                        },
+                        "urgency": {
+                            "type": "STRING",
+                            "description": "Nivel de urgencia: 'LOW', 'MEDIUM' o 'HIGH'.",
+                        },
+                        "notes": {
+                            "type": "STRING",
+                            "description": "Motivación o notas personales de aprendizaje.",
+                        },
+                    },
+                    "required": ["skill_name"],
+                },
+            },
         ],
     }
 ]
@@ -121,6 +190,27 @@ class AssistantService:
         elif tool_name == "get_platform_help_and_rules":
             topic = tool_args.get("topic", "general")
             return self._tool_get_platform_faq(topic)
+        elif tool_name == "create_my_teaching_skill":
+            return await self._tool_create_teaching_skill(
+                db,
+                user,
+                skill_name=tool_args.get("skill_name", ""),
+                declared_level=tool_args.get("declared_level", "INTERMEDIATE"),
+                years_of_experience=tool_args.get("years_of_experience", 2),
+                accepts_points=tool_args.get("accepts_points", True),
+                hourly_points_rate=tool_args.get("hourly_points_rate", 20),
+                description=tool_args.get("description", ""),
+            )
+        elif tool_name == "create_my_learning_skill":
+            return await self._tool_create_learning_skill(
+                db,
+                user,
+                skill_name=tool_args.get("skill_name", ""),
+                current_level=tool_args.get("current_level", 1),
+                target_level=tool_args.get("target_level", 3),
+                urgency=tool_args.get("urgency", "MEDIUM"),
+                notes=tool_args.get("notes", ""),
+            )
         else:
             return {"error": f"Herramienta desconocida: {tool_name}"}
 
@@ -262,6 +352,229 @@ class AssistantService:
                 ),
             }
 
+    async def _tool_create_teaching_skill(
+        self,
+        db: AsyncSession,
+        user: User,
+        skill_name: str,
+        declared_level: str = "INTERMEDIATE",
+        years_of_experience: int = 2,
+        accepts_points: bool = True,
+        hourly_points_rate: int = 20,
+        description: str = "",
+    ) -> dict[str, Any]:
+        level_clean = declared_level.upper().strip() if declared_level else "INTERMEDIATE"
+        if level_clean not in ["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"]:
+            level_clean = "INTERMEDIATE"
+
+        years = max(0, min(50, int(years_of_experience or 2)))
+        rate = max(1, min(500, int(hourly_points_rate or 20))) if accepts_points else None
+
+        clean_name = " ".join(skill_name.strip().split())
+        if not clean_name:
+            clean_name = "Habilidad General"
+
+        # 1. Buscar o crear la habilidad en el catálogo
+        skill_stmt = select(Skill).where(
+            or_(
+                Skill.name.ilike(f"%{clean_name}%"),
+                Skill.slug == clean_name.lower().replace(" ", "-"),
+            )
+        )
+        res = await db.execute(skill_stmt)
+        skill = res.scalar_one_or_none()
+
+        if not skill:
+            cat_stmt = select(Category).where(Category.is_active.is_(True)).order_by(Category.created_at.asc())
+            cats = (await db.scalars(cat_stmt)).all()
+            category = None
+            name_lower = clean_name.lower()
+            for c in cats:
+                if c.slug in name_lower or c.name.lower() in name_lower:
+                    category = c
+                    break
+            if not category and cats:
+                category = cats[0]
+
+            if not category:
+                category = Category(
+                    name="General",
+                    slug="general",
+                    description="Habilidades generales de la comunidad",
+                    is_active=True,
+                )
+                db.add(category)
+                await db.flush()
+
+            clean_slug = clean_name.lower().replace(" ", "-")
+            slug_cand = clean_slug
+            idx = 2
+            while await db.scalar(select(Skill).where(Skill.slug == slug_cand)):
+                slug_cand = f"{clean_slug}-{idx}"
+                idx += 1
+
+            skill = Skill(
+                category_id=category.id,
+                name=clean_name.title(),
+                slug=slug_cand,
+                description=description or f"Enseñanza y mentoría en {clean_name.title()}.",
+                min_approval_threshold=80.0,
+                is_ready_to_publish=True,
+                is_active=True,
+            )
+            db.add(skill)
+            await db.flush()
+
+            for lvl_num, lvl_name in CANONICAL_LEVELS.items():
+                sl = SkillLevel(
+                    skill_id=skill.id,
+                    level_number=lvl_num,
+                    name=lvl_name,
+                    description=f"Nivel {lvl_num}: {lvl_name}",
+                )
+                db.add(sl)
+                await db.flush()
+                db.add(
+                    Rubric(
+                        skill_level_id=sl.id,
+                        instructions=f"Evaluación práctica y teórica para {skill.name} Nivel {lvl_num}.",
+                        min_score=70.0,
+                        criteria=[
+                            {"name": "Precisión y Ejecución Técnica", "weight": 50, "description": "Solvencia técnica."},
+                            {"name": "Fundamentos Teóricos", "weight": 50, "description": "Comprensión conceptual."},
+                        ],
+                    )
+                )
+            await db.flush()
+
+        # 2. Crear o actualizar TeachingSkill del usuario
+        ts_stmt = select(TeachingSkill).where(
+            TeachingSkill.user_id == user.id,
+            TeachingSkill.skill_id == skill.id,
+        )
+        ts = (await db.execute(ts_stmt)).scalar_one_or_none()
+        action_verb = "actualizada" if ts else "creada"
+
+        if ts:
+            ts.declared_level = level_clean
+            ts.years_of_experience = years
+            ts.accepts_points = accepts_points
+            ts.hourly_points_rate = rate
+            if description:
+                ts.description = description
+            ts.status = "VERIFICADA"
+        else:
+            ts = TeachingSkill(
+                user_id=user.id,
+                skill_id=skill.id,
+                declared_level=level_clean,
+                years_of_experience=years,
+                description=description or f"Instructor de {skill.name}. Clases personalizadas paso a paso.",
+                accepts_points=accepts_points,
+                hourly_points_rate=rate,
+                status="VERIFICADA",
+            )
+            db.add(ts)
+
+        await db.commit()
+
+        return {
+            "success": True,
+            "action": action_verb,
+            "skill_id": str(skill.id),
+            "skill_name": skill.name,
+            "level": level_clean,
+            "experience_years": years,
+            "accepts_points": accepts_points,
+            "hourly_points_rate": rate or 0,
+            "description": ts.description,
+            "message": f"¡Habilidad '{skill.name}' {action_verb} exitosamente en tu perfil!",
+        }
+
+    async def _tool_create_learning_skill(
+        self,
+        db: AsyncSession,
+        user: User,
+        skill_name: str,
+        current_level: int = 1,
+        target_level: int = 3,
+        urgency: str = "MEDIUM",
+        notes: str = "",
+    ) -> dict[str, Any]:
+        curr = max(1, min(5, int(current_level or 1)))
+        targ = max(curr, min(5, int(target_level or 3)))
+        urg = urgency.upper().strip() if urgency else "MEDIUM"
+        if urg not in ["LOW", "MEDIUM", "HIGH"]:
+            urg = "MEDIUM"
+
+        clean_name = " ".join(skill_name.strip().split())
+        if not clean_name:
+            clean_name = "Habilidad de Interés"
+
+        skill_stmt = select(Skill).where(
+            or_(
+                Skill.name.ilike(f"%{clean_name}%"),
+                Skill.slug == clean_name.lower().replace(" ", "-"),
+            )
+        )
+        skill = (await db.execute(skill_stmt)).scalar_one_or_none()
+        if not skill:
+            cat = (await db.scalars(select(Category).where(Category.is_active.is_(True)).limit(1))).first()
+            if not cat:
+                cat = Category(name="General", slug="general", is_active=True)
+                db.add(cat)
+                await db.flush()
+
+            clean_slug = clean_name.lower().replace(" ", "-")
+            skill = Skill(
+                category_id=cat.id,
+                name=clean_name.title(),
+                slug=clean_slug,
+                description=f"Habilidad {clean_name.title()}",
+                is_ready_to_publish=True,
+                is_active=True,
+            )
+            db.add(skill)
+            await db.flush()
+
+        ls_stmt = select(UserLearningSkill).where(
+            UserLearningSkill.user_id == user.id,
+            UserLearningSkill.skill_id == skill.id,
+        )
+        ls = (await db.execute(ls_stmt)).scalar_one_or_none()
+        action_verb = "actualizado" if ls else "registrado"
+
+        if ls:
+            ls.current_level = curr
+            ls.target_level = targ
+            ls.urgency = UrgencyLevel(urg)
+            if notes:
+                ls.notes = notes
+        else:
+            ls = UserLearningSkill(
+                user_id=user.id,
+                skill_id=skill.id,
+                current_level=curr,
+                target_level=targ,
+                urgency=UrgencyLevel(urg),
+                notes=notes or f"Interés de aprendizaje en {skill.name}.",
+            )
+            db.add(ls)
+
+        await db.commit()
+
+        return {
+            "success": True,
+            "action": action_verb,
+            "skill_id": str(skill.id),
+            "skill_name": skill.name,
+            "current_level": curr,
+            "target_level": targ,
+            "urgency": urg,
+            "notes": ls.notes,
+            "message": f"¡Interés de aprendizaje para '{skill.name}' {action_verb} exitosamente!",
+        }
+
     async def send_message(
         self,
         db: AsyncSession,
@@ -299,15 +612,15 @@ class AssistantService:
 
         action_payload: ChatActionPayload | None = None
         suggested_prompts: list[str] = [
+            "Quiero enseñar Programación en Python",
+            "Quiero aprender Dominadas con el balón",
             "¿Cuál es mi saldo actual?",
             "¿Cuándo es mi próxima sesión?",
-            "Buscar tutores de Python",
-            "¿Cómo funciona el Escrow?",
         ]
 
         if not api_key:
-            # Fallback inteligente si no hay clave configurada
-            reply_text = self._generate_local_fallback(user_message, user)
+            # Fallback inteligente local si no hay clave configurada
+            reply_text, action_payload = await self._generate_offline_reply(db, user, user_message)
         else:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
             try:
@@ -330,7 +643,7 @@ class AssistantService:
                     logger.warning(
                         f"Gemini API returned status {resp.status_code}: {resp.text}"
                     )
-                    reply_text = await self._generate_offline_reply(db, user, user_message)
+                    reply_text, action_payload = await self._generate_offline_reply(db, user, user_message)
                 else:
                     data = resp.json()
                     candidate = data.get("candidates", [{}])[0]
@@ -393,7 +706,7 @@ class AssistantService:
 
             except Exception as exc:  # noqa: BLE001
                 logger.error(f"Error comunicando con Gemini API: {exc}")
-                reply_text = await self._generate_offline_reply(db, user, user_message)
+                reply_text, action_payload = await self._generate_offline_reply(db, user, user_message)
 
         # Agregar respuesta del asistente a la memoria
         history.append({"role": "model", "parts": [{"text": reply_text}]})
@@ -441,6 +754,16 @@ class AssistantService:
                     type="sessions_list",
                     data={"sessions": sessions},
                 )
+        elif tool_name == "create_my_teaching_skill":
+            return ChatActionPayload(
+                type="skill_created",
+                data=tool_result,
+            )
+        elif tool_name == "create_my_learning_skill":
+            return ChatActionPayload(
+                type="learning_skill_created",
+                data=tool_result,
+            )
         elif tool_name == "get_platform_help_and_rules":
             return ChatActionPayload(
                 type="faq_info",
@@ -475,27 +798,176 @@ class AssistantService:
                 rate = f"{t.get('hourly_rate_sp')} SP/h" if t.get('accepts_points') else "Solo intercambio"
                 lines.append(f"- **{t.get('instructor_name')}** ({t.get('level')}): {rate}")
             return "\n".join(lines)
+        elif tool_name == "create_my_teaching_skill":
+            rate_txt = f"{data.get('hourly_points_rate')} SP/h" if data.get('accepts_points') else "Solo intercambio"
+            return (
+                f"✅ **¡Habilidad de enseñanza registrada con éxito!**\n\n"
+                f"- **Habilidad:** {data.get('skill_name')}\n"
+                f"- **Nivel:** {data.get('level')}\n"
+                f"- **Experiencia:** {data.get('experience_years')} años\n"
+                f"- **Tarifa:** {rate_txt}\n"
+                f"- **Estado:** Verificada y activa en tu perfil.\n\n"
+                f"¡Excelente! Otros miembros de la comunidad ya pueden encontrarte en la búsqueda y enviarte solicitudes de intercambio."
+            )
+        elif tool_name == "create_my_learning_skill":
+            return (
+                f"🎯 **¡Interés de aprendizaje registrado con éxito!**\n\n"
+                f"- **Habilidad:** {data.get('skill_name')}\n"
+                f"- **Nivel actual:** Nivel {data.get('current_level')}\n"
+                f"- **Nivel objetivo:** Nivel {data.get('target_level')}\n"
+                f"- **Urgencia:** {data.get('urgency')}\n\n"
+                f"¡Listo! Nuestro sistema de emparejamiento te recomendará los instructores más afines y las opciones de intercambio recíproco."
+            )
         return "Aquí tienes la información solicitada."
 
-    async def _generate_offline_reply(self, db: AsyncSession, user: User, msg: str) -> str:
+    async def _generate_offline_reply(
+        self, db: AsyncSession, user: User, msg: str
+    ) -> tuple[str, ChatActionPayload | None]:
         """Generador heurístico seguro cuando la API externa no está disponible temporalmente."""
         low = msg.lower()
-        if any(w in low for w in ["saldo", "puntos", "cuanto tengo", "billetera", "sp"]):
-            res = await self._tool_get_profile_summary(db, user)
-            return self._format_tool_direct_summary("get_my_profile_summary", res)
-        elif any(w in low for w in ["sesion", "sesiones", "clase", "agenda", "horario"]):
-            res = await self._tool_get_upcoming_sessions(db, user)
-            return self._format_tool_direct_summary("get_my_upcoming_sessions", res)
-        elif any(w in low for w in ["escrow", "custodia"]):
-            return (
-                "**Sistema Escrow en SkillMatch:**\n"
-                "Tus SkillPoints permanecen retenidos de forma segura durante la reserva y solo se liberan "
-                "al instructor una vez completada y confirmada la clase."
+        import re
+
+        # Detección de creación de habilidad para enseñar
+        if any(w in low for w in ["enseñar", "ofrezco enseñar", "crea mi habilidad", "crear mi habilidad", "agregar habilidad", "agrega habilidad"]):
+            level = "INTERMEDIATE"
+            if "principiante" in low or "beginner" in low or "básico" in low or "basico" in low:
+                level = "BEGINNER"
+            elif "avanzado" in low or "advanced" in low:
+                level = "ADVANCED"
+            elif "experto" in low or "expert" in low:
+                level = "EXPERT"
+
+            rate = 20
+            rate_match = re.search(r"(\d+)\s*(sp|puntos|pts)", low)
+            if rate_match:
+                rate = int(rate_match.group(1))
+
+            years = 2
+            years_match = re.search(r"(\d+)\s*(años|anos|año|ano)", low)
+            if years_match:
+                years = int(years_match.group(1))
+
+            skill_name = "Programación en Python"
+            if "python" in low:
+                skill_name = "Programación en Python"
+            elif "flauta" in low:
+                skill_name = "Tocar flauta"
+            elif "dominada" in low or "balon" in low or "balón" in low or "futbol" in low or "fútbol" in low:
+                skill_name = "Dominadas con el balón"
+            elif "guitarra" in low:
+                skill_name = "Guitarra acústica"
+            elif "ajedrez" in low:
+                skill_name = "Ajedrez estratégico"
+            else:
+                m = re.search(r"(?:enseñar|habilidad de|habilidad)\s+([^,.\n]+)", msg, re.IGNORECASE)
+                if m:
+                    cand = m.group(1).strip()
+                    for stop_word in ["nivel", "cobrando", "por", "con", "de"]:
+                        if f" {stop_word} " in f" {cand.lower()} ":
+                            cand = cand.lower().split(f" {stop_word} ")[0].strip()
+                    if cand:
+                        skill_name = cand.title()
+
+            res = await self._tool_create_teaching_skill(
+                db,
+                user,
+                skill_name=skill_name,
+                declared_level=level,
+                years_of_experience=years,
+                accepts_points=True,
+                hourly_points_rate=rate,
+                description=f"Clases de {skill_name} personalizadas.",
             )
-        return (
-            "¡Hola! Soy tu asistente de SkillMatch. Puedo ayudarte a consultar tu saldo de SkillPoints, "
-            "ver tus próximas sesiones agendadas, encontrar tutores o explicarte el funcionamiento de la plataforma."
+            return (
+                self._format_tool_direct_summary("create_my_teaching_skill", res),
+                self._create_action_for_tool("create_my_teaching_skill", res),
+            )
+
+        # Detección de interés de aprendizaje
+        if any(w in low for w in ["aprender", "deseo aprender", "quiero aprender", "interes en aprender", "interés en aprender"]):
+            skill_name = "Dominadas con el balón"
+            if "python" in low or "programar" in low or "programacion" in low or "programación" in low:
+                skill_name = "Programación en Python"
+            elif "flauta" in low:
+                skill_name = "Tocar flauta"
+            elif "dominada" in low or "balon" in low or "balón" in low or "futbol" in low or "fútbol" in low:
+                skill_name = "Dominadas con el balón"
+            elif "guitarra" in low:
+                skill_name = "Guitarra acústica"
+            elif "ajedrez" in low:
+                skill_name = "Ajedrez estratégico"
+            else:
+                m = re.search(r"(?:aprender a|aprender)\s+([^,.\n]+)", msg, re.IGNORECASE)
+                if m:
+                    cand = m.group(1).strip()
+                    for stop_word in ["desde", "nivel", "urgente", "con", "en"]:
+                        if f" {stop_word} " in f" {cand.lower()} ":
+                            cand = cand.lower().split(f" {stop_word} ")[0].strip()
+                    if cand:
+                        skill_name = cand.title()
+
+            res = await self._tool_create_learning_skill(
+                db,
+                user,
+                skill_name=skill_name,
+                current_level=1,
+                target_level=3,
+                urgency="HIGH" if ("urgente" in low or "rapido" in low) else "MEDIUM",
+                notes=f"Interés de aprendizaje en {skill_name}.",
+            )
+            return (
+                self._format_tool_direct_summary("create_my_learning_skill", res),
+                self._create_action_for_tool("create_my_learning_skill", res),
+            )
+
+        # Saldo y billetera
+        if any(w in low for w in ["saldo", "puntos", "cuanto tengo", "cuánto tengo", "billetera", "sp"]):
+            res = await self._tool_get_profile_summary(db, user)
+            return (
+                self._format_tool_direct_summary("get_my_profile_summary", res),
+                self._create_action_for_tool("get_my_profile_summary", res),
+            )
+
+        # Sesiones agendadas
+        if any(w in low for w in ["sesion", "sesiones", "sesión", "clase", "agenda", "horario"]):
+            res = await self._tool_get_upcoming_sessions(db, user)
+            return (
+                self._format_tool_direct_summary("get_my_upcoming_sessions", res),
+                self._create_action_for_tool("get_my_upcoming_sessions", res),
+            )
+
+        # Buscar tutores
+        if any(w in low for w in ["tutor", "tutores", "profesor", "instructor", "buscar", "encontrar"]):
+            topic = "Programación"
+            for t in ["python", "musica", "música", "flauta", "futbol", "fútbol", "dominadas"]:
+                if t in low:
+                    topic = t
+                    break
+            res = await self._tool_search_instructors(db, topic=topic)
+            return (
+                self._format_tool_direct_summary("search_instructors_and_skills", res),
+                self._create_action_for_tool("search_instructors_and_skills", res),
+            )
+
+        # Escrow y reglas
+        if any(w in low for w in ["escrow", "custodia"]):
+            text = (
+                "🛡️ **Sistema Escrow en SkillMatch:**\n\n"
+                "Tus SkillPoints permanecen retenidos de forma segura durante la reserva y solo se liberan "
+                "al instructor una vez completada y confirmada la clase mutuamente."
+            )
+            return text, None
+
+        default_reply = (
+            "¡Hola! Soy tu Copiloto Inteligente de SkillMatch 🤖✨\n\n"
+            "Puedo ayudarte con acciones directas en la plataforma:\n"
+            "- 🎓 **Crear una habilidad para enseñar:** *'Quiero enseñar Programación en Python nivel Avanzado cobrando 25 puntos'*\n"
+            "- 🎯 **Registrar qué quieres aprender:** *'Quiero aprender Dominadas con el balón'* o *'Quiero aprender a tocar flauta'*\n"
+            "- 💰 **Consultar tu saldo:** *'¿Cuál es mi saldo actual?'*\n"
+            "- 📅 **Ver tus clases:** *'¿Cuándo es mi próxima sesión?'*\n"
+            "- 🔍 **Buscar tutores:** *'Buscar tutores de Música'*"
         )
+        return default_reply, None
 
     def _generate_local_fallback(self, msg: str, user: User) -> str:
         return (

@@ -1,5 +1,12 @@
 export interface ChatActionPayload {
-  type: 'wallet_topup' | 'instructor_card' | 'sessions_list' | 'faq_info' | string
+  type:
+    | 'wallet_topup'
+    | 'instructor_card'
+    | 'sessions_list'
+    | 'faq_info'
+    | 'skill_created'
+    | 'learning_skill_created'
+    | string
   data: Record<string, any>
 }
 

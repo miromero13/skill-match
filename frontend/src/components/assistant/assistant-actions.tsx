@@ -1,5 +1,16 @@
 import { useNavigate } from 'react-router-dom'
-import { Calendar, CheckCircle2, ChevronRight, Coins, HelpCircle, PlusCircle, Star, User } from 'lucide-react'
+import {
+  BookOpen,
+  Calendar,
+  CheckCircle2,
+  ChevronRight,
+  Coins,
+  HelpCircle,
+  PlusCircle,
+  Sparkles,
+  Star,
+  User,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -196,6 +207,126 @@ export function AssistantActions({ action }: AssistantActionsProps) {
             ))}
           </ul>
         )}
+      </Card>
+    )
+  }
+
+  if (action.type === 'skill_created') {
+    const data = action.data
+    const skillName = data.skill_name || 'Habilidad'
+    const level = data.level || data.declared_level || 'INTERMEDIATE'
+    const years = data.experience_years ?? data.years_of_experience ?? 2
+    const rate = data.hourly_points_rate ?? 20
+    const acceptsPoints = data.accepts_points ?? true
+
+    return (
+      <Card className="mt-3 p-3.5 bg-emerald-950/20 border-emerald-500/40 rounded-xl space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs uppercase tracking-wider">
+            <Sparkles className="h-4 w-4" />
+            <span>Habilidad Registrada</span>
+          </div>
+          <Badge
+            variant="outline"
+            className="border-emerald-500/50 text-emerald-400 bg-emerald-950/40 text-[10px]"
+          >
+            Instructor Activo
+          </Badge>
+        </div>
+
+        <div>
+          <div className="text-sm font-bold text-foreground">{skillName}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            Nivel: <strong className="text-emerald-300 font-semibold">{level}</strong> • {years} {years === 1 ? 'año' : 'años'} de experiencia
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-1 border-t border-emerald-500/20 text-xs">
+          <span className="text-muted-foreground">Tarifa de enseñanza:</span>
+          <span className="font-bold text-emerald-400">
+            {acceptsPoints ? `${rate} SP / hora` : 'Solo intercambio'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              closeAssistant()
+              navigate('/app/profile')
+            }}
+            className="h-8 text-xs cursor-pointer border-emerald-500/30 text-emerald-300 hover:bg-emerald-950/40"
+          >
+            Ver en Perfil
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              closeAssistant()
+              navigate('/app/search')
+            }}
+            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+          >
+            Buscar Alumnos
+          </Button>
+        </div>
+      </Card>
+    )
+  }
+
+  if (action.type === 'learning_skill_created') {
+    const data = action.data
+    const skillName = data.skill_name || 'Habilidad'
+    const currLevel = data.current_level ?? 1
+    const targLevel = data.target_level ?? 3
+    const urgency = data.urgency || 'MEDIUM'
+
+    return (
+      <Card className="mt-3 p-3.5 bg-sky-950/20 border-sky-500/40 rounded-xl space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sky-400 font-semibold text-xs uppercase tracking-wider">
+            <BookOpen className="h-4 w-4" />
+            <span>Interés de Aprendizaje</span>
+          </div>
+          <Badge
+            variant="outline"
+            className="border-sky-500/50 text-sky-400 bg-sky-950/40 text-[10px]"
+          >
+            Urgencia {urgency}
+          </Badge>
+        </div>
+
+        <div>
+          <div className="text-sm font-bold text-foreground">{skillName}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            Progreso deseado: <strong className="text-sky-300">Nivel {currLevel} → Nivel {targLevel}</strong>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              closeAssistant()
+              navigate('/app/profile')
+            }}
+            className="h-8 text-xs cursor-pointer border-sky-500/30 text-sky-300 hover:bg-sky-950/40"
+          >
+            Ver en Perfil
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              closeAssistant()
+              navigate('/app/search')
+            }}
+            className="h-8 text-xs bg-sky-600 hover:bg-sky-700 text-white cursor-pointer"
+          >
+            Buscar Tutores
+          </Button>
+        </div>
       </Card>
     )
   }

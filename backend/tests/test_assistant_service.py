@@ -78,6 +78,50 @@ async def test_assistant_memory_lifecycle():
 
 
 @pytest.mark.asyncio
+async def test_assistant_actionable_skill_cards():
+    """Verifica la generación de payloads de acción para creación de habilidades."""
+    service = AssistantService()
+
+    # 1. Action para Teaching Skill
+    teaching_data = {
+        "success": True,
+        "action": "creada",
+        "skill_name": "Programación en Python",
+        "level": "ADVANCED",
+        "experience_years": 4,
+        "hourly_points_rate": 25,
+        "accepts_points": True,
+    }
+    action_teaching = service._create_action_for_tool("create_my_teaching_skill", teaching_data)
+    assert action_teaching is not None
+    assert action_teaching.type == "skill_created"
+    assert action_teaching.data["skill_name"] == "Programación en Python"
+
+    summary_teaching = service._format_tool_direct_summary("create_my_teaching_skill", teaching_data)
+    assert "Programación en Python" in summary_teaching
+    assert "25 SP/h" in summary_teaching
+
+    # 2. Action para Learning Skill
+    learning_data = {
+        "success": True,
+        "action": "registrado",
+        "skill_name": "Tocar flauta",
+        "current_level": 1,
+        "target_level": 3,
+        "urgency": "HIGH",
+    }
+    action_learning = service._create_action_for_tool("create_my_learning_skill", learning_data)
+    assert action_learning is not None
+    assert action_learning.type == "learning_skill_created"
+    assert action_learning.data["urgency"] == "HIGH"
+
+    summary_learning = service._format_tool_direct_summary("create_my_learning_skill", learning_data)
+    assert "Tocar flauta" in summary_learning
+    assert "Nivel 1" in summary_learning
+    assert "Nivel 3" in summary_learning
+
+
+@pytest.mark.asyncio
 async def test_assistant_tools_execution(async_engine):
     """Verifica la ejecución de las herramientas del dominio en base de datos."""
     async with async_engine.connect() as connection:
