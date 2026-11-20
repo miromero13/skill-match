@@ -285,9 +285,19 @@ class Settings(BaseSettings):
         le=50.0,
         description="Comisión institucional porcentual retenida por la plataforma en retiros (ej. 15.0%)",
     )
+    FIREBASE_CREDENTIALS_JSON: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Contenido JSON completo de la cuenta de servicio de Firebase Admin SDK (Secreto .env); "
+            "tiene prioridad sobre FIREBASE_CREDENTIALS_PATH"
+        ),
+    )
     FIREBASE_CREDENTIALS_PATH: Optional[str] = Field(
         default="firebase-credentials.json",
-        description="Ruta al archivo JSON de credenciales de Firebase Admin SDK para notificaciones push",
+        description=(
+            "Ruta al archivo JSON de credenciales de Firebase Admin SDK (absoluta, o relativa al "
+            "directorio de trabajo o a backend/); se usa solo si FIREBASE_CREDENTIALS_JSON está vacío"
+        ),
     )
 
     @field_validator("ALLOWED_ORIGINS", mode="before")

@@ -1,6 +1,7 @@
 import logging
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 from app.core.config import settings
 
 logger = logging.getLogger("skillmatch.db")
@@ -24,6 +25,21 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
     expire_on_commit=False,
 )
+
+# Background work detached from the request (post-commit native push dispatch). NullPool:
+# every session opens and closes its own connection on the current event loop, so no
+# pooled asyncpg connection can outlive the loop that created it (Celery asyncio.run,
+# per-test loops) or compete with the request pool.
+background_engine = create_async_engine(settings.async_database_url, echo=False, poolclass=NullPool)
+
+BackgroundSessionLocal = async_sessionmaker(
+    bind=background_engine,
+    class_=AsyncSession,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+)
+
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """

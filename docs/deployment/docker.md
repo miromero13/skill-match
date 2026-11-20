@@ -109,12 +109,18 @@ docker compose -f /tmp/coolify.yaml config -q   # con las variables obligatorias
 
 ### Push nativo (Firebase Admin SDK)
 
-`backend` y `worker` montan `./firebase/firebase-admin.json` en `/run/firebase/firebase-admin.json` (solo lectura). Coolify crea el archivo vacío; el JSON de la cuenta de servicio se pega en *Persistent Storage* y nunca se sube al repositorio (`*firebase-adminsdk*.json` y `backend/firebase-credentials.json` están en `.gitignore`). Luego:
+Las credenciales llegan por variable de entorno, no por archivo: el montaje anterior de `./firebase/firebase-admin.json` se eliminó porque Coolify lo registraba como **directorio** y Firebase nunca se inicializaba. El JSON de la cuenta de servicio nunca se sube al repositorio (`*firebase-adminsdk*.json` y `backend/firebase-credentials.json` están en `.gitignore`).
 
-- `FIREBASE_CREDENTIALS_PATH=/run/firebase/firebase-admin.json` en *Environment Variables*.
-- Redeploy. En los logs del backend debe aparecer "Firebase Admin SDK inicializado exitosamente" al primer envío.
+- En *Environment Variables* crea `FIREBASE_CREDENTIALS_JSON` (marcada como secreta) con el **contenido completo** del JSON de la cuenta de servicio, preferentemente minificado en una línea (`jq -c . cuenta.json`). `backend` y `worker` la reciben vía `x-backend-env`.
+- Si existe una `FIREBASE_CREDENTIALS_PATH` antigua en Coolify, bórrala: la variable JSON tiene prioridad, pero la ruta ya no se monta.
+- Redeploy y verifica como ADMIN:
+  - `GET /api/admin/push/status` → `data.firebase` = `{initialized: true, source: "json", error: null}` y `data.devices` con los conteos de dispositivos activos.
+  - `POST /api/admin/push/test` con `{"user_id": "<uuid>"}` (o `{}` para los 5 dispositivos activos más recientes) → `data.sent`/`data.failed` y resultados por token (solo los últimos 8 caracteres).
+  - Un `error` en `data.firebase` explica el fallo (JSON inválido, credencial rechazada, ruta inexistente o directorio) sin exponer la clave; cada envío reintenta la inicialización.
 
-Sin la variable, la app funciona y solo el push nativo queda desactivado.
+Cada notificación in-app nueva se envía también como push nativo tras el commit, si su categoría está habilitada para el destinatario. Sin credenciales, la app funciona y solo el push nativo queda desactivado.
+
+Fuera de Docker (desarrollo) sigue disponible `FIREBASE_CREDENTIALS_PATH`: ruta absoluta, o relativa al directorio de trabajo o a `backend/`; solo se usa si `FIREBASE_CREDENTIALS_JSON` está vacía.
 
 ### A confirmar en el primer build
 

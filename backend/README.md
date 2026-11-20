@@ -150,7 +150,11 @@ WALLET_CASHOUT_MIN_POINTS=100
 WALLET_PLATFORM_FEE_PERCENTAGE=15.0
 
 # --- Notificaciones Push Nativas (Firebase Cloud Messaging - FCM) ---
+# [SECRETO] JSON completo de la Service Account (prioridad); en Coolify se carga como variable secreta.
+FIREBASE_CREDENTIALS_JSON=""
+# Alternativa local si FIREBASE_CREDENTIALS_JSON está vacía: ruta absoluta o relativa al cwd / backend/.
 FIREBASE_CREDENTIALS_PATH="firebase-credentials.json"
+# Diagnóstico ADMIN: GET /api/admin/push/status y POST /api/admin/push/test.
 ```
 
 ---

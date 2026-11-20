@@ -98,9 +98,9 @@ x-backend-env: &backend-env
   VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
   VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
   VAPID_SUBJECT: ${VAPID_SUBJECT:-}
-  # Firebase Admin SDK (push nativo FCM). Vacía = push nativo desactivado.
-  # En Coolify: /run/firebase/firebase-admin.json (montaje del servicio backend/worker).
-  FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-}
+  # Firebase Admin SDK (push nativo FCM): JSON completo de la cuenta de servicio,
+  # cargado como variable secreta en Coolify. Vacía = push nativo desactivado.
+  FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
   # Procesos (leídos por /usr/local/bin/docker-entrypoint)
   UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
   CELERY_CONCURRENCY: ${CELERY_CONCURRENCY:-2}
@@ -263,13 +263,6 @@ services:
       - backend-storage:/app/storage
       - sandbox-work:/sandbox-work
       - sandbox-certs-client:/certs/client:ro
-      # JSON de la cuenta de servicio de Firebase: Coolify crea el archivo vacío y
-      # su contenido se carga en Persistent Storage (nunca en el repositorio).
-      - type: bind
-        source: ./firebase/firebase-admin.json
-        target: /run/firebase/firebase-admin.json
-        read_only: true
-        is_directory: false
     depends_on:
       postgres:
         condition: service_healthy
@@ -307,11 +300,6 @@ services:
     environment: *backend-env
     volumes:
       - backend-storage:/app/storage
-      - type: bind
-        source: ./firebase/firebase-admin.json
-        target: /run/firebase/firebase-admin.json
-        read_only: true
-        is_directory: false
     depends_on:
       postgres:
         condition: service_healthy
