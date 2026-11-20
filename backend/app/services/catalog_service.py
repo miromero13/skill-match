@@ -14,7 +14,12 @@ from app.core.exceptions import SkillMatchException
 from app.models.catalog import Category, ChallengeType, Rubric, Skill, SkillLevel
 from app.models.teaching_skill import TeachingSkill
 from app.models.user_learning_skill import UserLearningSkill
-from app.schemas.catalog import CANONICAL_LEVELS
+from app.schemas.catalog import (
+    CANONICAL_LEVELS,
+    METRIC_BALL_TOUCH_STREAK,
+    WEIGHTS_TOTAL_TOLERANCE,
+    RubricSchema,
+)
 
 
 def _slug(value: str) -> str:
@@ -92,6 +97,49 @@ def _category_ids(category_id=None, public_only=False):
         children = children.where(Category.is_active.is_(True))
     # UNION terminates even if pre-existing external data contains a cycle.
     return select(tree.union(children).c.id)
+
+
+def format_percentage(value: float) -> str:
+    """90.0 -> "90", 66.666 -> "66.67" (used in Spanish validation messages)."""
+    return f"{round(value, 2):.2f}".rstrip("0").rstrip(".")
+
+
+def weights_total_message(level_name: str, total: float) -> str:
+    return (
+        f"Los porcentajes de los criterios del nivel «{level_name}» deben sumar 100% "
+        f"(actual: {format_percentage(total)}%)."
+    )
+
+
+def ball_target_message(criterion_name: str, level_name: str) -> str:
+    return (
+        f"El criterio «{criterion_name}» del nivel «{level_name}» requiere un objetivo "
+        f"(target) mayor a 0 para el tipo BALL_TOUCH_STREAK."
+    )
+
+
+def weights_total_is_valid(total: float) -> bool:
+    return abs(total - 100.0) <= WEIGHTS_TOTAL_TOLERANCE
+
+
+def _validate_level_criteria(levels) -> None:
+    """S1 write rules: per-level unique keys, BALL_TOUCH_STREAK target and 100% weights."""
+    for level in levels or []:
+        rubric = level.rubric
+        if rubric is None or not rubric.criteria:
+            continue
+        keys = [criterion.key for criterion in rubric.criteria]
+        if len(set(keys)) != len(keys):
+            raise SkillMatchException(
+                statuscode=400,
+                message=f"Las claves de los criterios del nivel «{level.name}» no pueden repetirse.",
+            )
+        for criterion in rubric.criteria:
+            if criterion.metric_type == METRIC_BALL_TOUCH_STREAK and criterion.target is None:
+                raise SkillMatchException(statuscode=400, message=ball_target_message(criterion.name, level.name))
+        total = rubric.weights_total
+        if not weights_total_is_valid(total):
+            raise SkillMatchException(statuscode=400, message=weights_total_message(level.name, total))
 
 
 class CatalogService:
@@ -197,6 +245,7 @@ class CatalogService:
     async def create_skill(db, request):
         await CatalogService._validate_skill_references(db, request.category_id, request.challenge_type_id)
         await _ensure_unique_name(db, Skill, request.name, Skill.category_id == request.category_id)
+        _validate_level_criteria(request.levels)
         levels = request.levels
         if not levels:
             levels = [{"level_number": number, "name": name} for number, name in CANONICAL_LEVELS.items()]
@@ -216,18 +265,16 @@ class CatalogService:
         item = await CatalogService.get_skill(db, skill_id)
         await CatalogService._validate_skill_references(db, request.category_id, request.challenge_type_id)
         await _ensure_unique_name(db, Skill, request.name, Skill.category_id == request.category_id, item.id)
+        _reuse_stored_criterion_keys(item, request.levels)
+        # Validate before mutating the loaded entity so a rejection leaves nothing dirty.
+        _validate_level_criteria(request.levels)
         values = request.model_dump(exclude_unset=True, exclude={"levels"})
         if "name" in values:
             item.slug = await _unique_slug(db, Skill, values["name"], item.id)
         for key, value in values.items():
             setattr(item, key, value)
         if request.levels is not None:
-            for lvl in list(item.levels):
-                await db.delete(lvl)
-            item.levels.clear()
-            await db.flush()
-            for level in request.levels:
-                item.levels.append(_make_level(level))
+            _sync_levels(item, request.levels)
         await _commit_catalog(db)
         return await CatalogService.get_skill(db, item.id)
 
@@ -256,6 +303,55 @@ class CatalogService:
                 raise SkillMatchException(statuscode=409, message="La habilidad tiene miembros vinculados. Desactivala sin eliminar sus asociaciones.")
         item.is_active = False
         await _commit_catalog(db)
+
+
+def _reuse_stored_criterion_keys(item, levels) -> None:
+    """Criteria sent without key keep the stored key of the same-named criterion of that level."""
+    stored_levels = {level.level_number: level for level in item.levels}
+    for level in levels or []:
+        current = stored_levels.get(level.level_number)
+        if level.rubric is None or current is None or current.rubric is None:
+            continue
+        try:
+            stored = RubricSchema.model_validate({"criteria": current.rubric.criteria or []}).criteria
+        except ValueError:
+            continue  # Malformed legacy JSON: keep the generated keys.
+        level.rubric.reuse_keys_by_name(stored)
+
+
+def _sync_levels(item, levels) -> None:
+    """
+    Update levels in place matched by `level_number`, so level ids (and the lab datasets
+    linked to them through `dataset_samples.skill_level_id`) survive catalog edits.
+    New numbers are created and numbers missing from the request are removed.
+    """
+    existing = {level.level_number: level for level in item.levels}
+    kept = set()
+    for value in levels:
+        data = value.model_dump() if hasattr(value, "model_dump") else dict(value)
+        current = existing.get(data["level_number"])
+        if current is None or data["level_number"] in kept:
+            # Duplicate numbers fall through to an insert and hit the unique constraint (409).
+            item.levels.append(_make_level(data))
+            continue
+        kept.add(current.level_number)
+        rubric_data = data.pop("rubric", None) or {}
+        current.name = data["name"]
+        current.description = data.get("description")
+        criteria = [dict(criterion) for criterion in rubric_data.get("criteria", [])]
+        if current.rubric is None:
+            current.rubric = Rubric(
+                instructions=rubric_data.get("instructions"),
+                min_score=rubric_data.get("min_score", 70.0),
+                criteria=criteria,
+            )
+        else:
+            current.rubric.instructions = rubric_data.get("instructions")
+            current.rubric.min_score = rubric_data.get("min_score", 70.0)
+            current.rubric.criteria = criteria
+    for number, level in existing.items():
+        if number not in kept:
+            item.levels.remove(level)
 
 
 def _make_level(value):

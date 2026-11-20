@@ -77,7 +77,7 @@ AUDIO_LENGTH_TOLERANCE = 0.25  # accepted deviation from duration_ms * 16 kHz
 AUDIO_MIN_SAMPLES = 160
 VAD_CHUNK_SAMPLES = 480  # 30 ms at 16 kHz
 VAD_AGGRESSIVENESS = 3  # strictest WebRTC mode, same as the pre-exam calibration
-SILENCE_RMS_FLOOR = 0.005  # below this nothing is fed to the VAD
+SILENCE_RMS_FLOOR = 0.002  # below this nothing is fed to the VAD
 VAD_MIN_VOICED_CHUNKS = 6  # 180 ms
 VAD_MIN_CONTIGUOUS_CHUNKS = 3  # 90 ms
 HIGH_NOISE_RMS = 0.22
@@ -186,10 +186,10 @@ CAMERA_THUMB_SIZE = (64, 48)
 # ---- voiceprint (T8 / S3, S11) -----------------------------------------------------------------
 # Cosine similarity of 3D-Speaker ERes2Net embeddings. Tuned on synthetic signals only; T11 tunes them with
 # real recordings, so treat every value below as a starting point.
-VOICEPRINT_MIN_ENROLL_VOICED_S = 3.0  # voiced speech an enrollment needs; less is "insufficient", never a voiceprint
+VOICEPRINT_MIN_ENROLL_VOICED_S = 2.2  # voiced speech an enrollment needs; less is "insufficient", never a voiceprint
 VOICEPRINT_MIN_VERIFY_VOICED_S = 1.0  # voiced speech a verification needs; less is "insufficient", never a verdict
 VOICEPRINT_MAX_ENROLL_AUDIO_S = 12.0  # bound of the calibration recording (silence segment included)
-VOICEPRINT_SEGMENT_S = 2.0  # enrollment embeds consecutive segments of this length and averages them
+VOICEPRINT_SEGMENT_S = 1.0  # enrollment embeds consecutive segments of this length and averages them
 VOICEPRINT_MIN_SEGMENTS = 2  # segments an enrollment needs (so it can be checked for consistency)
 VOICEPRINT_ENROLL_MIN_CONSISTENCY = 0.35  # lowest cosine between two enrollment segments; below: not one voice
 VOICEPRINT_MATCH_THRESHOLD = 0.45  # similarity at or above this is the enrolled voice

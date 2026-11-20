@@ -6,9 +6,11 @@ import hashlib
 from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 
 from app.core.exceptions import SkillMatchException
+from app.models.programming import Challenge
 from app.models.theory_exam import TheoryExam
 from app.schemas.theory_exam import OralAnswerResponse, PublicTheoryQuestion, TheoryProgressResponse
 from app.services.local_speech_service import LocalSpeechService
@@ -42,6 +44,8 @@ class TheoryAnswerService:
     @classmethod
     async def locked(cls, db, user, key):
         evaluation = await TheoryExamService.owned(db, user, key, lock=True)
+        if evaluation.status == "CANCELLED":
+            raise SkillMatchException(statuscode=409, message="Esta evaluación fue cancelada y el intento quedó consumido.")
         exam = await db.get(TheoryExam, key, populate_existing=True)
         if exam is None:
             raise SkillMatchException(statuscode=409, message="El examen teórico todavía no comenzó.")
@@ -53,6 +57,17 @@ class TheoryAnswerService:
         now = datetime.now(timezone.utc)
         cls.expire(exam, evaluation, now)
         current = exam.questions[exam.current_position] if exam.current_position < len(exam.questions) else None
+        has_coding = False
+        if current is None:
+            has_coding = (
+                await db.scalar(
+                    select(Challenge.id).where(
+                        Challenge.skill_id == evaluation.skill_id,
+                        Challenge.level_number == exam.level_number,
+                        Challenge.status == "PUBLISHED",
+                    ).limit(1)
+                )
+            ) is not None
         result = TheoryProgressResponse(
             evaluation_id=key, status=evaluation.status, question_count=len(exam.questions),
             answered_count=sum(item["status"] == "RECORDED" for item in exam.answers),
@@ -61,6 +76,7 @@ class TheoryAnswerService:
             current_question=PublicTheoryQuestion.model_validate(current) if current else None,
             grading_state=exam.grading_state, grading_score=exam.grading_score,
             grading_feedback=exam.grading_result.get("feedback") if exam.grading_result else None,
+            has_coding_stage=has_coding,
         )
         await db.commit()
         return result

@@ -64,6 +64,24 @@ class TheoryProgressResponse(BaseModel):
     grading_state: str = "PENDING"
     grading_score: float | None = None
     grading_feedback: list[dict] | None = None
+    has_coding_stage: bool = False
+
+
+class FinalEvaluationResponse(BaseModel):
+    evaluation_id: UUID
+    status: str
+    passed: bool
+    final_score: float
+    theory_score: float
+    theory_max_score: float
+    theory_feedback: list[dict] | None = None
+    has_coding_stage: bool = False
+    sandbox_passed_tests: int | None = None
+    sandbox_total_tests: int | None = None
+    defense_transcript: str | None = None
+    defense_score: float | None = None
+    defense_feedback: str | None = None
+    skill_validated: bool = False
 
 
 class OralAnswerResponse(BaseModel):

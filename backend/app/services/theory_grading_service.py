@@ -35,7 +35,13 @@ class TheoryGradingService:
             return cls.response(key, exam)
         if not exam.text_consent_at or exam.grading_provider not in {"openai", "gemini"} or not exam.grading_model:
             raise SkillMatchException(statuscode=409, message="No existe consentimiento y configuración fijada para corregir este examen.")
-        if evaluation.status not in {"THEORY_PENDING_REVIEW", "THEORY_GRADED", "THEORY_GRADING_ERROR"}:
+        if evaluation.status not in {
+            "THEORY_PENDING_REVIEW",
+            "THEORY_GRADED",
+            "THEORY_GRADING_ERROR",
+            "CODE_DEFENSE_PENDING",
+            "READY_FOR_FINAL_REVIEW",
+        }:
             raise SkillMatchException(statuscode=409, message="El examen todavía no está listo para corrección.")
         config = provider_configuration()
         if not config or config[:2] != (exam.grading_provider, exam.grading_model):

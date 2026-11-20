@@ -97,3 +97,17 @@ class ChallengeRunResponse(BaseModel):
 class ChallengeSubmissionResponse(ChallengeRunResponse):
     submission_id: UUID
     submitted_at: datetime
+
+
+class CodeDefenseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    submission_id: UUID
+    audio_base64: str = Field(min_length=1, max_length=6_400_000)
+
+
+class CodeDefenseResponse(BaseModel):
+    evaluation_id: UUID
+    submission_id: UUID
+    transcript: str
+    status: str

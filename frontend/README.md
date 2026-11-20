@@ -101,6 +101,7 @@ cp env.template .env
 | `VITE_GOOGLE_CLIENT_ID` | Cliente OAuth Web de Google, idéntico a `GOOGLE_CLIENT_ID` del backend. También es la audiencia de los tokens nativos. Sin configurar, el login queda deshabilitado; no hay cuentas simuladas. | `""` |
 | `VITE_GOOGLE_IOS_CLIENT_ID` | Cliente OAuth de tipo iOS para `com.skillmatch.app`. Requiere configurar su esquema invertido en `ios/App/App/Info.plist`. | `""` |
 | `VITE_APP_VERSION` | Versión semántica del cliente frontend. | `"0.1.0"` |
+| `VITE_BROWSER_SUPERVISION_TRIAL` | Fuerza encendida (`"true"`) o apagada (`"false"`) la prueba de supervisión del navegador (SM-43, `/app/browser-supervision-test`). Vacío/sin definir = activa solo en modo desarrollo de Vite (`DEV`). Nunca se habilita si `VITE_APP_ENV="production"`, sin importar este valor. | `""` (sin definir) |
 
 Plantilla lista para copiar y pegar:
 ```bash
@@ -113,7 +114,44 @@ VITE_APP_NAME="SkillMatch"
 VITE_APP_VERSION="0.1.0"
 VITE_GOOGLE_CLIENT_ID="tu-google-client-id.apps.googleusercontent.com"
 VITE_GOOGLE_IOS_CLIENT_ID=""
+# VITE_BROWSER_SUPERVISION_TRIAL="true"
 ```
+
+---
+
+## 🐳 Docker
+
+El stack completo se levanta con Docker Compose desde la raíz del repositorio; ver la guía
+[`docs/deployment/docker.md`](../docs/deployment/docker.md). La imagen del frontend (`frontend/Dockerfile`, contexto
+`./frontend`) tiene dos targets:
+
+| Target | Uso | Puerto |
+|---|---|---|
+| `dev` | Servidor de Vite con recarga en caliente (`npm run dev -- --host 0.0.0.0 --port 5173`). | `5173` |
+| `runtime` (por defecto, última etapa) | `nginxinc/nginx-unprivileged:1.29-alpine` sirve el `dist/` compilado. | `8080` |
+
+Las variables `VITE_*` se **incrustan en el bundle al compilar**: se pasan como build args y cambiar cualquiera exige
+reconstruir la imagen (no se leen en tiempo de ejecución ni se copia ningún `.env` a la imagen). No son secretos.
+
+| Build arg | Obligatorio | Valor por defecto |
+|---|---|---|
+| `VITE_API_URL` | Sí. URL absoluta `http(s)://…/api` del mismo origen que sirve el frontend (p. ej. `https://skillmatch.example.com/api`). La compilación falla si está vacía o no termina en `/api`. | — |
+| `VITE_APP_ENV` | No | `production` |
+| `VITE_GOOGLE_CLIENT_ID` | No (sin él, el login con Google queda deshabilitado) | `""` |
+| `VITE_GOOGLE_IOS_CLIENT_ID` | No | `""` |
+| `VITE_BROWSER_SUPERVISION_TRIAL` | No (ignorado si `VITE_APP_ENV=production`) | `""` |
+
+```bash
+cd frontend
+docker build --build-arg VITE_API_URL=http://localhost:8080/api -t skillmatch-frontend .   # runtime
+docker build --target dev -t skillmatch-frontend:dev .
+```
+
+En el target `runtime`, nginx (`nginx/default.conf`) es el **único origen público**: sirve la SPA (fallback a
+`index.html`) y hace de proxy inverso de `/api/` y `/ws/` hacia `http://backend:8000` (resolver DNS de Docker, cabeceras de
+WebSocket, timeouts de 1 h, cuerpos de hasta 200 MB), por lo que el backend no publica puertos. `/docs`, `/redoc` y
+`/openapi.json` nunca se reenvían (responden 404). `GET /healthz` responde `200 ok` para el healthcheck. `index.html` y
+`/service-worker.js` se sirven con `Cache-Control: no-cache`; `/assets/` (con hash) como inmutables por un año.
 
 ---
 

@@ -11,9 +11,11 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -262,6 +264,15 @@ class FraudIncident(Base, TimestampMixin):
 
 class ModelVersion(Base, TimestampMixin):
     __tablename__ = "model_versions"
+    __table_args__ = (
+        # One active per-skill validator; global rows (skill_id NULL) are unaffected.
+        Index(
+            "uq_model_versions_active_skill",
+            "skill_id",
+            unique=True,
+            postgresql_where=text("activa IS TRUE AND skill_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -271,3 +282,10 @@ class ModelVersion(Base, TimestampMixin):
     ruta_onnx: Mapped[str] = mapped_column(String(500), nullable=False)
     metricas: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     activa: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Per-skill lab validator (`nombre='skill_validator'`); null for football/flute global models.
+    skill_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("skills.id", ondelete="CASCADE", name="fk_model_versions_skill_id"),
+        nullable=True,
+        index=True,
+    )

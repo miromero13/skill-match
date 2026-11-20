@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, JSON, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,3 +27,5 @@ class Evaluation(Base, TimestampMixin):
     # Only the future calibrated exam-start transition may set this timestamp.
     # Counting starts, not status, prevents abandonment from refunding attempts.
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    final_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    final_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)

@@ -14,6 +14,8 @@ from app.schemas.programming import (
     ChallengeRunRequest,
     ChallengeRunResponse,
     ChallengeSubmissionResponse,
+    CodeDefenseRequest,
+    CodeDefenseResponse,
 )
 from app.schemas.response import APIResponse
 from app.services.programming_service import ChallengeService
@@ -65,6 +67,37 @@ async def publish_challenge(
     return APIResponse(statuscode=200, message="Reto publicado exitosamente.", data=item)
 
 
+@admin_router.get("/challenges/{challenge_id}", response_model=APIResponse[ChallengeResponse])
+async def get_admin_challenge(
+    challenge_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    item = await ChallengeService.get_admin_challenge(db, challenge_id)
+    return APIResponse(statuscode=200, message="Reto recuperado exitosamente.", data=item)
+
+
+@admin_router.put("/challenges/{challenge_id}", response_model=APIResponse[ChallengeResponse])
+async def update_challenge(
+    challenge_id: UUID,
+    payload: ChallengeCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    item = await ChallengeService.update_challenge(db, challenge_id, payload)
+    return APIResponse(statuscode=200, message="Reto actualizado exitosamente.", data=item)
+
+
+@admin_router.post("/challenges/{challenge_id}/archive", response_model=APIResponse[ChallengeSummary])
+async def archive_challenge(
+    challenge_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    item = await ChallengeService.archive_challenge(db, challenge_id)
+    return APIResponse(statuscode=200, message="Reto archivado exitosamente.", data=item)
+
+
 @member_router.get("/evaluations/{evaluation_id}/challenge", response_model=APIResponse[ChallengeResponse])
 async def get_evaluation_challenge(
     evaluation_id: UUID,
@@ -112,3 +145,14 @@ async def submit_solution(
         **result.model_dump(),
     )
     return APIResponse(statuscode=201, message="Solución entregada exitosamente.", data=response)
+
+
+@member_router.post("/evaluations/{evaluation_id}/defense", response_model=APIResponse[CodeDefenseResponse])
+async def submit_code_defense(
+    evaluation_id: UUID,
+    payload: CodeDefenseRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    data = await ChallengeService.submit_defense(db, user, evaluation_id, payload)
+    return APIResponse(statuscode=200, message="Defensa oral registrada exitosamente.", data=data)

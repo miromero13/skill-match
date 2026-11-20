@@ -1,0 +1,133 @@
+# ==============================================================================
+# SkillMatch — Overlay de producción (Coolify / VPS)
+# ==============================================================================
+#   docker compose -f compose.yaml -f compose.prod.yaml build
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d
+#
+# Migraciones (L6): NO corren en cada despliegue. Tras un backup de Postgres:
+#   docker compose -f compose.yaml -f compose.prod.yaml --profile ops run --rm migrate
+#
+# - ENVIRONMENT=production y DEBUG=False forzados (no dependen de .env).
+# - Variables críticas obligatorias con ${VAR:?}: falla antes de crear contenedores.
+# - Sin puertos publicados: Coolify/Traefik enruta el dominio a frontend:8080.
+# - Límites de memoria: punto de partida para un VPS de 8-16 GB; ajustar con
+#   `docker stats` (backend/worker cargan PyTorch + modelos de visión/audio).
+# Requiere Docker Compose >= 2.24 (!reset / !override).
+# ==============================================================================
+
+x-prod-env: &prod-env
+  ENVIRONMENT: production
+  DEBUG: "False"
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required in production}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL is required in production}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required in production}
+  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required in production}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required in production}
+  FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?FRONTEND_BASE_URL is required in production}
+  GARAGE_S3_ACCESS_KEY_ID: ${GARAGE_S3_ACCESS_KEY_ID:?GARAGE_S3_ACCESS_KEY_ID is required in production}
+  GARAGE_S3_SECRET_ACCESS_KEY: ${GARAGE_S3_SECRET_ACCESS_KEY:?GARAGE_S3_SECRET_ACCESS_KEY is required in production}
+  UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+
+services:
+  postgres:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  redis:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  sandbox-docker:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
+  sandbox-init:
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  init-volumes:
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  migrate:
+    profiles: ["ops"]
+    environment: *prod-env
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  backend:
+    restart: unless-stopped
+    environment: *prod-env
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      init-volumes:
+        condition: service_completed_successfully
+      sandbox-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+
+  worker:
+    restart: unless-stopped
+    environment: *prod-env
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      init-volumes:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+
+  beat:
+    restart: unless-stopped
+    environment: *prod-env
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      init-volumes:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  frontend:
+    restart: unless-stopped
+    build:
+      args:
+        VITE_API_URL: ${VITE_API_URL:?VITE_API_URL is required in production (https://<dominio>/api)}
+        VITE_APP_ENV: production
+    ports: !reset []
+    expose:
+      - "8080"
+    deploy:
+      resources:
+        limits:
+          memory: 128m

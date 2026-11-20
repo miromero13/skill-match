@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select"
 import { useTeachingSkillStore } from "@/stores/teaching-skill-store"
 import { EvidenceManager } from "@/components/skill-evidences/evidence-manager"
+import { filterSkillsByCategory, sortCategoriesByPath } from "@/lib/catalog-tree"
 import {
     declaredLevels,
     type TeachingSkill,
@@ -35,6 +36,7 @@ export function TeachingSkillsSection() {
     const role = useAuthStore((state) => state.user?.role)
     const items = useTeachingSkillStore((s) => s.items)
     const catalog = useTeachingSkillStore((s) => s.catalog)
+    const categories = useTeachingSkillStore((s) => s.categories)
     const page = useTeachingSkillStore((s) => s.page)
     const total = useTeachingSkillStore((s) => s.total)
     const loading = useTeachingSkillStore((s) => s.loading)
@@ -47,8 +49,18 @@ export function TeachingSkillsSection() {
     const [open, setOpen] = useState(false)
     const [editingId, setEditingId] = useState<string>()
     const [deleting, setDeleting] = useState<TeachingSkill | null>(null)
+    const [selectedCategoryId, setSelectedCategoryId] = useState("")
     const [form, setForm] = useState<TeachingSkillPayload>(initialForm)
     const [experienceInput, setExperienceInput] = useState("0")
+
+    const categoryOptions = sortCategoriesByPath(categories)
+    const hasCategories = categoryOptions.length > 0
+    const filteredCatalog =
+        editingId || !hasCategories
+            ? catalog
+            : selectedCategoryId
+              ? filterSkillsByCategory(catalog, selectedCategoryId, categories)
+              : []
 
     useEffect(() => {
         void load(1)
@@ -56,6 +68,7 @@ export function TeachingSkillsSection() {
 
     function startCreate() {
         setEditingId(undefined)
+        setSelectedCategoryId("")
         setForm({ ...initialForm })
         setExperienceInput("0")
         setOpen(true)
@@ -63,6 +76,9 @@ export function TeachingSkillsSection() {
 
     function startEdit(item: TeachingSkill) {
         setEditingId(item.id)
+        setSelectedCategoryId(
+            catalog.find((skill) => skill.id === item.skill_id)?.category_id ?? "",
+        )
         setExperienceInput(String(item.years_of_experience))
         setForm({
             skill_id: item.skill_id,
@@ -193,24 +209,67 @@ export function TeachingSkillsSection() {
                             if (await save(form, editingId)) setOpen(false)
                         }}
                     >
+                        {hasCategories && (
+                            <div className="space-y-2">
+                                <Label htmlFor="teaching-category">Categoría</Label>
+                                <Select
+                                    value={selectedCategoryId}
+                                    disabled={Boolean(editingId) || saving || loading || catalog.length === 0}
+                                    onValueChange={(value) => {
+                                        setSelectedCategoryId(value)
+                                        setForm((current) => ({ ...current, skill_id: "" }))
+                                    }}
+                                >
+                                    <SelectTrigger id="teaching-category" className="w-full">
+                                        <SelectValue placeholder="Selecciona una categoría" />
+                                    </SelectTrigger>
+                                    <SelectContent position="popper" className="max-h-60">
+                                        {categoryOptions.map(({ category, label }) => (
+                                            <SelectItem key={category.id} value={category.id}>
+                                                {label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             <Label htmlFor="skill">Habilidad</Label>
                             <Select
                                 value={form.skill_id}
-                                disabled={Boolean(editingId) || saving || loading || catalog.length === 0}
+                                disabled={
+                                    Boolean(editingId) ||
+                                    saving ||
+                                    loading ||
+                                    catalog.length === 0 ||
+                                    (!editingId && hasCategories && !selectedCategoryId)
+                                }
                                 onValueChange={(value) =>
                                     setForm((current) => ({ ...current, skill_id: value }))
                                 }
                             >
                                 <SelectTrigger id="skill" className="w-full">
-                                    <SelectValue placeholder="Selecciona una habilidad" />
+                                    <SelectValue
+                                        placeholder={
+                                            !editingId && hasCategories && !selectedCategoryId
+                                                ? "Primero selecciona una categoría"
+                                                : "Selecciona una habilidad"
+                                        }
+                                    />
                                 </SelectTrigger>
-                                <SelectContent>
-                                    {catalog.map((skill) => (
-                                        <SelectItem key={skill.id} value={skill.id}>
-                                            {skill.name}
-                                        </SelectItem>
-                                    ))}
+                                <SelectContent position="popper" className="max-h-60">
+                                    {filteredCatalog.length === 0 ? (
+                                        <div className="p-3 text-center text-xs text-muted-foreground">
+                                            No hay habilidades habilitadas en esta categoría
+                                        </div>
+                                    ) : (
+                                        filteredCatalog.map((skill) => (
+                                            <SelectItem key={skill.id} value={skill.id}>
+                                                {skill.name}
+                                            </SelectItem>
+                                        ))
+                                    )}
                                 </SelectContent>
                             </Select>
                             {catalog.length === 0 && (

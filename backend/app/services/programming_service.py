@@ -1,12 +1,16 @@
 import ast
 import asyncio
+import base64
+import binascii
 import re
+import secrets
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.exceptions import SkillMatchException
@@ -14,7 +18,15 @@ from app.models.evaluation import Evaluation
 from app.models.theory_exam import TheoryExam
 from app.models.programming import Challenge, ChallengeSubmission, ChallengeTestCase
 from app.models.user import User
-from app.schemas.programming import ChallengeCreateRequest, ChallengePreviewRequest, ChallengeRunResponse, ChallengeTestResult
+from app.schemas.programming import (
+    ChallengeCreateRequest,
+    ChallengePreviewRequest,
+    ChallengeRunResponse,
+    ChallengeTestResult,
+    CodeDefenseRequest,
+    CodeDefenseResponse,
+)
+from app.services.local_speech_service import LocalSpeechService
 from app.services.programming_sandbox_runner import DockerSandboxRunner, SandboxUnavailableError
 
 
@@ -106,18 +118,22 @@ class ChallengeService:
             raise SkillMatchException("La evaluación no existe o no pertenece al usuario.", 404)
         theory_exam = await db.scalar(select(TheoryExam).where(TheoryExam.evaluation_id == evaluation.id))
         level_number = theory_exam.level_number if theory_exam is not None else 1
-        challenge = await db.scalar(
-            select(Challenge)
-            .options(selectinload(Challenge.tests))
-            .where(
-                Challenge.skill_id == evaluation.skill_id,
-                Challenge.level_number == level_number,
-                Challenge.status == "PUBLISHED",
-            )
-            .order_by(Challenge.version.desc())
+        candidates = list(
+            (
+                await db.scalars(
+                    select(Challenge)
+                    .options(selectinload(Challenge.tests))
+                    .where(
+                        Challenge.skill_id == evaluation.skill_id,
+                        Challenge.level_number == level_number,
+                        Challenge.status == "PUBLISHED",
+                    )
+                )
+            ).all()
         )
-        if challenge is None:
+        if not candidates:
             raise SkillMatchException("Todavía no hay un reto publicado para esta evaluación.", 404)
+        challenge = secrets.choice(candidates)
         challenge.tests = [test for test in challenge.tests if test.visibility == "PUBLIC"]
         return challenge
 
@@ -138,6 +154,55 @@ class ChallengeService:
         return challenge
 
     @staticmethod
+    async def get_admin_challenge(db: AsyncSession, challenge_id: uuid.UUID) -> Challenge:
+        challenge = await db.scalar(
+            select(Challenge).options(selectinload(Challenge.tests)).where(Challenge.id == challenge_id)
+        )
+        if challenge is None:
+            raise SkillMatchException("El reto no existe.", 404)
+        return challenge
+
+    @staticmethod
+    async def update_challenge(db: AsyncSession, challenge_id: uuid.UUID, payload: ChallengeCreateRequest) -> Challenge:
+        challenge = await db.scalar(
+            select(Challenge).options(selectinload(Challenge.tests)).where(Challenge.id == challenge_id)
+        )
+        if challenge is None:
+            raise SkillMatchException("El reto no existe.", 404)
+        if payload.evaluation_modality != "SANDBOX" or payload.execution_profile != "PYTHON_3_12":
+            raise SkillMatchException("El evaluador seleccionado todavía no está disponible para retos publicados.", 400)
+        challenge.skill_id = payload.skill_id
+        challenge.level_number = payload.level_number
+        challenge.title = payload.title
+        challenge.statement = payload.statement
+        challenge.evaluation_modality = payload.evaluation_modality
+        challenge.execution_profile = payload.execution_profile
+        challenge.starter_code = payload.starter_code
+        challenge.time_limit_ms = payload.time_limit_ms
+        challenge.memory_limit_mb = payload.memory_limit_mb
+        challenge.max_output_bytes = payload.max_output_bytes
+        challenge.allowed_imports = payload.allowed_imports
+        challenge.blocked_imports = payload.blocked_imports
+        challenge.version = challenge.version + 1
+        challenge.tests.clear()
+        await db.flush()
+        challenge.tests = [ChallengeTestCase(**test.model_dump()) for test in payload.tests]
+        await db.flush()
+        await db.refresh(challenge, attribute_names=["tests"])
+        return challenge
+
+    @staticmethod
+    async def archive_challenge(db: AsyncSession, challenge_id: uuid.UUID) -> Challenge:
+        challenge = await db.scalar(
+            select(Challenge).options(selectinload(Challenge.tests)).where(Challenge.id == challenge_id)
+        )
+        if challenge is None:
+            raise SkillMatchException("El reto no existe.", 404)
+        challenge.status = "ARCHIVED"
+        await db.flush()
+        return challenge
+
+    @staticmethod
     async def publish_challenge(db: AsyncSession, challenge_id: uuid.UUID) -> Challenge:
         challenge = await db.scalar(
             select(Challenge).options(selectinload(Challenge.tests)).where(Challenge.id == challenge_id)
@@ -150,16 +215,6 @@ class ChallengeService:
             raise SkillMatchException("El reto debe tener al menos una prueba oculta antes de publicarse.", 400)
         if not any(test.visibility == "PUBLIC" for test in challenge.tests):
             raise SkillMatchException("El reto debe tener al menos una prueba pública antes de publicarse.", 400)
-        await db.execute(
-            update(Challenge)
-            .where(
-                Challenge.skill_id == challenge.skill_id,
-                Challenge.level_number == challenge.level_number,
-                Challenge.status == "PUBLISHED",
-                Challenge.id != challenge.id,
-            )
-            .values(status="ARCHIVED")
-        )
         challenge.status = "PUBLISHED"
         challenge.published_at = datetime.now(timezone.utc)
         await db.flush()
@@ -175,7 +230,7 @@ class ChallengeService:
         evaluation = await db.scalar(select(Evaluation).where(Evaluation.id == evaluation_id, Evaluation.user_id == user.id))
         if evaluation is None:
             raise SkillMatchException("La evaluación no existe o no pertenece al usuario.", 404)
-        if evaluation.started_at is None:
+        if evaluation.started_at is None and evaluation.status in {"PENDING_CALIBRATION", "CANCELLED"}:
             raise SkillMatchException("La evaluación todavía no comenzó.", 409)
         challenge = await cls.get_challenge(db, challenge_id, include_hidden=True)
         if challenge.skill_id != evaluation.skill_id:
@@ -191,10 +246,53 @@ class ChallengeService:
             result=result.model_dump(mode="json"),
             submitted_at=datetime.now(timezone.utc),
         )
+        evaluation.status = "CODE_DEFENSE_PENDING"
         db.add(submission)
         await db.flush()
         await db.refresh(submission)
         return submission
+
+    @classmethod
+    async def submit_defense(
+        cls, db: AsyncSession, user: User, evaluation_id: uuid.UUID, payload: CodeDefenseRequest
+    ) -> CodeDefenseResponse:
+        evaluation = await db.scalar(
+            select(Evaluation).where(Evaluation.id == evaluation_id, Evaluation.user_id == user.id)
+        )
+        if evaluation is None:
+            raise SkillMatchException("La evaluación no existe o no pertenece al usuario.", 404)
+        if evaluation.status == "CANCELLED":
+            raise SkillMatchException("Esta evaluación fue cancelada.", 409)
+        submission = await db.scalar(
+            select(ChallengeSubmission)
+            .where(ChallengeSubmission.evaluation_id == evaluation.id)
+            .order_by(ChallengeSubmission.submitted_at.desc())
+        )
+        if submission is None:
+            raise SkillMatchException("Debés entregar tu código después de probarlo antes de enviar la defensa oral.", 409)
+        if submission.defense_submission_id == payload.submission_id and submission.defense_transcript is not None:
+            return CodeDefenseResponse(
+                evaluation_id=evaluation.id,
+                submission_id=payload.submission_id,
+                transcript=submission.defense_transcript,
+                status="RECORDED",
+            )
+        try:
+            audio_bytes = base64.b64decode(payload.audio_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise SkillMatchException("El audio de la defensa no tiene un formato válido.", 400) from exc
+        LocalSpeechService.ensure_available()
+        transcript = await run_in_threadpool(LocalSpeechService.transcribe_wav, audio_bytes)
+        submission.defense_submission_id = payload.submission_id
+        submission.defense_transcript = transcript
+        evaluation.status = "READY_FOR_FINAL_REVIEW"
+        await db.flush()
+        return CodeDefenseResponse(
+            evaluation_id=evaluation.id,
+            submission_id=payload.submission_id,
+            transcript=transcript,
+            status="RECORDED",
+        )
 
     @classmethod
     async def _run_tests(cls, challenge: Challenge, code: str, *, public_only: bool) -> ChallengeRunResponse:

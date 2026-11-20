@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { getSkills } from "@/services/admin-catalog-service"
 import { theoryBank, type QuestionContent, type TheoryQuestion } from "@/services/theory-bank-service"
+import { PYTHON_NIVEL1_QUESTIONS } from "@/data/python-nivel1-seed"
 import type { Skill, SkillLevel } from "@/types/catalog"
 import {
   Plus,
@@ -241,6 +242,20 @@ export function TheoryBankPage() {
       }
     })
 
+  const seedPythonLevel1 = () => {
+    if (!skill) return
+    void run(async () => {
+      for (const question of PYTHON_NIVEL1_QUESTIONS) {
+        const created = await theoryBank.create({ ...question, skill_id: skill, level_number: level })
+        await theoryBank.publish(created.data.id, created.data.version)
+      }
+      if (mounted.current) {
+        setMessage(`Se agregaron y publicaron ${PYTHON_NIVEL1_QUESTIONS.length} preguntas de Python Nivel 1 en la habilidad y nivel seleccionados.`)
+        setRefresh((n) => n + 1)
+      }
+    })
+  }
+
   const loadRubricFromSkillLevel = () => {
     if (!content) return
     const levelRubric = currentLevelObj?.rubric?.criteria
@@ -294,6 +309,16 @@ export function TheoryBankPage() {
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || !skill || !levels.some((item) => item.level_number === level)}
+            onClick={seedPythonLevel1}
+            className="border-[#1E2629] bg-[#141C1E] hover:bg-[#1A2225] text-[#2DD4BF] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span>python-nivel1</span>
+          </Button>
           <Button
             disabled={busy || !skill || !levels.some((item) => item.level_number === level)}
             onClick={() => {

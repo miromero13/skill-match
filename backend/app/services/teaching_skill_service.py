@@ -8,6 +8,7 @@ from app.core.exceptions import SkillMatchException
 from app.models.catalog import Category, Skill
 from app.models.teaching_skill import TeachingSkill
 from app.schemas.teaching_skill import TeachingSkillResponse, TeachingSkillWrite
+from app.services.catalog_service import _category_ids
 
 def serialize(item: TeachingSkill, skill_name: str) -> TeachingSkillResponse: 
     return TeachingSkillResponse(
@@ -26,9 +27,11 @@ class TeachingSkillService:
     @staticmethod
     async def available_skills(db: AsyncSession) -> list[Skill]:
         result = await db.scalars(
-            select(Skill) 
-            .join(Category, Category.id == Skill.category_id)
-            .where(Skill.is_active.is_(True), Category.is_active.is_(True))
+            select(Skill)
+            .where(
+                Skill.is_active.is_(True),
+                Skill.category_id.in_(_category_ids(public_only=True)),
+            )
             .order_by(Skill.name, Skill.id)
         )
         return list(result)

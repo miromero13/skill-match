@@ -60,6 +60,7 @@ import { useDatasetCaptureStore } from "@/stores/dataset-capture-store"
 import {
   FootballValidationWizard,
   FootballTrainingStudio,
+  JugglingVideoAnalyzer,
 } from "@/features/football-validation"
 import { FluteGuidedCapture } from "@/components/admin/flute/flute-guided-capture"
 import { FluteTrainingStudio } from "@/components/admin/flute/flute-training-studio"
@@ -805,7 +806,10 @@ export function AdminDatasetCapturePage() {
               skillName={selectedSkillName || "Flauta Dulce"}
             />
           ) : (
-            <FootballValidationWizard skillId={selectedSkillId} />
+            <>
+              <JugglingVideoAnalyzer />
+              <FootballValidationWizard skillId={selectedSkillId} />
+            </>
           )}
         </TabsContent>
 

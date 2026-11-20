@@ -28,6 +28,8 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.exceptions import SkillMatchException
 from app.models.catalog import Category, Skill
+from app.models.evaluation import Evaluation
+from app.models.programming import Challenge, ChallengeSubmission
 from app.models.teaching_skill import TeachingSkill
 from app.models.user import User
 from app.schemas.passport import (
@@ -120,62 +122,61 @@ class PassportService:
         pdf_download_url = f"{base_api_url}/api/passports/{user.id}/pdf"
         public_shareable_url = f"{base_frontend_url}/passport/{user.id}"
 
-        # 6. Dossier Técnico Recruiter-Grade (Solo si el usuario tiene evaluaciones verificadas)
+        # 6. Dossier Técnico real basado en la evaluación aprobada
         verified_skill = next((s for s in skills_list if s.status == "VERIFICADA"), None)
+        passed_eval = await db.scalar(
+            select(Evaluation)
+            .where(Evaluation.user_id == user.id, Evaluation.status == "PASSED")
+            .order_by(Evaluation.updated_at.desc())
+        )
 
-        if verified_skill:
-            source_code_sample = (
-                f"@router.get('/skills/{{id}}/stats', response_model=SkillStats)\n"
-                f"async def get_stats(id: int, r: Redis = Depends(get_redis)):\n"
-                f"    # Solución verificada para {verified_skill.name}\n"
-                f"    if cached := await r.get(f'stats:{{id}}'):\n"
-                f"        return json.loads(cached)\n"
-                f"    stats = await db.fetch_skill_stats(id)\n"
-                f"    if not stats:\n"
-                f"        raise HTTPException(status_code=404, detail='Not found')\n"
-                f"    await r.setex(f'stats:{{id}}', 60, json.dumps(stats))\n"
-                f"    return stats"
+        if verified_skill and passed_eval is not None:
+            submission = await db.scalar(
+                select(ChallengeSubmission)
+                .where(ChallengeSubmission.evaluation_id == passed_eval.id)
+                .order_by(ChallengeSubmission.submitted_at.desc())
             )
+            code_challenge = None
+            oral_defense = None
+            oral_score: Optional[float] = None
 
-            test_cases = [
-                DockerTestCase(name="test_cache_miss_queries_database", status="PASSED", duration_seconds=0.04, percentage=25),
-                DockerTestCase(name="test_cache_hit_returns_fast", status="PASSED", duration_seconds=0.02, percentage=50),
-                DockerTestCase(name="test_not_found_returns_404", status="PASSED", duration_seconds=0.03, percentage=75),
-                DockerTestCase(name="test_redis_ttl_exact_60s", status="PASSED", duration_seconds=0.09, percentage=100),
-            ]
-
-            docker_report = DockerSuiteReport(
-                passed_count=4,
-                total_count=4,
-                execution_time_seconds=0.18,
-                coverage_percentage=100,
-                test_cases=test_cases,
-            )
-
-            code_challenge = AuditedCodeChallenge(
-                title=f"Desafío Práctico: {verified_skill.name}",
-                consigna=f"Implementar solución de arquitectura para {verified_skill.name} con inyección de dependencias, concurrencia asíncrona y suites unitarias Pytest.",
-                file_name="main.py",
-                language="Python 3.12 · UTF-8",
-                source_code=source_code_sample,
-                docker_report=docker_report,
-            )
-
-            oral_defense = OralDefenseAudit(
-                score=95.0,
-                question=(
-                    f"¿Cómo garantizas la consistencia y escalabilidad al implementar {verified_skill.name} "
-                    f"frente a llamadas asíncronas concurrentes en el Event Loop?"
-                ),
-                candidate_transcript=(
-                    "El Event Loop se ejecuta cooperativamente en el thread principal. Si una función hace una "
-                    "llamada sincrónica pesada, se delega al threadpool para evitar bloquear la ejecución de otras tareas..."
-                ),
-                ai_verdict=(
-                    "Dominio arquitectónico sobresaliente. Explicó con exactitud la diferencia entre concurrencia "
-                    "cooperativa y paralelismo preemptivo."
-                ),
-            )
+            if submission is not None:
+                challenge = await db.get(Challenge, submission.challenge_id)
+                raw_results = (submission.result or {}).get("results", [])
+                total = max(submission.total_tests, len(raw_results), 1)
+                test_cases = [
+                    DockerTestCase(
+                        name=str(item.get("name", f"test_{idx + 1}")),
+                        status="PASSED" if item.get("passed") else "FAILED",
+                        duration_seconds=0.0,
+                        percentage=int(round(((idx + 1) / total) * 100)),
+                    )
+                    for idx, item in enumerate(raw_results)
+                ]
+                coverage_pct = int(round((submission.passed_tests / max(submission.total_tests, 1)) * 100))
+                docker_report = DockerSuiteReport(
+                    passed_count=submission.passed_tests,
+                    total_count=submission.total_tests,
+                    execution_time_seconds=0.0,
+                    coverage_percentage=coverage_pct,
+                    test_cases=test_cases,
+                )
+                code_challenge = AuditedCodeChallenge(
+                    title=challenge.title if challenge else f"Reto práctico: {verified_skill.name}",
+                    consigna=challenge.statement if challenge else "",
+                    file_name="solution.py",
+                    language="Python 3.12 · UTF-8",
+                    source_code=submission.code,
+                    docker_report=docker_report,
+                )
+                if submission.defense_transcript is not None:
+                    oral_score = round(float(submission.defense_score or 0.0), 2)
+                    oral_defense = OralDefenseAudit(
+                        score=oral_score,
+                        question="Explicá por qué diseñaste y resolviste el reto de esta manera.",
+                        candidate_transcript=submission.defense_transcript,
+                        ai_verdict=submission.defense_feedback or "Evaluación completada.",
+                    )
 
             anti_fraud = AntiFraudAudit(
                 facial_liveness_score=100.0,
@@ -184,11 +185,12 @@ class PassportService:
                 clipboard_abuse_detected=False,
             )
 
+            eval_skill = next((s for s in skills_list if s.id == passed_eval.teaching_skill_id), verified_skill)
             technical_dossier = TechnicalDossier(
                 has_technical_audit=True,
-                technical_score=98.0,
-                oral_defense_score=95.0,
-                evaluated_skill_name=verified_skill.name,
+                technical_score=round(float(passed_eval.final_score or 0.0), 2),
+                oral_defense_score=oral_score,
+                evaluated_skill_name=eval_skill.name if eval_skill else verified_skill.name,
                 code_challenge=code_challenge,
                 oral_defense=oral_defense,
                 anti_fraud=anti_fraud,
