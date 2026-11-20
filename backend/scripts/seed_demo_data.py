@@ -359,16 +359,19 @@ async def seed_all_demo() -> None:
         if not future_sess_res.scalar_one_or_none():
             db.add(
                 ExchangeSession(
+                    match_id=match_obj.id,
+                    teaching_skill_id=carlos_ts.id,
+                    created_by_id=sofia.id,
                     instructor_id=carlos.id,
                     learner_id=sofia.id,
-                    skill_id=python_skill.id,
                     starts_at=future_start,
                     ends_at=future_end,
+                    timezone="UTC",
                     modality="VIRTUAL",
                     status="ACCEPTED",
+                    is_free=False,
                     points_required=20,
                     payment_state="RESERVED",
-                    meeting_url="https://meet.google.com/skm-demo-test",
                 )
             )
             logger.info("Sesión futura aceptada agendada para mañana a las 15:00 UTC.")
@@ -387,17 +390,21 @@ async def seed_all_demo() -> None:
         past_session = past_sess_res.scalar_one_or_none()
         if not past_session:
             past_session = ExchangeSession(
+                match_id=match_obj.id,
+                teaching_skill_id=carlos_ts.id,
+                created_by_id=sofia.id,
                 instructor_id=carlos.id,
                 learner_id=sofia.id,
-                skill_id=python_skill.id,
                 starts_at=past_start,
                 ends_at=past_end,
+                timezone="UTC",
                 actual_minutes=50,
                 modality="VIRTUAL",
                 status="COMPLETED",
+                is_free=False,
                 points_required=20,
                 payment_state="RELEASED",
-                meeting_url="https://meet.google.com/skm-past-session",
+                completed_at=past_end,
             )
             db.add(past_session)
             await db.flush()
@@ -428,28 +435,29 @@ async def seed_all_demo() -> None:
 
         # 11. Notificaciones en bandeja (Notification)
         notif_samples = [
-            (carlos.id, NotificationType.MATCH_CONFIRMED, "¡Nuevo Match Confirmado!", "Tienes un nuevo match de intercambio de habilidades con Sofía Paredes.", "/app/matches", False),
-            (carlos.id, NotificationType.SESSION_ACCEPTED, "Sesión Confirmada: Programación en Python", "Tu sesión virtual de intercambio con Sofía ha sido confirmada.", "/app/sessions", True),
-            (carlos.id, NotificationType.POINTS_RECEIVED, "SkillPoints Acreditados", "Has recibido 20 SkillPoints por completar exitosamente una sesión formativa.", "/app/wallet", False),
-            (sofia.id, NotificationType.MATCH_CONFIRMED, "¡Nuevo Match Confirmado!", "Tienes un nuevo match de intercambio de habilidades con Carlos Mendoza.", "/app/matches", False),
-            (sofia.id, NotificationType.SESSION_ACCEPTED, "Sesión Programada", "Tu sesión de Programación en Python está agendada para mañana a las 15:00 UTC.", "/app/sessions", False),
+            (carlos.id, NotificationType.MATCH_CONFIRMED.value, "¡Nuevo Match Confirmado!", "Tienes un nuevo match de intercambio de habilidades con Sofía Paredes.", False),
+            (carlos.id, NotificationType.SESSION_ACCEPTED.value, "Sesión Confirmada: Programación en Python", "Tu sesión virtual de intercambio con Sofía ha sido confirmada.", True),
+            (carlos.id, NotificationType.POINTS_RECEIVED.value, "SkillPoints Acreditados", "Has recibido 20 SkillPoints por completar exitosamente una sesión formativa.", False),
+            (sofia.id, NotificationType.MATCH_CONFIRMED.value, "¡Nuevo Match Confirmado!", "Tienes un nuevo match de intercambio de habilidades con Carlos Mendoza.", False),
+            (sofia.id, NotificationType.SESSION_ACCEPTED.value, "Sesión Programada", "Tu sesión de Programación en Python está agendada para mañana a las 15:00 UTC.", False),
         ]
-        for recipient_id, ntype, title, body, action_url, is_read in notif_samples:
+        for user_id, ntype, title, message, is_read in notif_samples:
             existing_notif = await db.execute(
                 select(Notification).where(
-                    Notification.recipient_id == recipient_id,
+                    Notification.user_id == user_id,
                     Notification.title == title,
                 )
             )
             if not existing_notif.scalar_one_or_none():
                 db.add(
                     Notification(
-                        recipient_id=recipient_id,
+                        id=uuid.uuid4(),
+                        user_id=user_id,
+                        event_id=uuid.uuid4(),
                         type=ntype,
                         title=title,
-                        body=body,
-                        action_url=action_url,
-                        is_read=is_read,
+                        message=message,
+                        read_at=datetime.now(timezone.utc) if is_read else None,
                     )
                 )
         logger.info("Notificaciones de bienvenida y actividad sincronizadas.")
@@ -463,9 +471,10 @@ async def seed_all_demo() -> None:
                 Complaint(
                     user_id=sofia.id,
                     session_id=past_session.id,
-                    reason=ComplaintReason.QUALITY_ISSUE,
+                    reason=ComplaintReason.QUALITY_ISSUE.value,
+                    title="Audio intermitente en primeros minutos de sesión",
                     description="El audio de la videollamada presentó intermitencias técnicas breves durante los primeros 5 minutos de la sesión.",
-                    status=ComplaintStatus.RESOLVED,
+                    status=ComplaintStatus.RESOLVED.value,
                     points_compensated=5,
                 )
             )
