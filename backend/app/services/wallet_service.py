@@ -1,8 +1,8 @@
 """Servicio de Dominio de Billetera, Puntos, Pasarela y Escrow (HU-42)."""
 import asyncio
-from datetime import datetime, timezone
+import logging
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
@@ -30,7 +30,10 @@ from app.schemas.wallet import (
     TopupResult,
     WalletBalanceData,
 )
+from app.services.fcm_service import FCMService
 from app.services.notification_service import NotificationService
+
+logger = logging.getLogger("skillmatch.wallet")
 
 # Catálogo canónico de paquetes de compra de SkillPoints
 PACKAGES_CATALOG: dict[str, PointPackageItem] = {
@@ -79,7 +82,7 @@ PACKAGES_CATALOG: dict[str, PointPackageItem] = {
 
 class WalletService:
     @staticmethod
-    def get_available_packages() -> List[PointPackageItem]:
+    def get_available_packages() -> list[PointPackageItem]:
         """Devuelve los paquetes de puntos configurados."""
         return list(PACKAGES_CATALOG.values())
 
@@ -151,7 +154,7 @@ class WalletService:
         wallet.balance += total_to_add
 
         tx_id = uuid4()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         receipt = f"REC-{now.strftime('%Y%m%d')}-{tx_id.hex[:6].upper()}"
 
         card_detail = f"Tarjeta •••• {payload.card_last_four}" if payload.card_last_four and payload.payment_method == "card" else ("PayPal" if payload.payment_method == "paypal" else "Pasarela")
@@ -188,6 +191,22 @@ class WalletService:
 
         await db.commit()
         await db.refresh(wallet)
+
+        # Despacho de notificación push nativa a Firebase (FCM)
+        try:
+            await FCMService.send_push_to_user(
+                db,
+                user_id=user_id,
+                title="Recarga de SkillPoints Exitosa",
+                body=f"Se han acreditado +{total_to_add} SP en tu billetera ({pkg.name}). Saldo disponible: {wallet.balance} SP.",
+                data={
+                    "type": "wallet_topup",
+                    "transaction_id": str(tx_id),
+                    "amount": str(total_to_add),
+                },
+            )
+        except Exception as fcm_err:  # noqa: BLE001
+            logger.warning(f"No se pudo enviar push FCM tras recarga: {fcm_err}")
 
         return TopupResult(
             transaction_id=tx_id,
@@ -261,7 +280,6 @@ class WalletService:
         wallet.balance -= payload.points_amount
 
         req_id = uuid4()
-        now = datetime.now(timezone.utc)
 
         cashout_req = CashoutRequest(
             id=req_id,
@@ -305,6 +323,18 @@ class WalletService:
         await db.commit()
         await db.refresh(cashout_req)
 
+        # Despacho de notificación push nativa a Firebase (FCM)
+        try:
+            await FCMService.send_push_to_user(
+                db,
+                user_id=user_id,
+                title="Solicitud de Retiro Registrada",
+                body=f"Tu solicitud de retiro por ${float(net):.2f} USD ({payload.points_amount} SP) fue enviada a revisión.",
+                data={"type": "wallet_cashout", "request_id": str(req_id)},
+            )
+        except Exception as fcm_err:  # noqa: BLE001
+            logger.warning(f"No se pudo enviar push FCM tras solicitud de retiro: {fcm_err}")
+
         masked_account = (
             f"•••• {payload.account_number[-4:]}"
             if len(payload.account_number) >= 4
@@ -332,10 +362,10 @@ class WalletService:
     async def list_transactions(
         db: AsyncSession,
         user_id: UUID,
-        type_filter: Optional[str] = None,
+        type_filter: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[PointTransactionItem], int]:
+    ) -> tuple[list[PointTransactionItem], int]:
         """Devuelve el historial paginado de movimientos contables."""
         query = select(PointTransaction).where(PointTransaction.user_id == user_id)
         if type_filter and type_filter != "ALL":
@@ -437,6 +467,18 @@ class WalletService:
         await db.commit()
         await db.refresh(wallet)
         await db.refresh(session)
+
+        # Despacho de notificación push nativa a Firebase (FCM)
+        try:
+            await FCMService.send_push_to_user(
+                db,
+                user_id=user_id,
+                title="Garantía Escrow Asegurada",
+                body=f"Se aseguraron {points_to_lock} SP en custodia Escrow para tu sesión ({session.modality}). Fondos protegidos.",
+                data={"type": "session_escrow_locked", "session_id": str(session.id)},
+            )
+        except Exception as fcm_err:  # noqa: BLE001
+            logger.warning(f"No se pudo enviar push FCM tras retener Escrow: {fcm_err}")
 
         return SessionPayResult(
             session_id=session.id,
