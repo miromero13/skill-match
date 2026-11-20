@@ -16,7 +16,7 @@ export function PlatformLayout() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <PlatformSidebar />
         <main
-          className={`min-w-0 flex-1 h-full pb-[54px] md:pb-0 ${
+          className={`min-w-0 flex-1 h-full pb-[calc(54px+env(safe-area-inset-bottom,0px))] md:pb-0 ${
             isFeed
               ? "overflow-hidden"
               : isProfile

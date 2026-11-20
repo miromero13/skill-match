@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
+  Camera,
   CheckCircle2,
   FileCheck2,
   IdCard,
@@ -36,7 +37,9 @@ export function BiometricEnrollmentCard({ onVerified }: { onVerified?: () => voi
   const animFrameRef = useRef<number | null>(null)
 
   const fileInputFrontRef = useRef<HTMLInputElement | null>(null)
+  const fileInputFrontCameraRef = useRef<HTMLInputElement | null>(null)
   const fileInputBackRef = useRef<HTMLInputElement | null>(null)
+  const fileInputBackCameraRef = useRef<HTMLInputElement | null>(null)
 
   const [activeStep, setActiveStep] = useState<1 | 2>(1)
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -397,6 +400,14 @@ export function BiometricEnrollmentCard({ onVerified }: { onVerified?: () => voi
                       onChange={(e) => handleFileUpload(e, "front")}
                       className="hidden"
                     />
+                    <input
+                      ref={fileInputFrontCameraRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => handleFileUpload(e, "front")}
+                      className="hidden"
+                    />
 
                     {frontImageBase64 ? (
                       <div className="relative rounded-xl border bg-muted/20 p-3 flex items-center justify-between gap-3">
@@ -424,18 +435,35 @@ export function BiometricEnrollmentCard({ onVerified }: { onVerified?: () => voi
                         </Button>
                       </div>
                     ) : (
-                      <div
-                        onClick={() => fileInputFrontRef.current?.click()}
-                        className="cursor-pointer border-2 border-dashed border-border/80 hover:border-primary/50 rounded-xl p-5 text-center space-y-2 bg-muted/10 transition-colors"
-                      >
-                        <Upload className="size-6 mx-auto text-muted-foreground" />
+                      <div className="border-2 border-dashed border-border/80 hover:border-primary/50 rounded-xl p-4 text-center space-y-3 bg-muted/10 transition-colors">
                         <div className="text-xs space-y-0.5">
                           <p className="font-semibold text-foreground">
-                            Cargar anverso del carnet
+                            Anverso del carnet físico
                           </p>
                           <p className="text-muted-foreground text-[11px]">
-                            Debe apreciarse la foto del titular y el documento
+                            Foto nítida con tu fotografía y datos visibles
                           </p>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 text-xs gap-1.5"
+                            onClick={() => fileInputFrontCameraRef.current?.click()}
+                          >
+                            <Camera className="size-3.5" />
+                            Tomar Foto
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs gap-1.5"
+                            onClick={() => fileInputFrontRef.current?.click()}
+                          >
+                            <Upload className="size-3.5" />
+                            Galería
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -461,6 +489,14 @@ export function BiometricEnrollmentCard({ onVerified }: { onVerified?: () => voi
                       type="file"
                       accept="image/*"
                       data-testid="input-back-card"
+                      onChange={(e) => handleFileUpload(e, "back")}
+                      className="hidden"
+                    />
+                    <input
+                      ref={fileInputBackCameraRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
                       onChange={(e) => handleFileUpload(e, "back")}
                       className="hidden"
                     />
@@ -491,18 +527,35 @@ export function BiometricEnrollmentCard({ onVerified }: { onVerified?: () => voi
                         </Button>
                       </div>
                     ) : (
-                      <div
-                        onClick={() => fileInputBackRef.current?.click()}
-                        className="cursor-pointer border-2 border-dashed border-border/80 hover:border-primary/50 rounded-xl p-5 text-center space-y-2 bg-muted/10 transition-colors"
-                      >
-                        <Upload className="size-6 mx-auto text-muted-foreground" />
+                      <div className="border-2 border-dashed border-border/80 hover:border-primary/50 rounded-xl p-4 text-center space-y-3 bg-muted/10 transition-colors">
                         <div className="text-xs space-y-0.5">
                           <p className="font-semibold text-foreground">
-                            Cargar reverso del carnet
+                            Reverso del carnet físico
                           </p>
                           <p className="text-muted-foreground text-[11px]">
                             Debe apreciarse el código de barras o MRZ
                           </p>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 text-xs gap-1.5"
+                            onClick={() => fileInputBackCameraRef.current?.click()}
+                          >
+                            <Camera className="size-3.5" />
+                            Tomar Foto
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs gap-1.5"
+                            onClick={() => fileInputBackRef.current?.click()}
+                          >
+                            <Upload className="size-3.5" />
+                            Galería
+                          </Button>
                         </div>
                       </div>
                     )}
