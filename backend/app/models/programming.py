@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -79,3 +79,7 @@ class ChallengeSubmission(Base, TimestampMixin):
     total_tests: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     result: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    defense_submission_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    defense_transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    defense_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    defense_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)

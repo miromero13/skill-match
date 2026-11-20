@@ -17,10 +17,40 @@ export async function previewChallenge(payload: ChallengePayload, code: string):
   return response.data
 }
 
-export async function createChallenge(payload: ChallengePayload): Promise<Challenge> {
+export async function createChallenge(payload: ChallengePayload, options?: { silent?: boolean }): Promise<Challenge> {
   const response = await apiClient.post<Challenge>("/admin/challenges", payload, {
     showToastOnError: true,
+    showToastOnSuccess: !options?.silent,
+  })
+  return response.data
+}
+
+export async function getAdminChallenge(challengeId: string): Promise<Challenge> {
+  const response = await apiClient.get<Challenge>(`/admin/challenges/${challengeId}`, {
+    showToastOnError: true,
+  })
+  return response.data
+}
+
+export async function updateChallenge(challengeId: string, payload: ChallengePayload): Promise<Challenge> {
+  const response = await apiClient.put<Challenge>(`/admin/challenges/${challengeId}`, payload, {
+    showToastOnError: true,
     showToastOnSuccess: true,
+  })
+  return response.data
+}
+
+export async function archiveChallenge(id: string): Promise<Challenge> {
+  const response = await apiClient.post<Challenge>(`/admin/challenges/${id}/archive`, {}, {
+    showToastOnError: true,
+    showToastOnSuccess: true,
+  })
+  return response.data
+}
+
+export async function getChallengeDetail(challengeId: string): Promise<Challenge> {
+  const response = await apiClient.get<Challenge>(`/challenges/${challengeId}`, {
+    showToastOnError: true,
   })
   return response.data
 }
@@ -48,10 +78,22 @@ export async function submitChallengeSolution(evaluationId: string, challengeId:
   return response.data
 }
 
-export async function publishChallenge(id: string): Promise<Challenge> {
+export async function submitCodeDefense(
+  evaluationId: string,
+  payload: { submission_id: string; audio_base64: string }
+): Promise<{ evaluation_id: string; submission_id: string; transcript: string; status: string }> {
+  const response = await apiClient.post<{ evaluation_id: string; submission_id: string; transcript: string; status: string }>(
+    `/challenges/evaluations/${evaluationId}/defense`,
+    payload,
+    { showToastOnError: false, showToastOnSuccess: false }
+  )
+  return response.data
+}
+
+export async function publishChallenge(id: string, options?: { silent?: boolean }): Promise<Challenge> {
   const response = await apiClient.post<Challenge>(`/admin/challenges/${id}/publish`, {}, {
     showToastOnError: true,
-    showToastOnSuccess: true,
+    showToastOnSuccess: !options?.silent,
   })
   return response.data
 }

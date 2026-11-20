@@ -9,20 +9,16 @@ from app.football.pipeline.challenge_engine import (
     ChallengeEvaluationSummary,
     _compute_touch_peak_heights,
 )
-from app.football.pipeline.fusion import FusionSummary
+from app.football.pipeline.fusion import FusedTouchEvent, FusionSummary
+
+# A pause longer than this between two touches means the ball was lost (a drop).
+DROP_GAP_S = 2.2
 
 
-def extract_session_features(
-    track: BallTrack | None,
+def _split_valid_events(
     fusion: FusionSummary,
-    challenge_eval: ChallengeEvaluationSummary | None = None,
-    session_duration_s: float | None = None,
-) -> dict[str, Any]:
-    """
-    Pure pipeline step (`features`):
-    Consolidates tracking, audio-video fusion, and dynamic challenge outputs into
-    the canonical feature dictionary required by `scoring` and `fraud`.
-    """
+) -> tuple[list[FusedTouchEvent], list[FusedTouchEvent]]:
+    """Return `(touches, all_valid_events)`; ground bounces are only in the second list."""
     all_valid_events = sorted(
         [
             ev
@@ -40,6 +36,56 @@ def extract_session_features(
     # streak but are not themselves a valid touch, so they are excluded from
     # total_touches/touch_times_ms while still acting as a streak boundary.
     valid_events = [ev for ev in all_valid_events if not ev.is_ground_bounce]
+    return valid_events, all_valid_events
+
+
+def _streak_break(
+    t_curr: int, t_next: int, all_valid_events: list[FusedTouchEvent]
+) -> tuple[float, bool]:
+    """`(gap_s, breaks)`: a streak breaks on a > 2.2 s gap or a ground bounce in between."""
+    dt_s = (t_next - t_curr) / 1000.0
+    bounce_between = any(
+        t_curr < ev.t_ms < t_next for ev in all_valid_events if ev.is_ground_bounce
+    )
+    return dt_s, dt_s > DROP_GAP_S or bounce_between
+
+
+def compute_touch_streaks(fusion: FusionSummary) -> list[int]:
+    """
+    Lengths of every run of consecutive touches without a drop, in time order
+    (same rule as `extract_session_features`: reset on a ground bounce or a
+    > 2.2 s gap). `max(streaks)` equals the feature `max_streak`.
+    """
+    valid_events, all_valid_events = _split_valid_events(fusion)
+    if not valid_events:
+        return []
+    streaks: list[int] = []
+    current = 1
+    for idx in range(len(valid_events) - 1):
+        _, breaks = _streak_break(
+            valid_events[idx].t_ms, valid_events[idx + 1].t_ms, all_valid_events
+        )
+        if breaks:
+            streaks.append(current)
+            current = 1
+        else:
+            current += 1
+    streaks.append(current)
+    return streaks
+
+
+def extract_session_features(
+    track: BallTrack | None,
+    fusion: FusionSummary,
+    challenge_eval: ChallengeEvaluationSummary | None = None,
+    session_duration_s: float | None = None,
+) -> dict[str, Any]:
+    """
+    Pure pipeline step (`features`):
+    Consolidates tracking, audio-video fusion, and dynamic challenge outputs into
+    the canonical feature dictionary required by `scoring` and `fraud`.
+    """
+    valid_events, all_valid_events = _split_valid_events(fusion)
     touch_times_ms = [ev.t_ms for ev in valid_events]
     total_touches = len(touch_times_ms)
     ground_bounce_count = sum(1 for ev in all_valid_events if ev.is_ground_bounce)
@@ -48,27 +94,17 @@ def extract_session_features(
     # between them), and max streak of consecutive touches without a drop.
     intervals_s: list[float] = []
     drops = ground_bounce_count
-    max_streak = 0
-    current_streak = 1 if total_touches > 0 else 0
-
     for idx in range(len(valid_events) - 1):
-        t_curr, t_next = valid_events[idx].t_ms, valid_events[idx + 1].t_ms
-        dt_s = (t_next - t_curr) / 1000.0
-        intervals_s.append(dt_s)
-        bounce_between = any(
-            t_curr < ev.t_ms < t_next for ev in all_valid_events if ev.is_ground_bounce
+        dt_s, _ = _streak_break(
+            valid_events[idx].t_ms, valid_events[idx + 1].t_ms, all_valid_events
         )
-        if dt_s > 2.2 or bounce_between:
-            if dt_s > 2.2:
-                drops += 1
-            max_streak = max(max_streak, current_streak)
-            current_streak = 1
-        else:
-            current_streak += 1
-    max_streak = max(max_streak, current_streak)
+        intervals_s.append(dt_s)
+        if dt_s > DROP_GAP_S:
+            drops += 1
+    max_streak = max(compute_touch_streaks(fusion), default=0)
 
     # Regularity: standard deviation of non-drop inter-touch intervals (seconds)
-    active_intervals = [dt for dt in intervals_s if dt <= 2.2]
+    active_intervals = [dt for dt in intervals_s if dt <= DROP_GAP_S]
     interval_std_s = (
         float(np.std(active_intervals)) if len(active_intervals) >= 2 else 0.0
     )

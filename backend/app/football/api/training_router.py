@@ -4,7 +4,7 @@ from typing import Any, Optional
 from uuid import UUID
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,7 @@ from app.football.services.training_service import (
     list_football_model_versions,
     preview_football_dataset,
 )
+from app.football.services.video_analysis_service import analyze_uploaded_video
 from app.football.tasks import celery_app, train_level_model_task
 from app.models.user import User
 from app.schemas.response import APIResponse
@@ -141,6 +142,31 @@ async def train_model_status(
         statuscode=status.HTTP_200_OK,
         message="Estado del entrenamiento recuperado.",
         data=data,
+    )
+
+
+@training_router.post(
+    "/analyze-video",
+    response_model=APIResponse[dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Analizar un video de dominadas subido (solo admin, prueba sin intentos)",
+)
+async def analyze_video(
+    file: UploadFile | None = File(default=None),
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_current_admin_user),
+) -> APIResponse[dict[str, Any]]:
+    """
+    Detects the ball, counts touches (streak resets on ground contact), and always
+    grades: unreadable/empty/oversize files or detector failures still return 200
+    with 0 touches, level "Principiante" and an explanatory note. Nothing is
+    persisted and no validation attempt is consumed.
+    """
+    result = await analyze_uploaded_video(db=db, upload=file)
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message="Análisis de video completado.",
+        data=result,
     )
 
 

@@ -10,7 +10,7 @@ import type { APIResponse } from "@/types/api"
 export interface FluteFeatures {
   audio_features: number[]
   visual_features: number[]
-  visual_schema: "hand-landmarks-palm-v2"
+  visual_schema: "hand-landmarks-palm-v4"
 }
 
 export interface FluteLabels extends FluteFeatures {
@@ -21,22 +21,33 @@ export interface FluteLabels extends FluteFeatures {
   posture_label: "correcta" | "incorrecta" | "sin_manos"
 }
 
+export interface FluteClassProbability {
+  label: string
+  probability: number
+}
+
 export interface FluteInference {
   model_id: string
   model_version: string
   validated: boolean
-  target_note: string
+  experimental?: boolean
+  target_note: string | null
   sound_class: string
   sound_confidence: number
   sound_ok: boolean
+  top_sound_classes?: FluteClassProbability[]
   posture_class: string
   posture_confidence: number
   posture_ok: boolean | null
   posture_evaluable: boolean
   posture_reason: string | null
+  top_posture_classes?: FluteClassProbability[]
+  combined_note?: string | null
+  combined_match?: boolean
 }
 
 interface FluteHeadMetrics {
+  train_accuracy?: number | null
   test_accuracy: number | null
   rule_baseline_accuracy?: number | null
   majority_baseline_accuracy?: number | null
@@ -99,7 +110,7 @@ export function saveFluteLabels(sampleId: string, payload: FluteLabels) {
   )
 }
 
-export function inferFlute(payload: FluteFeatures & { target_note: string }) {
+export function inferFlute(payload: FluteFeatures & { target_note?: string | null }) {
   return apiClient.post<FluteInference>(
     "/ai/datasets/samples/flute/infer",
     payload

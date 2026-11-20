@@ -1,13 +1,14 @@
 """
-Flute (recorder) dual classifier: sound head + fingering/posture head.
+Flute (recorder) dual neural classifier: sound timbre head + fingering/posture head.
 
-- Training data: music dataset samples that have a reviewed label sidecar
-  (`datasets/musica/features/{sample_id}.json`) with participant, note, sound
-  label (flauta/voz/ruido), posture label (correcta/incorrecta/sin_manos) and
-  the audio/visual feature vectors captured by the admin capture tool.
-- Split is grouped by participant: no person appears in both train and test.
-- Artifact: a real ONNX ModelProto (protobuf, opset 13) built without extra
-  dependencies. Inference loads the parameters back from that same file.
+- Sound head: 48-dim pure acoustic timbre vector (32 L2-normalized log-Mel bands
+  + 13 MFCCs + RMS + spectral flatness + low-band ratio). Zero pitch/Hz measurement.
+- Posture head: 148-dim hand landmark + finger flexion vector (`hand-landmarks-palm-v3`).
+- Training data: music dataset samples with reviewed label sidecars
+  (`datasets/musica/features/{sample_id}.json`).
+- Split is grouped by participant when >= 2 participants exist.
+- Artifact: real ONNX ModelProto (protobuf, opset 13) with 2-layer MLP per head
+  built without extra dependencies. Inference loads parameters back from that file.
 """
 from __future__ import annotations
 
@@ -35,18 +36,26 @@ logger = logging.getLogger("skillmatch.flute_training_service")
 FLUTE_NOTES: tuple[str, ...] = (
     "DO", "RE", "MI", "FA", "FA#", "SOL", "LA", "SI", "DO6", "RE6", "MI6",
 )
-FLUTE_NOTE_HZ: dict[str, float] = {
-    "DO": 523.25, "RE": 587.33, "MI": 659.25, "FA": 698.46, "FA#": 739.99,
-    "SOL": 783.99, "LA": 880.00, "SI": 987.77, "DO6": 1046.50,
-    "RE6": 1174.66, "MI6": 1318.51,
-}
 
-# Feature layout shared with frontend/src/components/admin/flute/flute-hand-features.ts
-AUDIO_FEATURE_DIM = 28  # 24 band shares + pitch/1500 + crest + low-band ratio + rms
-VISUAL_FEATURE_DIM = 128  # 2 handedness slots: presence + 21 xyz points relative to palm basis
-VISUAL_FEATURE_SCHEMA = "hand-landmarks-palm-v2"
-AUDIO_PITCH_IDX = 24
-AUDIO_LOWBAND_IDX = 26
+# Feature layout shared with frontend/src/components/admin/flute/
+AUDIO_FEATURE_DIM = 48  # 32 log-Mel + 13 MFCCs + rms + spectral flatness + low-band ratio
+VISUAL_HAND_SLOT_DIM = 25  # 1 presence + 5 curls + 5 palm dists + 5 mcp dists + 4 spreads + 5 heights
+VISUAL_FEATURE_DIM = VISUAL_HAND_SLOT_DIM * 2  # 50
+VISUAL_FEATURE_SCHEMA = "hand-landmarks-palm-v4"
+LEGACY_V3_VISUAL_SCHEMA = "hand-landmarks-palm-v3"
+LEGACY_V3_HAND_SLOT_DIM = 74
+LEGACY_V3_VISUAL_DIM = LEGACY_V3_HAND_SLOT_DIM * 2  # 148
+
+_FINGER_CHAINS: tuple[tuple[int, int, int, int], ...] = (
+    (1, 2, 3, 4),      # Thumb
+    (5, 6, 7, 8),      # Index
+    (9, 10, 11, 12),   # Middle
+    (13, 14, 15, 16),  # Ring
+    (17, 18, 19, 20),  # Pinky
+)
+_ADJACENT_TIP_PAIRS: tuple[tuple[int, int], ...] = (
+    (4, 8), (8, 12), (12, 16), (16, 20),
+)
 
 NO_FLUTE = "NO_FLAUTA"
 WRONG_POSTURE = "INCORRECTA"
@@ -57,6 +66,9 @@ POSTURE_LABELS = ("correcta", "incorrecta", "sin_manos")
 MODEL_NAME = "flute_dual_classifier"
 MUSIC_DISCIPLINES = ["musica", "música", "flauta"]
 DECISION_THRESHOLD = 0.5
+POSTURE_TOP_K = 3
+POSTURE_APPROX_MIN_PROB = 0.15
+POSTURE_MIN_PEAK_CONF = 0.25
 LATENCY_RUNS = 300
 
 _PARAMS_CACHE: dict[str, dict[str, np.ndarray]] = {}
@@ -144,7 +156,10 @@ async def save_flute_labels(
         )
 
     if visual_schema != VISUAL_FEATURE_SCHEMA:
-        raise SkillMatchException(statuscode=400, message="Formato visual antiguo. Extraé articulaciones antes de entrenar.")
+        raise SkillMatchException(
+            statuscode=400,
+            message="Formato de features antiguo. Reprocesá los videos con timbre y flexión de dedos antes de entrenar.",
+        )
     frames = feature_frames or [{"audio_features": audio_features, "visual_features": visual_features}]
     if len(frames) > 120:
         raise SkillMatchException(statuscode=400, message="Se permiten como máximo 120 fotogramas por muestra.")
@@ -153,10 +168,13 @@ async def save_flute_labels(
         audio = _validate_vector(frame["audio_features"], AUDIO_FEATURE_DIM, "de audio")
         visual = _validate_vector(frame["visual_features"], VISUAL_FEATURE_DIM, "visual")
         if posture_label == "correcta" and not _has_required_hands(visual, note_label):
-            continue  # Missing landmarks are not examples of correct/incorrect fingering.
+            continue  # Missing landmarks are not examples of correct fingering.
         checked_frames.append({"audio_features": audio, "visual_features": visual})
     if len(checked_frames) < 3:
-        raise SkillMatchException(statuscode=400, message="Se necesitan al menos 3 fotogramas con las manos requeridas detectadas. La muestra no fue etiquetada.")
+        raise SkillMatchException(
+            statuscode=400,
+            message="Se necesitan al menos 3 fotogramas con las manos requeridas detectadas. La muestra no fue etiquetada.",
+        )
 
     payload = {
         "visual_schema": VISUAL_FEATURE_SCHEMA,
@@ -184,7 +202,9 @@ async def save_flute_labels(
 
 
 def _has_required_hands(visual: list[float], note: str | None) -> bool:
-    count = int(visual[0] == 1) + int(visual[64] == 1)
+    count = int(visual[0] == 1) + int(visual[VISUAL_HAND_SLOT_DIM] == 1)
+    if note is None:
+        return count >= 1
     required = 2 if note in {"DO", "RE", "MI", "FA", "FA#", "MI6"} else 1
     return count >= required
 
@@ -206,18 +226,59 @@ async def _music_samples(db: AsyncSession) -> list[DatasetSample]:
     return list(result.scalars().all())
 
 
+def _finger_curl_cos(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> float:
+    v1 = b - a
+    v2 = c - b
+    denom = float(np.linalg.norm(v1) * np.linalg.norm(v2))
+    if denom < 1e-6:
+        return 0.0
+    return float(np.clip(np.dot(v1, v2) / denom, -1.0, 1.0))
+
+
+def _convert_v3_visual_to_v4(visual_v3: list[float]) -> list[float]:
+    """Exact geometric conversion from hand-landmarks-palm-v3 (148) to v4 (50)."""
+    out = [0.0] * VISUAL_FEATURE_DIM
+    for slot in (0, 1):
+        src_off = slot * LEGACY_V3_HAND_SLOT_DIM
+        dst_off = slot * VISUAL_HAND_SLOT_DIM
+        if visual_v3[src_off] != 1.0:
+            continue
+        out[dst_off] = 1.0
+        pts = np.asarray(visual_v3[src_off + 1 : src_off + 64], dtype=np.float64).reshape(21, 3)
+        palm_center = (pts[0] + pts[5] + pts[9] + pts[17]) / 4.0
+        for idx, (base, mid, joint, tip) in enumerate(_FINGER_CHAINS):
+            curl1 = _finger_curl_cos(pts[base], pts[mid], pts[joint])
+            curl2 = _finger_curl_cos(pts[mid], pts[joint], pts[tip])
+            out[dst_off + 1 + idx] = (curl1 + curl2) / 2.0
+            out[dst_off + 6 + idx] = float(np.linalg.norm(pts[tip] - palm_center))
+            out[dst_off + 11 + idx] = float(np.linalg.norm(pts[tip] - pts[base]))
+            out[dst_off + 20 + idx] = float(pts[tip, 2] - palm_center[2])
+        for idx, (a, b) in enumerate(_ADJACENT_TIP_PAIRS):
+            out[dst_off + 16 + idx] = float(np.linalg.norm(pts[a] - pts[b]))
+    return out
+
+
 def _labeled_rows(samples: list[DatasetSample]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
     listing: list[dict[str, Any]] = []
     for s in samples:
         lbl = _read_labels(s.id)
-        valid = bool(
+        schema = lbl.get("visual_schema") if lbl else None
+        is_v4 = bool(
             lbl
-            and lbl.get("visual_schema") == VISUAL_FEATURE_SCHEMA
+            and schema == VISUAL_FEATURE_SCHEMA
             and len(lbl.get("audio_features", [])) == AUDIO_FEATURE_DIM
             and len(lbl.get("visual_features", [])) == VISUAL_FEATURE_DIM
             and len(lbl.get("feature_frames", [])) >= 3
         )
+        is_convertible_v3 = bool(
+            lbl
+            and schema == LEGACY_V3_VISUAL_SCHEMA
+            and len(lbl.get("audio_features", [])) == AUDIO_FEATURE_DIM
+            and len(lbl.get("visual_features", [])) == LEGACY_V3_VISUAL_DIM
+            and len(lbl.get("feature_frames", [])) >= 3
+        )
+        valid = is_v4 or is_convertible_v3
         listing.append({
             "id": str(s.id),
             "labeled": valid,
@@ -230,13 +291,20 @@ def _labeled_rows(samples: list[DatasetSample]) -> tuple[list[dict[str, Any]], l
         })
         if valid and lbl:
             for frame in lbl["feature_frames"]:
+                raw_visual = frame["visual_features"]
+                if is_convertible_v3:
+                    visual_vec = _convert_v3_visual_to_v4(
+                        _validate_vector(raw_visual, LEGACY_V3_VISUAL_DIM, "visual")
+                    )
+                else:
+                    visual_vec = _validate_vector(raw_visual, VISUAL_FEATURE_DIM, "visual")
                 rows.append({
                     "sample_id": str(s.id),
                     "participant_id": lbl["participant_id"],
                     "sound_class": SOUND_CLASSES.index(_sound_class(lbl)),
                     "posture_class": POSTURE_CLASSES.index(_posture_class(lbl)),
                     "audio": np.asarray(_validate_vector(frame["audio_features"], AUDIO_FEATURE_DIM, "de audio")),
-                    "visual": np.asarray(_validate_vector(frame["visual_features"], VISUAL_FEATURE_DIM, "visual")),
+                    "visual": np.asarray(visual_vec),
                 })
     return rows, listing
 
@@ -269,7 +337,7 @@ async def preview_flute_dataset(db: AsyncSession) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# Training
+# Training (2-layer MLP with ReLU + class-balanced cross-entropy + Adam)
 # --------------------------------------------------------------------------- #
 def _split_participants(pids: list[str]) -> tuple[set[str], set[str]]:
     uniq = sorted(set(pids))
@@ -280,48 +348,139 @@ def _split_participants(pids: list[str]) -> tuple[set[str], set[str]]:
     return set(ordered[n_test:]), set(ordered[:n_test])
 
 
-def _train_softmax(
-    x: np.ndarray, y: np.ndarray, n_classes: int, epochs: int = 600, lr: float = 0.2, reg: float = 1e-2,
+def _train_mlp(
+    x: np.ndarray,
+    y: np.ndarray,
+    n_classes: int,
+    hidden_dim: int = 48,
+    epochs: int = 350,
+    lr: float = 0.02,
+    reg: float = 1e-3,
+    noise_std: float = 0.0,
 ) -> tuple[dict[str, np.ndarray], list[dict[str, float]]]:
     mean = x.mean(axis=0)
     scale = np.maximum(x.std(axis=0), 1e-2)
     z = (x - mean) / scale
-    w = np.zeros((x.shape[1], n_classes))
-    b = np.zeros(n_classes)
+    n_samples, in_dim = z.shape
+
+    # Balanced per-sample weights so every note has equal influence
+    class_counts = np.bincount(y, minlength=n_classes).astype(np.float64)
+    present_classes = max(1, int(np.sum(class_counts > 0)))
+    sample_weights = np.where(
+        class_counts[y] > 0,
+        n_samples / (present_classes * np.maximum(class_counts[y], 1.0)),
+        1.0,
+    )
+    sample_weights /= sample_weights.sum()
+
+    rng = np.random.default_rng(42)
+    w1 = rng.normal(0.0, math.sqrt(2.0 / in_dim), size=(in_dim, hidden_dim))
+    b1 = np.zeros(hidden_dim)
+    w2 = rng.normal(0.0, math.sqrt(1.0 / hidden_dim), size=(hidden_dim, n_classes))
+    b2 = np.zeros(n_classes)
+
+    params = {"W1": w1, "b1": b1, "W2": w2, "b2": b2}
+    m_state = {k: np.zeros_like(v) for k, v in params.items()}
+    v_state = {k: np.zeros_like(v) for k, v in params.items()}
+    beta1, beta2, eps = 0.9, 0.999, 1e-8
+
     onehot = np.eye(n_classes)[y]
     history: list[dict[str, float]] = []
-    for epoch in range(epochs):
-        logits = z @ w + b
+
+    for epoch in range(1, epochs + 1):
+        z_in = z + rng.normal(0.0, noise_std, size=z.shape) if noise_std > 0.0 else z
+        h_pre = z_in @ params["W1"] + params["b1"]
+        h = np.maximum(h_pre, 0.0)
+        logits = h @ params["W2"] + params["b2"]
         logits -= logits.max(axis=1, keepdims=True)
-        p = np.exp(logits)
-        p /= p.sum(axis=1, keepdims=True)
-        if epoch % 100 == 0 or epoch == epochs - 1:
-            loss = float(-np.mean(np.log(p[np.arange(len(y)), y] + 1e-12)))
+        probs = np.exp(logits)
+        probs /= probs.sum(axis=1, keepdims=True)
+
+        if epoch == 1 or epoch % 70 == 0 or epoch == epochs:
+            loss = float(-np.sum(sample_weights * np.log(probs[np.arange(n_samples), y] + 1e-12)))
             history.append({"epoch": epoch, "loss": round(loss, 4)})
-        grad = (p - onehot) / len(y)
-        w -= lr * (z.T @ grad + reg * w)
-        b -= lr * grad.sum(axis=0)
-    return {"mean": mean, "scale": scale, "W": w, "b": b}, history
+
+        d_logits = (probs - onehot) * sample_weights[:, None]
+        grads = {
+            "W2": h.T @ d_logits + reg * params["W2"],
+            "b2": d_logits.sum(axis=0),
+        }
+        d_h = (d_logits @ params["W2"].T) * (h_pre > 0.0)
+        grads["W1"] = z_in.T @ d_h + reg * params["W1"]
+        grads["b1"] = d_h.sum(axis=0)
+
+        for k in params:
+            m_state[k] = beta1 * m_state[k] + (1.0 - beta1) * grads[k]
+            v_state[k] = beta2 * v_state[k] + (1.0 - beta2) * (grads[k] ** 2)
+            m_hat = m_state[k] / (1.0 - beta1 ** epoch)
+            v_hat = v_state[k] / (1.0 - beta2 ** epoch)
+            params[k] -= lr * m_hat / (np.sqrt(v_hat) + eps)
+
+    return {"mean": mean, "scale": scale, **params}, history
+
+
+def _mask_and_normalize_posture(x: np.ndarray, mean: np.ndarray, scale: np.ndarray) -> np.ndarray:
+    z = (x - mean) / scale
+    if x.shape[1] == VISUAL_FEATURE_DIM:
+        for slot in (0, 1):
+            off = slot * VISUAL_HAND_SLOT_DIM
+            absent = x[:, off] == 0.0
+            if np.any(absent):
+                z[absent, off : off + VISUAL_HAND_SLOT_DIM] = 0.0
+    norms = np.maximum(np.linalg.norm(z, axis=1, keepdims=True), 1e-6)
+    return z / norms
+
+
+def _train_posture_prototypes(
+    x: np.ndarray,
+    y: np.ndarray,
+    n_classes: int,
+    temperature: float = 0.35,
+) -> tuple[dict[str, np.ndarray], list[dict[str, float]]]:
+    """Calibrated cosine-similarity prototype classifier for hand posture.
+
+    Avoids MLP overconfidence on small datasets and masks absent hand slots so
+    the non-playing hand entering/leaving frame never corrupts predictions.
+    """
+    mean = x.mean(axis=0)
+    scale = np.maximum(x.std(axis=0), 0.25)
+    z = _mask_and_normalize_posture(x, mean, scale)
+
+    in_dim = z.shape[1]
+    w = np.zeros((in_dim, n_classes), dtype=np.float64)
+    b = np.full(n_classes, -10.0, dtype=np.float64)
+    for c in range(n_classes):
+        mask = y == c
+        if np.any(mask):
+            centroid = z[mask].mean(axis=0)
+            norm = float(np.linalg.norm(centroid))
+            if norm > 1e-6:
+                centroid = centroid / norm
+            w[:, c] = centroid / temperature
+            b[c] = 0.0
+
+    logits = z @ w + b
+    logits -= logits.max(axis=1, keepdims=True)
+    probs = np.exp(logits)
+    probs /= probs.sum(axis=1, keepdims=True)
+    loss = float(-np.mean(np.log(probs[np.arange(len(y)), y] + 1e-12)))
+    return {"mean": mean, "scale": scale, "W": w, "b": b}, [{"epoch": 1, "loss": round(loss, 4)}]
 
 
 def _head_probs(params: dict[str, np.ndarray], head: str, x: np.ndarray) -> np.ndarray:
-    z = (x - params[f"{head}_mean"]) / params[f"{head}_scale"]
-    logits = z @ params[f"{head}_W"] + params[f"{head}_b"]
+    if f"{head}_W1" in params:
+        z = (x - params[f"{head}_mean"]) / params[f"{head}_scale"]
+        h = np.maximum(z @ params[f"{head}_W1"] + params[f"{head}_b1"], 0.0)
+        logits = h @ params[f"{head}_W2"] + params[f"{head}_b2"]
+    elif head == "posture":
+        z = _mask_and_normalize_posture(x, params[f"{head}_mean"], params[f"{head}_scale"])
+        logits = z @ params[f"{head}_W"] + params[f"{head}_b"]
+    else:
+        z = (x - params[f"{head}_mean"]) / params[f"{head}_scale"]
+        logits = z @ params[f"{head}_W"] + params[f"{head}_b"]
     logits -= logits.max(axis=1, keepdims=True)
     e = np.exp(logits)
     return e / e.sum(axis=1, keepdims=True)
-
-
-def _rule_sound_class(audio: np.ndarray) -> int:
-    """Fixed-rule baseline: pitch nearest-note + low-band voice rejection."""
-    pitch = float(audio[AUDIO_PITCH_IDX]) * 1500.0
-    low_ratio = float(audio[AUDIO_LOWBAND_IDX])
-    if pitch < 480.0 or low_ratio > 0.35:
-        return SOUND_CLASSES.index(NO_FLUTE)
-    nearest = min(FLUTE_NOTES, key=lambda n: abs(FLUTE_NOTE_HZ[n] - pitch))
-    if abs(FLUTE_NOTE_HZ[nearest] - pitch) > 40.0:
-        return SOUND_CLASSES.index(NO_FLUTE)
-    return SOUND_CLASSES.index(nearest)
 
 
 def _accuracy_and_confusion(pred: list[int], true: list[int], n: int) -> tuple[float | None, list[list[int]]]:
@@ -345,8 +504,8 @@ async def train_flute_note_model(
         raise SkillMatchException(
             statuscode=400,
             message=(
-                "Se necesitan al menos 4 videos etiquetados con articulaciones. "
-                "Las cuadrículas antiguas no son compatibles; conservá los videos para reprocesarlos."
+                "Se necesitan al menos 4 videos etiquetados con timbre y articulaciones. "
+                "Conservá los videos anteriores para reprocesarlos desde el estudio."
             ),
         )
 
@@ -361,7 +520,7 @@ async def train_flute_note_model(
             statuscode=400,
             message=(
                 "El conjunto de entrenamiento necesita al menos 2 clases de sonido y 2 de postura. "
-                "Incluí ejemplos negativos (voz/ruido y digitación incorrecta o sin manos)."
+                "Graba al menos 2 notas distintas (o ejemplos negativos de voz/ruido)."
             ),
         )
 
@@ -370,12 +529,21 @@ async def train_flute_note_model(
     y_sound = np.array([r["sound_class"] for r in train_rows], dtype=np.int64)
     y_posture = np.array([r["posture_class"] for r in train_rows], dtype=np.int64)
 
-    sound_params, sound_history = _train_softmax(x_audio, y_sound, len(SOUND_CLASSES))
-    posture_params, posture_history = _train_softmax(x_visual, y_posture, len(POSTURE_CLASSES))
+    sound_params, sound_history = _train_mlp(
+        x_audio, y_sound, len(SOUND_CLASSES), hidden_dim=48, reg=1e-3, noise_std=0.0, lr=0.02
+    )
+    posture_params, posture_history = _train_posture_prototypes(
+        x_visual, y_posture, len(POSTURE_CLASSES)
+    )
 
     onnx_bytes = build_flute_onnx({"sound": sound_params, "posture": posture_params})
-    # Everything below uses parameters read back from the exported artifact.
+    # Everything below uses parameters read back from the exported ONNX artifact.
     params = load_onnx_initializers(onnx_bytes)
+
+    sound_train_pred = [int(p) for p in np.argmax(_head_probs(params, "sound", x_audio), axis=1)]
+    posture_train_pred = [int(p) for p in np.argmax(_head_probs(params, "posture", x_visual), axis=1)]
+    sound_train_acc, _ = _accuracy_and_confusion(sound_train_pred, [int(v) for v in y_sound], len(SOUND_CLASSES))
+    posture_train_acc, _ = _accuracy_and_confusion(posture_train_pred, [int(v) for v in y_posture], len(POSTURE_CLASSES))
 
     validated = len(test_rows) > 0
     sound_true = [r["sound_class"] for r in test_rows]
@@ -388,10 +556,10 @@ async def train_flute_note_model(
     sound_acc, sound_conf = _accuracy_and_confusion([int(p) for p in sound_pred], sound_true, len(SOUND_CLASSES))
     posture_acc, posture_conf = _accuracy_and_confusion([int(p) for p in posture_pred], posture_true, len(POSTURE_CLASSES))
 
-    rule_pred = [_rule_sound_class(r["audio"]) for r in test_rows]
-    rule_acc, _ = _accuracy_and_confusion(rule_pred, sound_true, len(SOUND_CLASSES))
-    majority = int(np.bincount(y_posture, minlength=len(POSTURE_CLASSES)).argmax())
-    majority_acc, _ = _accuracy_and_confusion([majority] * len(posture_true), posture_true, len(POSTURE_CLASSES))
+    sound_majority = int(np.bincount(y_sound, minlength=len(SOUND_CLASSES)).argmax())
+    sound_majority_acc, _ = _accuracy_and_confusion([sound_majority] * len(sound_true), sound_true, len(SOUND_CLASSES))
+    posture_majority = int(np.bincount(y_posture, minlength=len(POSTURE_CLASSES)).argmax())
+    posture_majority_acc, _ = _accuracy_and_confusion([posture_majority] * len(posture_true), posture_true, len(POSTURE_CLASSES))
 
     # Measured inference latency (single-sample, both heads, params loaded from ONNX).
     bench = test_rows or train_rows
@@ -408,7 +576,7 @@ async def train_flute_note_model(
         existing = await db.scalar(
             select(func.count()).select_from(ModelVersion).where(ModelVersion.nombre == MODEL_NAME)
         )
-        version_str = f"flute-dual-1.{(existing or 0) + 1}.0"
+        version_str = f"flute-timbre-2.{(existing or 0) + 1}.0"
 
     onnx_key = f"models/flute/{MODEL_NAME}_{version_str}.onnx"
     storage_uri, onnx_sha = garage_s3_storage.put_object_bytes(
@@ -417,12 +585,14 @@ async def train_flute_note_model(
 
     metrics: dict[str, Any] = {
         "visual_schema": VISUAL_FEATURE_SCHEMA,
+        "audio_mode": "mel_mfcc_timbre",
+        "architecture": "dual_mlp_onnx",
         "metric_unit": "feature_frame",
         "validated": validated,
         "validation_note": (
             "Precisión medida sobre personas que no participaron del entrenamiento."
             if validated
-            else "Sin validación independiente: hace falta al menos una segunda persona etiquetada."
+            else "Modo experimental (1 participante): usable en vivo; suma una segunda persona para validación independiente."
         ),
         "train_participants": sorted(train_pids),
         "test_participants": sorted(test_pids),
@@ -432,16 +602,18 @@ async def train_flute_note_model(
         "unlabeled_samples": sum(not s["labeled"] for s in listing),
         "sound": {
             "classes": SOUND_CLASSES,
+            "train_accuracy": sound_train_acc,
             "test_accuracy": sound_acc,
-            "rule_baseline_accuracy": rule_acc,
+            "majority_baseline_accuracy": sound_majority_acc,
             "confusion_matrix": sound_conf,
             "train_class_counts": _counts(train_rows, "sound_class", SOUND_CLASSES),
             "loss_history": sound_history,
         },
         "posture": {
             "classes": POSTURE_CLASSES,
+            "train_accuracy": posture_train_acc,
             "test_accuracy": posture_acc,
-            "majority_baseline_accuracy": majority_acc,
+            "majority_baseline_accuracy": posture_majority_acc,
             "confusion_matrix": posture_conf,
             "train_class_counts": _counts(train_rows, "posture_class", POSTURE_CLASSES),
             "loss_history": posture_history,
@@ -499,7 +671,10 @@ async def activate_flute_model(db: AsyncSession, model_id: uuid.UUID) -> dict[st
     if target is None:
         raise SkillMatchException(statuscode=404, message="Versión de modelo de flauta no encontrada.")
     if (target.metricas or {}).get("visual_schema") != VISUAL_FEATURE_SCHEMA:
-        raise SkillMatchException(statuscode=409, message="Este modelo usa la cuadrícula antigua. Reprocesá los videos y entrená una versión con articulaciones.")
+        raise SkillMatchException(
+            statuscode=409,
+            message="Este modelo usa un formato anterior. Reprocesá los videos y entrená una nueva versión.",
+        )
     await db.execute(update(ModelVersion).where(ModelVersion.nombre == MODEL_NAME).values(activa=False))
     target.activa = True
     await db.commit()
@@ -522,11 +697,34 @@ def _params_for(model: ModelVersion) -> dict[str, np.ndarray]:
     return params
 
 
+def _top_predictions(probs: np.ndarray, classes: list[str], k: int = 3) -> list[dict[str, Any]]:
+    top_indices = np.argsort(-probs)[:k]
+    return [
+        {"label": classes[int(i)], "probability": round(float(probs[int(i)]), 4)}
+        for i in top_indices
+    ]
+
+
+def _is_posture_compatible(posture_p: np.ndarray, note: str) -> bool:
+    """Approximate fingering check: rejects WRONG_POSTURE, accepts note in Top-3 with >= 15% affinity."""
+    if note not in POSTURE_CLASSES:
+        return False
+    top_idx = int(np.argmax(posture_p))
+    if POSTURE_CLASSES[top_idx] == WRONG_POSTURE and float(posture_p[top_idx]) >= DECISION_THRESHOLD:
+        return False
+    note_idx = POSTURE_CLASSES.index(note)
+    top_k_indices = [int(i) for i in np.argsort(-posture_p)[:POSTURE_TOP_K]]
+    return note_idx in top_k_indices and float(posture_p[note_idx]) >= POSTURE_APPROX_MIN_PROB
+
+
 async def infer_flute(
-    db: AsyncSession, target_note: str, audio_features: list[float], visual_features: list[float],
+    db: AsyncSession,
+    audio_features: list[float],
+    visual_features: list[float],
     visual_schema: str,
+    target_note: str | None = None,
 ) -> dict[str, Any]:
-    if target_note not in FLUTE_NOTES:
+    if target_note is not None and target_note not in FLUTE_NOTES:
         raise SkillMatchException(statuscode=400, message=f"Nota objetivo inválida: {target_note}.")
     audio = np.asarray(_validate_vector(audio_features, AUDIO_FEATURE_DIM, "de audio"))[None, :]
     visual = np.asarray(_validate_vector(visual_features, VISUAL_FEATURE_DIM, "visual"))[None, :]
@@ -541,47 +739,82 @@ async def infer_flute(
         )
     metrics = model.metricas or {}
     if visual_schema != VISUAL_FEATURE_SCHEMA or metrics.get("visual_schema") != VISUAL_FEATURE_SCHEMA:
-        raise SkillMatchException(statuscode=409, message="El modelo activo usa la cuadrícula antigua. Entrená y activá un modelo con articulaciones de dedos.")
+        raise SkillMatchException(
+            statuscode=409,
+            message="El modelo activo usa un formato anterior. Reprocesá los videos y entrená una nueva versión.",
+        )
+
     params = _params_for(model)
     sound_p = _head_probs(params, "sound", audio)[0]
     posture_p = _head_probs(params, "posture", visual)[0]
     sound_idx = int(np.argmax(sound_p))
     posture_idx = int(np.argmax(posture_p))
-    target_sound_p = float(sound_p[SOUND_CLASSES.index(target_note)])
-    target_posture_p = float(posture_p[POSTURE_CLASSES.index(target_note)])
+    sound_class = SOUND_CLASSES[sound_idx]
+    posture_class = POSTURE_CLASSES[posture_idx]
+    sound_conf = float(sound_p[sound_idx])
+    posture_conf = float(posture_p[posture_idx])
+
+    validated = bool(metrics.get("validated", False))
     posture_metrics = metrics.get("posture", {})
     accuracy = posture_metrics.get("test_accuracy")
     baseline = posture_metrics.get("majority_baseline_accuracy")
+
     posture_reason = None
     if not _has_required_hands(visual_features, target_note):
-        posture_reason = "Articulaciones insuficientes: postura no evaluable."
-    elif not metrics.get("validated") or accuracy is None or baseline is None or accuracy <= baseline:
+        posture_reason = "Articulaciones insuficientes: muestra las manos frente a la cámara."
+    elif validated and (accuracy is None or baseline is None or accuracy <= baseline):
         posture_reason = "El modelo visual todavía no supera la línea base en participantes independientes."
-    elif not posture_metrics.get("train_class_counts", {}).get(target_note):
+    elif target_note is not None and not posture_metrics.get("train_class_counts", {}).get(target_note):
         posture_reason = "El modelo no aprendió ejemplos de esta digitación."
-    elif float(posture_p[posture_idx]) < DECISION_THRESHOLD:
+    elif posture_conf < POSTURE_MIN_PEAK_CONF:
         posture_reason = "Confianza visual insuficiente: resultado inconcluso."
+
+    sound_confident = sound_class != NO_FLUTE and sound_conf >= DECISION_THRESHOLD
+    combined_match = bool(
+        sound_confident and posture_reason is None and _is_posture_compatible(posture_p, sound_class)
+    )
+    combined_note = sound_class if combined_match else None
+
+    if target_note is not None:
+        target_sound_p = float(sound_p[SOUND_CLASSES.index(target_note)])
+        target_posture_p = float(posture_p[POSTURE_CLASSES.index(target_note)])
+        sound_ok = sound_class == target_note and target_sound_p >= DECISION_THRESHOLD
+        posture_ok: bool | None = (
+            None if posture_reason else _is_posture_compatible(posture_p, target_note)
+        )
+    else:
+        target_sound_p = sound_conf
+        target_posture_p = posture_conf
+        sound_ok = sound_confident
+        posture_ok = None if posture_reason else (posture_class != WRONG_POSTURE)
+
     return {
         "model_id": str(model.id),
         "model_version": model.version,
-        "validated": bool((model.metricas or {}).get("validated", False)),
+        "validated": validated,
+        "experimental": not validated,
         "target_note": target_note,
-        "sound_class": SOUND_CLASSES[sound_idx],
-        "sound_confidence": round(float(sound_p[sound_idx]), 4),
+        "sound_class": sound_class,
+        "sound_confidence": round(sound_conf, 4),
         "target_sound_probability": round(target_sound_p, 4),
-        "sound_ok": SOUND_CLASSES[sound_idx] == target_note and target_sound_p >= DECISION_THRESHOLD,
-        "posture_class": POSTURE_CLASSES[posture_idx],
-        "posture_confidence": round(float(posture_p[posture_idx]), 4),
+        "sound_ok": sound_ok,
+        "top_sound_classes": _top_predictions(sound_p, SOUND_CLASSES, k=3),
+        "posture_class": posture_class,
+        "posture_confidence": round(posture_conf, 4),
         "target_posture_probability": round(target_posture_p, 4),
-        "posture_ok": None if posture_reason else POSTURE_CLASSES[posture_idx] == target_note and target_posture_p >= DECISION_THRESHOLD,
+        "posture_ok": posture_ok,
         "posture_evaluable": posture_reason is None,
         "posture_reason": posture_reason,
+        "top_posture_classes": _top_predictions(posture_p, POSTURE_CLASSES, k=5),
+        "combined_note": combined_note,
+        "combined_match": combined_match,
     }
 
 
 # --------------------------------------------------------------------------- #
 # Minimal ONNX (protobuf) writer/reader — no external dependency
-# Graph per head: Sub(mean) -> Div(scale) -> MatMul(W) -> Add(b) -> Softmax(axis=1)
+# MLP Graph per head:
+#   Sub(mean) -> Div(scale) -> MatMul(W1) -> Add(b1) -> Relu -> MatMul(W2) -> Add(b2) -> Softmax(axis=1)
 # --------------------------------------------------------------------------- #
 def _varint(n: int) -> bytes:
     n &= (1 << 64) - 1
@@ -636,19 +869,30 @@ def build_flute_onnx(heads: dict[str, dict[str, np.ndarray]]) -> bytes:
         ("posture", "visual_features", "posture_probs"),
     ):
         p = heads[head]
-        for key in ("mean", "scale", "W", "b"):
+        is_mlp = "W1" in p
+        keys = ("mean", "scale", "W1", "b1", "W2", "b2") if is_mlp else ("mean", "scale", "W", "b")
+        for key in keys:
             inits += _f_bytes(5, _tensor_proto(f"{head}_{key}", p[key]))
         nodes += _f_bytes(1, _node("Sub", [input_name, f"{head}_mean"], [f"{head}_c"], f"{head}_sub"))
         nodes += _f_bytes(1, _node("Div", [f"{head}_c", f"{head}_scale"], [f"{head}_z"], f"{head}_div"))
-        nodes += _f_bytes(1, _node("MatMul", [f"{head}_z", f"{head}_W"], [f"{head}_m"], f"{head}_matmul"))
-        nodes += _f_bytes(1, _node("Add", [f"{head}_m", f"{head}_b"], [f"{head}_logits"], f"{head}_add"))
+        if is_mlp:
+            nodes += _f_bytes(1, _node("MatMul", [f"{head}_z", f"{head}_W1"], [f"{head}_m1"], f"{head}_matmul1"))
+            nodes += _f_bytes(1, _node("Add", [f"{head}_m1", f"{head}_b1"], [f"{head}_hpre"], f"{head}_add1"))
+            nodes += _f_bytes(1, _node("Relu", [f"{head}_hpre"], [f"{head}_h"], f"{head}_relu"))
+            nodes += _f_bytes(1, _node("MatMul", [f"{head}_h", f"{head}_W2"], [f"{head}_m2"], f"{head}_matmul2"))
+            nodes += _f_bytes(1, _node("Add", [f"{head}_m2", f"{head}_b2"], [f"{head}_logits"], f"{head}_add2"))
+            out_dim = int(p["b2"].shape[0])
+        else:
+            nodes += _f_bytes(1, _node("MatMul", [f"{head}_z", f"{head}_W"], [f"{head}_m"], f"{head}_matmul"))
+            nodes += _f_bytes(1, _node("Add", [f"{head}_m", f"{head}_b"], [f"{head}_logits"], f"{head}_add"))
+            out_dim = int(p["b"].shape[0])
         axis_attr = _f_bytes(5, _f_str(1, "axis") + _f_varint(3, 1) + _f_varint(20, 2))
         nodes += _f_bytes(1, _node("Softmax", [f"{head}_logits"], [output_name], f"{head}_softmax", axis_attr))
-        outputs += _f_bytes(12, _value_info(output_name, ["N", int(p["b"].shape[0])]))
+        outputs += _f_bytes(12, _value_info(output_name, ["N", out_dim]))
 
     graph = (
         nodes
-        + _f_str(2, "skillmatch_flute_dual")
+        + _f_str(2, "skillmatch_flute_dual_mlp")
         + inits
         + _f_bytes(11, _value_info("audio_features", ["N", AUDIO_FEATURE_DIM]))
         + _f_bytes(11, _value_info("visual_features", ["N", VISUAL_FEATURE_DIM]))
@@ -734,23 +978,3 @@ def _infer_variation_from_sample(sample: DatasetSample) -> str:
         if var in challenge.lower():
             return var
     return "normal"
-
-
-def _extract_audio_features_from_bytes(
-    raw_bytes: bytes,
-    file_format: str = "mp4",
-    target_note: str | None = None,
-    variation: str | None = None,
-    manual_hz: float | int | None = None,
-) -> dict[str, Any]:
-    dominant_hz = float(manual_hz) if manual_hz else (FLUTE_NOTE_HZ.get(target_note or "", 0.0))
-    hands_required = 1.0 if target_note in ("SOL", "LA", "SI", "DO6", "RE6") else 2.0
-    return {
-        "dominant_freq_hz": dominant_hz,
-        "sample_rate": 44100,
-        "energy": 0.5,
-        "target_note": target_note,
-        "variation": variation,
-        "hands_required_score": hands_required,
-    }
-

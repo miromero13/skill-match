@@ -23,6 +23,23 @@ export interface TheoryProgress {
   grading_state: string
   grading_score: number | null
   grading_feedback: { question_id: string; points: number; max_score: number; feedback: string; criteria: { name: string; weight: number; attainment: number; reason: string }[] }[] | null
+  has_coding_stage?: boolean
+}
+export interface FinalEvaluationResult {
+  evaluation_id: string
+  status: string
+  passed: boolean
+  final_score: number
+  theory_score: number
+  theory_max_score: number
+  theory_feedback: { question_id: string; points: number; max_score: number; feedback: string; criteria: { name: string; weight: number; attainment: number; reason: string }[] }[] | null
+  has_coding_stage: boolean
+  sandbox_passed_tests: number | null
+  sandbox_total_tests: number | null
+  defense_transcript: string | null
+  defense_score: number | null
+  defense_feedback: string | null
+  skill_validated: boolean
 }
 export interface OralSubmission { submission_id: string; question_id: string; audio_base64: string }
 export const theoryExam = {
@@ -30,5 +47,7 @@ export const theoryExam = {
   answer: (id: string, payload: OralSubmission) => apiClient.post<{ transcript: string }>(`/evaluations/${id}/answers`, payload, { showToastOnError: false }),
   result: (id: string) => apiClient.get(`/evaluations/${id}/result`, { showToastOnError: false }),
   retryGrading: (id: string) => apiClient.post(`/evaluations/${id}/grading/retry`, {}, { showToastOnError: false }),
+  finalize: (id: string) => apiClient.post<FinalEvaluationResult>(`/evaluations/${id}/finalize`, {}, { showToastOnError: false }),
   start: (id: string, level_number: number, text_grading_consent: boolean) => apiClient.post(`/evaluations/start`, { evaluation_id: id, level_number, text_grading_consent }, { showToastOnError: false }),
+  cancel: (id: string) => apiClient.post<{ evaluation_id: string; status: string }>(`/evaluations/${id}/cancel`, {}, { showToastOnError: false }),
 }

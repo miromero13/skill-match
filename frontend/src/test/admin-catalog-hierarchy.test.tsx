@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest"
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router-dom"
 import { AdminCatalogPage } from "@/pages/admin-catalog-page"
 import { useAdminCatalogStore } from "@/stores/admin-catalog-store"
 import * as service from "@/services/admin-catalog-service"
@@ -10,6 +11,10 @@ vi.mock("@/services/admin-catalog-service", () => ({
   getCategories: vi.fn(), createCategory: vi.fn(), updateCategory: vi.fn(),
   getChallengeTypes: vi.fn(), createChallengeType: vi.fn(), getSkills: vi.fn(), getSkill: vi.fn(),
   createSkill: vi.fn(), updateSkill: vi.fn(), toggleSkillReady: vi.fn(), toggleSkillStatus: vi.fn(), deleteSkill: vi.fn(),
+}))
+// The catalog page now loads the skill-lab metric types and links to the lab (router required).
+vi.mock("@/features/skill-lab/api/skill-lab-api", () => ({
+  skillLabApi: { getMetricTypes: vi.fn().mockResolvedValue([]) },
 }))
 const music = { id: "music", parent_id: null, name: "Música", slug: "musica", description: null, is_active: true }
 const guitar = { id: "guitar", parent_id: "music", name: "Guitarra", slug: "guitarra", description: null, is_active: true }
@@ -23,7 +28,7 @@ beforeEach(() => {
 
 it("shows hierarchical paths and creates a subcategory using its actual parent ID", async () => {
   const user = userEvent.setup()
-  render(<AdminCatalogPage />)
+  render(<MemoryRouter><AdminCatalogPage /></MemoryRouter>)
   await screen.findByRole("button", { name: "Música / Guitarra" })
   await user.click(screen.getByRole("button", { name: "+ Categoría" }))
   await user.type(screen.getByLabelText("Nombre de Categoría *"), "Instrumentos")
@@ -36,7 +41,7 @@ it("shows hierarchical paths and creates a subcategory using its actual parent I
 
 it("opens category editing with its existing parent and saves deactivation without deleting children", async () => {
   const user = userEvent.setup()
-  render(<AdminCatalogPage />)
+  render(<MemoryRouter><AdminCatalogPage /></MemoryRouter>)
   await user.click(await screen.findByRole("button", { name: "Editar categoría Música / Guitarra" }))
   expect(screen.getByLabelText("Nombre de Categoría *")).toHaveValue("Guitarra")
   expect(screen.getByRole("combobox", { name: "Categoría superior" })).toHaveTextContent("Música")

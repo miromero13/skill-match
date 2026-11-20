@@ -31,4 +31,5 @@ export interface TeachingSkillPayload {
 export interface AvailableSkill {
     id: string
     name: string
+    category_id?: string
 }

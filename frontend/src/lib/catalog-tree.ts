@@ -22,3 +22,28 @@ export function isCategoryWithin(category: Category, ancestorId: string, categor
   }
   return false
 }
+
+export function sortCategoriesByPath(
+  categories: Category[],
+): Array<{ category: Category; label: string }> {
+  return categories
+    .map((category) => ({
+      category,
+      label: categoryPath(category, categories),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, "es"))
+}
+
+export function filterSkillsByCategory<T extends { category_id?: string }>(
+  skills: T[],
+  categoryId: string,
+  categories: Category[],
+): T[] {
+  if (!categoryId || categories.length === 0) return skills
+  return skills.filter((skill) => {
+    if (!skill.category_id) return true
+    if (skill.category_id === categoryId) return true
+    const skillCategory = categories.find((cat) => cat.id === skill.category_id)
+    return skillCategory ? isCategoryWithin(skillCategory, categoryId, categories) : false
+  })
+}

@@ -19,6 +19,22 @@ SaaS platform enabling reciprocal skill exchange (*Skill Swapping*) backed by pr
 
 ---
 
+## 🐳 Docker
+
+The full stack (API, Celery, PostgreSQL, Redis, isolated code sandbox and SPA) runs with Docker Compose ≥ 2.24. Copy the variables first: `cp docker.env.template .env`.
+
+| Mode | Command | URL |
+|---|---|---|
+| Local development (hot reload) | `docker compose up --build` | http://localhost:5173 |
+| Prod-like local | `docker compose -f compose.yaml up --build` | http://localhost:8080 |
+| Production (Coolify / VPS) | `docker compose -f compose.yaml -f compose.prod.yaml up -d --build` | your domain → `frontend:8080` |
+
+In production, migrations run explicitly after a backup: `docker compose -f compose.yaml -f compose.prod.yaml --profile ops run --rm migrate`.
+
+Architecture, Coolify runbook, sandbox security and troubleshooting: [`docs/deployment/docker.md`](docs/deployment/docker.md).
+
+---
+
 ## 📂 Documentation
 
 Full architectural specifications, user stories, and requirements are available in [`docs/`](docs/).

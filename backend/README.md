@@ -14,6 +14,7 @@ Backend asíncrono para la plataforma de intercambio colaborativo de habilidades
 - **Prueba de navegador (SM-43):** sesiones de ensayo e incidentes reales en `/api/browser-supervision/trials`, separados del examen y de los cupos. Requiere la migración aditiva `bc43a710d962` con autorización explícita, no se aplica al arrancar. Vista MEMBER `/app/browser-supervision-test`; guía, límites y pruebas: [`docs/browser-supervision.md`](../docs/browser-supervision.md). No incluye cámara/audio continuo ni sanciones.
 - **Integridad audiovisual local (SM-44) y calibración sobre el motor de integridad:** `webrtcvad-wheels==2.0.14` y `sherpa-onnx==2.0.1`, sin API de audio en la nube. La calibración previa al examen (`POST /api/evaluations/{id}/liveness/verify-identity`) usa los mismos analizadores y umbrales que la supervisión (`app/services/integrity/`): movimiento con pose 3D, centro y cuatro esquinas de mirada, silencio, frase de control con video y lecturas de boca del navegador; guarda zona de mirada, huella de voz y referencia de oclusión (columnas JSON, migración `f3a8d2c19e47`) que nunca se devuelven. La evidencia nueva es obligatoria y sin el modelo de embeddings de hablante no hay calibración lista (503). Instalar dependencias y ejecutar desde `backend`: `.venv/bin/python scripts/install_calibration_audio_models.py`; verificar sin red con `--verify-only`. Modelos/hashes/licencias: [`docs/models/audio-integrity/README.md`](../docs/models/audio-integrity/README.md); contrato, comprobaciones y límites: [`docs/evaluation-calibration.md`](../docs/evaluation-calibration.md). `POST /api/browser-supervision/trials/{id}/voice-calibration` exige además `frames` muestreados para verificar la telemetría de boca. No hay descargas durante solicitudes ni aprobación degradada sin detector/modelos. Prototipo pendiente de prueba física/revisión independiente, no garantía anticopia.
 - **Modelos faciales locales (S13 / T2):** YuNet, SFace (OpenCV Zoo, Apache-2.0) y MediaPipe `face_landmarker.task` (Apache-2.0) no se versionan (`*.onnx`, `weights/` ignorados). Descargar una vez con SHA-256 fijado, desde `backend`: `.venv/bin/python scripts/install_vision_models.py` (escritura atómica; rechaza cualquier archivo cuyo hash no coincida y nunca sobrescribe uno existente); verificar sin red con `--verify-only`. Se instalan en `app/models/weights/`. Al arrancar, la API registra un `ERROR` por cada modelo ausente o no cargable y sigue sirviendo el resto. Sin modelos el sistema **falla en cerrado**: el enrolamiento y la verificación de identidad responden `400` (imagen no decodificable) o `503` ("Servicio biométrico no disponible…", sin persistir nada ni rechazar al miembro), y las ventanas de supervisión registran el incidente `MODEL_UNAVAILABLE` con `face_count` 0 e identidad sin veredicto, nunca un rostro limpio ni un embedding sintético. MediaPipe se reintenta cada 30 s tras un fallo. Requiere `mediapipe>=1.2.3,<1.3` (en `requirements.txt` y `pyproject.toml`). Pruebas: `tests/test_vision_models_fail_closed.py`.
+- **Análisis de video de dominadas (solo admin, prueba):** `POST /api/football/training/analyze-video` (multipart, campo `file`: mp4/webm/mov; requiere `ADMIN`, cualquier otro usuario o anónimo recibe `404`). Detecta el balón con MediaPipe EfficientDet-Lite0 (`efficientdet_lite0.tflite`, clase COCO "sports ball", Apache-2.0) fusionado con el detector clásico MOG2/Hough, cuenta toques y rachas (la racha se reinicia cuando el balón toca el suelo o tras más de 2,2 s sin toque; manda la racha más alta) y califica con el `level_classifier` activo o, si no hay, con el clasificador por reglas (Principiante/Intermedio/Avanzado/Experto, puntaje 1-100). Responde **siempre** `200` con `message: "Análisis de video completado."` y el resultado completo (`analysis_complete`, `ball_detected`, `detector`, `frames_analyzed`, `ball_frames`, `duration_seconds`, `total_touches`, `max_streak`, `streaks`, `ground_contacts`, `score_1_100`, `level`, `level_probabilities`, `confidence`, `model_version`, `notes`, `feedback`): un archivo ausente, vacío, de más de 200 MB, ilegible, sin balón o un fallo del detector devuelve 0 toques, nivel "Principiante", puntaje 1 y una nota que lo explica. Se analizan como máximo los primeros 180 s (nota si se recorta). No persiste el video, no consume intentos, no es una validación oficial y no envía nada a servicios externos; el flujo oficial sigue calificando 0 toques como "No calificado". El modelo se instala con el mismo `scripts/install_vision_models.py` (SHA-256 fijado, `FOOTBALL_MODELS`); si falta, se usa solo el detector clásico y se indica en `notes`. EfficientDet corre ~6 veces por segundo de video (≈30 ms por inferencia en CPU) y el detector clásico cubre los demás cuadros: ≈20 s de pared por minuto de video 720p. Pruebas: `tests/football/test_video_analysis.py`.
 
 ---
 
@@ -85,6 +86,9 @@ THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory 
 SANDBOX_DOCKER_IMAGE="python:3.12-slim"
 SANDBOX_DOCKER_BINARY="docker"
 SANDBOX_MAX_CONCURRENT_RUNS=2
+# Directorio padre de los workspaces temporales de cada ejecución. Vacío/sin definir = directorio temporal del SO.
+# docker compose lo fija en "/sandbox-work" (volumen compartido) para que el daemon dind vea la misma ruta.
+# SANDBOX_WORK_DIR=""
 
 
 
@@ -108,6 +112,32 @@ GARAGE_S3_FORCE_PATH_STYLE=True
 # --- Cola de Procesamiento Asíncrono (Celery + Redis) ---
 REDIS_URL="redis://localhost:6379/0"
 CELERY_TASK_ALWAYS_EAGER=False
+
+# --- Correo Transaccional (Recordatorios de Sesión, SMTP) ---
+# Si EMAIL_ENABLED=True pero faltan credenciales, el envío se omite y se registra un error.
+EMAIL_ENABLED=False
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USERNAME=""
+SMTP_PASSWORD=""
+SMTP_STARTTLS=True
+SMTP_TIMEOUT_SECONDS=15
+EMAIL_FROM_ADDRESS="no-reply@skillmatch.io"
+EMAIL_FROM_NAME="SkillMatch"
+EMAIL_REPLY_TO=""
+
+# URL base pública del frontend, usada para construir enlaces en emails
+FRONTEND_BASE_URL="http://localhost:5173"
+
+# --- Notificaciones Web Push (VAPID) ---
+# WEB_PUSH_ENABLED=True exige VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY y VAPID_SUBJECT (mailto: o https://);
+# si falta alguno, la aplicación no arranca (error de validación de Settings).
+# Con WEB_PUSH_ENABLED=False el endpoint de clave pública responde 503 "Web Push no está configurado.".
+# VAPID_PRIVATE_KEY acepta la clave en base64url o la ruta a un archivo PEM (comportamiento de pywebpush).
+WEB_PUSH_ENABLED=False
+VAPID_PUBLIC_KEY=""
+VAPID_PRIVATE_KEY=""
+VAPID_SUBJECT="mailto:admin@skillmatch.io"
 
 # --- Economía de Puntos y Pasarela de Pagos (HU-42 / RF-SES-09 / RF-WAL-02) ---
 PAYMENT_GATEWAY_PROVIDER="sandbox"
@@ -309,3 +339,61 @@ La migración de catálogo conserva los registros y rehúsa nombres normalizados
 - `DELETE` de categoría/habilidad desactiva, no borra físicamente. La eliminación de habilidades con miembros vinculados devuelve 409; `PATCH` con `is_active=false` conserva las asociaciones.
 
 Las pruebas HTTP de esta entrega usan PostgreSQL aislado y mocks de Google. No acreditan disponibilidad de Google real, configuración de sus clientes ni ejecución en hardware nativo.
+
+## 8. Recordatorios de sesiones HU-38
+
+Celery Beat registra el barrido `sessions.dispatch_due_reminders` cada cinco minutos. Los avisos in-app se generan siempre que correspondan; SMTP y Web Push permanecen deshabilitados hasta que el entorno configure sus credenciales.
+
+- Enlaces: `FRONTEND_BASE_URL`.
+- SMTP: `EMAIL_ENABLED`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_STARTTLS`, `SMTP_TIMEOUT_SECONDS`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` y `EMAIL_REPLY_TO`.
+- Web Push: `WEB_PUSH_ENABLED`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT`.
+
+`SMTP_USERNAME`, `SMTP_PASSWORD` y `VAPID_PRIVATE_KEY` se tipan con `SecretStr`; sus valores reales sólo deben existir en `.env` o en el gestor de secretos del despliegue. Consulte [la guía de QA HU-38](../docs/README_HU38_QA.md) para el semillero y las verificaciones controladas.
+
+## 9. Laboratorio por habilidad
+
+Requiere la migración `e7a4c1d9b352` (`alembic upgrade head`). Es aditiva: no reescribe filas existentes.
+
+- **Criterios del catálogo:** cada criterio de `rubrics.criteria` es `{key, name, weight, description, metric_type, target}`. `key` lo genera el servidor si falta y se conserva en las actualizaciones (si se envía sin `key`, se reutiliza la del criterio guardado con el mismo nombre). `metric_type` ∈ `REFERENCE_REPLICATION` (predeterminado) | `BALL_TOUCH_STREAK` (`target` > 0 obligatorio = toques seguidos que valen el 100%). Si un nivel tiene criterios, sus pesos deben sumar 100 (±0.01); si no, la escritura responde 400 con «Los porcentajes de los criterios del nivel «<nombre>» deben sumar 100% (actual: <suma>%).». Los criterios guardados sin `key`/`metric_type` se leen con una clave determinista y el tipo predeterminado, sin reescribirlos.
+
+- **Niveles estables:** al editar una habilidad, los niveles se actualizan en su lugar emparejados por `level_number`; solo se crean los números nuevos y se eliminan los ausentes. Los videos de un nivel eliminado quedan con `skill_level_id = NULL` (ON DELETE SET NULL).
+
+- **Columnas nuevas:** `dataset_samples.skill_id` (FK `skills`, SET NULL), `skill_level_id` (FK `skill_levels`, SET NULL), `criterion_key` (64), `sample_role` (`TRAINING` | `REFERENCE`, predeterminado `TRAINING`), `analysis` (JSON, caché del análisis del motor) y `file_format` admite además `webm`/`mov`. `model_versions.skill_id` (FK `skills`, CASCADE) identifica el validador por habilidad (`nombre='skill_validator'`); un índice único parcial permite una sola versión activa por habilidad sin afectar a `level_classifier` ni a los modelos de flauta (sin `skill_id`).
+
+- **Endpoints (solo ADMIN; MEMBER y anónimos reciben 404 «Recurso no encontrado»):**
+
+  - `GET /api/admin/skill-lab/metric-types`: tipos de métrica con `requires_target`/`requires_reference`.
+
+  - `GET /api/admin/skill-lab/skills/{skill_id}`: configuración tomada del catálogo (categoría, tipo de desafío, umbral, niveles, puntaje mínimo, criterios), conteos de videos por nivel/criterio, referencia vigente, `active_model` y `readiness.issues`.
+
+  - `POST /api/admin/skill-lab/skills/{skill_id}/samples` (multipart): `file` (mp4/webm/mov, máx. 200 MB), `skill_level_id`, `sample_role`, `criterion_key` opcional, `participant_id` opcional y `signed_consent=true`. Un nuevo `REFERENCE` para el mismo nivel/criterio reemplaza al anterior (fila y archivo). El archivo se guarda en `storage/datasets/skill-lab/<categoría>/` y se replica en Garage S3 si hay credenciales.
+
+  - `GET /api/admin/skill-lab/skills/{skill_id}/samples` (filtro opcional `sample_role`) y `DELETE /api/admin/skill-lab/samples/{sample_id}`.
+
+  - `GET /api/admin/skill-lab/skills/{skill_id}/models`: versiones `skill_validator` de la habilidad.
+
+  - `POST /api/admin/skill-lab/samples/{sample_id}/preview-url`: devuelve `{url, expires_at, content_type}` para reproducir una muestra (referencia o entrenamiento). `url` es `/api/admin/skill-lab/samples/{id}/file?token=…` (el frontend la resuelve contra la raíz de `VITE_API_URL`) y vence a los 10 minutos (`PREVIEW_TOKEN_TTL_SECONDS`, constante, sin variable de entorno). Muestra inexistente → 404 «Muestra no encontrada.»; sin copia local → 404 «El video de la muestra no está disponible.».
+
+  - `GET /api/admin/skill-lab/samples/{sample_id}/file?token=…`: **única ruta del laboratorio sin cabecera `Authorization`** (un `<video>` no puede enviarla); se autoriza solo con el token, HMAC-SHA256 con `SECRET_KEY` sobre `skill-lab-preview|sample_id|expira`. Admite `Range` (206 + `Content-Range`) para adelantar el video, responde `Cache-Control: private, max-age=600` y `Content-Disposition: inline` con un nombre generado (`muestra-<id>.<ext>`, nunca el nombre original). La ruta del archivo sale solo de la muestra guardada y debe quedar dentro de `storage/`. Token inválido, vencido, de otra muestra o ausente, muestra inexistente o archivo faltante → 404 «Recurso no encontrado». El token viaja en la query string: puede quedar en logs de acceso durante sus 10 minutos de vigencia.
+
+  - `POST /api/admin/skill-lab/skills/{skill_id}/train` (201): calibra el validador con los videos `TRAINING` vinculados a un nivel y crea la versión `v<n>` de esa habilidad como activa (desactiva la anterior en la misma transacción). Funciona con cero videos (tolerancias por defecto y la nota correspondiente). La tolerancia de un nivel o criterio siempre puede ampliarse, pero solo se reduce por debajo de la predeterminada (17°/28°) con al menos 5 videos genuinos de ese nivel/criterio (`MIN_SAMPLES_TO_TIGHTEN`), y nunca hasta reprobar a uno de esos videos genuinos si puede evitarse; con menos se agrega la nota «Con menos de 5 videos por nivel la tolerancia no se reduce; solo puede ampliarse.» cuando se habría reducido, y `fit`/`tolerances` registran `tightening_allowed`. `metricas` incluye las métricas del motor, `notes`, `engine_version` y `samples_per_level` (por id de nivel).
+
+  - `POST /api/admin/skill-lab/skills/{skill_id}/validate` (multipart: `file`, `skill_level_id` opcional): siempre 200 con «Validación completada.» y el resultado de validación. Un video ilegible, vacío o de más de 200 MB devuelve `analysis_complete: false`, puntaje 0 y una nota; no se guarda nada y la copia temporal se elimina siempre. Un `skill_level_id` de otra habilidad responde 404 «Nivel no encontrado para esta habilidad.».
+
+- **Motor (`app/skill_validation/`, local, sin red):** la pose usa MediaPipe Pose Landmarker (`pose_landmarker_full`, float16, en `MODELS_DIR`) y el balón reutiliza el tracker de fútbol. Si falta el modelo de pose, los criterios de réplica quedan `evaluable: false` con su motivo (nunca un aprobado inventado).
+
+- **Caché de análisis:** al subir una muestra se analiza fuera del event loop y se guarda en `dataset_samples.analysis` (`analysis_ready`/`analysis_notes` en la respuesta); un fallo del análisis nunca rompe la subida. Las referencias solo necesitan pose; los videos `TRAINING` reciben todas las pasadas que mide la habilidad (pose si algún nivel replica una referencia, balón si algún nivel tiene `BALL_TOUCH_STREAK`), porque la calibración usa los videos de un nivel como negativos de los niveles superiores y el estimador de nivel combina ambas medidas; así, un video sin criterio de un nivel mixto recibe ambas pasadas. Entrenar y validar recalculan solo los análisis ausentes, de otra `engine_version` o sin una pasada necesaria.
+
+- **Calibración persistida en la base de datos:** el JSON de calibración se guarda dentro de la fila (`model_versions.metricas.calibration`, oculto en las respuestas) y `ruta_onnx` vale `db:model_versions.metricas.calibration`; sobrevive a reinicios del contenedor sin depender del volumen de almacenamiento.
+
+- **Reglas de puntaje (5 líneas):**
+
+  1. Puntaje del nivel = Σ(peso × puntaje del criterio)/100; un nivel sin criterios es un criterio implícito `REFERENCE_REPLICATION` de peso 100.
+  2. `REFERENCE_REPLICATION` compara ángulos articulares 3D con la referencia (espejo, ritmo y ángulo de cámara tolerados); `BALL_TOUCH_STREAK` = min(100, 100 × racha máxima / `target`).
+  3. Sin referencia (o sin pose utilizable en ella) el criterio y el nivel quedan `evaluable: false` con `score: null`.
+  4. `passed` = evaluable y puntaje ≥ `min_score`; `achieved_level` = el nivel aprobado de mayor `level_number`; `score` = el de ese nivel, si no el del nivel evaluable más bajo, si no 0.
+  5. `approved` = hay `achieved_level` y `score` ≥ `min_approval_threshold` de la habilidad.
+
+- **Punto de integración para el flujo del miembro:** `app.services.skill_lab_service.validate_skill_video(db, skill_id, video_path, target_level_id=None) -> dict`. Construye la especificación desde el catálogo, asegura los análisis de las referencias, usa la calibración activa (o la predeterminada), analiza solo las pasadas que requieren los niveles evaluados y devuelve el mismo resultado que `/validate`. No lanza excepciones por el video; una habilidad inexistente o un nivel ajeno lanzan `SkillMatchException` 404. La autenticación, la supervisión y el consumo de intentos del flujo del miembro quedan a cargo del llamador.
+
+- **Preparación (`readiness`):** `ready_to_validate` exige que todos los niveles sean evaluables: pesos que suman 100, `target` en los criterios de balón y una referencia con pose utilizable donde se requiere (un video de referencia ilegible o sin persona genera un aviso para volver a subirlo). `active_model` es la versión activa guardada.

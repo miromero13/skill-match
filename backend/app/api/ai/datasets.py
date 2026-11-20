@@ -33,9 +33,9 @@ router = APIRouter(
 
 
 class FluteFeaturesRequest(BaseModel):
-    audio_features: list[FiniteFloat] = Field(min_length=28, max_length=28)
-    visual_features: list[FiniteFloat] = Field(min_length=128, max_length=128)
-    visual_schema: Literal["hand-landmarks-palm-v2"]
+    audio_features: list[FiniteFloat] = Field(min_length=48, max_length=48)
+    visual_features: list[FiniteFloat] = Field(min_length=50, max_length=50)
+    visual_schema: Literal["hand-landmarks-palm-v4"]
 
 
 class FluteLabelsRequest(FluteFeaturesRequest):
@@ -47,7 +47,7 @@ class FluteLabelsRequest(FluteFeaturesRequest):
 
 
 class FluteInferRequest(FluteFeaturesRequest):
-    target_note: str
+    target_note: str | None = None
 
 
 @router.post("/{sample_id}/flute-labels", response_model=APIResponse[dict[str, Any]])

@@ -15,6 +15,7 @@ import uuid as _uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, select
 
@@ -32,6 +33,7 @@ from app.models.exchange_session import (
     SessionCancellation,
     SessionQuotaMovement,
     SessionReminderDispatch,
+    WeeklySessionQuota,
 )
 from app.models.match import Match
 from app.models.notification import Notification
@@ -42,6 +44,7 @@ from app.models.user_availability import UserAvailability
 from app.models.user_block import UserBlock
 from app.models.user_learning_skill import UserLearningSkill
 from app.models.wallet import Wallet
+from app.services.exchange_session_policy import local_week_bounds
 
 QA_EMAILS = {
     "learner": "learner-hu38-qa@skillmatch.io",
@@ -262,7 +265,7 @@ async def seed_qa_data(db) -> dict[str, Any]:
 
     # 4. Billeteras y Preferencias de Notificaciones
     for u in (learner, instructor, outsider):
-        db.add(Wallet(user_id=u.id, balance=10))
+        db.add(Wallet(user_id=u.id, balance=200 if u.id == learner.id else 10))
         db.add(
             NotificationPreference(
                 user_id=u.id,
@@ -283,6 +286,8 @@ async def seed_qa_data(db) -> dict[str, Any]:
         skill_id=skill.id,
         declared_level="ADVANCED",
         years_of_experience=4,
+        accepts_points=True,
+        hourly_points_rate=40,
     )
     learning_skill = UserLearningSkill(
         user_id=learner.id,
@@ -328,6 +333,24 @@ async def seed_qa_data(db) -> dict[str, Any]:
                 )
             )
     db.add_all(availabilities)
+
+    # Agotar cupos en las semanas visibles del horizonte para mostrar y probar
+    # inmediatamente el flujo pagado HU-42 desde session-options.
+    for days_ahead in (0, 7, 14):
+        reference = datetime.now(UTC) + timedelta(days=days_ahead)
+        week_start = (
+            local_week_bounds(reference, learner.timezone)[0]
+            .astimezone(ZoneInfo(learner.timezone))
+            .date()
+        )
+        db.add(
+            WeeklySessionQuota(
+                user_id=learner.id,
+                week_start=week_start,
+                used=2,
+                version=1,
+            )
+        )
 
     # 8. Sesiones demostrativas para interacción visual inmediata en Frontend
     now_utc = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
@@ -429,7 +452,7 @@ def print_browser_snippet(user_name: str, user_dict: dict[str, str]):
                 "email": user_dict["email"],
                 "fullName": user_dict["full_name"],
                 "role": "MEMBER",
-                "skillPointsBalance": 10,
+                "skillPointsBalance": 200 if user_name.startswith("Usuario A") else 10,
                 "reputationScore": 5.0,
                 "trustLevel": 5,
                 "isVerified": True,

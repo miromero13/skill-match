@@ -52,6 +52,7 @@ const createPayload: ExchangeSessionCreate = {
   ends_at: session.ends_at,
   timezone: session.timezone,
   modality: session.modality,
+  payment_method: "FREE",
 }
 
 const response = <T>(data: T, message = "Servidor"): APIResponse<T> => ({

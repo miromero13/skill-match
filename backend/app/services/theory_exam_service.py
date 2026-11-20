@@ -41,6 +41,18 @@ class TheoryExamService:
                                    started_at=exam.started_at, deadline_at=exam.deadline_at)
 
     @classmethod
+    async def cancel(cls, db, user, evaluation_id):
+        evaluation = await cls.owned(db, user, evaluation_id, lock=True)
+        if evaluation.status == "CANCELLED":
+            return {"evaluation_id": str(evaluation.id), "status": evaluation.status}
+        evaluation.status = "CANCELLED"
+        exam = await db.get(TheoryExam, evaluation.id, populate_existing=True)
+        if exam is not None:
+            exam.current_position = len(exam.questions)
+        await db.commit()
+        return {"evaluation_id": str(evaluation.id), "status": evaluation.status}
+
+    @classmethod
     async def start(cls, db, user, payload):
         # Consent and start use the same per-member lock, including cross-skill quota races.
         user = await db.scalar(select(User).where(User.id == user.id).with_for_update()
@@ -84,7 +96,8 @@ class TheoryExamService:
                           current_position=0, question_started_at=now, answers=[], text_consent_at=now,
                           grading_provider=configured[0], grading_model=configured[1],
                           grading_prompt_version=PROMPT_VERSION, grading_state="PENDING")
-        evaluation.started_at = now
+        # TODO(test): Temporalmente comentado para pruebas; descomentar para descontar el intento al iniciar.
+        # evaluation.started_at = now
         evaluation.status = "THEORY_ACTIVE"
         db.add(exam)
         await db.commit()

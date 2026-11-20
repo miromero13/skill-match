@@ -64,7 +64,7 @@ export function SessionsPage() {
       )}
 
       {freeSessionsLeft === 0 && (
-        <Alert role="status" className="border-amber-300 bg-amber-50/70"><AlertTitle>No quedan sesiones gratuitas esta semana</AlertTitle><AlertDescription>El pago de sesiones adicionales se habilitará únicamente cuando esté disponible el contrato aprobado de HU-42.</AlertDescription></Alert>
+        <Alert role="status" className="border-amber-300 bg-amber-50/70"><AlertTitle>No quedan sesiones gratuitas esta semana</AlertTitle><AlertDescription>Puedes agendar sesiones adicionales con SkillPoints cuando la oferta del instructor admita este medio de pago.</AlertDescription></Alert>
       )}
 
       {error && !loading && (

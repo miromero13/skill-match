@@ -46,3 +46,4 @@ class AvailableSkillResponse(BaseModel):
 
     id: UUID
     name: str
+    category_id: UUID

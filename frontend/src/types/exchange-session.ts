@@ -9,6 +9,7 @@ export const exchangeSessionStatuses = [
 
 export type ExchangeSessionModality = (typeof exchangeSessionModalities)[number]
 export type ExchangeSessionStatus = (typeof exchangeSessionStatuses)[number]
+export type ExchangeSessionPaymentMethod = "FREE" | "POINTS"
 
 export interface ExchangeSession {
   id: string
@@ -23,6 +24,8 @@ export interface ExchangeSession {
   modality: ExchangeSessionModality
   status: ExchangeSessionStatus
   is_free: boolean
+  points_required?: number | null
+  payment_state?: "PENDING" | "RESERVED" | "RELEASED" | "REFUNDED" | null
   cancellation_reason: string | null
   cancelled_by_id: string | null
   cancelled_at: string | null
@@ -83,6 +86,7 @@ export interface ExchangeSessionCreate {
   ends_at: string
   timezone: string
   modality: ExchangeSessionModality
+  payment_method: ExchangeSessionPaymentMethod
 }
 
 export interface ExchangeSessionReschedule {

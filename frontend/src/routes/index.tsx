@@ -11,6 +11,7 @@ import { AdminLoginPage } from "@/pages/admin-login-page"
 import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
 import { AdminUsersPage } from "@/pages/admin-users-page"
 import { AdminCatalogPage } from "@/pages/admin-catalog-page"
+import { AdminSkillLabPage } from "@/pages/admin-skill-lab-page"
 import { AdminProgrammingPage } from "@/pages/admin-programming-page"
 import { TheoryBankPage } from "@/pages/theory-bank-page"
 import { LearningSkillsPage } from "@/pages/learning-skills-page"
@@ -21,6 +22,7 @@ import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { EvaluationSetupPage } from "@/pages/evaluation-setup-page"
 import { TheoryExamPage } from "@/pages/theory-exam-page"
 import { ProgrammingExamPage } from "@/pages/programming-exam-page"
+import { EvaluationResultPage } from "@/pages/evaluation-result-page"
 import { BrowserSupervisionPage } from "@/pages/browser-supervision-page"
 import { browserSupervisionTrialEnabled } from "@/lib/feature-flags"
 import { ProfilePage } from "@/pages/profile-page"
@@ -63,6 +65,15 @@ import { AdminComplaintsPage } from "@/pages/admin/admin-complaints-page"
 export const router = createBrowserRouter([
   { path: "/evaluation/:id/theory", element: <MemberRouteGuard><TheoryExamPage /></MemberRouteGuard> },
   { path: "/evaluation/:id/code", element: <MemberRouteGuard><ProgrammingExamPage /></MemberRouteGuard> },
+  {
+    path: "/evaluation/:id/result",
+    element: (
+      <MemberRouteGuard>
+        <PlatformLayout />
+      </MemberRouteGuard>
+    ),
+    children: [{ index: true, element: <EvaluationResultPage /> }],
+  },
   ...(browserSupervisionTrialEnabled
     ? [{ path: "/app/browser-supervision-test", element: <MemberRouteGuard><BrowserSupervisionPage /></MemberRouteGuard> }]
     : []),
@@ -312,6 +323,22 @@ export const router = createBrowserRouter([
       {
         index: true,
         element: <AdminCatalogPage />,
+      },
+    ],
+  },
+
+  // 6.1.1 Admin Backoffice - Laboratorio de validación por habilidad (Enviar al laboratorio)
+  {
+    path: "/admin/skill-lab/:skillId",
+    element: (
+      <AdminRouteGuard>
+        <AdminLayout />
+      </AdminRouteGuard>
+    ),
+    children: [
+      {
+        index: true,
+        element: <AdminSkillLabPage />,
       },
     ],
   },

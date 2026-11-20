@@ -20,7 +20,6 @@ export type FluteVariationType =
 export interface FluteNoteSpec {
   note: FluteNoteName
   displayName: string
-  hz: number
   handsRequired: 1 | 2
   /** Back thumb hole state */
   thumbState: "tapado" | "abierto" | "medio"
@@ -29,6 +28,10 @@ export interface FluteNoteSpec {
   handTip: string
   difficultyLevel: 1 | 3
 }
+
+export const FLUTE_AUDIO_DIM = 48
+export const FLUTE_MEL_BANDS = 32
+export const FLUTE_MFCC_COUNT = 13
 
 export const FLUTE_ORDERED_NOTES: FluteNoteName[] = [
   "SI",
@@ -50,7 +53,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   SI: {
     note: "SI",
     displayName: "SI",
-    hz: 987.77,
     handsRequired: 1,
     thumbState: "tapado",
     frontHoles: [true, false, false, false, false, false, false],
@@ -60,7 +62,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   LA: {
     note: "LA",
     displayName: "LA",
-    hz: 880.0,
     handsRequired: 1,
     thumbState: "tapado",
     frontHoles: [true, true, false, false, false, false, false],
@@ -70,7 +71,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   SOL: {
     note: "SOL",
     displayName: "SOL",
-    hz: 783.99,
     handsRequired: 1,
     thumbState: "tapado",
     frontHoles: [true, true, true, false, false, false, false],
@@ -80,7 +80,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   DO6: {
     note: "DO6",
     displayName: "DO Agudo",
-    hz: 1046.5,
     handsRequired: 1,
     thumbState: "tapado",
     frontHoles: [false, true, false, false, false, false, false],
@@ -90,7 +89,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   RE6: {
     note: "RE6",
     displayName: "RE Agudo",
-    hz: 1174.66,
     handsRequired: 1,
     thumbState: "abierto",
     frontHoles: [false, true, false, false, false, false, false],
@@ -100,7 +98,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   FA: {
     note: "FA",
     displayName: "FA",
-    hz: 698.46,
     handsRequired: 2,
     thumbState: "tapado",
     frontHoles: [true, true, true, true, false, false, false],
@@ -110,7 +107,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   "FA#": {
     note: "FA#",
     displayName: "FA# (Sost.)",
-    hz: 739.99,
     handsRequired: 2,
     thumbState: "tapado",
     frontHoles: [true, true, true, false, true, true, false],
@@ -120,7 +116,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   MI: {
     note: "MI",
     displayName: "MI",
-    hz: 659.25,
     handsRequired: 2,
     thumbState: "tapado",
     frontHoles: [true, true, true, true, true, false, false],
@@ -130,7 +125,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   RE: {
     note: "RE",
     displayName: "RE Grave",
-    hz: 587.33,
     handsRequired: 2,
     thumbState: "tapado",
     frontHoles: [true, true, true, true, true, true, false],
@@ -140,7 +134,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   DO: {
     note: "DO",
     displayName: "DO Grave",
-    hz: 523.25,
     handsRequired: 2,
     thumbState: "tapado",
     frontHoles: [true, true, true, true, true, true, true],
@@ -150,7 +143,6 @@ export const FLUTE_NOTES_MAP: Record<FluteNoteName, FluteNoteSpec> = {
   MI6: {
     note: "MI6",
     displayName: "MI Agudo",
-    hz: 1318.51,
     handsRequired: 2,
     thumbState: "medio",
     frontHoles: [true, true, true, true, true, false, false],
@@ -195,367 +187,130 @@ export const FLUTE_VARIATIONS_LIST: FluteVariationSpec[] = [
   },
 ]
 
-export interface FluteAudioAnalysis {
-  hz: number | null
-  isFluteTimbre: boolean
-  rejectionReason: "silencio" | "voz_o_ruido" | null
-  spectralPurity: number
+const hzToMel = (f: number) => 2595 * Math.log10(1 + f / 700)
+const melToHz = (m: number) => 700 * (10 ** (m / 2595) - 1)
+
+// Precompute Mel filter edge frequencies (32 triangular bands spanning 350..6000)
+const MEL_MIN = hzToMel(350)
+const MEL_MAX = hzToMel(6000)
+const MEL_EDGE_FREQS = Array.from({ length: FLUTE_MEL_BANDS + 2 }, (_, i) =>
+  melToHz(MEL_MIN + (i * (MEL_MAX - MEL_MIN)) / (FLUTE_MEL_BANDS + 1))
+)
+
+export interface AudioActivityStatus {
+  rms: number
+  hasSound: boolean
+}
+
+/** Lightweight acoustic activity detector (energy only, no pitch/Hz). */
+export function measureAudioActivity(analyser: AnalyserNode): AudioActivityStatus {
+  const waveform = new Float32Array(analyser.fftSize)
+  analyser.getFloatTimeDomainData(waveform)
+  let sumSq = 0
+  for (let i = 0; i < waveform.length; i++) {
+    sumSq += waveform[i] * waveform[i]
+  }
+  const rms = Math.sqrt(sumSq / Math.max(1, waveform.length))
+  return { rms, hasSound: rms >= 0.012 }
 }
 
 /**
- * Analyzes both time-domain autocorrelation AND FFT spectral purity to detect
- * real flute notes (495 Hz - 1450 Hz) while rejecting human voice (which has
- * strong fundamental/chest energy in 90-440 Hz and wide formant spread).
+ * Pure acoustic timbre feature extractor (48 floats, NO pitch/Hz measurement):
+ * - [0..31]: 32 L2-normalized log-Mel filterbank energies (captures flute note timbre + overtones)
+ * - [32..44]: 13 MFCCs (DCT-II c1..c13 of log-Mel, separates woodwind timbre from voice/noise)
+ * - [45]: RMS energy (clamped 0..1)
+ * - [46]: Spectral flatness (tonal woodwind vs broadband room noise)
+ * - [47]: Low-band energy ratio (<420 Hz share, distinguishes chest voice from flute)
  */
-export function analyzeFluteAudioFrame(
+export function extractFluteAudioFeatures(
   analyser: AnalyserNode,
   sampleRate: number
-): FluteAudioAnalysis {
-  const bufferLength = analyser.fftSize
-  const timeData = new Float32Array(bufferLength)
-  analyser.getFloatTimeDomainData(timeData)
+): number[] {
+  const binCount = analyser.frequencyBinCount
+  const spectrumDb = new Float32Array(binCount)
+  const waveform = new Float32Array(analyser.fftSize)
+  analyser.getFloatFrequencyData(spectrumDb)
+  analyser.getFloatTimeDomainData(waveform)
 
   let sumSq = 0
-  for (let i = 0; i < bufferLength; i++) {
-    sumSq += timeData[i] * timeData[i]
+  for (let i = 0; i < waveform.length; i++) {
+    sumSq += waveform[i] * waveform[i]
   }
-  const rms = Math.sqrt(sumSq / bufferLength)
-  if (rms < 0.015) {
-    return {
-      hz: null,
-      isFluteTimbre: false,
-      rejectionReason: "silencio",
-      spectralPurity: 0,
+  const rms = Math.min(1, Math.sqrt(sumSq / Math.max(1, waveform.length)))
+
+  // Convert dB spectrum to linear power per bin
+  const power = new Float64Array(binCount)
+  const binWidth = sampleRate / Math.max(1, analyser.fftSize)
+  let totalPower = 0
+  let lowPower = 0
+  let fluteBandLogSum = 0
+  let fluteBandPowerSum = 0
+  let fluteBandBins = 0
+
+  for (let i = 1; i < binCount; i++) {
+    const freq = i * binWidth
+    if (freq > 6200) break
+    const db = Number.isFinite(spectrumDb[i]) ? Math.max(-120, Math.min(0, spectrumDb[i])) : -120
+    const p = 10 ** (db / 10)
+    power[i] = p
+    totalPower += p
+    if (freq < 420) lowPower += p
+    if (freq >= 350 && freq <= 6000) {
+      fluteBandPowerSum += p
+      fluteBandLogSum += Math.log(p + 1e-12)
+      fluteBandBins += 1
     }
   }
 
-  // 1. Check frequency spectrum to separate pure flute whistle from human voice
-  const freqBinCount = analyser.frequencyBinCount
-  const freqData = new Uint8Array(freqBinCount)
-  analyser.getByteFrequencyData(freqData)
-  const binHz = sampleRate / (freqBinCount * 2)
-
-  // Low voice fundamental band: 95 Hz - 445 Hz (Soprano recorder lowest note DO5 is 523 Hz)
-  const voiceLowStart = Math.max(1, Math.floor(95 / binHz))
-  const voiceLowEnd = Math.min(freqBinCount - 1, Math.floor(445 / binHz))
-  let voiceLowSum = 0
-  let voiceLowMax = 0
-  for (let b = voiceLowStart; b <= voiceLowEnd; b++) {
-    voiceLowSum += freqData[b]
-    if (freqData[b] > voiceLowMax) voiceLowMax = freqData[b]
-  }
-  const voiceLowAvg = voiceLowSum / Math.max(1, voiceLowEnd - voiceLowStart + 1)
-
-  // Flute fundamental band: 490 Hz - 1480 Hz (DO5=523 Hz up to MI6=1319 Hz)
-  const fluteStart = Math.max(1, Math.floor(490 / binHz))
-  const fluteEnd = Math.min(freqBinCount - 1, Math.floor(1480 / binHz))
-  let fluteSum = 0
-  let flutePeakVal = 0
-  let flutePeakBin = fluteStart
-  for (let b = fluteStart; b <= fluteEnd; b++) {
-    fluteSum += freqData[b]
-    if (freqData[b] > flutePeakVal) {
-      flutePeakVal = freqData[b]
-      flutePeakBin = b
-    }
-  }
-  const fluteAvg = fluteSum / Math.max(1, fluteEnd - fluteStart + 1)
-
-  // Calculate narrow-band peak concentration (a flute concentrates energy in 1 narrow peak;
-  // human voice spreads formants across many bins and has strong <445Hz chest energy)
-  let narrowPeakSum = 0
-  for (
-    let b = Math.max(fluteStart, flutePeakBin - 2);
-    b <= Math.min(fluteEnd, flutePeakBin + 2);
-    b++
-  ) {
-    narrowPeakSum += freqData[b]
-  }
-  const narrowPeakAvg = narrowPeakSum / 5
-  const crestRatio = fluteAvg > 0 ? narrowPeakAvg / fluteAvg : 0
-
-  // 2. Autocorrelation across 100 Hz - 1550 Hz to find true fundamental period
-  // (If someone speaks/sings, their true fundamental period will be in 100-440 Hz!)
-  const minLag = Math.max(2, Math.floor(sampleRate / 1550))
-  const maxLag = Math.min(Math.floor(bufferLength / 2), Math.floor(sampleRate / 110))
-
-  let bestLag = -1
-  let bestCorr = 0
-  for (let lag = minLag; lag <= maxLag; lag++) {
-    let corr = 0
-    for (let i = 0; i < bufferLength - lag; i++) {
-      corr += timeData[i] * timeData[i + lag]
-    }
-    if (corr > bestCorr) {
-      bestCorr = corr
-      bestLag = lag
-    }
-  }
-
-  const normalizedCorr = bestCorr / (sumSq + 1e-6)
-  const rawPitchHz = bestLag > 0 ? sampleRate / bestLag : 0
-
-  // Reject human voice / background noise:
-  // - True fundamental pitch < 485 Hz (human speech/singing fundamental)
-  // - Low voice band (<445 Hz) has comparable or stronger peak/average than the flute band
-  // - Low spectral crest factor (broadband voice formants or room noise instead of pure flute whistle)
-  // - Low periodicity correlation
-  const hasStrongVoiceFundamental =
-    rawPitchHz < 485 ||
-    voiceLowMax > flutePeakVal * 0.82 ||
-    voiceLowAvg > fluteAvg * 0.9
-  const isPureTone = crestRatio >= 1.95 && normalizedCorr >= 0.55 && flutePeakVal >= 75
-
-  if (hasStrongVoiceFundamental || !isPureTone) {
-    return {
-      hz: rawPitchHz > 0 ? Math.round(rawPitchHz) : null,
-      isFluteTimbre: false,
-      rejectionReason: "voz_o_ruido",
-      spectralPurity: Math.round(Math.min(1, crestRatio / 3) * 100),
-    }
-  }
-
-  const finalHz = Math.round(rawPitchHz)
-  return {
-    hz: finalHz,
-    isFluteTimbre: true,
-    rejectionReason: null,
-    spectralPurity: Math.round(Math.min(1, crestRatio / 3) * 100),
-  }
-}
-
-/** Shared capture/inference layout: 24 linear 0–6kHz energy bands,
- * pitch/1500, spectral crest, low-band share, RMS. Never discard negatives. */
-export function extractFluteAudioFeatures(analyser: AnalyserNode, sampleRate: number): number[] {
-  const spectrum = new Float32Array(analyser.frequencyBinCount)
-  const waveform = new Float32Array(analyser.fftSize)
-  analyser.getFloatFrequencyData(spectrum)
-  analyser.getFloatTimeDomainData(waveform)
-  const bands = Array<number>(24).fill(0)
-  let total = 0
-  let low = 0
-  let peak = 0
-  let bins = 0
-  for (let i = 1; i < spectrum.length; i++) {
-    const hz = i * sampleRate / analyser.fftSize
-    if (hz >= 6000) break
-    const energy = Number.isFinite(spectrum[i]) ? 10 ** (spectrum[i] / 10) : 0
-    bands[Math.floor(hz / 250)] += energy
-    total += energy
-    peak = Math.max(peak, energy)
-    if (hz < 445) low += energy
-    bins++
-  }
-  const rms = Math.sqrt(waveform.reduce((sum, v) => sum + v * v, 0) / waveform.length)
-  const pitch = analyzeFluteAudioFrame(analyser, sampleRate).hz ?? 0
-  return [...bands.map(v => total ? v / total : 0), pitch / 1500,
-    total ? peak / (total / Math.max(1, bins)) : 0, total ? low / total : 0, rms]
-}
-
-export function detectFlutePitchHz(
-  analyser: AnalyserNode,
-  sampleRate: number
-): number | null {
-  const analysis = analyzeFluteAudioFrame(analyser, sampleRate)
-  return analysis.isFluteTimbre ? analysis.hz : null
-}
-
-export function findClosestFluteNote(hz: number): {
-  note: FluteNoteName
-  targetHz: number
-  diffHz: number
-  isInTune: boolean
-} {
-  let closest: FluteNoteName = "SOL"
-  let minDiff = Infinity
-
-  for (const noteName of FLUTE_ORDERED_NOTES) {
-    const spec = FLUTE_NOTES_MAP[noteName]
-    const diff = Math.abs(spec.hz - hz)
-    if (diff < minDiff) {
-      minDiff = diff
-      closest = noteName
-    }
-  }
-
-  const targetHz = Math.round(FLUTE_NOTES_MAP[closest].hz)
-  return {
-    note: closest,
-    targetHz,
-    diffHz: Math.round(minDiff),
-    // Strict tuning tolerance: within 28 Hz of target note
-    isInTune: minDiff <= 28,
-  }
-}
-
-export interface FluteHandsVisualAnalysis {
-  cameraReady: boolean
-  brightness: number
-  leftHandDetected: boolean
-  rightHandDetected: boolean
-  leftHandSkinPct: number
-  rightHandSkinPct: number
-}
-
-/**
- * Inspects the live camera frame in the two vertical hand zones where the flute
- * is held:
- * - Upper Zone (Mano Izquierda - Huecos 1-3): center x [35%..65%], y [42%..64%]
- * - Lower Zone (Mano Derecha - Huecos 4-7): center x [35%..65%], y [65%..88%]
- * Compares skin-tone presence (YCbCr + RGB rules) and local edge/finger contrast
- * against the outer lateral background so an empty background or turned-off camera
- * is never reported as "hands detected".
- */
-export function analyzeFluteHandsInVideo(
-  video: HTMLVideoElement | null,
-  canvas: HTMLCanvasElement | null
-): FluteHandsVisualAnalysis {
-  if (
-    !video ||
-    !canvas ||
-    video.readyState < 2 ||
-    video.videoWidth === 0 ||
-    video.videoHeight === 0
-  ) {
-    return {
-      cameraReady: false,
-      brightness: 0,
-      leftHandDetected: false,
-      rightHandDetected: false,
-      leftHandSkinPct: 0,
-      rightHandSkinPct: 0,
-    }
-  }
-
-  const ctx = canvas.getContext("2d")
-  if (!ctx) {
-    return {
-      cameraReady: false,
-      brightness: 0,
-      leftHandDetected: false,
-      rightHandDetected: false,
-      leftHandSkinPct: 0,
-      rightHandSkinPct: 0,
-    }
-  }
-
-  const w = 96
-  const h = 72
-  canvas.width = w
-  canvas.height = h
-  ctx.drawImage(video, 0, 0, w, h)
-  const data = ctx.getImageData(0, 0, w, h).data
-
-  let totalLum = 0
-  for (let i = 0; i < data.length; i += 4) {
-    totalLum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
-  }
-  const avgBrightness = Math.round(totalLum / (w * h))
-
-  if (avgBrightness < 25) {
-    return {
-      cameraReady: true,
-      brightness: avgBrightness,
-      leftHandDetected: false,
-      rightHandDetected: false,
-      leftHandSkinPct: 0,
-      rightHandSkinPct: 0,
-    }
-  }
-
-  const isSkinAndFingerPixel = (r: number, g: number, b: number): boolean => {
-    // YCbCr skin chrominance bounds + RGB dominance
-    const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b
-    const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b
-    const rgbSkin =
-      r > 75 &&
-      g > 35 &&
-      b > 18 &&
-      r > g &&
-      r > b &&
-      Math.max(r, g, b) - Math.min(r, g, b) > 15 &&
-      Math.abs(r - g) > 10
-    const ycbcrSkin = cr >= 133 && cr <= 178 && cb >= 75 && cb <= 130
-    return rgbSkin && ycbcrSkin
-  }
-
-  const measureZone = (
-    x0Pct: number,
-    x1Pct: number,
-    y0Pct: number,
-    y1Pct: number
-  ): { skinPct: number; edgeContrast: number; meanLum: number } => {
-    const x0 = Math.floor(w * x0Pct)
-    const x1 = Math.floor(w * x1Pct)
-    const y0 = Math.floor(h * y0Pct)
-    const y1 = Math.floor(h * y1Pct)
-
-    let skinCount = 0
-    let totalPixels = 0
-    let edgeSum = 0
-    let lumSum = 0
-
-    for (let y = y0; y < y1; y++) {
-      for (let x = x0; x < x1; x++) {
-        const idx = (y * w + x) * 4
-        const r = data[idx]
-        const g = data[idx + 1]
-        const b = data[idx + 2]
-        const lum = 0.299 * r + 0.587 * g + 0.114 * b
-        lumSum += lum
-        if (isSkinAndFingerPixel(r, g, b)) {
-          skinCount += 1
-        }
-        if (x + 1 < x1) {
-          const nextIdx = (y * w + (x + 1)) * 4
-          const nextLum =
-            0.299 * data[nextIdx] +
-            0.587 * data[nextIdx + 1] +
-            0.114 * data[nextIdx + 2]
-          edgeSum += Math.abs(lum - nextLum)
-        }
-        totalPixels += 1
+  // 1. 32 triangular Mel filterbank energies
+  const logMel = new Array<number>(FLUTE_MEL_BANDS).fill(0)
+  for (let m = 0; m < FLUTE_MEL_BANDS; m++) {
+    const fLeft = MEL_EDGE_FREQS[m]
+    const fCenter = MEL_EDGE_FREQS[m + 1]
+    const fRight = MEL_EDGE_FREQS[m + 2]
+    const binStart = Math.max(1, Math.floor(fLeft / binWidth))
+    const binEnd = Math.min(binCount - 1, Math.ceil(fRight / binWidth))
+    let bandEnergy = 0
+    for (let b = binStart; b <= binEnd; b++) {
+      const f = b * binWidth
+      let weight = 0
+      if (f >= fLeft && f <= fCenter && fCenter > fLeft) {
+        weight = (f - fLeft) / (fCenter - fLeft)
+      } else if (f > fCenter && f <= fRight && fRight > fCenter) {
+        weight = (fRight - f) / (fRight - fCenter)
       }
+      bandEnergy += power[b] * weight
     }
-
-    const count = Math.max(1, totalPixels)
-    return {
-      skinPct: Math.round((skinCount / count) * 100),
-      edgeContrast: edgeSum / count,
-      meanLum: lumSum / count,
-    }
+    logMel[m] = Math.log10(bandEnergy + 1e-10) + 10 // Shift into >= 0 range
   }
 
-  // Background reference on left & right margins (where hands aren't)
-  const bgLeft = measureZone(0.04, 0.22, 0.45, 0.85)
-  const bgRight = measureZone(0.78, 0.96, 0.45, 0.85)
-  const bgSkinBaseline = (bgLeft.skinPct + bgRight.skinPct) / 2
+  // Normalize log-Mel vector per frame (invariant to mic gain/distance)
+  let melMean = 0
+  for (let m = 0; m < FLUTE_MEL_BANDS; m++) melMean += logMel[m]
+  melMean /= FLUTE_MEL_BANDS
+  const centeredMel = logMel.map((v) => v - melMean)
+  const melNorm = Math.hypot(...centeredMel)
+  const normMel = melNorm > 1e-6 ? centeredMel.map((v) => v / melNorm) : centeredMel.map(() => 0)
 
-  // Upper flute zone: Mano Izquierda (Huecos 1-3, below mouth/chin)
-  const upperZone = measureZone(0.34, 0.66, 0.44, 0.66)
-  // Lower flute zone: Mano Derecha (Huecos 4-7, lower chest)
-  const lowerZone = measureZone(0.34, 0.66, 0.66, 0.90)
-
-  // A hand is truly present in a zone only if:
-  // 1) It has enough skin pixels (>= 14%)
-  // 2) It has meaningfully more skin/finger texture than the background wall (>= bg + 8%)
-  // 3) It has finger/flute edge detail (edgeContrast >= 7.5)
-  const leftHandDetected =
-    upperZone.skinPct >= 14 &&
-    upperZone.skinPct >= bgSkinBaseline + 7 &&
-    upperZone.edgeContrast >= 7.0
-
-  const rightHandDetected =
-    lowerZone.skinPct >= 14 &&
-    lowerZone.skinPct >= bgSkinBaseline + 7 &&
-    lowerZone.edgeContrast >= 7.0
-
-  return {
-    cameraReady: true,
-    brightness: avgBrightness,
-    leftHandDetected,
-    rightHandDetected,
-    leftHandSkinPct: upperZone.skinPct,
-    rightHandSkinPct: lowerZone.skinPct,
+  // 2. 13 MFCCs (DCT-II, coefficients k = 1..13)
+  const mfccs = new Array<number>(FLUTE_MFCC_COUNT).fill(0)
+  const dctScale = Math.sqrt(2 / FLUTE_MEL_BANDS)
+  for (let k = 1; k <= FLUTE_MFCC_COUNT; k++) {
+    let sum = 0
+    for (let n = 0; n < FLUTE_MEL_BANDS; n++) {
+      sum += normMel[n] * Math.cos((Math.PI * k * (n + 0.5)) / FLUTE_MEL_BANDS)
+    }
+    mfccs[k - 1] = dctScale * sum
   }
+
+  // 3. Spectral flatness (tonality vs noise) and low-band energy ratio
+  const meanFlutePower = fluteBandBins > 0 ? fluteBandPowerSum / fluteBandBins : 0
+  const geoMeanFlutePower = fluteBandBins > 0 ? Math.exp(fluteBandLogSum / fluteBandBins) : 0
+  const spectralFlatness =
+    meanFlutePower > 1e-12 ? Math.min(1, geoMeanFlutePower / meanFlutePower) : 1
+  const lowEnergyRatio = totalPower > 1e-12 ? Math.min(1, lowPower / totalPower) : 0
+
+  return [...normMel, ...mfccs, rms, spectralFlatness, lowEnergyRatio].map((v) =>
+    Number.isFinite(v) ? v : 0
+  )
 }

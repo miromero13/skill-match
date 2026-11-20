@@ -6,6 +6,7 @@ import { beforeEach, expect, it, vi } from "vitest"
 import { MatchSessionBooking } from "@/components/sessions/match-session-booking"
 import { getMatchSessionOptions } from "@/services/match-service"
 import { useExchangeSessionStore } from "@/stores/exchange-session-store"
+import { useWalletStore } from "@/stores/wallet-store"
 
 vi.mock("@/services/match-service", () => ({
   getMatchSessionOptions: vi.fn(),
@@ -15,7 +16,17 @@ const create = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
-  useExchangeSessionStore.setState({ pending: {}, create })
+  useExchangeSessionStore.setState({
+    pending: {},
+    create,
+    loaded: true,
+    freeSessionsLeft: 1,
+  })
+  useWalletStore.setState({
+    availableBalance: 100,
+    isLoadingBalance: false,
+    loadBalance: vi.fn().mockResolvedValue(undefined),
+  })
   vi.mocked(getMatchSessionOptions).mockResolvedValue({
     statuscode: 200,
     message: "Opciones recuperadas.",
@@ -31,6 +42,8 @@ beforeEach(() => {
           learner_id: "learner-1",
           teaching_skill_id: "skill-1",
           skill_name: "Guitarra",
+          accepts_points: true,
+          hourly_points_rate: 40,
           modalities: ["VIRTUAL"],
           common_slots: [
             {
@@ -62,7 +75,7 @@ it("loads canonical options and creates a session with backend identifiers", asy
     "match-1",
     expect.any(AbortSignal)
   )
-  await user.click(screen.getByRole("button", { name: "Agendar sesión" }))
+  await user.click(screen.getByRole("button", { name: "Agendar sesión gratuita" }))
 
   expect(create).toHaveBeenCalledWith({
     match_id: "match-1",
@@ -72,6 +85,7 @@ it("loads canonical options and creates a session with backend identifiers", asy
     ends_at: "2026-11-20T19:00:00Z",
     timezone: "America/La_Paz",
     modality: "VIRTUAL",
+    payment_method: "FREE",
   })
   expect(
     await screen.findByText("Sesión propuesta correctamente")
@@ -93,9 +107,54 @@ it("prevents a duplicate submit while creation is pending", async () => {
     </MemoryRouter>
   )
 
-  const button = await screen.findByRole("button", { name: "Agendar sesión" })
+  const button = await screen.findByRole("button", { name: "Agendar sesión gratuita" })
   await user.click(button)
   await waitFor(() => expect(create).toHaveBeenCalledTimes(1))
   expect(button).toBeDisabled()
   resolveCreate(true)
+})
+
+it("uses SkillPoints explicitly when the weekly free quota is exhausted", async () => {
+  const user = userEvent.setup()
+  create.mockResolvedValue(true)
+  useExchangeSessionStore.setState({ freeSessionsLeft: 0, loaded: true })
+
+  render(
+    <MemoryRouter>
+      <MatchSessionBooking matchId="match-1" />
+    </MemoryRouter>
+  )
+
+  expect(
+    await screen.findByText(/Esta sesión requiere 40 SkillPoints/)
+  ).toBeInTheDocument()
+  await user.click(
+    screen.getByRole("button", { name: "Agendar por 40 SkillPoints" })
+  )
+  expect(create).toHaveBeenCalledWith(
+    expect.objectContaining({ payment_method: "POINTS" })
+  )
+})
+
+it.each([
+  ["mobile", 375, 812],
+  ["tablet", 768, 1024],
+  ["desktop", 1440, 900],
+])("keeps the paid flow usable on %s", async (_viewport, width, height) => {
+  window.innerWidth = width
+  window.innerHeight = height
+  window.dispatchEvent(new Event("resize"))
+  useExchangeSessionStore.setState({ freeSessionsLeft: 0, loaded: true })
+
+  render(
+    <MemoryRouter>
+      <MatchSessionBooking matchId="match-1" />
+    </MemoryRouter>
+  )
+
+  expect(
+    await screen.findByRole("button", { name: "Agendar por 40 SkillPoints" })
+  ).toBeEnabled()
+  expect(screen.getByRole("radiogroup", { name: "Horarios comunes" })).toBeVisible()
+  expect(screen.getByText(/Tu saldo disponible es 100 SkillPoints/)).toBeVisible()
 })

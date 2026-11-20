@@ -10,7 +10,14 @@ from app.schemas.response import APIResponse
 from app.schemas.theory_exam import TheoryStartRequest, TheoryStartResponse, PublicTheoryQuestion
 from app.services.theory_exam_service import TheoryExamService
 from app.services.theory_answer_service import TheoryAnswerService
-from app.schemas.theory_exam import TheoryProgressResponse, OralAnswerRequest, OralAnswerResponse, TheoryGradingResponse
+from app.schemas.theory_exam import (
+    FinalEvaluationResponse,
+    TheoryProgressResponse,
+    OralAnswerRequest,
+    OralAnswerResponse,
+    TheoryGradingResponse,
+)
+from app.services.evaluation_finalization_service import EvaluationFinalizationService
 from app.services.theory_grading_service import TheoryGradingService
 
 router = APIRouter(prefix="/evaluations", tags=["Examen teórico"])
@@ -22,6 +29,14 @@ async def start_theory(payload: TheoryStartRequest, db: AsyncSession = Depends(g
                        user: User = Depends(get_current_user)):
     result = await TheoryExamService.start(db, user, payload)
     return APIResponse.ok(message="Examen teórico iniciado. Tu intento quedó registrado.", data=result)
+
+
+@router.post("/{evaluation_id}/cancel", response_model=APIResponse[dict], response_model_exclude={"count"},
+             summary="Cancelar evaluación en curso consumiendo el intento")
+async def cancel_evaluation(evaluation_id: UUID, db: AsyncSession = Depends(get_db),
+                            user: User = Depends(get_current_user)):
+    data = await TheoryExamService.cancel(db, user, evaluation_id)
+    return APIResponse.ok(message="Evaluación cancelada. El intento quedó consumido.", data=data)
 
 
 @router.get("/{evaluation_id}/questions", response_model=APIResponse[list[PublicTheoryQuestion]],
@@ -54,6 +69,14 @@ async def retry_theory_grading(evaluation_id: UUID, db: AsyncSession = Depends(g
                                user: User = Depends(get_current_user)):
     data = await TheoryGradingService.retry(db, user, evaluation_id)
     return APIResponse.ok(message="Corrección teórica procesada.", data=data)
+
+
+@router.post("/{evaluation_id}/finalize", response_model=APIResponse[FinalEvaluationResponse],
+             response_model_exclude={"count"}, summary="Finalizar evaluación, calificar con IA y validar habilidad")
+async def finalize_evaluation(evaluation_id: UUID, db: AsyncSession = Depends(get_db),
+                              user: User = Depends(get_current_user)):
+    data = await EvaluationFinalizationService.finalize(db, user, evaluation_id)
+    return APIResponse.ok(message="Evaluación finalizada y calificada.", data=data)
 
 
 @router.post("/{evaluation_id}/answers", response_model=APIResponse[OralAnswerResponse],

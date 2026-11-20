@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useLearningSkillStore } from "@/stores/learning-skill-store"
+import { filterSkillsByCategory, sortCategoriesByPath } from "@/lib/catalog-tree"
 import type { UrgencyLevel } from "@/types/learning-skill"
 
 const LEVEL_LABELS: Record<number, string> = {
@@ -46,9 +47,16 @@ export function AddLearningSkillDialog({
   const open = isControlled ? controlledOpen : internalOpen
   const setOpen = isControlled ? setControlledOpen! : setInternalOpen
 
-  const { catalogSkills, fetchCatalogSkills, addLearningSkill, learningSkills } =
-    useLearningSkillStore()
+  const {
+    catalogSkills,
+    categories,
+    fetchCatalogSkills,
+    fetchCategories,
+    addLearningSkill,
+    learningSkills,
+  } = useLearningSkillStore()
 
+  const [selectedCategoryId, setSelectedCategoryId] = React.useState("")
   const [selectedSkillId, setSelectedSkillId] = React.useState("")
   const [currentLevel, setCurrentLevel] = React.useState(1)
   const [targetLevel, setTargetLevel] = React.useState(3)
@@ -58,13 +66,21 @@ export function AddLearningSkillDialog({
 
   React.useEffect(() => {
     if (open) {
+      fetchCategories()
       fetchCatalogSkills()
     }
-  }, [open, fetchCatalogSkills])
+  }, [open, fetchCategories, fetchCatalogSkills])
 
-  // Filtrar habilidades que el usuario ya tenga agregadas
+  // Filtrar habilidades que el usuario ya tenga agregadas y por categoría seleccionada
   const registeredSkillIds = new Set(learningSkills.map((item) => item.skill_id))
-  const availableSkills = catalogSkills.filter((s) => !registeredSkillIds.has(s.id))
+  const unregisteredSkills = catalogSkills.filter((s) => !registeredSkillIds.has(s.id))
+  const categoryOptions = sortCategoriesByPath(categories)
+  const hasCategories = categoryOptions.length > 0
+  const availableSkills = !hasCategories
+    ? unregisteredSkills
+    : selectedCategoryId
+      ? filterSkillsByCategory(unregisteredSkills, selectedCategoryId, categories)
+      : []
 
   const isInvalidLevel = targetLevel < currentLevel
 
@@ -83,6 +99,7 @@ export function AddLearningSkillDialog({
 
     setIsSubmitting(false)
     if (success) {
+      setSelectedCategoryId("")
       setSelectedSkillId("")
       setCurrentLevel(1)
       setTargetLevel(3)
@@ -122,6 +139,32 @@ export function AddLearningSkillDialog({
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
+            {hasCategories && (
+              <div className="space-y-1.5">
+                <Label htmlFor="learning-category-select" className="text-xs font-semibold">
+                  Categoría *
+                </Label>
+                <Select
+                  value={selectedCategoryId}
+                  onValueChange={(value) => {
+                    setSelectedCategoryId(value)
+                    setSelectedSkillId("")
+                  }}
+                >
+                  <SelectTrigger id="learning-category-select" className="w-full h-10 text-xs">
+                    <SelectValue placeholder="Selecciona una categoría..." />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="max-h-60">
+                    {categoryOptions.map(({ category, label }) => (
+                      <SelectItem key={category.id} value={category.id} className="text-xs">
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Selector de Habilidad */}
             <div className="space-y-1.5">
               <Label htmlFor="skill-select" className="text-xs font-semibold">
@@ -130,15 +173,24 @@ export function AddLearningSkillDialog({
               <Select
                 value={selectedSkillId}
                 onValueChange={setSelectedSkillId}
+                disabled={hasCategories && !selectedCategoryId}
                 required
               >
                 <SelectTrigger id="skill-select" className="w-full h-10 text-xs">
-                  <SelectValue placeholder="Selecciona una habilidad para aprender..." />
+                  <SelectValue
+                    placeholder={
+                      hasCategories && !selectedCategoryId
+                        ? "Primero selecciona una categoría..."
+                        : "Selecciona una habilidad para aprender..."
+                    }
+                  />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="max-h-60">
                   {availableSkills.length === 0 ? (
                     <div className="p-3 text-xs text-muted-foreground text-center">
-                      No hay más habilidades disponibles en el catálogo
+                      {hasCategories && selectedCategoryId
+                        ? "No hay habilidades disponibles en esta categoría"
+                        : "No hay más habilidades disponibles en el catálogo"}
                     </div>
                   ) : (
                     availableSkills.map((skill) => (

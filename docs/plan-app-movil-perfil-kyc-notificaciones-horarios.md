@@ -35,19 +35,19 @@ flowchart TD
     A --> C["2. KYC Táctil (Carnet + Biometría)"]
     A --> D["3. Notificaciones (Badge + Bandeja)"]
     A --> E["4. Horarios (Day-Strip Selector)"]
-    
+
     B --> B1["Tab 1: Identidad, Reputación y Contacto"]
     B --> B2["Tab 2: Horarios Semanales Integrados"]
     B --> B3["Tab 3: Catálogo de Habilidades"]
-    
+
     C --> C1["Paso 1: Foto Anverso y Reverso Carnet"]
     C --> C2["Paso 2: Rostro en Vivo con Medidor de Luz"]
     C --> C3["Validación y Feedback de Estado"]
-    
+
     D --> D1["Badge Rojo con Conteo en BottomBar"]
     D --> D2["Píldoras de Filtro Táctil"]
     D --> D3["Safe-Padding en Toasts"]
-    
+
     E --> E1["Selector Lun - Dom"]
     E --> E2["Bloques Mañana / Tarde / Noche"]
     E --> E3["Acción Rápida Copiar a Semana"]
