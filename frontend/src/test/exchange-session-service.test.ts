@@ -32,6 +32,7 @@ it("uses the five ratified HU-38 operations and encodes the resource id", async 
     ends_at: "2026-11-20T19:00:00Z",
     timezone: "America/La_Paz",
     modality: "VIRTUAL",
+    payment_method: "FREE",
   })
   await service.acceptExchangeSession("session/a")
   await service.rejectExchangeSession("session/a")
