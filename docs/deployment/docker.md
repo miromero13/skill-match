@@ -131,7 +131,7 @@ Son un punto de partida para un VPS de 8–16 GB; ajústalos con `docker stats`.
 
 ## Modelos de IA
 
-Los modelos de visión y de integridad de audio se descargan y verifican (SHA-256) **al construir** la imagen del backend con `scripts/install_vision_models.py` y `scripts/install_calibration_audio_models.py`; quedan en `/app/app/models/weights`. No hay descargas en runtime. En desarrollo ver la nota del volumen `backend-weights`.
+Los modelos de visión y de integridad de audio se descargan y verifican (SHA-256) **al construir** la imagen del backend con `scripts/install_vision_models.py` y `scripts/install_calibration_audio_models.py`; quedan en `/app/app/models/weights`. `install_vision_models.py` instala los modelos faciales (YuNet, SFace, MediaPipe FaceLandmarker) y el detector de balón MediaPipe EfficientDet-Lite0 (`efficientdet_lite0.tflite`) del análisis de video de fútbol; si este último falta, el análisis usa solo el detector clásico y lo indica en sus notas. No hay descargas en runtime. En desarrollo ver la nota del volumen `backend-weights`.
 
 ## Almacenamiento
 

@@ -1,4 +1,5 @@
-"""Explicit deployment-only provisioning of the local face models (YuNet, SFace, MediaPipe FaceLandmarker).
+"""Explicit deployment-only provisioning of the local vision models: face models (YuNet, SFace, MediaPipe
+FaceLandmarker) and the football ball detector (MediaPipe EfficientDet-Lite0, COCO "sports ball").
 
 No request path imports or runs this script. Every artifact is pinned by SHA-256: it is verified after
 download and again on every run, written atomically (temp file + rename) and never overwritten when
@@ -31,6 +32,16 @@ MODELS: dict[str, tuple[str, str]] = {
         "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
     ),
 }
+
+# Football juggling video analysis (app/football/pipeline/efficientdet_ball_detector.py).
+# Kept apart from MODELS, which pins exactly the face models `app.services.vision_models` probes.
+FOOTBALL_MODELS: dict[str, tuple[str, str]] = {
+    "efficientdet_lite0.tflite": (
+        MEDIAPIPE + "object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite",
+        "40338edf5ec70d43e318b0a716a84d4564cd1802759a7a07170c7e43796dbf58",
+    ),
+}
+ALL_MODELS: dict[str, tuple[str, str]] = {**MODELS, **FOOTBALL_MODELS}
 
 
 def digest(path: Path) -> str:
@@ -90,18 +101,21 @@ def verify_existing(root: Path, models: dict[str, tuple[str, str]]) -> list[str]
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Install pinned local face models (YuNet, SFace, MediaPipe FaceLandmarker); never overwrite existing files."
+        description=(
+            "Install pinned local vision models (YuNet, SFace, MediaPipe FaceLandmarker, "
+            "EfficientDet-Lite0); never overwrite existing files."
+        )
     )
     parser.add_argument("--verify-only", action="store_true", help="Check existing SHA256 hashes without network or file writes.")
     args = parser.parse_args()
     try:
-        missing = verify_existing(ROOT, MODELS)
+        missing = verify_existing(ROOT, ALL_MODELS)
         if missing and args.verify_only:
             raise RuntimeError("Missing vision models: " + ", ".join(missing) + "; run without --verify-only to install")
         for name in missing:
-            url, expected = MODELS[name]
+            url, expected = ALL_MODELS[name]
             install_atomically(ROOT, name, expected, lambda temp, url=url, expected=expected: download(url, temp, expected))
-        print(f"Verified {len(MODELS)} local vision models (SHA256).")
+        print(f"Verified {len(ALL_MODELS)} local vision models (SHA256).")
     except (OSError, RuntimeError) as exc:
         parser.exit(1, f"Model setup failed: {exc}\n")
 

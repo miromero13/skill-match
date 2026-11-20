@@ -39,6 +39,8 @@ class BallTrack:
     median_radius_px: float = 24.0
     baseline_y_px: float = 280.0
     ground_y_px: float | None = None
+    # Frames decoded from the video (0 when unknown / built elsewhere).
+    frames_read: int = 0
 
 
 class BallDetectorProtocol(Protocol):
@@ -267,10 +269,13 @@ def track_ball_in_video(
     video_path: str | Path,
     detector: BallDetectorProtocol | None = None,
     config: BallTrackerConfig | None = None,
+    max_frames: int | None = None,
 ) -> BallTrack:
     """
     Pure pipeline step (`ball_tracker`):
     video -> `BallTrack` (`t_ms, x, y, radius, confidence, height_diameters`).
+    `max_frames` (optional) stops decoding after that many frames; `None` reads
+    the whole video.
     """
     cfg = config or load_football_config().ball_tracker
 
@@ -310,7 +315,7 @@ def track_ball_in_video(
     raw_detections: list[BallFramePoint | None] = []
     frame_idx = 0
 
-    while True:
+    while max_frames is None or frame_idx < max_frames:
         ret, frame = cap.read()
         if not ret or frame is None:
             break
@@ -365,6 +370,7 @@ def track_ball_in_video(
             frame_height=height,
             median_radius_px=24.0,
             baseline_y_px=float(height),
+            frames_read=frame_idx,
         )
 
     radii = np.array([pt.radius for pt in points], dtype=np.float64)
@@ -387,6 +393,7 @@ def track_ball_in_video(
             frame_height=height,
             median_radius_px=median_radius,
             baseline_y_px=float(height),
+            frames_read=frame_idx,
         )
 
     # 95th percentile of image y (lowest physical position of the ball at foot level)
@@ -417,4 +424,5 @@ def track_ball_in_video(
         median_radius_px=median_radius,
         baseline_y_px=baseline_y,
         ground_y_px=ground_y,
+        frames_read=frame_idx,
     )
