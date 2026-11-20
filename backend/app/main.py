@@ -51,7 +51,7 @@ from app.core.exceptions import (
     validation_exception_handler,
 )
 from app.core.middlewares import setup_middlewares
-from app.db.seed import ensure_initial_admin
+from app.db.seed import ensure_initial_admin, ensure_initial_catalog
 from app.db.session import AsyncSessionLocal
 from app.football.api import router as football_router
 from app.schemas.response import APIResponse
@@ -74,12 +74,13 @@ async def lifespan(app: FastAPI):
         f"Iniciando {settings.PROJECT_NAME} v{settings.VERSION} en entorno '{settings.ENVIRONMENT}'..."
     )
 
-    # Provisionamiento seguro del Administrador Inicial desde variables de entorno (.env)
+    # Provisionamiento seguro del Administrador Inicial y Catálogo Canónico
     try:
         async with AsyncSessionLocal() as db:
             await ensure_initial_admin(db)
+            await ensure_initial_catalog(db)
     except Exception as exc:
-        logger.error(f"Fallo crítico durante el seed del administrador inicial: {exc}")
+        logger.error(f"Fallo crítico durante el seed inicial del sistema: {exc}")
 
     # Modelos de visión locales: se informa en ERROR si faltan, pero la app sigue sirviendo el resto.
     await report_vision_models_readiness()
