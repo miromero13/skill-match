@@ -349,16 +349,17 @@ async def ensure_initial_admin(db: AsyncSession) -> None:
     result = await db.execute(select(User).where(User.email == email))
     existing_user = result.scalar_one_or_none()
 
-    if existing_user:
-        if existing_user.role != UserRole.ADMIN or not existing_user.is_active:
-            existing_user.role = UserRole.ADMIN
-            existing_user.is_active = True
-            await db.commit()
-            logger.info(f"Estado de cuenta para administrador {email} sincronizado.")
-        return
-
-    # 2. Crear el único administrador inicial autorizado
     hashed_pwd = get_password_hash(settings.ADMIN_PASSWORD.get_secret_value())
+
+    if existing_user:
+        existing_user.role = UserRole.ADMIN
+        existing_user.is_active = True
+        existing_user.is_locked = False
+        existing_user.failed_login_attempts = 0
+        existing_user.hashed_password = hashed_pwd
+        await db.commit()
+        logger.info(f"Estado y credenciales para administrador {email} sincronizados.")
+        return
     admin_user = User(
         email=email,
         full_name=settings.ADMIN_FULL_NAME,
