@@ -62,7 +62,56 @@ export interface TrainingStatus {
   result: TrainedModelVersion | null
 }
 
+export type JugglingLevel = "Principiante" | "Intermedio" | "Avanzado" | "Experto"
+
+export interface JugglingVideoFeedback {
+  fortalezas: string[]
+  mejoras: string[]
+}
+
+/** `data` de `POST /api/football/training/analyze-video` (contrato S1/S5). */
+export interface JugglingVideoAnalysis {
+  analysis_complete: boolean
+  ball_detected: boolean
+  detector: string
+  frames_analyzed: number
+  ball_frames: number
+  duration_seconds: number
+  total_touches: number
+  max_streak: number
+  streaks: number[]
+  ground_contacts: number
+  score_1_100: number
+  level: JugglingLevel
+  level_probabilities: Record<JugglingLevel, number>
+  confidence: number
+  model_version: string
+  notes: string[]
+  feedback: JugglingVideoFeedback
+}
+
+export const JUGGLING_VIDEO_ACCEPT =
+  "video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+
 export const footballValidationApi = {
+  /**
+   * Analiza un video grabado de dominadas (solo ADMIN). El análisis puede tardar
+   * minutos: el cliente HTTP (fetch) no impone timeout, por lo que la solicitud
+   * espera la respuesta del backend. fetch no expone progreso de subida, así que
+   * la UI muestra un estado indeterminado.
+   */
+  async analyzeJugglingVideo(
+    file: File
+  ): Promise<APIResponse<JugglingVideoAnalysis>> {
+    const formData = new FormData()
+    formData.append("file", file, file.name)
+    return apiClient.post<JugglingVideoAnalysis>(
+      "/football/training/analyze-video",
+      formData,
+      { showToastOnSuccess: true, showToastOnError: false }
+    )
+  },
+
   async createSession(
     skillId?: string
   ): Promise<APIResponse<CreateValidationSessionResponse>> {

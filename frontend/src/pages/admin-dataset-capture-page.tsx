@@ -60,6 +60,7 @@ import { useDatasetCaptureStore } from "@/stores/dataset-capture-store"
 import {
   FootballValidationWizard,
   FootballTrainingStudio,
+  JugglingVideoAnalyzer,
 } from "@/features/football-validation"
 import { getSkills, getCategories } from "@/services/admin-catalog-service"
 import {
@@ -739,6 +740,7 @@ export function AdminDatasetCapturePage() {
         </TabsContent>
 
         <TabsContent value="football-live-validation" className="space-y-6">
+          <JugglingVideoAnalyzer />
           <FootballValidationWizard skillId={selectedSkillId} />
         </TabsContent>
 
