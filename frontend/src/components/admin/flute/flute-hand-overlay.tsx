@@ -2,6 +2,18 @@ import { useEffect, useRef, useState, type RefObject } from "react"
 import { HandLandmarker, FilesetResolver } from "@mediapipe/tasks-vision"
 import { countDetectedHands, encodeHandLandmarks, type DetectedHand, type HandFrame } from "./flute-hand-features"
 
+/**
+ * MediaPipe HandLandmarker labels handedness assuming a mirrored (selfie) image. The raw
+ * camera/video frames passed to detectForVideo are NOT mirrored, so its "Left" is the user's
+ * RIGHT hand and vice versa. Returns the user's real hand (slot 0 "Left" = upper hand on the
+ * recorder, holes 1-3), or null for unknown categories.
+ */
+export function userHandFromMediapipe(categoryName: string): DetectedHand["side"] | null {
+  if (categoryName === "Left") return "Right"
+  if (categoryName === "Right") return "Left"
+  return null
+}
+
 const BONES = [[0, 1, 2, 3, 4], [0, 5, 6, 7, 8], [5, 9, 10, 11, 12], [9, 13, 14, 15, 16], [13, 17, 18, 19, 20], [0, 17]]
 
 export function FluteHandOverlay({ videoRef, onFrame }: {
@@ -45,8 +57,9 @@ export function FluteHandOverlay({ videoRef, onFrame }: {
             const result = loaded.detectForVideo(video, timestamp)
             const detected: DetectedHand[] = result.landmarks.flatMap((points, i) => {
               const category = result.handedness[i]?.[0]
-              if (!category || (category.categoryName !== "Left" && category.categoryName !== "Right")) return []
-              return [{ side: category.categoryName, score: category.score, points }]
+              const side = category ? userHandFromMediapipe(category.categoryName) : null
+              if (!category || !side) return []
+              return [{ side, score: category.score, points }]
             })
             setSize({ width: video.videoWidth, height: video.videoHeight })
             setHands(detected)

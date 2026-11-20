@@ -1,38 +1,45 @@
-# Flauta: entrenar con articulaciones y visualizar los dedos
+# Flauta: altura (pitch), dedos y evaluación
 
-La captura y el validador usan **MediaPipe Hand Landmarker local** para estimar 21 articulaciones por mano. La digitación se aprende de las etiquetas del administrador; el detector preentrenado no conoce las notas de flauta. Ya no se usa la cuadrícula 8×12 para entrenar o inferir postura.
+Pipeline de captura → entrenamiento → validador en vivo para flauta dulce soprano con **digitación alemana** (DO = C5 523,25 Hz … MI6 = E6 1318,5 Hz). Especificación y decisiones: [`odd/tasks/flute-pitch-fingering.md`](../odd/tasks/flute-pitch-fingering.md).
 
-## Probar
+## Cómo decide
 
-1. Ejecutar `npm ci` y `npm run dev` en `frontend/`. El paso `predev` prepara el modelo y WASM. Reiniciar el backend actualizado.
-2. Abrir captura, aceptar consentimiento y activar cámara. Sobre el video se dibujan articulaciones y conexiones; las puntas son blancas.
-3. Marcar **boquilla y extremo inferior** del instrumento, en ese orden. Alternativamente, alinear físicamente la flauta con la línea amarilla y confirmar mediante el botón accesible por teclado. Mantener esa posición durante la toma.
-4. Seleccionar etiquetas y participante estable, y volver a pulsar Grabar. Se guardan varios fotogramas sincronizados con audio, no solo uno central.
-5. En el estudio, **Reutilizar videos guardados** permite reproducir, calibrar y reprocesar un video ya etiquetado, sin subirlo otra vez. Conserva participante, nota y etiquetas. Si faltan suficientes articulaciones, no sustituye las etiquetas anteriores.
-6. Entrenar y activar una versión nueva. En el validador, calibrar nuevamente; la secuencia comienza después de detectar las manos necesarias y recibir la primera inferencia.
+| Aspecto | Cómo se evalúa |
+|---|---|
+| Nota (sonido) | **La altura decide.** El navegador estima la frecuencia fundamental con YIN (430–1600 Hz) y el backend toma la nota más cercana, con ±60 cents de tolerancia, tras corregir la afinación del instrumento (`tuning_offset_cents`, mediana aprendida de las tomas etiquetadas, ±50 cents como máximo). |
+| ¿Es flauta? | La cabeza MLP de sonido solo confirma flauta vs `NO_FLAUTA` (voz/ruido): `flute_probability = 1 − P(NO_FLAUTA) ≥ 0,5`. Silencio o altura fuera de tolerancia → `NO_FLAUTA`. |
+| Postura | Cabeza multi-etiqueta que estima si cada uno de los **7 huecos frontales** está tapado. Las etiquetas salen de la tabla de digitación (`FRONT_HOLES`), así que cada toma correcta entrena todos los dedos. Cualquier hueco visto con seguridad en el estado incorrecto hace fallar la postura (las notas vecinas difieren en un solo dedo). Un hueco con probabilidad entre 0,35 y 0,65 es "incierto" y se tolera uno. |
+| Pulgar trasero | No se ve en cámara: **no se evalúa**. DO6/RE6 y MI/MI6 tienen los mismos huecos frontales; los distingue el sonido. |
+| Sin manos | No es una clase. Si faltan las manos requeridas, `posture_ok` es `null` (no evaluable). |
 
-Los videos originales no se borran. Los videos sin etiquetas revisadas deben etiquetarse antes de reutilizarlos con este flujo. Las grabaciones no se envían a Google ni a una API externa para inferencia.
-
-## Qué representan los datos
+## Contrato de features
 
 | Campo | Contrato |
 |---|---|
-| `visual_schema` | `hand-landmarks-flute-axis-v1` |
-| Vector visual | 128 valores: dos slots según handedness del detector; presencia + 21 coordenadas xyz por slot |
-| Coordenadas | x transversal y y longitudinal al eje calibrado; distancias divididas por longitud visible de flauta; z relativo a muñeca |
-| Fotogramas por video | 3–120 pares audio/visual; se conserva el mismo participante para todos |
-| Métricas | Aciertos y matriz por **fotograma**, no número de participantes independientes |
-| Separación | Participantes disjuntos entre entrenamiento y prueba, incluyendo todos sus videos/fotogramas |
+| `audio_schema` | `flute-audio-pitch-v1`, 62 valores: `[0..47]` timbre (32 log-Mel, 13 MFCC, RMS, planitud, energía grave), `[48]` sonoro 0/1, `[49]` claridad YIN, `[50]` octavas sobre C5, `[51..61]` afinidad gaussiana (σ = 35 cents) a DO, RE, MI, FA, FA#, SOL, LA, SI, DO6, RE6, MI6 |
+| `visual_schema` | `hand-landmarks-palm-v5`, 50 valores: 25 por mano (presencia, 5 flexiones, 5 distancias punta–palma, 5 punta–nudillo, 4 entre puntas, 5 alturas). Slot 0 = mano **izquierda real** del usuario: MediaPipe asume imagen espejada, así que se invierte su etiqueta de handedness |
+| Fotogramas | 3–120 por toma. En tomas de flauta se descartan los fotogramas sin sonido; la toma se rechaza si menos del 30% de los fotogramas sonoros coincide con la nota etiquetada |
 
-Las cuadrículas antiguas quedan excluidas; no se rellenan ni reinterpretan como articulaciones. Un modelo antiguo no puede activarse con este contrato y uno que ya estaba activo devuelve 409 al inferir. Es necesario reprocesar y reentrenar.
+Los sidecars anteriores (audio de 48 valores, manos v4) se listan como `needs_reprocess`: se reprocesan desde **Reutilizar videos guardados**, sin regrabar. Un modelo de formato anterior devuelve 409 al activarse o inferir.
 
-## Límites y resultados inconclusos
+## Métricas de entrenamiento
 
-- La línea amarilla es **calibración manual**, no detección ni seguimiento automático de flauta/agujeros. Si el instrumento se mueve respecto de ella, hay que detener y recalibrar. No se garantiza invariancia frente a rotación fuera del plano.
-- Las articulaciones son estimaciones: dedos ocultos y el pulgar trasero pueden no observarse correctamente. Puntos dibujados no prueban contacto con un agujero ni un sellado acústico.
-- Falta de landmarks, baja confianza, clase no entrenada o modelo visual que no supera la línea base independiente producen `posture_ok: null`, no digitación incorrecta.
-- El segmento necesita al menos tres inferencias evaluables y un 70% de observaciones evaluables. Si no, el total queda inconcluso y no se emite aprobado/reprobado.
-- La cámara y el detector no se han validado aquí físicamente con personas y flauta. Las pruebas automatizadas de geometría, contratos y overlay no sustituyen esa validación.
+- **Partición** (`split_mode`): `participant` (personas independientes, `validated: true`), si no `session` (mismo participante, otro día de captura), si no `take` (otras tomas de la misma sesión, optimista), si no `none` (experimental).
+- **Unidad**: precisión por fotograma y **por toma** (`sample_test_accuracy`, voto mayoritario de los fotogramas de un video), con matriz de confusión por toma, precision/recall por clase y precisión por participante.
+- **Dedos**: precisión por hueco frente a la línea base por mayoría, y porcentaje de tomas con la digitación completa reconocida.
+- **Activación**: un modelo cuyo sonido no supera la línea base por mayoría en las tomas de prueba no se activa (409).
+- **Ponderación**: cada toma pesa lo mismo, independientemente de cuántos fotogramas conserve.
+
+## Validador en vivo
+
+- **Examen**: se ignoran los primeros 400 ms de cada nota (ataque o transición) y el sonido se puntúa solo sobre fotogramas sonoros. El tiempo se mide con reloj real.
+- **Modo libre** y **examen** usan la misma regla de postura del backend. La UI muestra qué hueco está mal o es incierto.
+
+## Límites
+
+- Las articulaciones son estimaciones: dedos ocultos por la flauta pueden quedar inciertos. Ver un dedo cerca de un hueco no prueba que el hueco esté sellado.
+- Con un solo participante, las métricas son intra-persona. La validación real requiere al menos 2–3 personas y 2 sesiones por persona.
+- La cámara y el pitch no se validaron aquí físicamente con personas y flauta. Las pruebas automatizadas usan señales sintéticas.
 
 ## Inventario del detector auxiliar
 
@@ -52,8 +59,7 @@ Las cuadrículas antiguas quedan excluidas; no se rellenan ni reinterpretan como
 ```sh
 cd frontend
 npm run typecheck
-npx vitest run src/test/flute-hand-features.test.ts src/test/flute-hand-overlay.test.tsx src/test/admin-dataset-capture-ui.test.tsx
-npm run build
+npx vitest run src/test/flute- src/test/admin-dataset-capture-ui.test.tsx
 cd ../backend
-.venv/bin/python -m pytest tests/test_flute_hand_landmarks.py -q
+.venv/bin/python -m pytest tests/test_flute_training_service.py tests/test_dataset_sample_model.py -q
 ```

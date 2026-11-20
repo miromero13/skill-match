@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   FLUTE_VISUAL_DIM,
+  FLUTE_VISUAL_SCHEMA,
   LEFT_HAND_PRESENCE_IDX,
   RIGHT_HAND_PRESENCE_IDX,
   encodeHandLandmarks,
@@ -23,6 +24,11 @@ const hand: DetectedHand = {
 }
 
 describe("flute hand landmarks (palm basis + finger flexion)", () => {
+  it("uses the v5 schema (user-handedness slots, same 50-dim layout)", () => {
+    expect(FLUTE_VISUAL_SCHEMA).toBe("hand-landmarks-palm-v5")
+    expect(FLUTE_VISUAL_DIM).toBe(50)
+  })
+
   it("encodes 21 xyz points + 10 finger flexion/distance features in fixed handedness slots", () => {
     const features = encodeHandLandmarks([hand], 1000, 1000)!
     expect(features).toHaveLength(FLUTE_VISUAL_DIM)
@@ -59,8 +65,8 @@ describe("flute hand landmarks (palm basis + finger flexion)", () => {
   })
 })
 
-describe("flute timbre audio extractor (no frequency/Hz)", () => {
-  it("extracts 48 finite log-Mel + MFCC + timbre features from an AnalyserNode", () => {
+describe("flute audio extractor (timbre + pitch)", () => {
+  it("extracts 62 finite log-Mel + MFCC + timbre + pitch features from an AnalyserNode", () => {
     const mockAnalyser = {
       fftSize: 2048,
       frequencyBinCount: 1024,
@@ -79,6 +85,8 @@ describe("flute timbre audio extractor (no frequency/Hz)", () => {
     const vec = extractFluteAudioFeatures(mockAnalyser, 44100)
     expect(vec).toHaveLength(FLUTE_AUDIO_DIM)
     expect(vec.every(Number.isFinite)).toBe(true)
+    expect(FLUTE_AUDIO_DIM).toBe(62)
     expect(vec[45]).toBeGreaterThan(0.05) // RMS > 0
+    expect(vec[48]).toBe(1) // sin(0.1 i) at 44.1 kHz ≈ 702 Hz → voiced
   })
 })

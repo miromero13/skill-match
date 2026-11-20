@@ -1,6 +1,6 @@
 import { act, cleanup, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { FluteHandOverlay } from "@/components/admin/flute/flute-hand-overlay"
+import { FluteHandOverlay, userHandFromMediapipe } from "@/components/admin/flute/flute-hand-overlay"
 
 const tracker = vi.hoisted(() => ({ detect: vi.fn(), close: vi.fn(), create: vi.fn(), files: vi.fn() }))
 vi.mock("@mediapipe/tasks-vision", () => ({
@@ -43,10 +43,29 @@ describe("visible hand tracking", () => {
     act(() => { vi.advanceTimersByTime(100) })
     expect(view.container.querySelectorAll("polyline")).toHaveLength(6)
     expect(onFrame.mock.lastCall?.[0].features).toHaveLength(50)
-    expect(onFrame.mock.lastCall?.[0].features[0]).toBe(1)
+    // MediaPipe "Left" on an unmirrored camera frame is the user's RIGHT hand → slot 1 (index 25).
+    expect(onFrame.mock.lastCall?.[0].features[25]).toBe(1)
+    expect(onFrame.mock.lastCall?.[0].features[0]).toBe(0)
+    expect(onFrame.mock.lastCall?.[0].hands[0].side).toBe("Right")
     expect(screen.getByRole("status").textContent).toContain("21 articulaciones")
     view.unmount()
     expect(tracker.close).toHaveBeenCalledOnce()
+  })
+  it("fills the user's left-hand slot from a MediaPipe \"Right\" detection", async () => {
+    tracker.detect.mockReturnValue({
+      ...tracker.detect(),
+      handedness: [[{ categoryName: "Right", score: 0.95 }]],
+    })
+    const { video, onFrame } = await mount()
+    video.currentTime = 0.1
+    act(() => { vi.advanceTimersByTime(100) })
+    expect(onFrame.mock.lastCall?.[0].features[0]).toBe(1)
+    expect(onFrame.mock.lastCall?.[0].features[25]).toBe(0)
+  })
+  it("swaps MediaPipe handedness to the user's real hand", () => {
+    expect(userHandFromMediapipe("Left")).toBe("Right")
+    expect(userHandFromMediapipe("Right")).toBe("Left")
+    expect(userHandFromMediapipe("Unknown")).toBeNull()
   })
   it("clears the frame instead of reusing hands when the video stops", async () => {
     const { video, onFrame } = await mount()
