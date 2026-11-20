@@ -322,6 +322,18 @@ class WalletService:
         await db.commit()
         await db.refresh(cashout_req)
 
+        # Despacho de notificación push nativa a Firebase (FCM)
+        try:
+            await FCMService.send_push_to_user(
+                db,
+                user_id=user_id,
+                title="Solicitud de Retiro Registrada",
+                body=f"Tu solicitud de retiro por ${float(net):.2f} USD ({payload.points_amount} SP) fue enviada a revisión.",
+                data={"type": "wallet_cashout", "request_id": str(req_id)},
+            )
+        except Exception as fcm_err:  # noqa: BLE001
+            logger.warning(f"No se pudo enviar push FCM tras solicitud de retiro: {fcm_err}")
+
         masked_account = (
             f"•••• {payload.account_number[-4:]}"
             if len(payload.account_number) >= 4
@@ -454,6 +466,18 @@ class WalletService:
         await db.commit()
         await db.refresh(wallet)
         await db.refresh(session)
+
+        # Despacho de notificación push nativa a Firebase (FCM)
+        try:
+            await FCMService.send_push_to_user(
+                db,
+                user_id=user_id,
+                title="Garantía Escrow Asegurada",
+                body=f"Se aseguraron {points_to_lock} SP en custodia Escrow para tu sesión ({session.modality}). Fondos protegidos.",
+                data={"type": "session_escrow_locked", "session_id": str(session.id)},
+            )
+        except Exception as fcm_err:  # noqa: BLE001
+            logger.warning(f"No se pudo enviar push FCM tras retener Escrow: {fcm_err}")
 
         return SessionPayResult(
             session_id=session.id,

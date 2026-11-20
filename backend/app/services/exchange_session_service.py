@@ -466,6 +466,17 @@ async def _notify_counterpart(
         title=title,
         message=message,
     )
+    try:
+        from app.services.fcm_service import FCMService
+        await FCMService.send_push_to_user(
+            db,
+            user_id=recipient_id,
+            title=title,
+            body=message,
+            data={"type": "session_event", "session_id": str(item.id)},
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Error al enviar push a contraparte de sesión: {exc}")
 
 
 async def _response(
