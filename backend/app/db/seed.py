@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.security import get_password_hash
 from app.models.user import User, UserRole
 from app.models.catalog import Category, ChallengeType, Skill, SkillLevel, Rubric
+from app.models.theory_question import TheoryQuestion
 from app.schemas.catalog import CANONICAL_LEVELS
 
 logger = logging.getLogger("skillmatch.seed")
@@ -333,6 +334,287 @@ async def ensure_initial_catalog(db: AsyncSession) -> None:
 
     await db.commit()
     logger.info("Aprovisionamiento de catálogo canónico finalizado con éxito.")
+
+    # Aprovisionar banco inicial de preguntas teóricas
+    await ensure_initial_theory_questions(db)
+
+
+THEORY_QUESTIONS_SEED_DATA = {
+    "programacion-en-python": [
+        {
+            "kind": "MULTIPLE_CHOICE",
+            "prompt": "¿Cuál es el resultado de la expresión `type([] is list)` en Python?",
+            "choices": [
+                {"code": "A", "text": "<class 'bool'>"},
+                {"code": "B", "text": "<class 'list'>"},
+                {"code": "C", "text": "True"},
+                {"code": "D", "text": "TypeError"},
+            ],
+            "correct_choice": "A",
+            "reference_answer": "A",
+            "criteria": [],
+            "time_limit_seconds": 60,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "TRUE_FALSE",
+            "prompt": "En Python, las tuplas son tipos inmutables y pueden utilizarse como claves de un diccionario siempre que sus elementos sean hashables.",
+            "choices": [
+                {"code": "V", "text": "Verdadero"},
+                {"code": "F", "text": "Falso"},
+            ],
+            "correct_choice": "V",
+            "reference_answer": "V",
+            "criteria": [],
+            "time_limit_seconds": 60,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "OPEN",
+            "prompt": "Explica la diferencia entre los operadores `==` e `is` en Python y proporciona un ejemplo donde sus resultados difieran.",
+            "choices": [],
+            "correct_choice": None,
+            "reference_answer": "El operador `==` evalúa igualdad de valor llamando al método `__eq__`, mientras que `is` evalúa identidad de memoria verificando si ambos objetos apuntan a la misma dirección física (`id(a) == id(b)`). Por ejemplo, dos listas idénticas `a = [1, 2]` y `b = [1, 2]` darán `a == b` (True) pero `a is b` (False).",
+            "criteria": [
+                {"name": "Diferenciación conceptual (Valor vs Identidad)", "weight": 50.0, "description": "Explica la diferencia entre contenido e identidad en memoria."},
+                {"name": "Ejemplo práctico demostrativo", "weight": 50.0, "description": "Incluye un ejemplo funcional con tipos mutables que demuestre la discrepancia."},
+            ],
+            "time_limit_seconds": 120,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "MULTIPLE_CHOICE",
+            "prompt": "¿Qué bloque de control se ejecuta SIEMPRE en una estructura try/except/else/finally, independientemente de si ocurrió una excepción o no?",
+            "choices": [
+                {"code": "A", "text": "finally"},
+                {"code": "B", "text": "else"},
+                {"code": "C", "text": "except"},
+                {"code": "D", "text": "ninguno"},
+            ],
+            "correct_choice": "A",
+            "reference_answer": "A",
+            "criteria": [],
+            "time_limit_seconds": 60,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "OPEN",
+            "prompt": "¿Qué es un generador en Python y cuál es la ventaja en consumo de memoria al usar `yield` sobre retornar una lista con `return`?",
+            "choices": [],
+            "correct_choice": None,
+            "reference_answer": "Un generador es una función que retorna un iterador evaluado de manera perezosa (lazy evaluation) mediante la palabra clave `yield`. Su ventaja primordial es la eficiencia de memoria (complejidad espacial O(1) en vez de O(N)), ya que produce valores bajo demanda sin instanciar la colección completa en memoria RAM.",
+            "criteria": [
+                {"name": "Definición y evaluación lazy", "weight": 50.0, "description": "Explica la mecánica de yield y producción perezosa de valores."},
+                {"name": "Eficiencia en consumo de memoria RAM", "weight": 50.0, "description": "Contrasta la complejidad O(1) del generador frente a O(N) de una lista completa."},
+            ],
+            "time_limit_seconds": 120,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+    ],
+    "tocar-flauta": [
+        {
+            "kind": "MULTIPLE_CHOICE",
+            "prompt": "En la ejecución de la flauta, ¿cuál es la frecuencia estándar internacional en Hertz para afinar la nota La 4 (A4)?",
+            "choices": [
+                {"code": "A", "text": "440 Hz"},
+                {"code": "B", "text": "432 Hz"},
+                {"code": "C", "text": "523 Hz"},
+                {"code": "D", "text": "261 Hz"},
+            ],
+            "correct_choice": "A",
+            "reference_answer": "A",
+            "criteria": [],
+            "time_limit_seconds": 60,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "TRUE_FALSE",
+            "prompt": "El orificio posterior (portavoz) de la flauta dulce debe cerrarse solo parcialmente ('medio agujero') para facilitar la emisión de las notas de la segunda octava.",
+            "choices": [
+                {"code": "V", "text": "Verdadero"},
+                {"code": "F", "text": "Falso"},
+            ],
+            "correct_choice": "V",
+            "reference_answer": "V",
+            "criteria": [],
+            "time_limit_seconds": 60,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "OPEN",
+            "prompt": "Describe la postura corporal, embocadura y técnica de respiración diafragmática requerida para emitir un sonido limpio sin soplido excesivo.",
+            "choices": [],
+            "correct_choice": None,
+            "reference_answer": "El cuerpo debe mantenerse erguido con hombros distendidos. La embocadura apoya el bisel suavemente sobre el labio inferior sin morder la boquilla. La respiración es diafragmática (costo-abdominal) con una columna de aire tibia y regular ('como empañar un vidrio'), manteniendo una presión homogénea para preservar la afinación en Hertz.",
+            "criteria": [
+                {"name": "Postura y alineación corporal", "weight": 30.0, "description": "Describe distensión de hombros y verticalidad erguida."},
+                {"name": "Embocadura y contacto labial", "weight": 35.0, "description": "Indica el contacto suave sin mordida y dirección del flujo."},
+                {"name": "Columna de aire y apoyo diafragmático", "weight": 35.0, "description": "Explica la estabilidad de presión de aire y temperatura constante."},
+            ],
+            "time_limit_seconds": 120,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "MULTIPLE_CHOICE",
+            "prompt": "¿Qué sílaba de articulación lingual se utiliza tradicionalmente para lograr un ataque 'staccato' limpio y definido en la flauta?",
+            "choices": [
+                {"code": "A", "text": "'Tu' o 'Du'"},
+                {"code": "B", "text": "'Fa'"},
+                {"code": "C", "text": "'La'"},
+                {"code": "D", "text": "'Mu'"},
+            ],
+            "correct_choice": "A",
+            "reference_answer": "A",
+            "criteria": [],
+            "time_limit_seconds": 60,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "OPEN",
+            "prompt": "Explica la diferencia entre la digitación barroca y la digitación alemana en una flauta dulce soprano al ejecutar la nota Fa natural (F4).",
+            "choices": [],
+            "correct_choice": None,
+            "reference_answer": "En la flauta de digitación barroca, el cuarto orificio es menor que el quinto y la nota Fa requiere digitación de horquilla (orificios 1, 2, 3, 4, 6 y 7 tapados, dejando el 5 abierto). En la digitación alemana, el quinto orificio es menor y el Fa se logra simplemente tapando los primeros cuatro orificios consecutivos de la mano derecha.",
+            "criteria": [
+                {"name": "Diferencia morfológica en los orificios", "weight": 50.0, "description": "Explica la relación de tamaño entre el cuarto y quinto orificio."},
+                {"name": "Mecánica de digitación (horquilla vs consecutiva)", "weight": 50.0, "description": "Detalla la digitación de horquilla frente a la consecutiva."},
+            ],
+            "time_limit_seconds": 120,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+    ],
+    "dominadas-con-el-balon": [
+        {
+            "kind": "MULTIPLE_CHOICE",
+            "prompt": "Al realizar dominadas a baja altura con máximo control, ¿cuál es la zona anatómica del pie que debe impactar preferentemente el centro del balón?",
+            "choices": [
+                {"code": "A", "text": "El empeine o cordones con tobillo firme"},
+                {"code": "B", "text": "La punta de los dedos"},
+                {"code": "C", "text": "El talón"},
+                {"code": "D", "text": "El borde externo desalineado"},
+            ],
+            "correct_choice": "A",
+            "reference_answer": "A",
+            "criteria": [],
+            "time_limit_seconds": 60,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "TRUE_FALSE",
+            "prompt": "Para mantener el equilibrio en secuencias largas de dominadas, la rodilla de la pierna de apoyo debe mantenerse completamente trabada y rígida.",
+            "choices": [
+                {"code": "V", "text": "Verdadero"},
+                {"code": "F", "text": "Falso"},
+            ],
+            "correct_choice": "F",
+            "reference_answer": "F",
+            "criteria": [],
+            "time_limit_seconds": 60,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "OPEN",
+            "prompt": "Describe la biomecánica corporal necesaria (posición del torso, centro de gravedad y movimiento articular) para encadenar más de 20 dominadas estables.",
+            "choices": [],
+            "correct_choice": None,
+            "reference_answer": "El centro de gravedad debe mantenerse bajo flexionando ligeramente la rodilla de apoyo y distribuyendo el peso en el metatarso. El torso se inclina suavemente hacia adelante para amortiguar y contener el esférico. La pierna de impacto realiza un movimiento pendular desde la rodilla con el tobillo bloqueado en dorsiflexión moderada, impartiendo un golpe seco ascendente con retro-rotación (backspin) suave.",
+            "criteria": [
+                {"name": "Pierna de apoyo y centro de gravedad", "weight": 40.0, "description": "Detalla la semiflexión de rodilla de apoyo y apoyo metatarsal."},
+                {"name": "Inclinación de torso y contención", "weight": 30.0, "description": "Explica la inclinación del torso para contención del rebote."},
+                {"name": "Firmeza articular y gesto de impacto", "weight": 30.0, "description": "Describe la rigidez de tobillo y trayectoria pendular de golpeo."},
+            ],
+            "time_limit_seconds": 120,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "MULTIPLE_CHOICE",
+            "prompt": "En una secuencia de dominadas alternando muslos y pies, ¿qué beneficio técnico aporta elevar el muslo a un ángulo aproximado de 45° a 60°?",
+            "choices": [
+                {"code": "A", "text": "Amortigua el impacto y dirige el balón verticalmente hacia el eje del cuerpo"},
+                {"code": "B", "text": "Acelera el balón horizontalmente lejos del cuerpo"},
+                {"code": "C", "text": "Obliga a saltar continuamente"},
+                {"code": "D", "text": "Ninguno"},
+            ],
+            "correct_choice": "A",
+            "reference_answer": "A",
+            "criteria": [],
+            "time_limit_seconds": 60,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+        {
+            "kind": "OPEN",
+            "prompt": "¿Qué función cumple el control visual y la visión periférica durante la corrección de trayectorias en el dominio del balón?",
+            "choices": [],
+            "correct_choice": None,
+            "reference_answer": "El control visual permite anticipar la trayectoria parabólica y velocidad de caída del balón para sincronizar el contacto motriz. La visión periférica complementaria monitorea los límites espaciales y la orientación postural sin perder la propiocepción del cuerpo, evitando desequilibrios producidos por focalizar exclusivamente el esférico.",
+            "criteria": [
+                {"name": "Cálculo espacio-temporal y trayectoria", "weight": 50.0, "description": "Explica la anticipación visual de la parábola del balón."},
+                {"name": "Propiocepción y equilibrio espacial", "weight": 50.0, "description": "Describe el papel de la visión periférica en la estabilidad postural."},
+            ],
+            "time_limit_seconds": 120,
+            "max_score": 20.0,
+            "level_number": 1,
+        },
+    ],
+}
+
+
+async def ensure_initial_theory_questions(db: AsyncSession) -> None:
+    """Aprovisiona el banco de preguntas teóricas para cada habilidad canónica."""
+    for skill_slug, questions in THEORY_QUESTIONS_SEED_DATA.items():
+        res = await db.execute(select(Skill).where(Skill.slug == skill_slug))
+        skill = res.scalar_one_or_none()
+        if not skill:
+            continue
+
+        for q_data in questions:
+            # Comprobar si ya existe una pregunta con ese mismo prompt para la habilidad
+            existing_res = await db.scalars(
+                select(TheoryQuestion).where(
+                    TheoryQuestion.skill_id == skill.id,
+                    TheoryQuestion.level_number == q_data["level_number"],
+                )
+            )
+            existing_questions = existing_res.all()
+            if any(q.content.get("prompt") == q_data["prompt"] for q in existing_questions):
+                continue
+
+            content = {
+                "kind": q_data["kind"],
+                "prompt": q_data["prompt"],
+                "choices": q_data["choices"],
+                "correct_choice": q_data["correct_choice"],
+                "reference_answer": q_data["reference_answer"],
+                "criteria": q_data["criteria"],
+                "time_limit_seconds": q_data["time_limit_seconds"],
+                "max_score": q_data["max_score"],
+            }
+            new_q = TheoryQuestion(
+                id=uuid.uuid4(),
+                version=1,
+                skill_id=skill.id,
+                level_number=q_data["level_number"],
+                status="PUBLISHED",
+                content=content,
+            )
+            db.add(new_q)
+            logger.info(f"Pregunta teórica creada: [{skill.name}] {q_data['prompt'][:45]}...")
+
+    await db.commit()
 
 
 async def ensure_initial_admin(db: AsyncSession) -> None:

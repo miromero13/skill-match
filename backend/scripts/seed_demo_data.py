@@ -10,12 +10,16 @@ Aprovisiona de forma determinista e idempotente:
    - Dominadas con el balón (Fútbol, VISION_POSE)
    - Tocar flauta (Música, AUDIO_SPECTRAL)
    - Programación en Python (Programación, CODE_AST)
-3. Usuarios demo (Instructor y Aprendiz) con billeteras y saldo de 100 SkillPoints.
-4. Habilidades ofrecidas (TeachingSkill) y deseadas (UserLearningSkill).
-5. Match mutuo precalculado (100% afinidad).
-6. Sesión de intercambio (ExchangeSession) virtual aceptada con enlace de reunión.
-7. Desafío de programación (Challenge) nivel 1 publicado con casos de prueba para el sandbox Docker.
-8. Muestras de dataset de laboratorio (DatasetSample) enlazadas a las habilidades.
+3. Banco de preguntas teóricas (TheoryQuestion) publicadas con opciones y criterios para IA.
+4. Usuarios demo (Instructor y Aprendiz) con billeteras y saldo de 100 SkillPoints.
+5. Habilidades ofrecidas (TeachingSkill) y deseadas (UserLearningSkill).
+6. Match mutuo precalculado (100% afinidad).
+7. Sesión de intercambio virtual futura (ACCEPTED) y sesión previa (COMPLETED).
+8. Reseña bilateral de intercambio (SessionReview) con 5 estrellas y feedback detallado.
+9. Notificaciones activas en bandeja (Notification) de matches, sesiones y puntos.
+10. Caso de disputa/queja (Complaint) para probar la moderación en el panel administrativo.
+11. Desafíos de programación (Challenge) para niveles 1, 2 y 3 con casos de prueba para el sandbox Docker.
+12. Muestras de dataset de laboratorio (DatasetSample) enlazadas a las habilidades.
 
 Uso:
     python scripts/seed_demo_data.py
@@ -40,13 +44,17 @@ from sqlalchemy import delete, select
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.session import AsyncSessionLocal
-from app.db.seed import ensure_initial_admin, ensure_initial_catalog
+from app.db.seed import ensure_initial_admin, ensure_initial_catalog, ensure_initial_theory_questions
 from app.models.catalog import Category, ChallengeType, Skill, SkillLevel, Rubric
+from app.models.complaint import Complaint, ComplaintReason, ComplaintStatus
 from app.models.dataset_sample import DatasetSample
 from app.models.exchange_session import ExchangeSession
 from app.models.match import Match
+from app.models.notification import Notification, NotificationType
 from app.models.programming import Challenge, ChallengeTestCase
+from app.models.session_review import SessionReview
 from app.models.teaching_skill import TeachingSkill
+from app.models.theory_question import TheoryQuestion
 from app.models.user import User, UserRole
 from app.models.user_learning_skill import UrgencyLevel, UserLearningSkill
 from app.models.wallet import Wallet
@@ -76,6 +84,21 @@ async def clean_demo_data() -> None:
         user_ids = [u.id for u in demo_users]
 
         if user_ids:
+            # Eliminar reseñas
+            await db.execute(
+                delete(SessionReview).where(
+                    (SessionReview.reviewer_id.in_(user_ids))
+                    | (SessionReview.reviewed_id.in_(user_ids))
+                )
+            )
+            # Eliminar quejas
+            await db.execute(
+                delete(Complaint).where(Complaint.user_id.in_(user_ids))
+            )
+            # Eliminar notificaciones
+            await db.execute(
+                delete(Notification).where(Notification.recipient_id.in_(user_ids))
+            )
             # Eliminar sesiones de intercambio donde participen
             await db.execute(
                 delete(ExchangeSession).where(
@@ -114,15 +137,16 @@ async def clean_demo_data() -> None:
 
 
 async def seed_all_demo() -> None:
-    """Ejecuta el provisionamiento completo del ecosistema."""
+    """Ejecuta el provisionamiento completo del ecosistema con preguntas, desafíos, reseñas y métricas."""
     logger.info("=====================================================")
-    logger.info("  SkillMatch — Provisionamiento de Datos E2E         ")
+    logger.info("  SkillMatch — Provisionamiento Completo E2E         ")
     logger.info("=====================================================")
 
     async with AsyncSessionLocal() as db:
-        # 1. Asegurar Admin y Catálogo Canónico (3 categorías, 3 habilidades)
+        # 1. Asegurar Admin, Catálogo Canónico y Banco de Preguntas Teóricas
         await ensure_initial_admin(db)
         await ensure_initial_catalog(db)
+        await ensure_initial_theory_questions(db)
 
         # 2. Recuperar categorías y habilidades
         skills_res = await db.execute(
@@ -216,19 +240,19 @@ async def seed_all_demo() -> None:
                 TeachingSkill.skill_id == python_skill.id,
             )
         )
-        if not carlos_ts_res.scalar_one_or_none():
-            db.add(
-                TeachingSkill(
-                    user_id=carlos.id,
-                    skill_id=python_skill.id,
-                    declared_level="ADVANCED",
-                    years_of_experience=5,
-                    description="Desarrollador backend senior con experiencia en Python, FastAPI y Docker.",
-                    accepts_points=True,
-                    hourly_points_rate=20,
-                    status="VERIFICADA",
-                )
+        carlos_ts = carlos_ts_res.scalar_one_or_none()
+        if not carlos_ts:
+            carlos_ts = TeachingSkill(
+                user_id=carlos.id,
+                skill_id=python_skill.id,
+                declared_level="ADVANCED",
+                years_of_experience=5,
+                description="Desarrollador backend senior con experiencia en Python, FastAPI y Docker.",
+                accepts_points=True,
+                hourly_points_rate=20,
+                status="VERIFICADA",
             )
+            db.add(carlos_ts)
             logger.info("Oferta formativa agregada: Carlos -> Programación en Python.")
 
         # Sofía ofrece enseñar Dominadas con el balón
@@ -238,19 +262,19 @@ async def seed_all_demo() -> None:
                 TeachingSkill.skill_id == football_skill.id,
             )
         )
-        if not sofia_ts_res.scalar_one_or_none():
-            db.add(
-                TeachingSkill(
-                    user_id=sofia.id,
-                    skill_id=football_skill.id,
-                    declared_level="ADVANCED",
-                    years_of_experience=4,
-                    description="Entrenadora técnica de fútbol juvenil especializada en destreza y control.",
-                    accepts_points=True,
-                    hourly_points_rate=15,
-                    status="VERIFICADA",
-                )
+        sofia_ts = sofia_ts_res.scalar_one_or_none()
+        if not sofia_ts:
+            sofia_ts = TeachingSkill(
+                user_id=sofia.id,
+                skill_id=football_skill.id,
+                declared_level="ADVANCED",
+                years_of_experience=4,
+                description="Entrenadora técnica de fútbol juvenil especializada en destreza y control.",
+                accepts_points=True,
+                hourly_points_rate=15,
+                status="VERIFICADA",
             )
+            db.add(sofia_ts)
             logger.info("Oferta formativa agregada: Sofía -> Dominadas con el balón.")
 
         await db.flush()
@@ -318,96 +342,251 @@ async def seed_all_demo() -> None:
             await db.flush()
             logger.info("Match bilateral creado y aceptado entre Carlos y Sofía (100% afinidad).")
 
-        # 9. Sesión de Intercambio (ExchangeSession) para pruebas de chat y agendamiento
+        # 9. Sesiones de Intercambio (Futura aceptada y Previa completada)
         now = datetime.now(timezone.utc)
-        start_time = (now + timedelta(days=1)).replace(hour=15, minute=0, second=0, microsecond=0)
-        end_time = start_time + timedelta(minutes=60)
 
-        sess_res = await db.execute(
+        # 9.1 Sesión futura aceptada para pruebas de sala de chat e iCal
+        future_start = (now + timedelta(days=1)).replace(hour=15, minute=0, second=0, microsecond=0)
+        future_end = future_start + timedelta(minutes=60)
+
+        future_sess_res = await db.execute(
             select(ExchangeSession).where(
                 ExchangeSession.instructor_id == carlos.id,
                 ExchangeSession.learner_id == sofia.id,
+                ExchangeSession.status == "ACCEPTED",
             )
         )
-        existing_sess = sess_res.scalar_one_or_none()
-        if not existing_sess:
-            exchange_session = ExchangeSession(
+        if not future_sess_res.scalar_one_or_none():
+            db.add(
+                ExchangeSession(
+                    instructor_id=carlos.id,
+                    learner_id=sofia.id,
+                    skill_id=python_skill.id,
+                    starts_at=future_start,
+                    ends_at=future_end,
+                    modality="VIRTUAL",
+                    status="ACCEPTED",
+                    points_required=20,
+                    payment_state="RESERVED",
+                    meeting_url="https://meet.google.com/skm-demo-test",
+                )
+            )
+            logger.info("Sesión futura aceptada agendada para mañana a las 15:00 UTC.")
+
+        # 9.2 Sesión previa completada con reseña de 5 estrellas
+        past_start = (now - timedelta(days=2)).replace(hour=10, minute=0, second=0, microsecond=0)
+        past_end = past_start + timedelta(minutes=50)
+
+        past_sess_res = await db.execute(
+            select(ExchangeSession).where(
+                ExchangeSession.instructor_id == carlos.id,
+                ExchangeSession.learner_id == sofia.id,
+                ExchangeSession.status == "COMPLETED",
+            )
+        )
+        past_session = past_sess_res.scalar_one_or_none()
+        if not past_session:
+            past_session = ExchangeSession(
                 instructor_id=carlos.id,
                 learner_id=sofia.id,
                 skill_id=python_skill.id,
-                starts_at=start_time,
-                ends_at=end_time,
+                starts_at=past_start,
+                ends_at=past_end,
+                actual_minutes=50,
                 modality="VIRTUAL",
-                status="ACCEPTED",
+                status="COMPLETED",
                 points_required=20,
-                payment_state="RESERVED",
-                meeting_url="https://meet.google.com/skm-demo-test",
+                payment_state="RELEASED",
+                meeting_url="https://meet.google.com/skm-past-session",
             )
-            db.add(exchange_session)
+            db.add(past_session)
             await db.flush()
-            logger.info("Sesión de intercambio de demostración agendada para mañana a las 15:00 UTC.")
+            logger.info("Sesión histórica completada aprovisionada con éxito.")
 
-        # 10. Desafío de programación para el Sandbox (Programming Challenge)
-        if admin_user:
-            chal_res = await db.execute(
-                select(Challenge).where(
-                    Challenge.skill_id == python_skill.id,
-                    Challenge.level_number == 1,
-                    Challenge.version == 1,
+        # 10. Reseña bilateral de intercambio (SessionReview)
+        review_res = await db.execute(
+            select(SessionReview).where(
+                SessionReview.session_id == past_session.id,
+                SessionReview.reviewer_id == sofia.id,
+            )
+        )
+        if not review_res.scalar_one_or_none():
+            db.add(
+                SessionReview(
+                    session_id=past_session.id,
+                    reviewer_id=sofia.id,
+                    reviewed_id=carlos.id,
+                    rating_punctuality=5,
+                    rating_pedagogy=5,
+                    rating_domain=5,
+                    overall_rating=5.0,
+                    comment="Excelente sesión. Carlos explicó la recursión y decoradores en Python con mucha claridad y ejemplos prácticos.",
+                    role_in_session="LEARNER",
                 )
             )
-            challenge = chal_res.scalar_one_or_none()
-            if not challenge:
-                challenge = Challenge(
-                    skill_id=python_skill.id,
-                    challenge_type_id=python_skill.challenge_type_id,
-                    level_number=1,
-                    version=1,
-                    title="Suma de Números Pares en una Lista",
-                    statement=(
+            logger.info("Reseña 5 estrellas creada de Sofía hacia Carlos.")
+
+        # 11. Notificaciones en bandeja (Notification)
+        notif_samples = [
+            (carlos.id, NotificationType.MATCH_CONFIRMED, "¡Nuevo Match Confirmado!", "Tienes un nuevo match de intercambio de habilidades con Sofía Paredes.", "/app/matches", False),
+            (carlos.id, NotificationType.SESSION_ACCEPTED, "Sesión Confirmada: Programación en Python", "Tu sesión virtual de intercambio con Sofía ha sido confirmada.", "/app/sessions", True),
+            (carlos.id, NotificationType.POINTS_RECEIVED, "SkillPoints Acreditados", "Has recibido 20 SkillPoints por completar exitosamente una sesión formativa.", "/app/wallet", False),
+            (sofia.id, NotificationType.MATCH_CONFIRMED, "¡Nuevo Match Confirmado!", "Tienes un nuevo match de intercambio de habilidades con Carlos Mendoza.", "/app/matches", False),
+            (sofia.id, NotificationType.SESSION_ACCEPTED, "Sesión Programada", "Tu sesión de Programación en Python está agendada para mañana a las 15:00 UTC.", "/app/sessions", False),
+        ]
+        for recipient_id, ntype, title, body, action_url, is_read in notif_samples:
+            existing_notif = await db.execute(
+                select(Notification).where(
+                    Notification.recipient_id == recipient_id,
+                    Notification.title == title,
+                )
+            )
+            if not existing_notif.scalar_one_or_none():
+                db.add(
+                    Notification(
+                        recipient_id=recipient_id,
+                        type=ntype,
+                        title=title,
+                        body=body,
+                        action_url=action_url,
+                        is_read=is_read,
+                    )
+                )
+        logger.info("Notificaciones de bienvenida y actividad sincronizadas.")
+
+        # 12. Caso de Disputa / Queja para Moderación en Panel Admin (Complaint)
+        complaint_res = await db.execute(
+            select(Complaint).where(Complaint.user_id == sofia.id)
+        )
+        if not complaint_res.scalar_one_or_none():
+            db.add(
+                Complaint(
+                    user_id=sofia.id,
+                    session_id=past_session.id,
+                    reason=ComplaintReason.QUALITY_ISSUE,
+                    description="El audio de la videollamada presentó intermitencias técnicas breves durante los primeros 5 minutos de la sesión.",
+                    status=ComplaintStatus.RESOLVED,
+                    points_compensated=5,
+                )
+            )
+            logger.info("Caso de queja resuelto registrado para visualización en panel admin.")
+
+        # 13. Desafíos de programación para Sandbox (Programming Challenges)
+        if admin_user:
+            challenges_to_seed = [
+                {
+                    "level": 1,
+                    "title": "Suma de Números Pares en una Lista",
+                    "statement": (
                         "Implementa la función `solve(numbers: list[int]) -> int` que recibe "
                         "una lista de números enteros y devuelve la suma total de todos los números "
                         "que sean estrictamente pares. Si no hay pares o la lista está vacía, devuelve 0."
                     ),
-                    evaluation_modality="SANDBOX",
-                    execution_profile="PYTHON_3_12",
-                    starter_code=(
+                    "starter": (
                         "def solve(numbers: list[int]) -> int:\n"
                         "    # Escribe tu solución aquí\n"
                         "    return sum(n for n in numbers if n % 2 == 0)\n"
                     ),
-                    time_limit_ms=2000,
-                    memory_limit_mb=128,
-                    max_output_bytes=65536,
-                    status="PUBLISHED",
-                    created_by_id=admin_user.id,
-                    published_at=datetime.now(timezone.utc),
-                )
-                db.add(challenge)
-                await db.flush()
+                    "tests": [
+                        ("Caso público 1 (básico)", "[1, 2, 3, 4, 5, 6]", "6", "PUBLIC", 0),
+                        ("Caso público 2 (sin pares)", "[1, 3, 5, 7]", "0", "PUBLIC", 1),
+                        ("Caso oculto 1 (números grandes)", "[10, 21, 32, 43, 54]", "96", "HIDDEN", 2),
+                        ("Caso oculto 2 (vacío)", "[]", "0", "HIDDEN", 3),
+                        ("Caso oculto 3 (negativos pares)", "[-2, -4, 3, 5]", "-6", "HIDDEN", 4),
+                    ],
+                },
+                {
+                    "level": 2,
+                    "title": "Inversión de Palabras en una Frase",
+                    "statement": (
+                        "Implementa la función `solve(sentence: str) -> str` que reciba una cadena "
+                        "de texto y devuelva las palabras en orden inverso, normalizando los espacios intermedios."
+                    ),
+                    "starter": (
+                        "def solve(sentence: str) -> str:\n"
+                        "    # Escribe tu solución aquí\n"
+                        "    return ' '.join(sentence.split()[::-1])\n"
+                    ),
+                    "tests": [
+                        ("Caso público 1", "'hola mundo'", "mundo hola", "PUBLIC", 0),
+                        ("Caso público 2", "'python es genial'", "genial es python", "PUBLIC", 1),
+                        ("Caso oculto 1 (espacios múltiples)", "'  muchos   espacios   aqui  '", "aqui espacios muchos", "HIDDEN", 2),
+                        ("Caso oculto 2 (una palabra)", "'palabra'", "palabra", "HIDDEN", 3),
+                    ],
+                },
+                {
+                    "level": 3,
+                    "title": "Validación de Paréntesis y Corchetes Balanceados",
+                    "statement": (
+                        "Implementa la función `solve(s: str) -> bool` que verifique si una secuencia "
+                        "de caracteres formada por '()[]{}' está correctamente balanceada y anidada."
+                    ),
+                    "starter": (
+                        "def solve(s: str) -> bool:\n"
+                        "    stack = []\n"
+                        "    pairs = {')': '(', '}': '{', ']': '['}\n"
+                        "    for ch in s:\n"
+                        "        if ch in '({[':\n"
+                        "            stack.append(ch)\n"
+                        "        elif ch in pairs:\n"
+                        "            if not stack or stack.pop() != pairs[ch]:\n"
+                        "                return False\n"
+                        "    return len(stack) == 0\n"
+                    ),
+                    "tests": [
+                        ("Caso público 1", "'()[]{}'", "True", "PUBLIC", 0),
+                        ("Caso público 2", "'([)]'", "False", "PUBLIC", 1),
+                        ("Caso oculto 1", "'{[]}'", "True", "HIDDEN", 2),
+                        ("Caso oculto 2", "'((('", "False", "HIDDEN", 3),
+                        ("Caso oculto 3", "''", "True", "HIDDEN", 4),
+                    ],
+                },
+            ]
 
-                # Casos de prueba
-                test_cases = [
-                    ("Caso público 1 (básico)", "[1, 2, 3, 4, 5, 6]", "6", "PUBLIC", 0),
-                    ("Caso público 2 (sin pares)", "[1, 3, 5, 7]", "0", "PUBLIC", 1),
-                    ("Caso oculto 1 (números grandes)", "[10, 21, 32, 43, 54]", "96", "HIDDEN", 2),
-                    ("Caso oculto 2 (vacío)", "[]", "0", "HIDDEN", 3),
-                    ("Caso oculto 3 (negativos pares)", "[-2, -4, 3, 5]", "-6", "HIDDEN", 4),
-                ]
-                for name, stdin_data, stdout, vis, idx in test_cases:
-                    db.add(
-                        ChallengeTestCase(
-                            challenge_id=challenge.id,
-                            name=name,
-                            stdin_data=stdin_data,
-                            expected_stdout=stdout,
-                            visibility=vis,
-                            order_index=idx,
-                        )
+            for c_data in challenges_to_seed:
+                chal_res = await db.execute(
+                    select(Challenge).where(
+                        Challenge.skill_id == python_skill.id,
+                        Challenge.level_number == c_data["level"],
+                        Challenge.version == 1,
                     )
-                logger.info("Desafío de programación Python Nivel 1 aprovisionado con 5 casos de prueba.")
+                )
+                challenge = chal_res.scalar_one_or_none()
+                if not challenge:
+                    challenge = Challenge(
+                        skill_id=python_skill.id,
+                        challenge_type_id=python_skill.challenge_type_id,
+                        level_number=c_data["level"],
+                        version=1,
+                        title=c_data["title"],
+                        statement=c_data["statement"],
+                        evaluation_modality="SANDBOX",
+                        execution_profile="PYTHON_3_12",
+                        starter_code=c_data["starter"],
+                        time_limit_ms=2000,
+                        memory_limit_mb=128,
+                        max_output_bytes=65536,
+                        status="PUBLISHED",
+                        created_by_id=admin_user.id,
+                        published_at=datetime.now(timezone.utc),
+                    )
+                    db.add(challenge)
+                    await db.flush()
 
-        # 11. Muestras de Dataset de Laboratorio (DatasetSample)
+                    for name, stdin_data, stdout, vis, idx in c_data["tests"]:
+                        db.add(
+                            ChallengeTestCase(
+                                challenge_id=challenge.id,
+                                name=name,
+                                stdin_data=stdin_data,
+                                expected_stdout=stdout,
+                                visibility=vis,
+                                order_index=idx,
+                            )
+                        )
+                    logger.info(f"Desafío de programación Python Nivel {c_data['level']} aprovisionado.")
+
+        # 14. Muestras de Dataset de Laboratorio (DatasetSample)
         storage_samples = [
             {
                 "discipline": "futbol",
@@ -476,10 +655,16 @@ async def seed_all_demo() -> None:
     logger.info("Usuarios creados:")
     logger.info(f"  - Instructor: {DEMO_INSTRUCTOR_EMAIL} (100 SP)")
     logger.info(f"  - Aprendiz:   {DEMO_LEARNER_EMAIL} (100 SP)")
-    logger.info("Habilidades aprovisionadas:")
-    logger.info("  - Programación en Python (Programación, CODE_AST)")
-    logger.info("  - Tocar flauta (Música, AUDIO_SPECTRAL)")
-    logger.info("  - Dominadas con el balón (Fútbol, VISION_POSE)")
+    logger.info("Banco de preguntas:")
+    logger.info("  - 15 preguntas teóricas distribuidas en Programación, Música y Fútbol")
+    logger.info("Desafíos de Sandbox:")
+    logger.info("  - 3 Retos de programación Python (Nivel 1, 2 y 3) con Pytest")
+    logger.info("Interacciones comunitarias:")
+    logger.info("  - Match 100% afinidad entre Carlos y Sofía")
+    logger.info("  - 1 Sesión futura aceptada + 1 Sesión histórica completada")
+    logger.info("  - 1 Reseña de 5 estrellas con feedback detallado")
+    logger.info("  - 5 Notificaciones activas en bandeja")
+    logger.info("  - 1 Caso de queja/moderación para el panel de administración")
 
 
 async def main() -> None:
