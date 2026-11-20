@@ -32,6 +32,7 @@ import {
   AlertTriangle,
   XCircle,
   Radio,
+  ListMusic,
 } from "lucide-react"
 import {
   FLUTE_NOTES_MAP,
@@ -40,6 +41,7 @@ import {
 } from "./flute-note-specs"
 
 import { FluteHandOverlay } from "./flute-hand-overlay"
+import { FluteSongPractice, type SongCaptureDevices } from "./flute-song-practice"
 import {
   FLUTE_VISUAL_DIM,
   LEFT_HAND_PRESENCE_IDX,
@@ -97,7 +99,7 @@ interface SegmentEvaluationResult {
   segmentTotalPct: number | null
 }
 
-type ValidatorMode = "free" | "exam"
+type ValidatorMode = "free" | "exam" | "song"
 
 interface FluteFingerFeedbackProps {
   fingerStates: FluteFingerState[] | null
@@ -201,6 +203,8 @@ export function FluteLiveValidator({
   const [activeIdx, setActiveIdx] = useState(0)
   const [segmentProgressPct, setSegmentProgressPct] = useState(0)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  /** «Canción» mode reuses this validator's single camera + mic. */
+  const [songDevices, setSongDevices] = useState<SongCaptureDevices | null>(null)
 
   // Live telemetry
   const [cameraReady, setCameraReady] = useState(false)
@@ -280,6 +284,7 @@ export function FluteLiveValidator({
     setCameraReady(false)
     setLeftHandLive(false)
     setRightHandLive(false)
+    setSongDevices(null)
   }
 
   useEffect(() => {
@@ -398,6 +403,29 @@ export function FluteLiveValidator({
         pending = false
       }
     }, 280)
+  }
+
+  /** S1: opens the shared camera + mic for «Canción» (once) and hands the analyser down. */
+  const requestSongDevices = async (): Promise<SongCaptureDevices | null> => {
+    if (songDevices) return songDevices
+    setCameraError(null)
+    cleanupMedia()
+    const devices = await openCameraAndAudio()
+    if (!devices) return null
+    const ctx = audioCtxRef.current
+    if (!devices.analyser || !ctx) {
+      cleanupMedia()
+      setCameraError("Tu navegador no permite analizar el audio del micrófono.")
+      return null
+    }
+    const opened: SongCaptureDevices = {
+      audioContext: ctx,
+      analyser: devices.analyser,
+      sampleRate: devices.sampleRate,
+    }
+    setSongDevices(opened)
+    setStep("playing")
+    return opened
   }
 
   const startExamValidation = async () => {
@@ -676,6 +704,20 @@ export function FluteLiveValidator({
                   <Music className="w-3.5 h-3.5 mr-1.5" />
                   Examen Partitura
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={mode === "song" ? "default" : "outline"}
+                  onClick={() => setMode("song")}
+                  className={
+                    mode === "song"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      : ""
+                  }
+                >
+                  <ListMusic className="w-3.5 h-3.5 mr-1.5" />
+                  Canción
+                </Button>
               </div>
             )}
           </div>
@@ -779,6 +821,62 @@ export function FluteLiveValidator({
                 <Play className="w-4 h-4 mr-2 fill-current" />
                 Iniciar Prueba de Nivel {targetLevel} (Encender Cámara y Micrófono)
               </Button>
+            </div>
+          )}
+
+          {mode === "song" && step !== "result" && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+              <div className={step === "playing" ? "lg:col-span-7" : "lg:col-span-12"}>
+                <FluteSongPractice
+                  devices={songDevices}
+                  requestDevices={requestSongDevices}
+                  handFrameRef={handFrameRef}
+                />
+              </div>
+              {step === "playing" && (
+                <div className="lg:col-span-5 space-y-3">
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-neutral-950 border border-border">
+                    <video
+                      ref={(el) => {
+                        videoRef.current = el
+                        if (el && streamRef.current && el.srcObject !== streamRef.current) {
+                          el.srcObject = streamRef.current
+                          void el.play().catch(() => undefined)
+                        }
+                      }}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-contain"
+                    />
+                    <FluteHandOverlay
+                      videoRef={videoRef}
+                      onFrame={(frame) => {
+                        handFrameRef.current = frame
+                      }}
+                    />
+                    <div className="absolute left-3 top-3 pointer-events-none">
+                      <Badge className="bg-black/80 text-white text-xs font-mono">
+                        <Sun className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                        Cámara activa · Canción
+                      </Badge>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Coloca ambas manos con la flauta frente a la cámara para que también se evalúe la digitación.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={stopLiveSession}
+                  >
+                    <Square className="w-3.5 h-3.5 mr-1.5" />
+                    Apagar cámara y micrófono
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
