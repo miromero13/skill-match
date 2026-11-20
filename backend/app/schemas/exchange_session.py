@@ -22,6 +22,17 @@ class ExchangeSessionCreate(BaseModel):
                     "ends_at": "2026-11-20T19:00:00Z",
                     "timezone": "America/La_Paz",
                     "modality": "VIRTUAL",
+                    "payment_method": "FREE",
+                },
+                {
+                    "match_id": "62be4604-5588-4f75-99df-8c4b747fd683",
+                    "teaching_skill_id": "ef132d52-5748-471d-b890-31f749973f42",
+                    "instructor_id": "13f172f2-df04-4495-b41a-66334e91db4f",
+                    "starts_at": "2026-11-20T20:00:00Z",
+                    "ends_at": "2026-11-20T21:00:00Z",
+                    "timezone": "America/La_Paz",
+                    "modality": "VIRTUAL",
+                    "payment_method": "POINTS",
                 }
             ],
         },
@@ -34,6 +45,13 @@ class ExchangeSessionCreate(BaseModel):
     ends_at: datetime
     timezone: str = Field(min_length=1, max_length=100)
     modality: SessionModality
+    payment_method: Literal["FREE", "POINTS"] = Field(
+        default="FREE",
+        description=(
+            "FREE consume cupo semanal; POINTS exige oferta habilitada y reserva "
+            "la tarifa en escrow HU-42 dentro de la misma transacción"
+        ),
+    )
 
     @field_validator("starts_at", "ends_at")
     @classmethod
@@ -134,6 +152,8 @@ class ExchangeSessionResponse(BaseModel):
     modality: SessionModality
     status: SessionStatus
     is_free: bool
+    points_required: int | None = Field(default=None, ge=0)
+    payment_state: Literal["PENDING", "RESERVED", "REFUNDED", "RELEASED"] | None = None
     cancellation_reason: str | None = None
     cancelled_by_id: UUID | None = None
     cancelled_at: datetime | None = None

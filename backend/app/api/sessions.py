@@ -92,8 +92,9 @@ async def export_session_calendar(
     status_code=status.HTTP_201_CREATED,
     summary="Proponer una sesión",
     description=(
-        "Requiere un match confirmado, disponibilidad común y cupo gratuito del aprendiz. "
-        "El pago posterior al segundo cupo queda reservado a HU-42."
+        "Requiere un match confirmado y disponibilidad común. Con payment_method=FREE "
+        "consume uno de los dos cupos semanales del aprendiz; con payment_method=POINTS "
+        "reserva en escrow la tarifa configurada por el instructor mediante HU-42."
     ),
 )
 async def create_session(

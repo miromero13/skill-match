@@ -35,7 +35,7 @@ ENVIRONMENT="development"
 DEBUG=True
 
 # Orígenes autorizados para CORS (separados por coma)
-ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173,https://localhost,http://localhost,capacitor://localhost,http://192.168.1.8:5173,http://192.168.1.8:8000"
 
 # --- Base de Datos PostgreSQL Asíncrona (asyncpg) ---
 POSTGRES_HOST="localhost"
@@ -117,6 +117,9 @@ PAYPAL_CLIENT_SECRET=""
 WALLET_POINTS_PER_USD=10
 WALLET_CASHOUT_MIN_POINTS=100
 WALLET_PLATFORM_FEE_PERCENTAGE=15.0
+
+# --- Notificaciones Push Nativas (Firebase Cloud Messaging - FCM) ---
+FIREBASE_CREDENTIALS_PATH="firebase-credentials.json"
 ```
 
 ---
@@ -305,3 +308,13 @@ La migración de catálogo conserva los registros y rehúsa nombres normalizados
 - `DELETE` de categoría/habilidad desactiva, no borra físicamente. La eliminación de habilidades con miembros vinculados devuelve 409; `PATCH` con `is_active=false` conserva las asociaciones.
 
 Las pruebas HTTP de esta entrega usan PostgreSQL aislado y mocks de Google. No acreditan disponibilidad de Google real, configuración de sus clientes ni ejecución en hardware nativo.
+
+## 8. Recordatorios de sesiones HU-38
+
+Celery Beat registra el barrido `sessions.dispatch_due_reminders` cada cinco minutos. Los avisos in-app se generan siempre que correspondan; SMTP y Web Push permanecen deshabilitados hasta que el entorno configure sus credenciales.
+
+- Enlaces: `FRONTEND_BASE_URL`.
+- SMTP: `EMAIL_ENABLED`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_STARTTLS`, `SMTP_TIMEOUT_SECONDS`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` y `EMAIL_REPLY_TO`.
+- Web Push: `WEB_PUSH_ENABLED`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y `VAPID_SUBJECT`.
+
+`SMTP_USERNAME`, `SMTP_PASSWORD` y `VAPID_PRIVATE_KEY` se tipan con `SecretStr`; sus valores reales sólo deben existir en `.env` o en el gestor de secretos del despliegue. Consulte [la guía de QA HU-38](../docs/README_HU38_QA.md) para el semillero y las verificaciones controladas.

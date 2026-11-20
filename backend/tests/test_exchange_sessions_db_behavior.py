@@ -21,6 +21,7 @@ from app.models.user import User, UserRole
 from app.models.user_availability import UserAvailability
 from app.models.user_block import UserBlock
 from app.models.user_learning_skill import UserLearningSkill
+from app.services.exchange_session_policy import local_week_bounds
 
 
 def headers(user: User) -> dict[str, str]:
@@ -273,7 +274,14 @@ async def test_create_and_list_are_private_and_report_weekly_quota():
             )
             assert listed["count"] == 1
             assert listed["data"]["items"][0]["id"] == created["data"]["id"]
-            assert listed["data"]["free_sessions_left"] == 1
+            created_start = datetime.fromisoformat(created["data"]["starts_at"])
+            expected_left = (
+                1
+                if local_week_bounds(created_start, seed["learner"].timezone)[0]
+                == local_week_bounds(datetime.now(UTC), seed["learner"].timezone)[0]
+                else 2
+            )
+            assert listed["data"]["free_sessions_left"] == expected_left
             assert listed["data"]["free_sessions_limit"] == 2
             outsider = assert_envelope(
                 await client.get("/api/sessions", headers=headers(seed["outsider"])),
@@ -340,7 +348,13 @@ async def test_overlapping_session_is_rejected_without_consuming_another_quota()
                 await client.get("/api/sessions", headers=headers(seed["learner"])),
                 200,
             )
-            assert listed["data"]["free_sessions_left"] == 1
+            expected_left = (
+                1
+                if local_week_bounds(start, seed["learner"].timezone)[0]
+                == local_week_bounds(datetime.now(UTC), seed["learner"].timezone)[0]
+                else 2
+            )
+            assert listed["data"]["free_sessions_left"] == expected_left
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -969,6 +983,105 @@ async def test_email_reminder_delivery_is_persisted_and_not_repeated():
         assert retry.sent == 0
         assert len(sender.messages) == 2
         assert len({message.message_id for message in sender.messages}) == 2
+        assert {item.status for item in stored} == {"SENT"}
+        assert {item.attempt_count for item in stored} == {1}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_celery_task_dispatches_smtp_reminders_end_to_end_once(monkeypatch):
+    """Exercise the Celery entrypoint through persistence and the SMTP boundary."""
+    from pydantic import SecretStr
+
+    from app.core.config import settings
+    from app.db.session import async_engine
+    from app.models.exchange_session import SessionReminderEmailDelivery
+    from app.models.notification_preference import NotificationPreference
+    from app.tasks import session_reminders as reminder_task_module
+
+    recorded_messages = []
+
+    class RecordingSMTPEmailSender:
+
+        def __init__(self, **kwargs) -> None:
+            self.configuration = kwargs
+
+        async def send(self, content) -> None:
+            recorded_messages.append(content)
+
+    async def no_realtime_subscribers(notification_ids) -> int:
+        assert len(notification_ids) == 2
+        return 0
+
+    async with seeded_exchange() as seed:
+        starts_at = datetime.now(UTC) + timedelta(hours=23, minutes=58)
+        session = ExchangeSession(
+            match_id=seed["match"].id,
+            teaching_skill_id=seed["offer"].id,
+            created_by_id=seed["learner"].id,
+            instructor_id=seed["instructor"].id,
+            learner_id=seed["learner"].id,
+            starts_at=starts_at,
+            ends_at=starts_at + timedelta(hours=1),
+            timezone=seed["learner"].timezone,
+            modality="VIRTUAL",
+            status="ACCEPTED",
+            is_free=True,
+        )
+        async with AsyncSessionLocal() as db:
+            db.add(session)
+            db.add_all(
+                [
+                    NotificationPreference(user_id=user.id, email=True, push=False)
+                    for user in (seed["instructor"], seed["learner"])
+                ]
+            )
+            await db.commit()
+            await db.refresh(session)
+
+        monkeypatch.setattr(settings, "EMAIL_ENABLED", True)
+        monkeypatch.setattr(settings, "SMTP_USERNAME", SecretStr("qa-user"))
+        monkeypatch.setattr(settings, "SMTP_PASSWORD", SecretStr("qa-password"))
+        monkeypatch.setattr(settings, "EMAIL_FROM_ADDRESS", "qa@skillmatch.invalid")
+        monkeypatch.setattr(settings, "WEB_PUSH_ENABLED", False)
+        monkeypatch.setattr(
+            reminder_task_module,
+            "SMTPEmailSender",
+            RecordingSMTPEmailSender,
+        )
+        monkeypatch.setattr(
+            reminder_task_module,
+            "publish_notification_ids",
+            no_realtime_subscribers,
+        )
+
+        # Simulate the isolated worker process: no pooled asyncpg connection may
+        # remain bound to pytest's event loop before Celery opens its own loop.
+        await async_engine.dispose()
+        first = await asyncio.to_thread(
+            reminder_task_module.dispatch_session_reminders.run
+        )
+        retry = await asyncio.to_thread(
+            reminder_task_module.dispatch_session_reminders.run
+        )
+
+        assert first["notifications_created"] == 2
+        assert first["emails_sent"] == 2
+        assert first["emails_failed"] == 0
+        assert retry["notifications_created"] == 0
+        assert retry["emails_sent"] == 0
+        assert len(recorded_messages) == 2
+        assert len({item.message_id for item in recorded_messages}) == 2
+        async with AsyncSessionLocal() as db:
+            stored = list(
+                (
+                    await db.scalars(
+                        select(SessionReminderEmailDelivery).where(
+                            SessionReminderEmailDelivery.session_id == session.id
+                        )
+                    )
+                ).all()
+            )
+        assert len(stored) == 2
         assert {item.status for item in stored} == {"SENT"}
         assert {item.attempt_count for item in stored} == {1}
 

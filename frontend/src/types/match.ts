@@ -41,6 +41,7 @@ export interface CommonSessionSlot {
     timezone: string
     modality: "VIRTUAL" | "PRESENCIAL"
     duration_minutes: 30 | 60
+    free_sessions_left?: number
 }
 
 export interface SessionBookingDirection {
@@ -49,6 +50,8 @@ export interface SessionBookingDirection {
     learner_id: string
     teaching_skill_id: string
     skill_name: string
+    accepts_points: boolean
+    hourly_points_rate: number | null
     modalities: Array<"VIRTUAL" | "PRESENCIAL">
     common_slots: CommonSessionSlot[]
 }

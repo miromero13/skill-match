@@ -1,7 +1,8 @@
 import os
 import tempfile
 from pathlib import Path
-from typing import List, Union, Optional
+from typing import List, Optional, Union
+
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -162,6 +163,26 @@ class Settings(BaseSettings):
         description="Ejecutar tareas Celery en proceso (True para pruebas sin broker activo)",
     )
 
+    # Recordatorios externos HU-38 (deshabilitados por defecto)
+    FRONTEND_BASE_URL: str = Field(
+        default="http://localhost:5173",
+        description="Origen público del frontend usado en enlaces transaccionales",
+    )
+    EMAIL_ENABLED: bool = Field(default=False, description="Habilitar correo SMTP transaccional")
+    SMTP_HOST: str = Field(default="smtp.gmail.com", description="Host SMTP")
+    SMTP_PORT: int = Field(default=587, ge=1, le=65535, description="Puerto SMTP")
+    SMTP_USERNAME: SecretStr | None = Field(default=None, description="Usuario SMTP (Secreto .env)")
+    SMTP_PASSWORD: SecretStr | None = Field(default=None, description="Contraseña SMTP (Secreto .env)")
+    SMTP_STARTTLS: bool = Field(default=True, description="Negociar STARTTLS con el servidor SMTP")
+    SMTP_TIMEOUT_SECONDS: int = Field(default=15, ge=1, le=120, description="Timeout SMTP")
+    EMAIL_FROM_ADDRESS: str | None = Field(default=None, description="Remitente de correo")
+    EMAIL_FROM_NAME: str = Field(default="SkillMatch", description="Nombre visible del remitente")
+    EMAIL_REPLY_TO: str | None = Field(default=None, description="Dirección Reply-To opcional")
+    WEB_PUSH_ENABLED: bool = Field(default=False, description="Habilitar Web Push web/PWA")
+    VAPID_PUBLIC_KEY: str | None = Field(default=None, description="Clave pública VAPID")
+    VAPID_PRIVATE_KEY: SecretStr | None = Field(default=None, description="Clave privada VAPID (Secreto .env)")
+    VAPID_SUBJECT: str | None = Field(default=None, description="Contacto mailto: o URL para VAPID")
+
     # Economía de Puntos y Pasarela de Pagos (HU-42 / RF-SES-09 / RF-WAL-02)
     PAYMENT_GATEWAY_PROVIDER: str = Field(
         default="sandbox",
@@ -197,6 +218,10 @@ class Settings(BaseSettings):
         ge=0.0,
         le=50.0,
         description="Comisión institucional porcentual retenida por la plataforma en retiros (ej. 15.0%)",
+    )
+    FIREBASE_CREDENTIALS_PATH: Optional[str] = Field(
+        default="firebase-credentials.json",
+        description="Ruta al archivo JSON de credenciales de Firebase Admin SDK para notificaciones push",
     )
 
     @field_validator("ALLOWED_ORIGINS", mode="before")

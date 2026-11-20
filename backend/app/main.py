@@ -22,6 +22,7 @@ from app.api.matches.router import router as matches_router
 from app.api.notifications.router import router as notifications_router
 from app.api.programming import admin_router as admin_programming_router, member_router as programming_router
 from app.api.notifications.web_push import router as web_push_router
+from app.api.notifications.devices import router as device_push_router
 from app.api.notifications.websocket import router as notification_websocket_router
 from app.api.passports import router as passports_router
 from app.api.search import search_router
@@ -144,6 +145,7 @@ def create_application() -> FastAPI:
     app.include_router(football_router, prefix="/api/v1/football")
     app.include_router(notifications_router, prefix="/api")
     app.include_router(web_push_router, prefix="/api")
+    app.include_router(device_push_router, prefix="/api")
     app.include_router(notification_websocket_router)
     app.include_router(notification_preferences_router, prefix="/api")
     app.include_router(user_profile_router, prefix="/api")

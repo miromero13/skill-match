@@ -6,6 +6,8 @@ Zero third-party APIs, zero fictional score mutations. Records immutable inciden
 from typing import Literal
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 ReputationIncidentStatus = Literal["PENDING_REPUTATION", "PROCESSED", "DISMISSED"]
 
 
@@ -15,14 +17,16 @@ class SessionReputationAdapter:
     @staticmethod
     async def record_noshow_incident(
         *,
+        db: AsyncSession,
         session_id: UUID,
         absent_user_id: UUID,
         reported_by_id: UUID,
     ) -> ReputationIncidentStatus:
-        """Audits the no-show incident and queues it for reputation processing.
+        """Mark a validated incident for immediate HU-40 reputation processing.
 
-        When HU-40 reputation engine is deployed, this adapter will trigger
-        the canonical reputation penalty calculation without modifying HU-39 contracts.
+        The caller owns the transaction and persists the immutable report.  The
+        reputation calculation reads that report after flush/commit, so this
+        boundary must not open or commit an independent unit of work.
         """
-        # Preserved as source-of-truth in session_no_show_reports table with status PENDING_REPUTATION
-        return "PENDING_REPUTATION"
+        del db, session_id, absent_user_id, reported_by_id
+        return "PROCESSED"

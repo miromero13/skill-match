@@ -363,9 +363,9 @@ async def test_report_noshow_records_auditable_incident():
             data = payload["data"]
             assert data["session_id"] == str(seed["session"].id)
             assert data["absent_user_id"] == str(seed["instructor"].id)
-            assert data["status"] == "PENDING_REPUTATION"
+            assert data["status"] == "PROCESSED"
 
-            # Check that account remains active and incident is flagged PENDING_REPUTATION (HU-40 / HU-42 boundary)
+            # HU-40 processes the attendance incident without locking the account.
             async with AsyncSessionLocal() as db:
                 inst = (
                     await db.execute(select(User).where(User.id == seed["instructor"].id))

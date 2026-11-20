@@ -1,5 +1,4 @@
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import status
@@ -7,7 +6,11 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import SkillMatchException
-from app.models.exchange_session import ExchangeSession, SessionCancellation
+from app.models.exchange_session import (
+    ExchangeSession,
+    SessionCancellation,
+    SessionNoShowReport,
+)
 from app.models.session_review import SessionReview
 from app.models.teaching_skill import TeachingSkill
 from app.models.user import User
@@ -338,13 +341,19 @@ class ReputationService:
             SessionCancellation.triggers_booking_block == True,
         )
         late_cancels = (await db.execute(late_cancels_stmt)).scalar() or 0
-        attendance_score = max(0.0, float(100.0 - (late_cancels * 20.0)))
+        no_shows_stmt = select(func.count(SessionNoShowReport.id)).where(
+            SessionNoShowReport.absent_user_id == user_id,
+            SessionNoShowReport.status == "PROCESSED",
+        )
+        no_shows = (await db.execute(no_shows_stmt)).scalar() or 0
+        attendance_incidents = late_cancels + no_shows
+        attendance_score = max(0.0, float(100.0 - (attendance_incidents * 20.0)))
 
         # 4. Ponderación Antigüedad (10%): Días desde el registro (máximo a los 90 días)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         created_at = target_user.created_at
         if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=timezone.utc)
+            created_at = created_at.replace(tzinfo=UTC)
         days_active = max(1, (now - created_at).days)
         tenure_score = min(100.0, float((days_active / 90.0) * 100.0))
 
@@ -355,7 +364,7 @@ class ReputationService:
         )
 
         # Evaluación dinámica de Insignias (Badges)
-        badges: List[ReputationBadge] = [
+        badges: list[ReputationBadge] = [
             ReputationBadge(
                 code="VERIFIED_IDENTITY",
                 title="Identidad Verificada",
@@ -375,7 +384,7 @@ class ReputationService:
                 title="Puntualidad Perfecta",
                 description="Puntualidad impecable (5.0) y cero cancelaciones de último momento.",
                 icon="ClockCheck",
-                is_active=avg_punctuality >= 4.9 and late_cancels == 0,
+                is_active=avg_punctuality >= 4.9 and attendance_incidents == 0,
             ),
             ReputationBadge(
                 code="HIGH_TRUST",
