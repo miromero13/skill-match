@@ -63,6 +63,9 @@ import { AdminComplaintsPage } from "@/pages/admin/admin-complaints-page"
 export const router = createBrowserRouter([
   { path: "/evaluation/:id/theory", element: <MemberRouteGuard><TheoryExamPage /></MemberRouteGuard> },
   { path: "/evaluation/:id/code", element: <MemberRouteGuard><ProgrammingExamPage /></MemberRouteGuard> },
+  ...(browserSupervisionTrialEnabled
+    ? [{ path: "/app/browser-supervision-test", element: <MemberRouteGuard><BrowserSupervisionPage /></MemberRouteGuard> }]
+    : []),
   {
     path: "/evaluation/:skillId/setup",
     element: (
@@ -187,9 +190,6 @@ export const router = createBrowserRouter([
         path: "teaching-skills",
         element: <TeachingSkillsPage />,
       },
-      ...(browserSupervisionTrialEnabled
-        ? [{ path: "browser-supervision-test", element: <BrowserSupervisionPage /> }]
-        : []),
       {
         path: "football-validation",
         element: (
