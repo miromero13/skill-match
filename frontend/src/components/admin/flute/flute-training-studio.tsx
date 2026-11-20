@@ -59,12 +59,13 @@ export function FluteTrainingStudio({ skillId, skillName = "Flauta Dulce" }: Flu
               ? "Hay participantes suficientes para intentar una partición independiente. Consulta la validación del modelo después de entrenar."
               : "Validación independiente no disponible: etiqueta muestras de al menos dos personas con IDs estables."}</AlertDescription>
           </Alert>
-          {(["sound_class_counts", "posture_class_counts"] as const).map(key => (
+          {(["sound_class_counts", "finger_note_counts"] as const).map(key => (
             <div key={key} className="space-y-2">
-              <h3 className="font-medium">{key === "sound_class_counts" ? "Sonido" : "Digitación"} · fotogramas etiquetados</h3>
+              <h3 className="font-medium">{key === "sound_class_counts" ? "Sonido" : "Digitación correcta"} · fotogramas etiquetados</h3>
               <div className="flex flex-wrap gap-2">{Object.entries(preview?.[key] ?? {}).map(([label, count]) => <Badge key={label} variant="outline">{label}: {count}</Badge>)}</div>
             </div>
           ))}
+          {(preview?.needs_reprocess_count ?? 0) > 0 && <Alert variant="destructive"><AlertDescription>{preview?.needs_reprocess_count} video(s) tienen features de un formato anterior: reprocesalos en «Reutilizar videos guardados» para usarlos en el entrenamiento.</AlertDescription></Alert>}
           <Button disabled={busy} variant="outline" onClick={() => void perform(refresh)}>Actualizar cobertura</Button>
         </CardContent>
       </Card>

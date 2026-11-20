@@ -15,7 +15,6 @@ export type FluteVariationType =
   | "sostenida"
   | "rapida"
   | "angulo_suave"
-  | "transicion"
 
 export interface FluteNoteSpec {
   note: FluteNoteName

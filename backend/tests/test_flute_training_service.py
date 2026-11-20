@@ -559,3 +559,29 @@ def test_legacy_sidecars_are_listed_as_needing_reprocessing():
     assert listing[0]["labeled"] is False
     assert listing[0]["needs_reprocess"] is True
     assert listing[0]["note_label"] == "SI"
+
+
+@pytest.mark.asyncio
+async def test_preview_reports_finger_coverage_sessions_and_legacy_samples():
+    rng = np.random.default_rng(9)
+    current, legacy, empty = _sample(1), _sample(2), _sample(2)
+    labels = {
+        current.id: _labels_for("SOL", "flauta", "correcta", rng, n=4),
+        legacy.id: {"participant_id": "p1", "note_label": "SI", "sound_label": "flauta",
+                    "posture_label": "correcta", "visual_schema": "hand-landmarks-palm-v4",
+                    "audio_features": [0.0] * 48, "visual_features": [0.0] * 50,
+                    "feature_frames": [{"audio_features": [0.0] * 48, "visual_features": [0.0] * 50}] * 3},
+    }
+    with patch.object(service, "_music_samples", AsyncMock(return_value=[current, legacy, empty])), \
+            patch.object(service, "_read_labels", side_effect=lambda sid: labels.get(sid)):
+        preview = await service.preview_flute_dataset(MagicMock())
+    assert preview["labeled_count"] == 1
+    assert preview["needs_reprocess_count"] == 1
+    assert preview["unlabeled_count"] == 2
+    assert preview["sessions_count"] == 1
+    assert preview["finger_note_counts"]["SOL"] == 4
+    assert preview["sound_class_counts"]["SOL"] == 4
+    assert "posture_class_counts" not in preview
+    by_id = {s["id"]: s for s in preview["samples"]}
+    assert by_id[str(empty.id)]["needs_reprocess"] is False
+    assert by_id[str(legacy.id)]["needs_reprocess"] is True

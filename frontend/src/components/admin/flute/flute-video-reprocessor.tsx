@@ -20,7 +20,7 @@ export function FluteVideoReprocessor({ samples, onSaved }: { samples: FlutePrev
       <p className="text-sm">No hace falta subirlos otra vez. Selecciona un video etiquetado, reprodúcelo para detectar las manos y extraer timbre + altura de audio (flute-audio-pitch-v1) y articulaciones de dedos (hand-landmarks-palm-v5). Se conservan participante y etiquetas.</p>
       <Select value={id} onValueChange={setId}><SelectTrigger aria-label="Video para reprocesar"><SelectValue placeholder="Seleccionar video" /></SelectTrigger>
         <SelectContent>{samples.filter(s => s.file_format === "mp4" && s.sound_label && s.posture_label && s.participant_id).map(s =>
-          <SelectItem key={s.id} value={s.id}>{s.participant_id} · {s.note_label ?? s.sound_label} · {s.id.slice(0, 8)} {s.labeled ? "(articulaciones)" : "(pendiente)"}</SelectItem>)}</SelectContent>
+          <SelectItem key={s.id} value={s.id}>{s.participant_id} · {s.note_label ?? s.sound_label} · {s.id.slice(0, 8)} {s.labeled ? "(pitch-v1 + manos v5)" : s.needs_reprocess ? "(formato anterior: reprocesar)" : "(pendiente)"}</SelectItem>)}</SelectContent>
       </Select>
       {sample && <ReprocessVideo key={sample.id} sample={sample} onSaved={onSaved} />}
     </CardContent>

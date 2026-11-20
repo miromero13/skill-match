@@ -133,6 +133,10 @@ export interface FlutePreviewSample {
   note_label: string | null
   sound_label: FluteLabels["sound_label"] | null
   posture_label: FluteLabels["posture_label"] | null
+  /** True when a sidecar exists in an older feature format: reprocess the stored video. */
+  needs_reprocess: boolean
+  /** Fraction of voiced frames whose pitch matched the labeled note (flute takes only). */
+  pitch_agreement: number | null
   file_format: string
 }
 
@@ -142,9 +146,12 @@ export interface FluteDatasetPreviewResponse {
   total_count: number
   labeled_count: number
   unlabeled_count: number
+  needs_reprocess_count: number
   participants: Record<string, number>
+  sessions_count: number
   sound_class_counts: Record<string, number>
-  posture_class_counts: Record<string, number>
+  /** Frames with reviewed correct fingering per note (finger head training data). */
+  finger_note_counts: Record<string, number>
   can_validate_independently: boolean
 }
 

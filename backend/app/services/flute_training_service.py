@@ -1316,7 +1316,7 @@ def _infer_note_from_sample(sample: DatasetSample) -> str:
     return "UNKNOWN"
 
 
-FLUTE_VARIATIONS = ("sostenida", "rapida", "angulo_suave", "transicion")
+FLUTE_VARIATIONS = ("sostenida", "rapida", "angulo_suave")
 
 
 def _infer_variation_from_sample(sample: DatasetSample) -> str:
