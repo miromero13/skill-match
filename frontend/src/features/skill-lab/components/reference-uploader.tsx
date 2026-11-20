@@ -81,13 +81,17 @@ export function ReferenceUploader({ skillId, level, samples, onChanged }: Refere
 
   const fileId = `reference-file-${level.id}`
   const consentId = `reference-consent-${level.id}`
+  const headingId = `reference-heading-${level.id}`
 
   return (
-    <section className="space-y-3 rounded-lg border border-border/60 p-3">
-      <h4 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-        <Video className="size-4 text-emerald-500" />
-        Video de referencia
-      </h4>
+    <section aria-labelledby={headingId} className="space-y-3 rounded-lg border border-border/60 p-3 sm:p-4">
+      <div className="space-y-0.5">
+        <h3 id={headingId} className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+          <Video className="size-4 text-emerald-500" />
+          Video de referencia
+        </h3>
+        <p className="text-xs text-muted-foreground">Lo que la persona deberá replicar en vivo para este nivel.</p>
+      </div>
 
       <div data-testid="skill-lab-reference-current" className="text-xs text-muted-foreground">
         {level.reference ? (

@@ -161,9 +161,9 @@ function video(name = "intento.mp4"): File {
   return new File([new Uint8Array([0, 1, 2, 3])], name, { type: "video/mp4" })
 }
 
-function renderLab() {
+function renderLab(path = "/admin/skill-lab/skill-1") {
   return render(
-    <MemoryRouter initialEntries={["/admin/skill-lab/skill-1"]}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/admin/skill-lab/:skillId" element={<AdminSkillLabPage />} />
         <Route path="/admin/catalog" element={<p>Catálogo</p>} />
@@ -199,11 +199,9 @@ describe("AdminSkillLabPage", () => {
     expect(readiness).toHaveTextContent("El nivel «Intermedio» no tiene video de referencia.")
     expect(readiness).not.toHaveClass("text-destructive")
 
+    // S8: only the current step (first level by level_number) is rendered.
     const cards = screen.getAllByTestId(/^skill-lab-level-/)
-    expect(cards.map((card) => card.getAttribute("data-testid"))).toEqual([
-      "skill-lab-level-lvl-1",
-      "skill-lab-level-lvl-2",
-    ])
+    expect(cards.map((card) => card.getAttribute("data-testid"))).toEqual(["skill-lab-level-lvl-1"])
 
     const beginner = await levelCard("lvl-1")
     expect(beginner.getByText("Puntaje mínimo 60%")).toBeInTheDocument()
@@ -230,6 +228,8 @@ describe("AdminSkillLabPage", () => {
     const user = userEvent.setup()
     api.uploadSample.mockResolvedValue({ ...REFERENCE, id: "ref-2" })
     renderLab()
+    await levelCard("lvl-1")
+    await user.click(screen.getByRole("button", { name: "Siguiente: Nivel 2 · Intermedio" }))
     const card = await levelCard("lvl-2")
 
     const upload = card.getByRole("button", { name: /Subir referencia/ })
@@ -303,7 +303,7 @@ describe("AdminSkillLabPage", () => {
     const user = userEvent.setup()
     api.train.mockResolvedValue(MODEL)
     api.getConfig.mockResolvedValueOnce(makeConfig()).mockResolvedValue(makeConfig({ active_model: MODEL }))
-    renderLab()
+    renderLab("/admin/skill-lab/skill-1?paso=3")
 
     await user.click(await screen.findByRole("button", { name: /Entrenar modelo/ }))
     expect(api.train).toHaveBeenCalledWith("skill-1")
@@ -320,7 +320,7 @@ describe("AdminSkillLabPage", () => {
     const user = userEvent.setup()
     let resolveValidation: (value: SkillValidationResult) => void = () => {}
     api.validate.mockImplementation(() => new Promise((resolve) => { resolveValidation = resolve }))
-    renderLab()
+    renderLab("/admin/skill-lab/skill-1?paso=4")
 
     const validateButton = await screen.findByRole("button", { name: /Validar video/ })
     expect(validateButton).toBeDisabled()
@@ -348,7 +348,8 @@ describe("AdminSkillLabPage", () => {
     expect(within(beginner).getByText("Se contaron 7 de 10 toques.")).toBeInTheDocument()
     expect(within(beginner).getByText("Superado")).toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: /Intermedio/ }))
+    const content = within(screen.getByTestId("skill-lab-step-content"))
+    await user.click(content.getByRole("button", { name: /Intermedio/ }))
     const intermediate = screen.getByTestId("skill-lab-result-level-lvl-2")
     // level status badge + the criterion that could not be scored
     expect(within(intermediate).getAllByText("No evaluable")).toHaveLength(2)
@@ -362,7 +363,7 @@ describe("AdminSkillLabPage", () => {
   it("sends the selected level when the admin targets a specific level", async () => {
     const user = userEvent.setup()
     api.validate.mockResolvedValue(RESULT)
-    renderLab()
+    renderLab("/admin/skill-lab/skill-1?paso=4")
     await screen.findByRole("heading", { name: "Dominadas" })
     const file = video()
     await user.upload(screen.getByLabelText("Video a validar (MP4, WebM o MOV)"), file)
@@ -375,7 +376,7 @@ describe("AdminSkillLabPage", () => {
   it("on transport failure shows a retry warning without any grade and keeps the selected file", async () => {
     const user = userEvent.setup()
     api.validate.mockRejectedValueOnce(new ApiError("Failed to fetch", 0)).mockResolvedValueOnce(RESULT)
-    renderLab()
+    renderLab("/admin/skill-lab/skill-1?paso=4")
     await screen.findByRole("heading", { name: "Dominadas" })
     const file = video()
     await user.upload(screen.getByLabelText("Video a validar (MP4, WebM o MOV)"), file)

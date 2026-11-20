@@ -1,10 +1,52 @@
 import { Link } from "react-router-dom"
-import { ArrowLeft, CheckCircle2, Cpu, FlaskConical, Info } from "lucide-react"
+import { useState } from "react"
+import { ArrowLeft, CheckCircle2, ChevronDown, Cpu, FlaskConical, Info } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatPercent, WARNING_ALERT_CLASS } from "../lib/skill-lab-utils"
 import type { SkillLabConfig } from "../types"
+
+/** Cantidad de pendientes visibles antes de plegar el resto (mantiene el encabezado compacto). */
+const VISIBLE_ISSUES = 2
+
+function ReadinessIssues({ issues }: { issues: string[] }) {
+  const [open, setOpen] = useState(false)
+  const visible = issues.slice(0, VISIBLE_ISSUES)
+  const hidden = issues.slice(VISIBLE_ISSUES)
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="space-y-1">
+      <ul className="list-disc space-y-0.5 pl-4">
+        {visible.map((issue) => (
+          <li key={issue}>{issue}</li>
+        ))}
+      </ul>
+      {hidden.length > 0 && (
+        <>
+          <CollapsibleContent>
+            <ul className="list-disc space-y-0.5 pl-4">
+              {hidden.map((issue) => (
+                <li key={issue}>{issue}</li>
+              ))}
+            </ul>
+          </CollapsibleContent>
+          <CollapsibleTrigger asChild>
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto px-0 text-amber-800 dark:text-amber-300"
+            >
+              {open ? "Ver menos" : `Ver ${hidden.length} más`}
+              <ChevronDown className={open ? "rotate-180 transition-transform" : "transition-transform"} />
+            </Button>
+          </CollapsibleTrigger>
+        </>
+      )}
+    </Collapsible>
+  )
+}
 
 export function SkillLabHeader({ config }: { config: SkillLabConfig }) {
   const { skill, readiness } = config
@@ -59,14 +101,14 @@ export function SkillLabHeader({ config }: { config: SkillLabConfig }) {
       ) : (
         <Alert variant="default" data-testid="skill-lab-readiness" className={WARNING_ALERT_CLASS}>
           <Info />
-          <AlertTitle>Pendientes antes de validar</AlertTitle>
+          <AlertTitle>
+            {readiness.issues.length > 0
+              ? `Pendientes antes de validar (${readiness.issues.length})`
+              : "Pendientes antes de validar"}
+          </AlertTitle>
           <AlertDescription className="text-amber-800/90 dark:text-amber-300/90">
             {readiness.issues.length > 0 ? (
-              <ul className="list-disc space-y-0.5 pl-4">
-                {readiness.issues.map((issue) => (
-                  <li key={issue}>{issue}</li>
-                ))}
-              </ul>
+              <ReadinessIssues issues={readiness.issues} />
             ) : (
               <p>El laboratorio todavía no está listo para validar.</p>
             )}
