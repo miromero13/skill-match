@@ -166,6 +166,38 @@ describe("runReprocessQueue", () => {
     expect(onSaved).toHaveBeenCalledTimes(1)
   })
 
+  it("Detener while a save is already in flight waits for it and counts the saved take honestly", async () => {
+    const controller = new AbortController()
+    const samples = [sample({ id: "a" }), sample({ id: "b" }), sample({ id: "c" })]
+    let finishSave: () => void = () => undefined
+    const processOne = vi.fn<ProcessOne>(async (_item, _signal, { markSaving }) => {
+      markSaving()
+      queueMicrotask(() => controller.abort()) // admin presses Detener during the POST
+      await new Promise<void>(resolve => { finishSave = resolve; setTimeout(resolve, 0) })
+      return ok
+    })
+    const onSaved = vi.fn().mockResolvedValue(undefined)
+    const summary = await runReprocessQueue({ samples, processOne, onSaved, signal: controller.signal })
+    finishSave()
+    expect(processOne).toHaveBeenCalledTimes(1)
+    expect(summary).toEqual({ total: 3, okCount: 1, failures: [], stopped: true, notProcessed: 2 })
+    expect(onSaved).toHaveBeenCalledTimes(1)
+  })
+
+  it("a started save is not cut by the item deadline", async () => {
+    vi.useFakeTimers()
+    const processOne = vi.fn<ProcessOne>(async (_item, _signal, { markSaving, setDeadline }) => {
+      setDeadline(1_000)
+      markSaving()
+      await new Promise<void>(resolve => setTimeout(resolve, 5_000))
+      return ok
+    })
+    const run = runReprocessQueue({ samples: [sample()], processOne, onSaved: vi.fn().mockResolvedValue(undefined),
+      signal: new AbortController().signal })
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(await run).toEqual({ total: 1, okCount: 1, failures: [], stopped: false, notProcessed: 0 })
+  })
+
   it("does not process anything when already stopped, but still refreshes once", async () => {
     const controller = new AbortController()
     controller.abort()
@@ -268,6 +300,13 @@ describe("finalizeReprocessTake (shared single/batch gate + save)", () => {
     const frames = [featureFrame(784), featureFrame(784), featureFrame(784)]
     expect(await finalizeReprocessTake(sample(), frames, save)).toMatchObject({ ok: false, kind: "error",
       reason: "No se pudo guardar la muestra" })
+  })
+
+  it("announces the save right before sending it", async () => {
+    const order: string[] = []
+    const save = vi.fn<SaveFluteLabels>(() => { order.push("save"); return Promise.resolve({ statuscode: 200, message: "ok", data: null } as never) })
+    await finalizeReprocessTake(sample(), Array.from({ length: 4 }, () => featureFrame(783.99)), save, undefined, () => order.push("saving"))
+    expect(order).toEqual(["saving", "save"])
   })
 
   it("never saves once the item was stopped", async () => {

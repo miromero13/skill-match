@@ -17,6 +17,11 @@ export type ReprocessOutcome = { ok: true } | { ok: false; reason: string }
 export interface ReprocessItemControls {
   /** Replaces the item deadline (counted from now), e.g. once the video duration is known. */
   setDeadline: (ms: number) => void
+  /**
+   * Call right before sending the save request. From then on Detener and the deadline no longer
+   * cut the item: the request cannot be recalled, so the queue waits for its real outcome.
+   */
+  markSaving: () => void
 }
 
 export type ProcessOne = (
@@ -130,7 +135,8 @@ export async function finalizeReprocessTake(
   sample: FlutePreviewSample,
   rawFrames: readonly FluteFeatures[],
   save: SaveFluteLabels,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onSaveStart?: () => void
 ): Promise<ReprocessTakeResult> {
   if (!hasReviewedLabels(sample)) return { ok: false, kind: "rejected", reason: "Faltan etiquetas revisadas.", pitch: null }
   const isFluteTake = sample.sound_label === "flauta"
@@ -149,6 +155,7 @@ export async function finalizeReprocessTake(
       : "No se detectaron suficientes articulaciones." }
   }
   if (signal?.aborted) return { ok: false, kind: "cancelled", reason: REPROCESS_STOPPED_REASON, pitch }
+  onSaveStart?.()
   try {
     const response = await save(sample.id, { ...frames[Math.floor(frames.length / 2)],
       feature_frames: frames, participant_id: sample.participant_id, note_label: sample.note_label,
@@ -170,15 +177,19 @@ async function runItem(
   let timer: ReturnType<typeof setTimeout> | undefined
   let settle: (end: ItemEnd) => void = () => undefined
   const ended = new Promise<ItemEnd>(resolve => { settle = resolve })
+  let saving = false
   const setDeadline = (ms: number) => {
+    if (saving) return
     clearTimeout(timer)
     timer = setTimeout(() => { settle({ kind: "timeout", ms }); item.abort() }, ms)
   }
-  const onStop = () => { settle({ kind: "stopped" }); item.abort() }
+  const markSaving = () => { saving = true; clearTimeout(timer) }
+  // Once the save request is in flight it cannot be recalled: wait for its real outcome.
+  const onStop = () => { if (!saving) { settle({ kind: "stopped" }); item.abort() } }
   signal.addEventListener("abort", onStop)
   setDeadline(REPROCESS_UNKNOWN_DURATION_TIMEOUT_MS)
   Promise.resolve()
-    .then(() => processOne(sample, item.signal, { setDeadline }))
+    .then(() => processOne(sample, item.signal, { setDeadline, markSaving }))
     .then(
       outcome => settle({ kind: "done", outcome }),
       (error: unknown) => settle({ kind: "done", outcome: { ok: false, reason: errorMessage(error, "No se pudo reprocesar.") } })
@@ -216,6 +227,7 @@ export async function runReprocessQueue({ samples, processOne, signal, onProgres
     if (outcome.ok) okCount += 1
     else failures.push({ id: sample.id, shortId: sample.id.slice(0, 8), note: noteOrSound(sample),
       participant: sample.participant_id ?? "—", reason: outcome.reason })
+    if (signal.aborted) break // Detener arrived while this item's save was in flight.
   }
   try { await onSaved() } catch { /* the refresh failure is surfaced by the API client toast */ }
   return { total: queue.length, okCount, failures, stopped: signal.aborted,

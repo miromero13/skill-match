@@ -201,7 +201,7 @@ export function FluteVideoReprocessor({ samples, onSaved }: { samples: FlutePrev
       signal: controller.signal,
       onSaved,
       onProgress: next => { setProgress(next); setCount(0); setPitchSummary(null) },
-      processOne: async (take, signal, { setDeadline }) => {
+      processOne: async (take, signal, { setDeadline, markSaving }) => {
         const response = await getDatasetSampleContent(take.id)
         if (signal.aborted) return { ok: false, reason: REPROCESS_STOPPED_REASON }
         if (!response.data?.data_url) return { ok: false, reason: "El video original no está disponible." }
@@ -209,7 +209,7 @@ export function FluteVideoReprocessor({ samples, onSaved }: { samples: FlutePrev
         const frames = await recordTake(take, signal, seconds => setDeadline(reprocessItemTimeoutMs(seconds)))
         // Batch: one summary at the end instead of a success toast per take.
         const outcome = await finalizeReprocessTake(take, frames,
-          (sampleId, payload) => saveFluteLabels(sampleId, payload, { showToastOnSuccess: false }), signal)
+          (sampleId, payload) => saveFluteLabels(sampleId, payload, { showToastOnSuccess: false }), signal, markSaving)
         setPitchSummary(outcome.pitch)
         return outcome.ok ? { ok: true } : { ok: false, reason: outcome.reason }
       },
@@ -270,7 +270,7 @@ function BatchSummary({ summary }: { summary: ReprocessQueueSummary }) {
     <CardHeader><CardTitle>Resumen del reprocesamiento</CardTitle></CardHeader>
     <CardContent className="space-y-2 text-sm">
       <p>Correctos: {summary.okCount} de {summary.total} · Rechazados o con error: {summary.failures.length}</p>
-      {summary.stopped && <p>Detenido por el administrador: {summary.notProcessed} sin procesar (la toma en curso no se guardó).</p>}
+      {summary.stopped && <p>Detenido por el administrador: {summary.notProcessed} sin procesar (una toma que ya se estaba enviando se termina de guardar y figura en el conteo).</p>}
       {summary.failures.length > 0 && <>
         <p className="text-muted-foreground">Las tomas rechazadas conservan sus etiquetas anteriores.</p>
         <Table>
