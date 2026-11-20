@@ -67,6 +67,7 @@ services:
       target: runtime
       args:
         VITE_API_URL: ${VITE_API_URL:-https://skillmatch-app.southafricanorth.cloudapp.azure.com/api}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-628791947017-qbaplqmch79lk5fg3h9g2dn97cl6vcjo.apps.googleusercontent.com}
     container_name: skillmatch-frontend
     restart: always
     expose:
