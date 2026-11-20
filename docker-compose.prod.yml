@@ -66,19 +66,37 @@ services:
       dockerfile: Dockerfile
       target: runtime
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://102.133.227.191/api}
+        VITE_API_URL: ${VITE_API_URL:-https://skillmatch-app.southafricanorth.cloudapp.azure.com/api}
     container_name: skillmatch-frontend
     restart: always
-    ports:
-      - "80:8080"
+    expose:
+      - "8080"
     depends_on:
       - backend
+    networks:
+      - skillmatch-network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: skillmatch-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    command: caddy reverse-proxy --from skillmatch-app.southafricanorth.cloudapp.azure.com --to frontend:8080
+    depends_on:
+      - frontend
     networks:
       - skillmatch-network
 
 volumes:
   pgdata:
   redisdata:
+  caddy_data:
+  caddy_config:
 
 networks:
   skillmatch-network:
