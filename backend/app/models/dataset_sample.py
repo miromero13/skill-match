@@ -1,6 +1,6 @@
 import uuid
-from typing import Optional
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String
+from typing import Any, Optional
+from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,7 +11,7 @@ class DatasetSample(Base, TimestampMixin):
     __tablename__ = "dataset_samples"
     __table_args__ = (
         CheckConstraint(
-            "file_format IN ('mp4', 'wav', 'py')",
+            "file_format IN ('mp4', 'wav', 'py', 'webm', 'mov')",
             name="ck_dataset_samples_format",
         ),
         CheckConstraint(
@@ -21,6 +21,10 @@ class DatasetSample(Base, TimestampMixin):
         CheckConstraint(
             "length(file_hash_sha256) = 64",
             name="ck_dataset_samples_hash_length",
+        ),
+        CheckConstraint(
+            "sample_role IN ('TRAINING', 'REFERENCE')",
+            name="ck_dataset_samples_sample_role",
         ),
     )
 
@@ -48,6 +52,24 @@ class DatasetSample(Base, TimestampMixin):
     noise_level: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     surface: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     split: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, index=True)
+    # Skill lab linkage (catalog skill / level / rubric criterion); null for legacy samples.
+    skill_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("skills.id", ondelete="SET NULL", name="fk_dataset_samples_skill_id"),
+        nullable=True,
+        index=True,
+    )
+    skill_level_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("skill_levels.id", ondelete="SET NULL", name="fk_dataset_samples_skill_level_id"),
+        nullable=True,
+        index=True,
+    )
+    criterion_key: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    sample_role: Mapped[str] = mapped_column(
+        String(20), default="TRAINING", server_default="TRAINING", nullable=False
+    )
+    analysis: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
     uploaded_by: Mapped[Optional["User"]] = relationship(  # noqa: F821
         "User", backref="dataset_samples"

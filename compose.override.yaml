@@ -1,0 +1,105 @@
+# ==============================================================================
+# SkillMatch — Override de desarrollo local (se carga AUTOMÁTICAMENTE)
+# ==============================================================================
+# `docker compose up --build` = compose.yaml + este archivo:
+#   - API con hot reload (UVICORN_RELOAD) y código montado desde ./backend
+#   - Swagger en http://localhost:8000/docs (solo 127.0.0.1)
+#   - Postgres 127.0.0.1:5433 y Redis 127.0.0.1:6380 para herramientas locales
+#     (POSTGRES_HOST_PORT / REDIS_HOST_PORT; no chocan con un Postgres/Redis del host)
+#   - Frontend = servidor Vite (HMR) en http://localhost:5173
+#   - ENVIRONMENT=development y DEBUG=True salvo que .env los fije
+#
+# Para probar el stack prod-like en local (nginx + bundle, sin este override):
+#   docker compose -f compose.yaml up --build      -> http://localhost:8080
+#
+# Pesos de modelos: el bind-mount de ./backend/app ocultaría
+# /app/app/models/weights (incluidos en la imagen al construir). El volumen
+# `backend-weights` se monta encima. Docker solo lo rellena con la imagen la
+# primera vez (volumen vacío), así que `init-volumes` copia en cada arranque los
+# modelos que falten (sin sobrescribir) desde la imagen recién construida; el
+# backend los verifica por SHA-256 al cargarlos. Para rehacerlo desde cero:
+#   docker compose down && docker volume rm skillmatch_backend-weights
+# ==============================================================================
+
+x-dev-env: &dev-env
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  DEBUG: ${DEBUG:-True}
+  FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+
+x-dev-source: &dev-source
+  - ./backend/app:/app/app
+  - ./backend/alembic:/app/alembic
+  - backend-weights:/app/app/models/weights
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+    # Docker no publica puertos en redes `internal`: se añade `default` solo en local.
+    networks: [data, default]
+
+  redis:
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6380}:6379"
+    networks: [data, default]
+
+  # Sincroniza los modelos de la imagen al volumen `backend-weights` (cp -n: solo
+  # agrega los que falten). Aquí no se monta el código del host, por lo que
+  # /app/app/models/weights es el de la imagen.
+  init-volumes:
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        chown -R 10001:10001 /app/storage /sandbox-work
+        && cp -Rn /app/app/models/weights/. /weights-sync/
+    volumes:
+      - backend-weights:/weights-sync
+
+  migrate:
+    environment: *dev-env
+    volumes: *dev-source
+
+  backend:
+    environment:
+      <<: *dev-env
+      UVICORN_RELOAD: "true"
+    volumes: *dev-source
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  # Celery no recarga en caliente: `docker compose restart worker beat` tras cambios.
+  worker:
+    environment: *dev-env
+    volumes: *dev-source
+
+  beat:
+    environment: *dev-env
+    volumes: *dev-source
+
+  frontend:
+    build:
+      target: dev
+    image: skillmatch-frontend:dev
+    ports: !override
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ./frontend:/app
+      # Conserva los node_modules de la imagen (Linux) en vez de los del host.
+      - /app/node_modules
+    environment:
+      # Vite lee VITE_* del entorno en caliente (sin reconstruir).
+      VITE_API_URL: http://localhost:8000/api
+      VITE_APP_ENV: development
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-${GOOGLE_CLIENT_ID:-}}
+      VITE_GOOGLE_IOS_CLIENT_ID: ${VITE_GOOGLE_IOS_CLIENT_ID:-}
+      VITE_BROWSER_SUPERVISION_TRIAL: ${VITE_BROWSER_SUPERVISION_TRIAL:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  backend-weights:

@@ -21,14 +21,17 @@ Este documento define la especificación detallada de los requisitos funcionales
 
 ### 1.1 Restricción de IA Propia (Mandatoria)
 
-SkillMatch **no puede usar proveedores de IA cerrados de pago (OpenAI, Anthropic, Gemini API) ni modelos generativos de terceros en la nube**. Toda la inteligencia de evaluación, extracción de características y clasificación debe ser construida, entrenada y ejecutada por el equipo en infraestructura propia con herramientas open source. Ningún dato de usuario ni evidencia biométrica sale hacia APIs externas.
+SkillMatch **no puede usar proveedores de IA cerrados de pago ni modelos generativos de terceros en la nube para evaluación biométrica, de audio o de video, ni para generar feedback pedagógico o preguntas de defensa**. Toda esa inteligencia de evaluación, extracción de características y clasificación debe ser construida, entrenada y ejecutada por el equipo en infraestructura propia con herramientas open source. Ningún dato biométrico (video, audio, pose) sale hacia APIs externas.
+
+**Excepción autorizada (vigente, ver `AGENTS.md` §1.1):** Gemini y la API de OpenAI pueden usarse exclusivamente para la **corrección de la evaluación teórica escrita** (comparar la respuesta del usuario contra la rúbrica y respuesta de referencia definidas por el administrador), seleccionados por configuración del backend. Solo se envía el texto necesario para la corrección, sin identificadores personales; requiere consentimiento específico si se envía audio o video. Esta excepción no habilita LLMs para ningún otro módulo (visión, audio, matching, antifraude).
 
 | Componente | Tratamiento en SkillMatch | Justificación Técnica |
 |---|---|---|
 | **Librerías y algoritmos clásicos** (OpenCV, librosa, PyTorch, scikit-learn, AST de Python) | **Permitidos** | Son frameworks y herramientas de base matemática/señales, no modelos de terceros empaquetados como servicio. |
 | **Modelos entrenados por el equipo** con datasets propios | **Núcleo del sistema** | Clasificadores de nivel, detectores de eventos y redes sobre audio y video. |
 | **Modelos preentrenados de terceros** (extractores de pose open-source, detectores faciales estándar) | **Solo como apoyo y declarados** | Requieren inventario formal de componentes y aprobación de la cátedra/docente. |
-| **LLMs, modelos generativos o APIs de voz de terceros** | **Fuera de alcance** | La retroalimentación pedagógica y preguntas de defensa se generan determinísticamente con reglas y plantillas. |
+| **LLMs o APIs de terceros (OpenAI, Gemini) para corrección de teoría escrita** | **Permitido, opt-in por configuración** | Única excepción autorizada; ver `AGENTS.md` §1.1. No reemplaza la rúbrica ni autoriza preguntas improvisadas. |
+| **LLMs, modelos generativos o APIs de voz de terceros para biometría, visión, audio o feedback pedagógico** | **Fuera de alcance** | La retroalimentación pedagógica y preguntas de defensa se generan determinísticamente con reglas y plantillas. |
 
 ---
 

@@ -1,7 +1,8 @@
-from typing import Optional
+import hashlib
+from typing import Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 
 CANONICAL_LEVELS = {
@@ -75,11 +76,30 @@ class ChallengeTypeListResponse(BaseModel):
     count: int
 
 
+METRIC_REFERENCE_REPLICATION = "REFERENCE_REPLICATION"
+METRIC_BALL_TOUCH_STREAK = "BALL_TOUCH_STREAK"
+CriterionMetricType = Literal["REFERENCE_REPLICATION", "BALL_TOUCH_STREAK"]
+CRITERION_KEY_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
+WEIGHTS_TOTAL_TOLERANCE = 0.01
+
+
+def criterion_name_key(name: str) -> str:
+    return " ".join(str(name).split()).casefold()
+
+
+def generated_criterion_key(index: int, name: str) -> str:
+    """Deterministic short id for a criterion stored without `key` (same input, same key)."""
+    return "c" + hashlib.sha1(f"{index}|{criterion_name_key(name)}".encode("utf-8")).hexdigest()[:10]
+
+
 class RubricCriterionSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    key: Optional[str] = Field(default=None, pattern=CRITERION_KEY_PATTERN)
     name: str
     weight: float = Field(ge=0)
     description: str
+    metric_type: CriterionMetricType = METRIC_REFERENCE_REPLICATION
+    target: Optional[float] = Field(default=None, gt=0)
 
 
 class RubricSchema(BaseModel):
@@ -87,6 +107,43 @@ class RubricSchema(BaseModel):
     instructions: Optional[str] = None
     min_score: float = Field(default=70.0, ge=0, le=100)
     criteria: list[RubricCriterionSchema] = Field(default_factory=list)
+    # Indexes whose key was generated here (not sent by the client nor stored).
+    _generated_key_indexes: set[int] = PrivateAttr(default_factory=set)
+
+    @model_validator(mode="after")
+    def fill_missing_criterion_keys(self):
+        # Provided keys are kept as-is; missing ones (new criteria or legacy stored rows)
+        # get a deterministic key that never collides with another key of the level.
+        used = {criterion.key for criterion in self.criteria if criterion.key}
+        for index, criterion in enumerate(self.criteria):
+            if criterion.key:
+                continue
+            self._generated_key_indexes.add(index)
+            base = candidate = generated_criterion_key(index, criterion.name)
+            suffix = 2
+            while candidate in used:
+                candidate = f"{base}-{suffix}"
+                suffix += 1
+            criterion.key = candidate
+            used.add(candidate)
+        return self
+
+    @property
+    def weights_total(self) -> float:
+        return sum(criterion.weight for criterion in self.criteria)
+
+    def reuse_keys_by_name(self, stored: list["RubricCriterionSchema"]) -> None:
+        """For criteria sent without key, reuse the stored key of the criterion with the same name."""
+        stored_keys: dict[str, str] = {}
+        for criterion in stored:
+            stored_keys.setdefault(criterion_name_key(criterion.name), criterion.key)
+        used = {c.key for index, c in enumerate(self.criteria) if index not in self._generated_key_indexes}
+        for index in sorted(self._generated_key_indexes):
+            criterion = self.criteria[index]
+            reusable = stored_keys.get(criterion_name_key(criterion.name))
+            if reusable and reusable not in used:
+                criterion.key = reusable
+            used.add(criterion.key)
 
 
 class SkillLevelSchema(BaseModel):

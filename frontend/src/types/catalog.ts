@@ -16,10 +16,32 @@ export interface ChallengeType {
   is_active: boolean
 }
 
+/** Códigos de medición soportados por el motor de validación (S1). */
+export const METRIC_REFERENCE_REPLICATION = "REFERENCE_REPLICATION"
+export const METRIC_BALL_TOUCH_STREAK = "BALL_TOUCH_STREAK"
+
+/** El backend puede incorporar nuevos códigos: se tipa como string abierto. */
+export type MetricTypeCode = string
+
+/** Elemento de `GET /api/admin/skill-lab/metric-types`. */
+export interface MetricTypeInfo {
+  code: MetricTypeCode
+  name: string
+  description: string
+  requires_target: boolean
+  requires_reference: boolean
+}
+
 export interface RubricCriterion {
+  /** Identificador estable generado por el servidor; se conserva al editar. */
+  key?: string
   name: string
   weight: number
   description: string
+  /** Por defecto `REFERENCE_REPLICATION` cuando el criterio almacenado no lo trae. */
+  metric_type?: MetricTypeCode
+  /** Objetivo de la medición (p. ej. toques seguidos que valen el 100%). */
+  target?: number | null
 }
 
 export interface Rubric {
