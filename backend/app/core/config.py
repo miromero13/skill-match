@@ -219,6 +219,10 @@ class Settings(BaseSettings):
         le=50.0,
         description="Comisión institucional porcentual retenida por la plataforma en retiros (ej. 15.0%)",
     )
+    FIREBASE_CREDENTIALS_PATH: Optional[str] = Field(
+        default="firebase-credentials.json",
+        description="Ruta al archivo JSON de credenciales de Firebase Admin SDK para notificaciones push",
+    )
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

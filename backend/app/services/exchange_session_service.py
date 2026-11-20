@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, time, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -48,6 +49,8 @@ from app.services.wallet_service import wallet_service
 ACTIVE_STATUSES = ("PENDING", "ACCEPTED")
 FREE_LIMIT = 2
 SESSION_OPTIONS_HORIZON_DAYS = 14
+
+logger = logging.getLogger("skillmatch.exchange_session")
 
 
 def _conflict(message: str) -> SkillMatchException:
@@ -500,6 +503,17 @@ async def _notify_counterpart(
         title=title,
         message=message,
     )
+    try:
+        from app.services.fcm_service import FCMService
+        await FCMService.send_push_to_user(
+            db,
+            user_id=recipient_id,
+            title=title,
+            body=message,
+            data={"type": "session_event", "session_id": str(item.id)},
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Error al enviar push a contraparte de sesión: {exc}")
 
 
 async def _response(

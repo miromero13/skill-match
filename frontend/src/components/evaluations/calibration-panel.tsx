@@ -216,17 +216,23 @@ export function CalibrationPanel({ evaluationId, targetLevel, onBack }: { evalua
               </p>
             </div>
             {!passed && devices && (
-              <div className="flex flex-wrap gap-2">
-                {(error || result) && !verifying && (
-                  <Button size="sm" onClick={resetEvidence}>Repetir calibración</Button>
-                )}
-                <Button size="sm" variant="outline" onClick={closeDevices}>Cerrar cámara y micrófono</Button>
-              </div>
+              <Button size="sm" variant="outline" className="w-full" onClick={closeDevices}>
+                Cerrar cámara y micrófono
+              </Button>
             )}
           </div>
 
           <div className="min-w-0 space-y-3">
-            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+            {error && (
+              <div className="space-y-2.5">
+                <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
+                {!passed && devices && !verifying && (
+                  <div className="flex justify-start">
+                    <Button onClick={resetEvidence}>Repetir calibración</Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {!passed && !devices && !result && (
               <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
@@ -261,7 +267,16 @@ export function CalibrationPanel({ evaluationId, targetLevel, onBack }: { evalua
                   <p className="font-semibold">Comprobación superada</p>
                   <p className="mt-0.5 text-xs">El examen no comenzó y tu intento no se descontó.</p>
                 </div>
-              </div> : <Alert variant="destructive"><AlertDescription>La calibración no se completó. Revisá los controles marcados y repetí la captura.</AlertDescription></Alert>}
+              </div> : (
+                <div className="space-y-2.5">
+                  <Alert variant="destructive"><AlertDescription>La calibración no se completó. Revisá los controles marcados y repetí la captura.</AlertDescription></Alert>
+                  {devices && !verifying && (
+                    <div className="flex justify-start">
+                      <Button onClick={resetEvidence}>Repetir calibración</Button>
+                    </div>
+                  )}
+                </div>
+              )}
               <CalibrationChecks checks={result.checks} />
             </div>}
           </div>

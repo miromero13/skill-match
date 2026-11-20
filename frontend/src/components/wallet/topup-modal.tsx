@@ -203,8 +203,8 @@ export function TopupModal() {
 
   return (
     <Dialog open={isTopupModalOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden bg-card text-card-foreground border-border shadow-2xl">
-        <DialogHeader className="p-6 pb-2 border-b border-border/50 bg-muted/20">
+      <DialogContent className="w-[95vw] max-w-xl max-h-[90dvh] flex flex-col p-0 overflow-hidden bg-card text-card-foreground border-border shadow-2xl">
+        <DialogHeader className="p-4 sm:p-6 pb-3 border-b border-border/50 bg-muted/20 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-primary/10 text-primary">
               <Coins className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
@@ -220,7 +220,7 @@ export function TopupModal() {
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-6 overflow-y-auto flex-1 overscroll-contain">
           {paymentStep === 'SELECT' && (
             <>
               {/* Packages Grid */}

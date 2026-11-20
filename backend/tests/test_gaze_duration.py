@@ -59,7 +59,7 @@ def tracker():
         (sample("down", 0), ZONE, "HEAD_POSE_DOWN"),
         (sample("up", 0), ZONE, "HEAD_POSE_UP"),
         (sample("side", 0), ZONE, "HEAD_POSE_SIDE"),
-        (sample("eyes", 0), ZONE, "GAZE_AWAY"),
+        (sample("eyes", 0), ZONE, "GAZE_AWAY_DOWN"),
         (sample("blink", 0), ZONE, "BLINK"),  # eyes away but closed: no gaze verdict
         (sample("none", 0), ZONE, "NEUTRAL"),
         (GazeSample(t_ms=0, face_count=2, head_pitch=0.0, head_yaw=0.0, gaze_h=0.0, gaze_v=0.0), ZONE, "NEUTRAL"),
@@ -74,7 +74,9 @@ def tracker():
         (GazeSample(t_ms=0, face_count=1, head_pitch=18.0, head_yaw=0.0, gaze_h=0.0, gaze_v=0.0), None, "IN"),
         (GazeSample(t_ms=0, face_count=1, head_pitch=-18.0, head_yaw=0.0, gaze_h=0.0, gaze_v=0.0), None,
          "HEAD_POSE_UP"),
-        (GazeSample(t_ms=0, face_count=1, head_pitch=0.0, head_yaw=0.0, gaze_h=0.7, gaze_v=0.0), None, "GAZE_AWAY"),
+        (GazeSample(t_ms=0, face_count=1, head_pitch=0.0, head_yaw=0.0, gaze_h=0.7, gaze_v=0.0), None, "GAZE_AWAY_LEFT"),
+        (GazeSample(t_ms=0, face_count=1, head_pitch=0.0, head_yaw=0.0, gaze_h=-0.7, gaze_v=0.0), None, "GAZE_AWAY_RIGHT"),
+        (GazeSample(t_ms=0, face_count=1, head_pitch=0.0, head_yaw=0.0, gaze_h=0.0, gaze_v=-0.7), None, "GAZE_AWAY_UP"),
         # Without a gaze measurement (YuNet only) the baseline-adaptive orientation is the only signal.
         (GazeSample(t_ms=0, face_count=1, head_pitch=0.0, head_yaw=0.0, orientation="DOWN"), ZONE,
          "HEAD_POSE_DOWN"),
@@ -104,12 +106,12 @@ def test_tolerance_constant_is_one_second():
 def test_only_a_continuous_run_of_one_second_is_an_incident(tracker, away, expected):
     # 900 ms away (9 samples, 100 ms each) is tolerated, 1000 ms and more is not.
     verdict = evaluate(tracker, series(("in", 3), ("eyes", away), ("in", 3)))
-    assert verdict.kinds == (("GAZE_AWAY",) if expected else ())
+    assert verdict.kinds == (("GAZE_AWAY_DOWN",) if expected else ())
 
 
 @pytest.mark.parametrize("kind", ["down", "up", "side", "eyes"])
 def test_every_away_direction_maps_to_its_incident(tracker, kind):
-    expected = {"down": "HEAD_POSE_DOWN", "up": "HEAD_POSE_UP", "side": "HEAD_POSE_SIDE", "eyes": "GAZE_AWAY"}[kind]
+    expected = {"down": "HEAD_POSE_DOWN", "up": "HEAD_POSE_UP", "side": "HEAD_POSE_SIDE", "eyes": "GAZE_AWAY_DOWN"}[kind]
     assert evaluate(tracker, series(("in", 2), (kind, 11), ("in", 2))).kinds == (expected,)
 
 
@@ -119,7 +121,7 @@ def test_returning_to_the_screen_breaks_the_run(tracker):
 
 def test_blinks_neither_break_nor_start_a_run(tracker):
     # away 5 + blink 2 + away 5: one run of 12 samples = 1200 ms.
-    assert evaluate(tracker, series(("eyes", 5), ("blink", 2), ("eyes", 5))).kinds == ("GAZE_AWAY",)
+    assert evaluate(tracker, series(("eyes", 5), ("blink", 2), ("eyes", 5))).kinds == ("GAZE_AWAY_DOWN",)
     # a run that only exists because blinks are counted as away is not an incident: 8 away samples = 800 ms.
     assert evaluate(tracker, series(("blink", 3), ("eyes", 8), ("blink", 3)), key="b").kinds == ()
     # an isolated blink while looking at the screen is nothing.
@@ -128,12 +130,12 @@ def test_blinks_neither_break_nor_start_a_run(tracker):
 
 def test_eyes_that_stay_closed_are_not_a_blink(tracker):
     # 1000 ms of closed eyes (10 consecutive blink samples) is not a blink: attention cannot be verified.
-    assert evaluate(tracker, series(("in", 2), ("blink", 10), ("in", 2))).kinds == ("GAZE_AWAY",)
+    assert evaluate(tracker, series(("in", 2), ("blink", 10), ("in", 2))).kinds == ("EYES_CLOSED",)
     assert evaluate(tracker, series(("in", 2), ("blink", 7), ("in", 2)), key="short").kinds == ()
 
 
 def test_a_face_that_is_not_measurable_neither_breaks_nor_extends_the_run(tracker):
-    assert evaluate(tracker, series(("eyes", 5), ("none", 2), ("eyes", 5))).kinds == ("GAZE_AWAY",)
+    assert evaluate(tracker, series(("eyes", 5), ("none", 2), ("eyes", 5))).kinds == ("GAZE_AWAY_DOWN",)
     assert evaluate(tracker, series(("none", 8), ("eyes", 5)), key="b").kinds == ()
 
 
@@ -150,7 +152,7 @@ def test_the_run_continues_across_windows(tracker):
     first = series(("in", 18), ("eyes", 6))  # window A (t 0..2300): 600 ms away at its end
     second = series(("eyes", 5), ("in", 19))  # window B starts at 2400: 500 ms more away, then back
     assert evaluate(tracker, first, start=1_000_000).kinds == ()
-    assert evaluate(tracker, second, start=1_002_400).kinds == ("GAZE_AWAY",)
+    assert evaluate(tracker, second, start=1_002_400).kinds == ("GAZE_AWAY_DOWN",)
     # A run that already ended is not reported again by the next window.
     assert evaluate(tracker, series(("in", 24)), start=1_004_800).kinds == ()
 
@@ -166,8 +168,8 @@ def test_a_long_gap_between_windows_starts_a_new_run(tracker):
 
 
 def test_a_long_run_is_reported_by_every_window_it_touches(tracker):
-    assert evaluate(tracker, series(("eyes", 24)), start=1_000_000).kinds == ("GAZE_AWAY",)
-    assert evaluate(tracker, series(("eyes", 24)), start=1_002_400).kinds == ("GAZE_AWAY",)
+    assert evaluate(tracker, series(("eyes", 24)), start=1_000_000).kinds == ("GAZE_AWAY_DOWN",)
+    assert evaluate(tracker, series(("eyes", 24)), start=1_002_400).kinds == ("GAZE_AWAY_DOWN",)
 
 
 def test_runs_are_tracked_per_trial_and_without_a_window_start(tracker):
@@ -235,11 +237,29 @@ def test_a_single_disagreeing_frame_is_not_a_mismatch():
     assert (check.disagreements, check.mismatch, check.trusted) == (1, False, True)
 
 
+def test_transient_two_frame_disagreement_is_not_a_mismatch():
+    from app.services.integrity.gaze import check_telemetry
+
+    server = series(("in", 2), ("down", 3), ("in", 2), step=400)
+    client = series(("in", 42), step=66)
+    check = check_telemetry(server, client)
+    assert (check.disagreements, check.mismatch, check.trusted) == (3, False, True)
+
+
+def test_server_missed_face_on_low_res_frame_is_not_a_client_mismatch():
+    from app.services.integrity.gaze import check_telemetry
+
+    server = series(("none", 4), step=400)
+    client = series(("in", 25), step=66)
+    check = check_telemetry(server, client)
+    assert (check.disagreements, check.mismatch) == (0, False)
+
+
 def test_small_measurement_differences_are_tolerated():
     from app.services.integrity.gaze import check_telemetry
 
     server = [sample("in", t) for t in (0, 400, 800, 1200)]
-    client = [GazeSample(t_ms=t, face_count=1, head_pitch=4.0, head_yaw=-5.0, gaze_h=0.2, gaze_v=-0.2)
+    client = [GazeSample(t_ms=t, face_count=1, head_pitch=15.0, head_yaw=-15.0, gaze_h=0.5, gaze_v=-0.5)
               for t in range(0, 1300, 66)]
     assert check_telemetry(server, client).trusted is True
 
@@ -346,7 +366,7 @@ def assess(engine, profile, kinds, *, zone=None, times=None, samples=(), start=1
 
 @pytest.mark.parametrize(
     ("kind", "anomaly", "orientation"),
-    [("eyes", "GAZE_AWAY", "CENTER"), ("up", "HEAD_POSE_UP", "UP"), ("down", "HEAD_POSE_DOWN", "DOWN"),
+    [("eyes", "GAZE_AWAY_DOWN", "CENTER"), ("up", "HEAD_POSE_UP", "UP"), ("down", "HEAD_POSE_DOWN", "DOWN"),
      ("side", "HEAD_POSE_SIDE", "RIGHT")],
 )
 def test_engine_reports_sustained_away_frames(kind, anomaly, orientation):
@@ -377,7 +397,7 @@ def test_engine_run_spans_windows_through_the_state_store():
     engine, profile = engine_for([looking(k) for k in first + second], state)
     assert assess(engine, profile, first, key="trial", start=1_000_000).anomalies == []
     # frames at 300 ms: 3 away frames at the end of A (900 ms) are continued by 2 at the start of B
-    assert assess(engine, profile, second, key="trial", start=1_002_400).anomalies == ["GAZE_AWAY"]
+    assert assess(engine, profile, second, key="trial", start=1_002_400).anomalies == ["GAZE_AWAY_DOWN"]
 
 
 def test_engine_without_a_zone_uses_default_limits_and_without_telemetry_is_still_judged():
@@ -410,4 +430,4 @@ def test_engine_spreads_bunched_client_frame_times_instead_of_shortening_the_run
     kinds = ["in", "in", "eyes", "eyes", "eyes", "eyes", "in", "in"]
     engine, profile = engine_for([looking(k) for k in kinds])
     bunched = [0, 1, 2, 3, 4, 5, 6, 7]
-    assert assess(engine, profile, kinds, times=bunched).anomalies == ["GAZE_AWAY"]
+    assert assess(engine, profile, kinds, times=bunched).anomalies == ["GAZE_AWAY_DOWN"]

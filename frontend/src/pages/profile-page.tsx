@@ -48,10 +48,12 @@ import {
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useAuthStore } from "@/stores/auth-store"
 import { useProfileStore } from "@/stores/profile-store"
 import { useTeachingSkillStore } from "@/stores/teaching-skill-store"
 import { BiometricEnrollmentCard } from "@/components/profile/biometric-enrollment-card"
+import { MobileAvailabilityEditor } from "@/components/profile/mobile-availability-editor"
 import { TeachingSkillsSection } from "@/pages/teaching-skills-page"
 import { LearningSkillsSection } from "@/components/learning-skills/learning-skills-section"
 import type { ExchangeModality } from "@/types/profile"
@@ -316,14 +318,9 @@ export function ProfilePage() {
     })
   }
 
-  return (
-    <div className="mx-auto w-full max-w-[1380px] h-full p-4 md:p-6 overflow-y-auto xl:overflow-hidden">
-      {/* ESTRUCTURA IDÉNTICA A OPENPENCIL (Vista 09 Web Desktop & Vista 11 Mobile Responsive) */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 xl:grid-rows-1 xl:h-full xl:min-h-0">
-        {/* COLUMNA IZQUIERDA (Profile_Left_Sidebar - 420px en Web) */}
-        <div className="space-y-5 xl:col-span-4 xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-2 pb-8">
-          <Card className="border-border/80 shadow-2xs">
-            <CardContent className="p-5 space-y-5">
+  const renderProfileCard = () => (
+    <Card className="border-border/80 shadow-2xs">
+      <CardContent className="p-5 space-y-5">
               {/* 1. Avatar_Header */}
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3.5 min-w-0">
@@ -743,7 +740,7 @@ export function ProfilePage() {
                           : "Verificar con Carnet (CI/DNI)"}
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-3xl">
+                    <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                       <DialogHeader>
                         <DialogTitle>
                           Verificación de Identidad con Carnet (CI/DNI)
@@ -759,12 +756,10 @@ export function ProfilePage() {
               </div>
             </CardContent>
           </Card>
-        </div>
+  )
 
-        {/* COLUMNA DERECHA (Right_Availability_And_Skills en OpenPencil) */}
-        <div className="space-y-6 xl:col-span-8 xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-2 pb-8">
-          {/* 1. Matriz_Disponibilidad_30Min_Card (Idéntica a n4499 en Web y n4677 en Mobile) */}
-          <Card className="border-border/80 shadow-2xs">
+  const renderDesktopMatrixCard = () => (
+    <Card className="border-border/80 shadow-2xs">
             <CardHeader className="pb-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -930,9 +925,10 @@ export function ProfilePage() {
               </div>
             </CardContent>
           </Card>
+  )
 
-          {/* 2. Habilidades Ofrecidas y Generación de QR + Habilidades que deseo aprender */}
-          <Card className="border-border/80 shadow-2xs">
+  const renderSkillsCard = () => (
+    <Card className="border-border/80 shadow-2xs">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-bold tracking-wide uppercase text-foreground">
                 HABILIDADES OFRECIDAS Y GENERACIÓN DE QR POR HABILIDAD
@@ -981,6 +977,41 @@ export function ProfilePage() {
               <LearningSkillsSection />
             </CardContent>
           </Card>
+  )
+
+  return (
+    <div className="mx-auto w-full max-w-[1380px] h-full p-4 md:p-6 overflow-y-auto xl:overflow-hidden">
+      {/* VISTA MÓVIL Y TABLET (< xl): NAVEGACIÓN ERGONÓMICA POR TABS */}
+      <div className="xl:hidden space-y-4 pb-12">
+        <Tabs defaultValue="identity" className="w-full space-y-4">
+          <TabsList className="grid grid-cols-3 w-full bg-muted/60 h-10 p-1 rounded-xl">
+            <TabsTrigger value="identity" className="text-xs font-semibold">Identidad & KYC</TabsTrigger>
+            <TabsTrigger value="schedule" className="text-xs font-semibold">Horarios</TabsTrigger>
+            <TabsTrigger value="skills" className="text-xs font-semibold">Habilidades</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="identity" className="space-y-4 animate-in fade-in-50">
+            {renderProfileCard()}
+          </TabsContent>
+
+          <TabsContent value="schedule" className="space-y-4 animate-in fade-in-50">
+            <MobileAvailabilityEditor />
+          </TabsContent>
+
+          <TabsContent value="skills" className="space-y-4 animate-in fade-in-50">
+            {renderSkillsCard()}
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* VISTA DESKTOP (>= xl): DOS COLUMNAS IDÉNTICAS A OPENPENCIL */}
+      <div className="hidden xl:grid xl:grid-cols-12 xl:gap-6 xl:grid-rows-1 xl:h-full xl:min-h-0">
+        <div className="space-y-5 xl:col-span-4 xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-2 pb-8">
+          {renderProfileCard()}
+        </div>
+        <div className="space-y-6 xl:col-span-8 xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-2 pb-8">
+          {renderDesktopMatrixCard()}
+          {renderSkillsCard()}
         </div>
       </div>
     </div>

@@ -8,7 +8,13 @@ import {
   type AVWindowResponse,
   type IncidentKind,
 } from "@/services/browser-supervision"
-import { startFaceTracker, type FaceTracker, type GazeZone, type MouthSampleDTO } from "@/services/gaze-tracking"
+import {
+  startFaceTracker,
+  type FaceTracker,
+  type GazeZone,
+  type IrisOverlay,
+  type MouthSampleDTO,
+} from "@/services/gaze-tracking"
 
 export type Emit = (event: { kind: IncidentKind; duration_ms?: number }) => void
 
@@ -64,6 +70,8 @@ export interface AvStartOptions {
 export interface UseAvSupervisionOptions {
   videoRef: RefObject<HTMLVideoElement | null>
   canvasRef: RefObject<HTMLCanvasElement | null>
+  /** Optional transparent overlay canvas rendered over `videoRef` to draw live iris landmarks. */
+  overlayCanvasRef?: RefObject<HTMLCanvasElement | null>
   /** Windows are posted only while true (the calibration gate); the camera preview and the meter run regardless. */
   windowsEnabled: boolean
   /** A window reported anomalies: refresh the ledger. */
@@ -95,7 +103,73 @@ const vuScale = (rms: number) => (rms < 0.002 ? 0 : Math.min(100, Math.round(Mat
  * restart, unmount) bumps the generation and releases everything, and every `await` in `start()` re-checks the
  * generation, so a stream, an audio pipeline or a tracker that arrives late is stopped instead of adopted.
  */
-export function useAvSupervision({ videoRef, canvasRef, windowsEnabled, onAnomalies, label }: UseAvSupervisionOptions) {
+/** Draws detected iris centers and eye reference points onto an overlay canvas matching `object-cover` video. */
+function drawIrisOverlay(canvas: HTMLCanvasElement, video: HTMLVideoElement, overlay: IrisOverlay | null) {
+  const width = canvas.clientWidth || video.clientWidth || video.videoWidth
+  const height = canvas.clientHeight || video.clientHeight || video.videoHeight
+  if (!width || !height) return
+  if (canvas.width !== width) canvas.width = width
+  if (canvas.height !== height) canvas.height = height
+  const ctx = canvas.getContext("2d")
+  if (!ctx || typeof ctx.clearRect !== "function") return
+  ctx.clearRect(0, 0, width, height)
+  if (!overlay || !video.videoWidth || !video.videoHeight) return
+
+  const scale = Math.max(width / video.videoWidth, height / video.videoHeight)
+  const offsetX = (width - video.videoWidth * scale) / 2
+  const offsetY = (height - video.videoHeight * scale) / 2
+  const mapX = (x: number) => offsetX + x * video.videoWidth * scale
+  const mapY = (y: number) => offsetY + y * video.videoHeight * scale
+
+  const color = overlay.blink ? "#f59e0b" : "#10b981"
+  for (const eye of overlay.eyes) {
+    const lx = mapX(eye.leftCorner.x)
+    const ly = mapY(eye.leftCorner.y)
+    const rx = mapX(eye.rightCorner.x)
+    const ry = mapY(eye.rightCorner.y)
+    const ux = mapX(eye.upperLid.x)
+    const uy = mapY(eye.upperLid.y)
+    const dx = mapX(eye.lowerLid.x)
+    const dy = mapY(eye.lowerLid.y)
+    const ix = mapX(eye.iris.x)
+    const iy = mapY(eye.iris.y)
+    const eyeWidth = Math.hypot(rx - lx, ry - ly)
+    const radius = Math.max(4, eyeWidth * 0.22)
+
+    // Subtle eye corners & lid crosshair
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.45)"
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(lx, ly)
+    ctx.lineTo(rx, ry)
+    ctx.moveTo(ux, uy)
+    ctx.lineTo(dx, dy)
+    ctx.stroke()
+
+    // Iris ring + center dot
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.75
+    ctx.setLineDash(overlay.blink ? [3, 2] : [])
+    ctx.beginPath()
+    ctx.arc(ix, iy, radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(ix, iy, 2.2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+export function useAvSupervision({
+  videoRef,
+  canvasRef,
+  overlayCanvasRef,
+  windowsEnabled,
+  onAnomalies,
+  label,
+}: UseAvSupervisionOptions) {
   const generation = useRef(0)
   const resources = useRef<Resources | null>(null)
   const zone = useRef<GazeZone | null>(null)
@@ -109,6 +183,8 @@ export function useAvSupervision({ videoRef, canvasRef, windowsEnabled, onAnomal
   const [avStatus, setAvStatus] = useState("")
   const [lookingAway, setLookingAway] = useState(false)
   const [gazeNotice, setGazeNotice] = useState("")
+  const [gazeLive, setGazeLive] = useState<{ gazeH: number | null; gazeV: number | null; blink: boolean } | null>(null)
+  const lastGazeUi = useRef(0)
 
   useEffect(() => {
     enabled.current = windowsEnabled
@@ -116,17 +192,20 @@ export function useAvSupervision({ videoRef, canvasRef, windowsEnabled, onAnomal
     labelRef.current = label
   })
 
-  /** One 320x240 JPEG of the camera, the size the supervision windows and the calibration steps use. */
+  /** One aspect-preserving JPEG (up to 320x240) of the camera for supervision windows and calibration. */
   const captureFrame = useCallback((): string | null => {
     const canvas = canvasRef.current
     const video = videoRef.current
     if (!canvas || !video || video.videoWidth === 0 || video.videoHeight === 0) return null
-    canvas.width = 320
-    canvas.height = 240
+    const scale = Math.min(320 / video.videoWidth, 240 / video.videoHeight, 1)
+    const width = Math.max(1, Math.round(video.videoWidth * scale))
+    const height = Math.max(1, Math.round(video.videoHeight * scale))
+    canvas.width = width
+    canvas.height = height
     const context = canvas.getContext("2d")
     if (!context) return null
-    context.drawImage(video, 0, 0, 320, 240)
-    return canvas.toDataURL("image/jpeg", 0.6)
+    context.drawImage(video, 0, 0, width, height)
+    return canvas.toDataURL("image/jpeg", 0.75)
   }, [canvasRef, videoRef])
 
   /** Releases tracks, audio pipeline, tracker and timers, and invalidates every pending `start()` continuation. */
@@ -143,8 +222,14 @@ export function useAvSupervision({ videoRef, canvasRef, windowsEnabled, onAnomal
       stopStream(held.stream)
     }
     if (videoRef.current) videoRef.current.srcObject = null
+    const overlay = overlayCanvasRef?.current
+    if (overlay) {
+      const ctx = overlay.getContext("2d")
+      ctx?.clearRect?.(0, 0, overlay.width, overlay.height)
+    }
     setLookingAway(false)
     setGazeNotice("")
+    setGazeLive(null)
     setAvStatus("")
     setAvActive(false)
     setVuLevel(0)
@@ -253,7 +338,20 @@ export function useAvSupervision({ videoRef, canvasRef, windowsEnabled, onAnomal
 
       // Browser-side gaze tracking (~15 fps) is a live hint and telemetry; the server re-measures the frames.
       if (video) {
-        void startFaceTracker(video, { onAway: (away) => { if (live()) setLookingAway(away) } })
+        void startFaceTracker(video, {
+          onAway: (away) => {
+            if (live()) setLookingAway(away)
+          },
+          onOverlay: (overlay) => {
+            if (!live()) return
+            if (overlayCanvasRef?.current) drawIrisOverlay(overlayCanvasRef.current, video, overlay)
+            const now = performance.now()
+            if (now - lastGazeUi.current >= 120) {
+              lastGazeUi.current = now
+              setGazeLive(overlay ? { gazeH: overlay.gazeH, gazeV: overlay.gazeV, blink: overlay.blink } : null)
+            }
+          },
+        })
           .then((tracker) => {
             if (!live()) {
               tracker.stop()
@@ -333,7 +431,7 @@ export function useAvSupervision({ videoRef, canvasRef, windowsEnabled, onAnomal
   )
 
   return {
-    avActive, telemetry, vuLevel, deviceError, avStatus, lookingAway, gazeNotice,
+    avActive, telemetry, vuLevel, deviceError, avStatus, lookingAway, gazeNotice, gazeLive,
     start, stop, captureFrame, setZone, recorder, readMouth,
   }
 }
