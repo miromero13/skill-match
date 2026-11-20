@@ -33,6 +33,14 @@ async def calibration_verify(evaluation_id: UUID, payload: CalibrationVerifyRequ
     return APIResponse.ok(data=data, message="Calibración completada. El examen todavía no comenzó ni consumió tu intento.")
 
 
+@router.post("/{evaluation_id}/calibration/skip", response_model=APIResponse[CalibrationStateResponse],
+             response_model_exclude={"count"}, summary="Omitir la calibración en vivo (solo pruebas, detrás de una bandera)")
+async def calibration_skip(evaluation_id: UUID, db: AsyncSession = Depends(get_db),
+                           user: User = Depends(get_current_user)):
+    data = await EvaluationCalibrationService.skip(db, user, evaluation_id)
+    return APIResponse.ok(data=data, message="Calibración omitida para pruebas. El examen todavía no comenzó.")
+
+
 @router.get("/{evaluation_id}/environment/verify", response_model=APIResponse[CalibrationStateResponse],
             response_model_exclude={"count"}, summary="Consultar el resultado de calibración, sin volver a capturar")
 async def calibration_state(evaluation_id: UUID, db: AsyncSession = Depends(get_db),

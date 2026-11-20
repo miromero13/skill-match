@@ -27,6 +27,7 @@ class EvaluationPreflightResponse(BaseModel):
     attempts_used: int
     policy_version: str
     pending_evaluation_id: UUID | None = None
+    calibration_skip_allowed: bool = False
 
 
 class EvaluationConsentResponse(BaseModel):

@@ -63,6 +63,8 @@ x-backend-env: &backend-env
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   THEORY_GRADING_TIMEOUT_SECONDS: ${THEORY_GRADING_TIMEOUT_SECONDS:-20}
   THEORY_ASR_ENABLED: ${THEORY_ASR_ENABLED:-True}
+  # Solo pruebas de campo: permite omitir la calibración en vivo (apagado por defecto)
+  EVALUATION_CALIBRATION_SKIP_ENABLED: ${EVALUATION_CALIBRATION_SKIP_ENABLED:-false}
   # Sandbox de programación (daemon dind aislado, ver servicio sandbox-docker)
   SANDBOX_DOCKER_IMAGE: ${SANDBOX_DOCKER_IMAGE:-python:3.12-slim}
   SANDBOX_DOCKER_BINARY: ${SANDBOX_DOCKER_BINARY:-docker}

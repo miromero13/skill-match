@@ -78,6 +78,7 @@ GEMINI_API_KEY=""                  # [SECRETO] Si provider=gemini o para Asisten
 ASSISTANT_GEMINI_MODEL="gemini-3.1-flash-lite" # Modelo del Asistente Virtual (gemini-3.1-flash-lite, gemini-flash-latest)
 THEORY_GRADING_TIMEOUT_SECONDS=20
 THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory exams
+EVALUATION_CALIBRATION_SKIP_ENABLED=false # Solo pruebas de campo: muestra la casilla para omitir la calibración en vivo (sin semilla ni datos biométricos)
 # BROWSER_SUPERVISION_TRIAL_ENABLED=true  # Sin definir = activo solo en development/test, nunca en production (production lo fuerza apagado aunque sea true)
 # INTEGRITY_DIAGNOSTICS_ENABLED=false  # Registro numérico por ventana AV para afinar umbrales (nunca imágenes, audio ni huellas); production lo fuerza apagado
 # INTEGRITY_DIAGNOSTICS_DIR="/tmp/skillmatch-integrity-diagnostics"  # Carpeta de los <trial_id>.jsonl; por defecto bajo el directorio temporal del SO
