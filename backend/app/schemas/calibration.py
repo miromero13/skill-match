@@ -72,3 +72,4 @@ class CalibrationStateResponse(BaseModel):
     status: str
     started_at: datetime | None
     checks: dict[str, bool]
+    skipped: bool = False

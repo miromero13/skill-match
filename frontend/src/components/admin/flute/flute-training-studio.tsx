@@ -13,7 +13,7 @@ import {
 } from "@/services/dataset-sample-service"
 
 import { FluteVideoReprocessor } from "./flute-video-reprocessor"
-import { FLUTE_VISUAL_SCHEMA } from "./flute-hand-features"
+import { fluteSplitModeLabel, isLegacyFluteModel } from "./flute-live-scoring"
 
 interface FluteTrainingStudioProps { skillId?: string; skillName?: string }
 const percent = (value: number | null | undefined) => value == null ? "No verificada" : `${(value * 100).toFixed(1)}%`
@@ -47,7 +47,7 @@ export function FluteTrainingStudio({ skillId, skillName = "Flauta Dulce" }: Flu
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Estudio de Entrenamiento — {skillName}</h2>
-      <p className="text-sm text-muted-foreground">Modelo neuronal dual ONNX (MLP): cabeza de timbre de sonido (log-Mel + MFCC, sin medición de frecuencia/Hz; 11 notas + NO_FLAUTA) y cabeza de digitación de manos (articulaciones + flexión de dedos; 11 notas + INCORRECTA).</p>
+      <p className="text-sm text-muted-foreground">Modelo dual ONNX (MLP): sonido con altura primero (la frecuencia detectada decide la nota y el timbre confirma flauta o NO_FLAUTA) y digitación multi-etiqueta por dedo (7 huecos frontales tapado/destapado; el pulgar trasero no es evaluable por cámara).</p>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {message && <Alert><AlertDescription>{message}</AlertDescription></Alert>}
       <Card>
@@ -59,12 +59,13 @@ export function FluteTrainingStudio({ skillId, skillName = "Flauta Dulce" }: Flu
               ? "Hay participantes suficientes para intentar una partición independiente. Consulta la validación del modelo después de entrenar."
               : "Validación independiente no disponible: etiqueta muestras de al menos dos personas con IDs estables."}</AlertDescription>
           </Alert>
-          {(["sound_class_counts", "posture_class_counts"] as const).map(key => (
+          {(["sound_class_counts", "finger_note_counts"] as const).map(key => (
             <div key={key} className="space-y-2">
-              <h3 className="font-medium">{key === "sound_class_counts" ? "Sonido" : "Digitación"} · fotogramas etiquetados</h3>
+              <h3 className="font-medium">{key === "sound_class_counts" ? "Sonido" : "Digitación correcta"} · fotogramas etiquetados</h3>
               <div className="flex flex-wrap gap-2">{Object.entries(preview?.[key] ?? {}).map(([label, count]) => <Badge key={label} variant="outline">{label}: {count}</Badge>)}</div>
             </div>
           ))}
+          {(preview?.needs_reprocess_count ?? 0) > 0 && <Alert variant="destructive"><AlertDescription>{preview?.needs_reprocess_count} video(s) tienen features de un formato anterior: reprocesalos en «Reutilizar videos guardados» para usarlos en el entrenamiento.</AlertDescription></Alert>}
           <Button disabled={busy} variant="outline" onClick={() => void perform(refresh)}>Actualizar cobertura</Button>
         </CardContent>
       </Card>
@@ -89,21 +90,35 @@ export function FluteTrainingStudio({ skillId, skillName = "Flauta Dulce" }: Flu
         <CardHeader><CardTitle>Métricas — {selected.version}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <Alert variant={metrics.validated ? "default" : "destructive"}><AlertDescription>{metrics.validation_note || "Validación independiente no verificada."}</AlertDescription></Alert>
-          {metrics.visual_schema !== FLUTE_VISUAL_SCHEMA && <Alert variant="destructive"><AlertDescription>Modelo de formato anterior: reprocesa los videos con timbre y flexión de dedos y entrena una nueva versión antes de usar el validador.</AlertDescription></Alert>}
+          {isLegacyFluteModel(metrics) && <Alert variant="destructive"><AlertDescription>Modelo de formato anterior: reprocesa los videos con el extractor de altura y la nueva lateralidad de manos y entrena una nueva versión antes de usar el validador.</AlertDescription></Alert>}
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={metrics.split_mode === "participant" ? "default" : "outline"}>Partición: {fluteSplitModeLabel(metrics.split_mode)}</Badge>
+            <Badge variant="outline">Afinación: {metrics.tuning_offset_cents == null ? "—" : `${metrics.tuning_offset_cents > 0 ? "+" : ""}${metrics.tuning_offset_cents.toFixed(1)} cents`}</Badge>
+          </div>
           <p>Entrenamiento: {metrics.train_samples ?? "—"} · Prueba: {metrics.test_samples ?? "—"} {metrics.metric_unit === "feature_frame" ? "fotogramas" : "muestras"} · Latencia: {metrics.latency_ms_per_inference ?? "—"} ms</p>
-          {(["sound", "posture"] as const).map(key => {
-            const head = metrics[key]
-            if (!head) return <p key={key}>Modelo antiguo sin métricas duales; vuelve a entrenar.</p>
-            return <section key={key} className="space-y-2">
-              <h3 className="font-semibold">{key === "sound" ? "Sonido (timbre de flauta)" : "Digitación / posición de manos"}</h3>
-              <p>Entrenamiento: {percent(head.train_accuracy)} · Prueba independiente: {percent(head.test_accuracy)} · Línea base mayoritaria: {percent(head.majority_baseline_accuracy ?? head.rule_baseline_accuracy)}</p>
-              <p className="text-xs text-muted-foreground">Matriz de confusión: filas reales, columnas predichas.</p>
-              <div className="overflow-x-auto"><Table>
-                <TableHeader><TableRow><TableHead>Real / Predicha</TableHead>{head.classes.map(label => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader>
-                <TableBody>{head.confusion_matrix.map((row, i) => <TableRow key={head.classes[i]}><TableCell>{head.classes[i]}</TableCell>{row.map((count, j) => <TableCell key={j}>{count}</TableCell>)}</TableRow>)}</TableBody>
-              </Table></div>
-            </section>
-          })}
+          {metrics.sound ? <section className="space-y-2">
+            <h3 className="font-semibold">Sonido (altura + timbre de flauta)</h3>
+            <p>Entrenamiento: {percent(metrics.sound.train_accuracy)} · Prueba (fotogramas): {percent(metrics.sound.test_accuracy)} · Prueba por toma: {percent(metrics.sound.sample_test_accuracy)} · Línea base mayoritaria: {percent(metrics.sound.majority_baseline_accuracy)}</p>
+            {metrics.sound.per_class && <div className="overflow-x-auto"><Table>
+              <TableHeader><TableRow><TableHead>Clase</TableHead><TableHead>Precisión</TableHead><TableHead>Recall</TableHead><TableHead>Soporte</TableHead></TableRow></TableHeader>
+              <TableBody>{Object.entries(metrics.sound.per_class).map(([label, report]) => <TableRow key={label}><TableCell>{label}</TableCell><TableCell>{percent(report.precision)}</TableCell><TableCell>{percent(report.recall)}</TableCell><TableCell>{report.support}</TableCell></TableRow>)}</TableBody>
+            </Table></div>}
+            {metrics.sound.per_participant && Object.keys(metrics.sound.per_participant).length > 0 && <div className="flex flex-wrap gap-2">{Object.entries(metrics.sound.per_participant).map(([participant, accuracy]) => <Badge key={participant} variant="outline">{participant}: {percent(accuracy)}</Badge>)}</div>}
+            <p className="text-xs text-muted-foreground">Matriz de confusión por toma: filas reales, columnas predichas.</p>
+            <div className="overflow-x-auto"><Table>
+              <TableHeader><TableRow><TableHead>Real / Predicha</TableHead>{metrics.sound.classes.map(label => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader>
+              <TableBody>{metrics.sound.confusion_matrix.map((row, i) => <TableRow key={metrics.sound.classes[i]}><TableCell>{metrics.sound.classes[i]}</TableCell>{row.map((count, j) => <TableCell key={j}>{count}</TableCell>)}</TableRow>)}</TableBody>
+            </Table></div>
+          </section> : <p>Modelo antiguo sin métricas de sonido; vuelve a entrenar.</p>}
+          {metrics.fingers ? <section className="space-y-2">
+            <h3 className="font-semibold">Digitación por dedo (7 huecos frontales)</h3>
+            <p>Entrenamiento: {percent(metrics.fingers.train_accuracy)} · Prueba (media por hueco): {percent(metrics.fingers.test_accuracy)} · Tomas con digitación completa: {percent(metrics.fingers.sample_test_accuracy)} · Línea base mayoritaria: {percent(metrics.fingers.majority_baseline_accuracy)} · {metrics.fingers.train_frames} fotogramas</p>
+            <div className="overflow-x-auto"><Table>
+              <TableHeader><TableRow><TableHead>Hueco</TableHead><TableHead>Mano</TableHead><TableHead>Prueba</TableHead><TableHead>Línea base</TableHead></TableRow></TableHeader>
+              <TableBody>{metrics.fingers.per_hole.map(row => <TableRow key={row.hole}><TableCell>{row.hole}</TableCell><TableCell>{row.hole <= 3 ? "Izquierda" : "Derecha"}</TableCell><TableCell>{percent(row.test_accuracy)}</TableCell><TableCell>{percent(row.baseline)}</TableCell></TableRow>)}</TableBody>
+            </Table></div>
+            <p className="text-xs text-muted-foreground">Pulgar trasero: no evaluable por cámara.</p>
+          </section> : <p>Modelo antiguo sin métricas por dedo; vuelve a entrenar.</p>}
           {!selected.activa && <Button disabled={busy} onClick={() => void perform(async () => { const res = await activateFluteModel(selected.id); setMessage(res.message); await refresh() })}>Activar versión</Button>}
         </CardContent>
       </Card>}

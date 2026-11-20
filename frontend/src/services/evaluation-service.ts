@@ -16,6 +16,8 @@ export interface EvaluationPreflight {
   attempts_used: number
   policy_version: string
   pending_evaluation_id: string | null
+  /** Field-testing flag (`EVALUATION_CALIBRATION_SKIP_ENABLED`): the live calibration may be skipped. */
+  calibration_skip_allowed?: boolean
 }
 
 export interface EvaluationConsent {
@@ -45,6 +47,8 @@ export interface CalibrationState {
   status: string
   started_at: string | null
   checks: Record<string, boolean>
+  /** Ready because the calibration was skipped for field testing (no checks ran). */
+  skipped?: boolean
 }
 
 /** Body of `POST /evaluations/{id}/liveness/verify-identity`; the server rejects extra fields and any missing one. */
@@ -75,6 +79,14 @@ export async function verifyEvaluationCalibration(id: string, evidence: Calibrat
   return (await apiClient.post<CalibrationState>(
     `/evaluations/${encodeURIComponent(id)}/liveness/verify-identity`, evidence,
     { showToastOnError: true, showToastOnSuccess: true },
+  )).data
+}
+
+/** Field testing only: the server answers 404 unless `EVALUATION_CALIBRATION_SKIP_ENABLED` is on. */
+export async function skipEvaluationCalibration(id: string) {
+  return (await apiClient.post<CalibrationState>(
+    `/evaluations/${encodeURIComponent(id)}/calibration/skip`, {},
+    { showToastOnError: true },
   )).data
 }
 

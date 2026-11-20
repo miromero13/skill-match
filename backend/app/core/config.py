@@ -86,6 +86,10 @@ class Settings(BaseSettings):
     )
     THEORY_GRADING_TIMEOUT_SECONDS: int = Field(default=20, ge=1, le=60)
     THEORY_ASR_ENABLED: bool = Field(default=True, description="Enable the installed local ASR runtime for theory exams")
+    EVALUATION_CALIBRATION_SKIP_ENABLED: bool = Field(
+        default=False,
+        description="Field testing only: let members skip the live calibration step (no seed, no biometric data)",
+    )
 
     # Browser/audiovisual supervision trial (SM-43): never reachable in production.
     BROWSER_SUPERVISION_TRIAL_ENABLED: Optional[bool] = Field(

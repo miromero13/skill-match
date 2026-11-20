@@ -4,6 +4,7 @@ from math import ceil
 
 from sqlalchemy import and_, distinct, func, select
 
+from app.core.config import settings
 from app.core.exceptions import SkillMatchException
 from app.models.catalog import Category, ChallengeType, Skill
 from app.models.evaluation import Evaluation
@@ -132,6 +133,7 @@ class EvaluationPreflightService:
             free_evaluations_left=remaining, attempts_used=0,
             policy_version=POLICY_VERSION,
             pending_evaluation_id=pending.id if pending else None,
+            calibration_skip_allowed=settings.EVALUATION_CALIBRATION_SKIP_ENABLED,
         )
 
     @classmethod
@@ -140,7 +142,12 @@ class EvaluationPreflightService:
             raise SkillMatchException(statuscode=409, message="Las condiciones cambiaron. Volvé a leerlas antes de aceptar.")
         offer, skill, _, _, pending, _ = await cls.context(db, user, teaching_skill_id, lock=True)
         if pending is not None:
-            # Replays retain the original consent timestamp, policy and audit data.
+            # Replays retain the original consent timestamp, policy and audit data,
+            # but never reuse a prior calibration before the exam has started.
+            if pending.started_at is None and pending.status == "READY_FOR_THEORY":
+                pending.status = "PENDING_CALIBRATION"
+                await db.commit()
+                await db.refresh(pending)
             return pending
         evaluation = Evaluation(
             user_id=user.id, skill_id=skill.id, teaching_skill_id=offer.id,

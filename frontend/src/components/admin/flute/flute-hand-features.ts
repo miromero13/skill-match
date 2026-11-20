@@ -1,4 +1,4 @@
-export const FLUTE_VISUAL_SCHEMA = "hand-landmarks-palm-v4" as const
+export const FLUTE_VISUAL_SCHEMA = "hand-landmarks-palm-v5" as const
 export const FLUTE_HAND_SLOT_DIM = 25
 export const FLUTE_VISUAL_DIM = FLUTE_HAND_SLOT_DIM * 2 // 50
 export const LEFT_HAND_PRESENCE_IDX = 0
