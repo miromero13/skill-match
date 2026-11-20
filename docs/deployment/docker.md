@@ -107,6 +107,15 @@ grep -v exclude_from_hc compose.coolify.yaml > /tmp/coolify.yaml
 docker compose -f /tmp/coolify.yaml config -q   # con las variables obligatorias exportadas
 ```
 
+### Push nativo (Firebase Admin SDK)
+
+`backend` y `worker` montan `./firebase/firebase-admin.json` en `/run/firebase/firebase-admin.json` (solo lectura). Coolify crea el archivo vacío; el JSON de la cuenta de servicio se pega en *Persistent Storage* y nunca se sube al repositorio (`*firebase-adminsdk*.json` y `backend/firebase-credentials.json` están en `.gitignore`). Luego:
+
+- `FIREBASE_CREDENTIALS_PATH=/run/firebase/firebase-admin.json` en *Environment Variables*.
+- Redeploy. En los logs del backend debe aparecer "Firebase Admin SDK inicializado exitosamente" al primer envío.
+
+Sin la variable, la app funciona y solo el push nativo queda desactivado.
+
 ### A confirmar en el primer build
 
 - `additional_contexts` (el backend necesita `ml/`): la documentación de Coolify no lo menciona.
