@@ -130,7 +130,19 @@ export function EvaluationSetupPage() {
             </div>
           </>}
           <p className="text-xs leading-relaxed text-muted-foreground">Leer las instrucciones y aceptar el consentimiento no consume tu intento.</p>
-          {browserSupervisionTrialEnabled && <Button asChild variant="outline"><Link to="/app/browser-supervision-test">Probar controles del navegador (SM-43, sin examen)</Link></Button>}
+          {browserSupervisionTrialEnabled && (
+            <Button asChild variant="outline">
+              <Link
+                to="/app/browser-supervision-test"
+                state={{ autoStart: true }}
+                onClick={() => {
+                  void document.documentElement.requestFullscreen?.().catch(() => undefined)
+                }}
+              >
+                Probar controles del navegador (SM-43, sin examen)
+              </Link>
+            </Button>
+          )}
           {currentStep !== 2 && <p className="text-xs text-muted-foreground">Habilidades gratuitas disponibles: {preflight.free_evaluations_left}/3 · Intentos utilizados para esta habilidad: {preflight.attempts_used}/1</p>}
         </>}
       </CardContent>

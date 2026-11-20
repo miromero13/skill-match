@@ -337,9 +337,46 @@ export function readingFromResult(result: FaceResult, at: number): TimedReading 
   }
 }
 
+export interface EyeOverlay {
+  leftCorner: Point
+  rightCorner: Point
+  upperLid: Point
+  lowerLid: Point
+  iris: Point
+}
+
+export interface IrisOverlay {
+  eyes: [EyeOverlay, EyeOverlay]
+  gazeH: number | null
+  gazeV: number | null
+  blink: boolean
+}
+
+/** Extracts normalized iris & eye landmarks for live video overlay when a single 478-landmark face is present. */
+export function overlayFromResult(result: FaceResult): IrisOverlay | null {
+  if (result.faceLandmarks.length !== 1) return null
+  const points = result.faceLandmarks[0]
+  if (points.length < LANDMARK_COUNT) return null
+  const blendshapes: Record<string, number> = {}
+  for (const category of result.faceBlendshapes?.[0]?.categories ?? []) blendshapes[category.categoryName] = category.score
+  const gaze = measureGaze(points, blendshapes)
+  const [e0, e1] = EYES
+  return {
+    eyes: [
+      { leftCorner: points[e0[0]], rightCorner: points[e0[1]], upperLid: points[e0[2]], lowerLid: points[e0[3]], iris: points[e0[4]] },
+      { leftCorner: points[e1[0]], rightCorner: points[e1[1]], upperLid: points[e1[2]], lowerLid: points[e1[3]], iris: points[e1[4]] },
+    ],
+    gazeH: gaze.gazeH,
+    gazeV: gaze.gazeV,
+    blink: gaze.blink,
+  }
+}
+
 export interface FaceTrackerOptions {
   /** Called when the live "away" state changes (UX only). */
   onAway?: (away: boolean) => void
+  /** Called on each processed frame with normalized iris/eye coordinates for live video overlay. */
+  onOverlay?: (overlay: IrisOverlay | null) => void
   fps?: number
   /** Injected for tests; defaults to the self-hosted MediaPipe FaceLandmarker. */
   landmarker?: FaceLandmarkerLike
@@ -382,7 +419,9 @@ export async function startFaceTracker(video: HTMLVideoElement, options: FaceTra
     lastVideoTime = video.currentTime
     try {
       const now = Date.now()
-      const reading = readingFromResult(landmarker.detectForVideo(video, performance.now()), now)
+      const result = landmarker.detectForVideo(video, performance.now())
+      const reading = readingFromResult(result, now)
+      if (options.onOverlay) options.onOverlay(overlayFromResult(result))
       readings.push(reading)
       readings = readings.filter((item) => now - item.at <= BUFFER_MS)
       const next = away.update(classifyReading(reading, zone), now)

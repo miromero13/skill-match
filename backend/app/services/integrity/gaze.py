@@ -189,7 +189,15 @@ HEAD_DOWN = "HEAD_POSE_DOWN"
 HEAD_UP = "HEAD_POSE_UP"
 HEAD_SIDE = "HEAD_POSE_SIDE"
 GAZE_AWAY = "GAZE_AWAY"
-AWAY_KINDS = (HEAD_DOWN, HEAD_UP, HEAD_SIDE, GAZE_AWAY)
+GAZE_AWAY_UP = "GAZE_AWAY_UP"
+GAZE_AWAY_DOWN = "GAZE_AWAY_DOWN"
+GAZE_AWAY_LEFT = "GAZE_AWAY_LEFT"
+GAZE_AWAY_RIGHT = "GAZE_AWAY_RIGHT"
+EYES_CLOSED = "EYES_CLOSED"
+AWAY_KINDS = (
+    HEAD_DOWN, HEAD_UP, HEAD_SIDE,
+    GAZE_AWAY_UP, GAZE_AWAY_DOWN, GAZE_AWAY_LEFT, GAZE_AWAY_RIGHT, EYES_CLOSED, GAZE_AWAY,
+)
 _ORIENTATION_KIND = {"DOWN": HEAD_DOWN, "LEFT": HEAD_SIDE, "RIGHT": HEAD_SIDE}
 
 
@@ -229,8 +237,24 @@ def classify(sample: GazeSample, zone: Optional[GazeZone]) -> str:
         return NEUTRAL
     if not (bounds.gaze_h_min <= sample.gaze_h <= bounds.gaze_h_max
             and bounds.gaze_v_min <= sample.gaze_v <= bounds.gaze_v_max):
-        return GAZE_AWAY
+        return _gaze_away_direction(sample.gaze_h, sample.gaze_v, bounds)
     return IN
+
+
+def _gaze_away_direction(gaze_h: float, gaze_v: float, bounds: GazeZone) -> str:
+    """Specific eye-gaze direction outside `bounds` (unmirrored frame: gaze_h > 0 is user's left)."""
+    over_up = max(0.0, bounds.gaze_v_min - gaze_v)
+    over_down = max(0.0, gaze_v - bounds.gaze_v_max)
+    over_left = max(0.0, gaze_h - bounds.gaze_h_max)
+    over_right = max(0.0, bounds.gaze_h_min - gaze_h)
+    best = max(
+        (over_down, GAZE_AWAY_DOWN),
+        (over_up, GAZE_AWAY_UP),
+        (over_left, GAZE_AWAY_LEFT),
+        (over_right, GAZE_AWAY_RIGHT),
+        key=lambda item: item[0],
+    )
+    return best[1] if best[0] > 0.0 else GAZE_AWAY
 
 
 # ---- timestamps -----------------------------------------------------------------------------------------
@@ -273,7 +297,8 @@ def _informative(sample: GazeSample) -> bool:
 
 def _disagree(server: GazeSample, client: GazeSample) -> bool:
     if server.face_count != client.face_count:
-        return True
+        # A server-side miss on a low-res JPEG (0 vs 1) is handled by FACE_ABSENT, not a browser lie.
+        return not (server.face_count == 0 and client.face_count == 1)
     if server.face_count != 1 or server.gaze_h is None or server.head_pitch is None or server.head_yaw is None:
         return False
     assert client.head_pitch is not None and client.head_yaw is not None
@@ -286,7 +311,7 @@ def _disagree(server: GazeSample, client: GazeSample) -> bool:
     if server.blink or client.blink or client.gaze_h is None or client.gaze_v is None or server.gaze_v is None:
         return False
     return (abs(server.gaze_h - client.gaze_h) > t.CLIENT_MISMATCH_GAZE
-            or abs(server.gaze_v - client.gaze_v) > t.CLIENT_MISMATCH_GAZE)
+            or abs(server.gaze_v - client.gaze_v) > t.CLIENT_MISMATCH_GAZE_V)
 
 
 def _comparable_pairs(
@@ -388,7 +413,7 @@ def _promote_long_blinks(labelled: list[tuple[GazeSample, str]], spans: list[int
             j += 1
         if out[j][0].t_ms + spans[j] - out[i][0].t_ms > t.GAZE_BLINK_MAX_MS:
             for k in range(i, j + 1):
-                out[k] = (out[k][0], GAZE_AWAY)
+                out[k] = (out[k][0], EYES_CLOSED)
         i = j + 1
     return out
 

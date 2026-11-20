@@ -1,9 +1,10 @@
-import { useRef, useState } from "react"
-import { Link } from "react-router-dom"
+import { useEffect, useRef, useState } from "react"
+import { Link, useLocation } from "react-router-dom"
 import {
   AlertCircle,
   Camera,
   CheckCircle2,
+  Eye,
   Maximize2,
   Mic,
   Shield,
@@ -45,6 +46,11 @@ const labels: Record<string, string> = {
   HEAD_POSE_SIDE: "Cabeza girada a los costados sostenida",
   HEAD_POSE_UP: "Cabeza orientada hacia arriba sostenida",
   GAZE_AWAY: "Mirada fuera de la pantalla sostenida",
+  GAZE_AWAY_UP: "Mirada hacia arriba sostenida",
+  GAZE_AWAY_DOWN: "Mirada hacia abajo sostenida",
+  GAZE_AWAY_LEFT: "Mirada a la izquierda sostenida",
+  GAZE_AWAY_RIGHT: "Mirada a la derecha sostenida",
+  EYES_CLOSED: "Ojos cerrados de forma sostenida",
   CLIENT_MISMATCH: "El navegador contradice la medición del servidor",
   VOICE_DETECTED: "Voz detectada sin movimiento labial coincidente",
   MULTIPLE_SPEAKERS: "Voces simultáneas / más de un hablante",
@@ -74,10 +80,13 @@ export function BrowserSupervisionPage() {
 }
 
 function SupervisionTrial({ owner }: { owner: string | undefined }) {
+  const location = useLocation()
+  const autoStart = (location.state as { autoStart?: boolean } | null)?.autoStart === true
   const area = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [accepted, setAccepted] = useState(false)
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [accepted, setAccepted] = useState(autoStart)
   const [trialLabel, setTrialLabel] = useState<TrialLabel>("normal")
 
   const session = useTrialSession({
@@ -88,15 +97,25 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
     onResume: (handle) => void av.start(handle),
     onEnd: () => av.stop(),
   })
-  const { trial, active, busy, error, notice, pending, rows, total } = session
+  const { trial, active, busy, error, notice, pending, rows, total, start: startSession } = session
+
+  useEffect(() => {
+    if (!autoStart || !owner) return
+    // Defer to a macrotask so React StrictMode's simulated unmount cancels the first pass before claiming a lease.
+    const timer = window.setTimeout(() => {
+      void startSession()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [autoStart, owner, startSession])
   const av = useAvSupervision({
     videoRef,
     canvasRef,
+    overlayCanvasRef,
     windowsEnabled: active && isCalibrated(trial),
     onAnomalies: () => void session.refreshLedger().catch(() => undefined),
     label: import.meta.env.DEV ? trialLabel : undefined,
   })
-  const { avActive, vuLevel, deviceError, avStatus, lookingAway, gazeNotice } = av
+  const { avActive, vuLevel, deviceError, avStatus, lookingAway, gazeNotice, gazeLive } = av
   const {
     faceCount, headOrientation, identityMatch, faceCovered, mouthCovered, cameraBlocked, speechDetected,
     mouthMoving, mouthSync, multipleSpeakers, voiceMatch, lipSync, noiseLevel,
@@ -164,9 +183,14 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
 
   async function fullscreen() {
     try {
-      if (!area.current?.requestFullscreen)
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+        return
+      }
+      const target = document.documentElement ?? area.current
+      if (!target?.requestFullscreen)
         throw new Error("Este navegador no permite pantalla completa. La prueba puede continuar sin ese modo.")
-      await area.current.requestFullscreen()
+      await target.requestFullscreen()
     } catch (cause) {
       session.setError(message(cause))
     }
@@ -174,8 +198,40 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
 
   const acoustic = acousticStatus()
 
+  /** Live eye-only gaze direction from iris position inside the eye, independent of head pose. */
+  function irisDirectionStatus(): { label: string; text: string; variant: "secondary" | "destructive" | "outline" } {
+    if (!avActive || !gazeLive) {
+      return { label: "En espera", text: "Esperando detección de iris en vivo.", variant: "outline" }
+    }
+    if (gazeLive.blink) {
+      return { label: "Parpadeo", text: "Ojos cerrados momentáneamente.", variant: "outline" }
+    }
+    const { gazeH, gazeV } = gazeLive
+    if (gazeH === null || gazeV === null) {
+      return { label: "Sin lectura", text: "No se distinguen ambos iris.", variant: "outline" }
+    }
+    const T = 0.22
+    const dirs: string[] = []
+    if (gazeV < -T) dirs.push("Arriba")
+    else if (gazeV > T) dirs.push("Abajo")
+    if (gazeH > T) dirs.push("Izquierda")
+    else if (gazeH < -T) dirs.push("Derecha")
+    const coords = `H: ${gazeH.toFixed(2)} · V: ${gazeV.toFixed(2)}`
+    if (dirs.length === 0) {
+      return { label: "Al centro", text: `Mirada centrada (${coords}).`, variant: "secondary" }
+    }
+    return {
+      label: dirs.join(" · "),
+      text: `Mirando ${dirs.join(" y ").toLowerCase()} sin necesidad de mover la cabeza (${coords}).`,
+      variant: "destructive",
+    }
+  }
+
+  const irisStatus = irisDirectionStatus()
+
   return (
-    <section className="mx-auto w-full max-w-4xl space-y-5 p-4 sm:p-6">
+    <div className="min-h-screen bg-background text-foreground">
+      <section className="mx-auto w-full max-w-4xl space-y-5 p-4 sm:p-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Prueba de supervisión continua</h1>
         <p className="text-sm text-muted-foreground">
@@ -271,6 +327,11 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
                   playsInline
                   muted
                   className={`w-full h-full object-cover -scale-x-100 ${avActive ? "block" : "hidden"}`}
+                />
+                <canvas
+                  ref={overlayCanvasRef}
+                  aria-hidden="true"
+                  className={`absolute inset-0 w-full h-full pointer-events-none -scale-x-100 ${avActive ? "block" : "hidden"}`}
                 />
                 {!avActive && (
                   <div className="text-center p-4 space-y-2 text-muted-foreground">
@@ -446,6 +507,18 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
                     Huella de voz: {trial?.voice_enrolled ? "calibrada" : "pendiente"}
                   </p>
                 </div>
+                {/* Eye gaze (iris) */}
+                <div className="rounded-lg border p-3 bg-card space-y-1 sm:col-span-2" data-testid="iris-gaze-card">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Eye className="size-3.5" /> Mirada (iris)
+                    </span>
+                    <Badge variant={irisStatus.variant} className="text-[11px]">
+                      {irisStatus.label}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{irisStatus.text}</p>
+                </div>
               </div>
 
               <p className="text-[11px] text-muted-foreground italic border-t pt-2">
@@ -532,9 +605,16 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
         </CardContent>
       </Card>
 
-      <Button variant="outline" asChild>
+      <Button
+        variant="outline"
+        asChild
+        onClick={() => {
+          if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+        }}
+      >
         <Link to="/app/teaching-skills">Salir de la prueba</Link>
       </Button>
-    </section>
+      </section>
+    </div>
   )
 }
