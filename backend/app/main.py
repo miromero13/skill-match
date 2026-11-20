@@ -1,5 +1,4 @@
 
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -15,21 +14,23 @@ from app.api.admin.skill_lab import preview_file_router as admin_skill_lab_previ
 from app.api.admin.skill_lab import router as admin_skill_lab_router
 from app.api.admin.theory_questions import router as theory_question_router
 from app.api.ai.datasets import router as ai_dataset_router
+from app.api.assistant.router import router as assistant_router
 from app.api.auth import auth_router
 from app.api.browser_supervision import router as browser_supervision_router
 from app.api.complaints.router import router as complaints_router
 from app.api.evaluations import router as evaluation_preflight_router
 from app.api.health import health_router
 from app.api.matches.router import router as matches_router
-from app.api.notifications.router import router as notifications_router
-from app.api.programming import admin_router as admin_programming_router, member_router as programming_router
-from app.api.notifications.web_push import router as web_push_router
 from app.api.notifications.devices import router as device_push_router
+from app.api.notifications.router import router as notifications_router
+from app.api.notifications.web_push import router as web_push_router
 from app.api.notifications.websocket import router as notification_websocket_router
 from app.api.passports import router as passports_router
+from app.api.programming import admin_router as admin_programming_router
+from app.api.programming import member_router as programming_router
 from app.api.search import search_router
-from app.api.sessions import router as sessions_router
 from app.api.session_reviews import router as session_reviews_router
+from app.api.sessions import router as sessions_router
 from app.api.skills.router import router as public_skills_router
 from app.api.theory_exam import router as theory_exam_router
 from app.api.users.availability import router as user_availability_router
@@ -55,6 +56,7 @@ from app.db.session import AsyncSessionLocal
 from app.football.api import router as football_router
 from app.schemas.response import APIResponse
 from app.services.notification_connection_manager import notification_connection_manager
+
 # from app.services.realtime_notification_broker import consume_notification_events  # TEMPORAL: ver lifespan
 from app.services.vision_models import report_vision_models_readiness
 
@@ -163,6 +165,7 @@ def create_application() -> FastAPI:
     app.include_router(passports_router, prefix="/api")
     app.include_router(wallet_router, prefix="/api")
     app.include_router(complaints_router, prefix="/api")
+    app.include_router(assistant_router, prefix="/api")
 
     return app
 

@@ -1,0 +1,18 @@
+export interface ChatActionPayload {
+  type: 'wallet_topup' | 'instructor_card' | 'sessions_list' | 'faq_info' | string
+  data: Record<string, any>
+}
+
+export interface ChatMessageResponse {
+  reply: string
+  action?: ChatActionPayload | null
+  suggested_prompts: string[]
+}
+
+export interface ChatHistoryItem {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+  action?: ChatActionPayload | null
+}

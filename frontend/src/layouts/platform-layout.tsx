@@ -3,6 +3,8 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import { PlatformHeader } from "@/components/navigation/platform-header"
 import { PlatformSidebar } from "@/components/navigation/platform-sidebar"
 import { MobileBottomBar } from "@/components/navigation/mobile-bottom-bar"
+import { AssistantFab } from "@/components/assistant/assistant-fab"
+import { AssistantChatDrawer } from "@/components/assistant/assistant-chat-drawer"
 import { initializeNativePushNotifications } from "@/services/native-push-service"
 
 export function PlatformLayout() {
@@ -37,6 +39,8 @@ export function PlatformLayout() {
         </main>
       </div>
       <MobileBottomBar />
+      <AssistantFab />
+      <AssistantChatDrawer />
     </div>
   )
 }

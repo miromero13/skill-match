@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkillMatch - Códigos QR de Acceso y Demostración</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --text: #f9fafb;
+      --muted: #9ca3af;
+      --emerald: #10b981;
+      --emerald-dark: #047857;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1rem;
+    }
+    header {
+      text-align: center;
+      max-width: 680px;
+      margin-bottom: 2.5rem;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      margin-bottom: 0.75rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #ffffff 0%, #a7f3d0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p.subtitle {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 1100px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 1.25rem;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(16, 185, 129, 0.5);
+    }
+    .card h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+    .card p.desc {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+      min-height: 38px;
+    }
+    .qr-frame {
+      background: white;
+      padding: 0.75rem;
+      border-radius: 1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      margin-bottom: 1.25rem;
+    }
+    .qr-frame img {
+      width: 200px;
+      height: auto;
+      display: block;
+      border-radius: 0.5rem;
+    }
+    .link-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e5e7eb;
+      text-decoration: none;
+      padding: 0.65rem 1rem;
+      border-radius: 0.75rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+      word-break: break-all;
+      transition: all 0.2s;
+    }
+    .link-btn:hover {
+      background: var(--emerald);
+      border-color: var(--emerald);
+      color: #042f2e;
+      font-weight: 600;
+    }
+    .btn-apk {
+      background: var(--emerald);
+      color: #042f2e;
+      font-weight: 700;
+      border: none;
+    }
+    .btn-apk:hover {
+      background: #34d399;
+      color: #042f2e;
+    }
+    footer {
+      margin-top: 3rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="badge">SkillMatch Hub</div>
+    <h1>Accesos Rápidos del Sistema</h1>
+    <p class="subtitle">Escanea los códigos QR con la cámara de tu celular para acceder al repositorio Git, abrir la versión web en vivo, explorar los endpoints de la API o descargar el APK móvil Android directamente.</p>
+  </header>
+
+  <div class="grid">
+    <!-- QR 1: GitHub -->
+    <div class="card">
+      <h2>1. Repositorio Git</h2>
+      <p class="desc">Código fuente completo del proyecto (Backend, Frontend y Móvil Capacitor).</p>
+      <div class="qr-frame">
+        <img src="/qrs/qr_github_repo.png" alt="QR GitHub">
+      </div>
+      <a href="https://github.com/miromero13/skill-match" target="_blank" class="link-btn">
+        github.com/miromero13/skill-match ↗
+      </a>
+    </div>
+
+    <!-- QR 2: Frontend Web -->
+    <div class="card">
+      <h2>2. Frontend Web</h2>
+      <p class="desc">Aplicación web en vivo con diseño responsive y Asistente Virtual IA integrado.</p>
+      <div class="qr-frame">
+        <img src="/qrs/qr_frontend_web.png" alt="QR Frontend Web">
+      </div>
+      <a href="http://192.168.1.8:5173" target="_blank" class="link-btn">
+        http://192.168.1.8:5173 ↗
+      </a>
+    </div>
+
+    <!-- QR 3: Backend Swagger -->
+    <div class="card">
+      <h2>3. Backend API Docs</h2>
+      <p class="desc">Documentación interactiva Swagger/OpenAPI con endpoints REST probables en vivo.</p>
+      <div class="qr-frame">
+        <img src="/qrs/qr_backend_docs.png" alt="QR Backend Swagger">
+      </div>
+      <a href="http://192.168.1.8:8000/docs" target="_blank" class="link-btn">
+        http://192.168.1.8:8000/docs ↗
+      </a>
+    </div>
+
+    <!-- QR 4: Mobile APK -->
+    <div class="card">
+      <h2>4. APK Móvil Android (Google Drive)</h2>
+      <p class="desc">Descarga global desde cualquier teléfono (WiFi o datos móviles 4G/5G).</p>
+      <div class="qr-frame">
+        <img src="/qrs/qr_mobile_apk.png" alt="QR Mobile APK Google Drive">
+      </div>
+      <a href="https://drive.google.com/drive/folders/1nWR_UpgN1Q0V8HIgBuaU_DSPYZOTf8If?usp=sharing" target="_blank" class="link-btn btn-apk">
+        Abrir en Google Drive (APK) ↗
+      </a>
+      <a href="/skillmatch-app.apk" download style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--muted); text-decoration: underline;">
+        o descarga directa en red local (27 MB)
+      </a>
+    </div>
+  </div>
+
+  <footer>
+    <p>SkillMatch — Plataforma Inteligente de Trueque Formativo | Red Local: 192.168.1.8</p>
+  </footer>
+</body>
+</html>
