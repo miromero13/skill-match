@@ -42,7 +42,7 @@ describe("visible hand tracking", () => {
     video.currentTime = 0.1
     act(() => { vi.advanceTimersByTime(100) })
     expect(view.container.querySelectorAll("polyline")).toHaveLength(6)
-    expect(onFrame.mock.lastCall?.[0].features).toHaveLength(128)
+    expect(onFrame.mock.lastCall?.[0].features).toHaveLength(50)
     expect(onFrame.mock.lastCall?.[0].features[0]).toBe(1)
     expect(screen.getByRole("status").textContent).toContain("21 articulaciones")
     view.unmount()

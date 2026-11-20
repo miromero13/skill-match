@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest"
-import { encodeHandLandmarks, freshHandFrame, type DetectedHand } from "@/components/admin/flute/flute-hand-features"
+import {
+  FLUTE_VISUAL_DIM,
+  LEFT_HAND_PRESENCE_IDX,
+  RIGHT_HAND_PRESENCE_IDX,
+  encodeHandLandmarks,
+  freshHandFrame,
+  type DetectedHand,
+} from "@/components/admin/flute/flute-hand-features"
+import {
+  FLUTE_AUDIO_DIM,
+  extractFluteAudioFeatures,
+} from "@/components/admin/flute/flute-note-specs"
 
 const hand: DetectedHand = {
   side: "Left",
@@ -11,14 +22,14 @@ const hand: DetectedHand = {
   })),
 }
 
-describe("flute hand landmarks (palm basis)", () => {
-  it("encodes 21 xyz points in fixed handedness slots, never a pixel grid", () => {
+describe("flute hand landmarks (palm basis + finger flexion)", () => {
+  it("encodes 21 xyz points + 10 finger flexion/distance features in fixed handedness slots", () => {
     const features = encodeHandLandmarks([hand], 1000, 1000)!
-    expect(features).toHaveLength(128)
-    expect(features[0]).toBe(1)
-    expect(features.slice(64)).toEqual(Array(64).fill(0))
+    expect(features).toHaveLength(FLUTE_VISUAL_DIM)
+    expect(features[LEFT_HAND_PRESENCE_IDX]).toBe(1)
+    expect(features.slice(RIGHT_HAND_PRESENCE_IDX)).toEqual(Array(RIGHT_HAND_PRESENCE_IDX).fill(0))
     expect(features.every(Number.isFinite)).toBe(true)
-    expect(encodeHandLandmarks([{ ...hand, side: "Right" }], 1000, 1000)![64]).toBe(1)
+    expect(encodeHandLandmarks([{ ...hand, side: "Right" }], 1000, 1000)![RIGHT_HAND_PRESENCE_IDX]).toBe(1)
   })
 
   it("is invariant to hand translation across the screen", () => {
@@ -34,9 +45,9 @@ describe("flute hand landmarks (palm basis)", () => {
   it("changes when fingers change and excludes low confidence or invalid landmarks", () => {
     const bent = { ...hand, points: hand.points.map((p, i) => i === 8 ? { ...p, x: 0.6 } : p) }
     expect(encodeHandLandmarks([bent], 1000, 1000)).not.toEqual(encodeHandLandmarks([hand], 1000, 1000))
-    expect(encodeHandLandmarks([], 1000, 1000)).toEqual(Array(128).fill(0))
+    expect(encodeHandLandmarks([], 1000, 1000)).toEqual(Array(FLUTE_VISUAL_DIM).fill(0))
     expect(encodeHandLandmarks([hand], 0, 1000)).toBeNull()
-    expect(encodeHandLandmarks([{ ...hand, score: 0.2 }], 1000, 1000)).toEqual(Array(128).fill(0))
+    expect(encodeHandLandmarks([{ ...hand, score: 0.2 }], 1000, 1000)).toEqual(Array(FLUTE_VISUAL_DIM).fill(0))
     expect(encodeHandLandmarks([{ ...hand, points: [{ x: NaN, y: 0, z: 0 }] }], 1000, 1000)![0]).toBe(0)
   })
 
@@ -45,5 +56,29 @@ describe("flute hand landmarks (palm basis)", () => {
     expect(freshHandFrame(frame, 200)).toBe(frame)
     expect(freshHandFrame(frame, 600)).toBeNull()
     expect(freshHandFrame(null, 200)).toBeNull()
+  })
+})
+
+describe("flute timbre audio extractor (no frequency/Hz)", () => {
+  it("extracts 48 finite log-Mel + MFCC + timbre features from an AnalyserNode", () => {
+    const mockAnalyser = {
+      fftSize: 2048,
+      frequencyBinCount: 1024,
+      getFloatFrequencyData: (arr: Float32Array) => {
+        arr.fill(-90)
+        // Simulate flute timbre harmonics without measuring Hz
+        arr[40] = -15
+        arr[80] = -25
+        arr[120] = -35
+      },
+      getFloatTimeDomainData: (arr: Float32Array) => {
+        for (let i = 0; i < arr.length; i++) arr[i] = Math.sin(i * 0.1) * 0.2
+      },
+    } as unknown as AnalyserNode
+
+    const vec = extractFluteAudioFeatures(mockAnalyser, 44100)
+    expect(vec).toHaveLength(FLUTE_AUDIO_DIM)
+    expect(vec.every(Number.isFinite)).toBe(true)
+    expect(vec[45]).toBeGreaterThan(0.05) // RMS > 0
   })
 })

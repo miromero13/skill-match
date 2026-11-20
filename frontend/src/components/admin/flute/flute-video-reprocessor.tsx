@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getDatasetSampleContent, saveFluteLabels, type FluteFeatures, type FlutePreviewSample } from "@/services/dataset-sample-service"
 import { FLUTE_NOTES_MAP, extractFluteAudioFeatures, type FluteNoteName } from "./flute-note-specs"
-import { FLUTE_VISUAL_SCHEMA, freshHandFrame, type HandFrame } from "./flute-hand-features"
+import { FLUTE_VISUAL_SCHEMA, countDetectedHands, freshHandFrame, type HandFrame } from "./flute-hand-features"
 import { FluteHandOverlay } from "./flute-hand-overlay"
 
 export function FluteVideoReprocessor({ samples, onSaved }: { samples: FlutePreviewSample[]; onSaved: () => Promise<void> }) {
@@ -14,7 +14,7 @@ export function FluteVideoReprocessor({ samples, onSaved }: { samples: FlutePrev
   return <Card>
     <CardHeader><CardTitle>Reutilizar videos guardados</CardTitle></CardHeader>
     <CardContent className="space-y-3">
-      <p className="text-sm">No hace falta subirlos otra vez. Selecciona un video etiquetado, calibra la flauta y vuelve a extraer sus articulaciones. Se conservan participante y etiquetas.</p>
+      <p className="text-sm">No hace falta subirlos otra vez. Selecciona un video etiquetado, reprodúcelo para detectar las manos y extraer el timbre de audio + articulaciones de dedos. Se conservan participante y etiquetas.</p>
       <Select value={id} onValueChange={setId}><SelectTrigger aria-label="Video para reprocesar"><SelectValue placeholder="Seleccionar video" /></SelectTrigger>
         <SelectContent>{samples.filter(s => s.file_format === "mp4" && s.sound_label && s.posture_label && s.participant_id).map(s =>
           <SelectItem key={s.id} value={s.id}>{s.participant_id} · {s.note_label ?? s.sound_label} · {s.id.slice(0, 8)} {s.labeled ? "(articulaciones)" : "(pendiente)"}</SelectItem>)}</SelectContent>
@@ -41,7 +41,7 @@ function ReprocessVideo({ sample, onSaved }: { sample: FlutePreviewSample; onSav
       if (disposed) return
       if (!response.data?.data_url) { setMessage("El video original no está disponible."); return }
       setUrl(response.data.data_url)
-      setMessage("Reproduce el video y calibra la flauta. Luego pulsa Reprocesar. La extracción conserva tus etiquetas, no las predice.")
+      setMessage("Reproduce el video para que se detecten las manos automáticamente y luego pulsa Reprocesar. Se conservan tus etiquetas originales.")
     }).catch((error: unknown) => { if (!disposed) setMessage(error instanceof Error ? error.message : "No se pudo cargar el video.") })
     return () => {
       disposed = true
@@ -70,7 +70,7 @@ function ReprocessVideo({ sample, onSaved }: { sample: FlutePreviewSample; onSav
 
   const start = async () => {
     const video = videoRef.current
-    if (!video || !freshHandFrame(handRef.current)) { setMessage("Reproduce el video y calibra primero el eje de la flauta."); return }
+    if (!video || !freshHandFrame(handRef.current)) { setMessage("Reproduce primero el video hasta que se detecten las manos y vuelve a pulsar Reprocesar."); return }
     try {
       if (!audioRef.current) {
         const ctx = new AudioContext()
@@ -100,7 +100,7 @@ function ReprocessVideo({ sample, onSaved }: { sample: FlutePreviewSample; onSav
         if (!frame || !audio || video.paused || video.seeking) return
         const required = sample.note_label && Object.hasOwn(FLUTE_NOTES_MAP, sample.note_label)
           ? FLUTE_NOTES_MAP[sample.note_label as FluteNoteName].handsRequired : 1
-        if (sample.posture_label === "correcta" && frame.features[0] + frame.features[64] < required) return
+        if (sample.posture_label === "correcta" && countDetectedHands(frame.features) < required) return
         framesRef.current.push({ visual_schema: FLUTE_VISUAL_SCHEMA, visual_features: frame.features,
           audio_features: extractFluteAudioFeatures(audio.analyser, audio.ctx.sampleRate) })
         setCount(framesRef.current.length)
