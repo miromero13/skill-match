@@ -128,13 +128,18 @@ def _voiced(hz: Any) -> bool:
 
 
 def _latency_offset_s(times: list[float], voiced: list[bool], first_start_s: float) -> float:
-    """Rule 1: first run of >= 3 voiced frames vs the first expected start, clamped."""
+    """Rule 1: first run of >= 3 voiced frames vs the first expected start, clamped.
+
+    Frames earlier than the clamp window (first start - 250 ms) are ignored: the pre-roll the
+    frontend sends during the count-in may contain breath or room noise that is not the first note.
+    """
+    low, high = LATENCY_CLAMP_MS
+    earliest_s = first_start_s + low / 1000.0 - _EPS
     run = 0
     for i, is_voiced in enumerate(voiced):
-        run = run + 1 if is_voiced else 0
+        run = run + 1 if is_voiced and times[i] >= earliest_s else 0
         if run == MIN_VOICED_RUN:
             offset_ms = (times[i - MIN_VOICED_RUN + 1] - first_start_s) * 1000.0
-            low, high = LATENCY_CLAMP_MS
             return max(low, min(high, offset_ms)) / 1000.0
     return 0.0
 

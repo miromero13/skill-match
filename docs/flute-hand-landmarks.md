@@ -35,6 +35,16 @@ Los sidecars anteriores (audio de 48 valores, manos v4) se listan como `needs_re
 - **Examen**: se ignoran los primeros 400 ms de cada nota (ataque o transición) y el sonido se puntúa solo sobre fotogramas sonoros. El tiempo se mide con reloj real.
 - **Modo libre** y **examen** usan la misma regla de postura del backend. La UI muestra qué hueco está mal o es incierto.
 
+## Modo «Canción»
+
+En el validador en vivo, «Canción» permite tocar una partitura completa (por ahora «Himno a la Alegría»: dos vueltas, 30 negras, 16 s a 120 BPM; la segunda vuelta termina Re, Do, Do). Especificación: [`odd/tasks/flute-song-mode.md`](../odd/tasks/flute-song-mode.md).
+
+- **Flujo**: elegir canción y tempo (60–120 BPM) → cuenta de entrada de 4 clics → tocar sin clics → resultado nota por nota y Aprobado/Reprobado (≥ 80 %).
+- **Captura**: el navegador mide la altura (YIN) cada 25 ms y timbre + manos cada 100 ms, y envía toda la interpretación a `POST /api/ai/datasets/samples/flute/score-song`. El catálogo sale de `GET /api/ai/datasets/samples/flute/songs` (definido en `backend/app/services/flute_song_service.py`).
+- **Evaluación por nota**: la nota esperada debe dominar el 60 % central de su duración y entrar a ±150 ms. La latencia fija del micrófono se corrige con la primera nota tocada (−250…+500 ms; el ruido previo a la cuenta se ignora). En notas repetidas se exige el corte de aire («tu-tu»).
+- **Sin modelo** se evalúa solo el sonido. Con modelo activo se suman la verificación «suena a flauta» y la digitación (25 %), solo en notas cuya digitación el modelo puede juzgar; si no, «no evaluable».
+- Agregar una canción: sumar una entrada a `FLUTE_SONGS` (notas en tiempos de negra) y su imagen en `frontend/public/flute-songs/`.
+
 ## Límites
 
 - Las articulaciones son estimaciones: dedos ocultos por la flauta pueden quedar inciertos. Ver un dedo cerca de un hueco no prueba que el hueco esté sellado.
@@ -61,5 +71,5 @@ cd frontend
 npm run typecheck
 npx vitest run src/test/flute- src/test/admin-dataset-capture-ui.test.tsx
 cd ../backend
-.venv/bin/python -m pytest tests/test_flute_training_service.py tests/test_dataset_sample_model.py -q
+.venv/bin/python -m pytest tests/test_flute_training_service.py tests/test_flute_song_service.py tests/test_dataset_sample_model.py -q
 ```

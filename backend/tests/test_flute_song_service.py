@@ -199,6 +199,24 @@ def test_constant_microphone_latency_is_compensated():
     assert all(abs(n["onset_ms"]) <= 1 for n in res["notes"])
 
 
+def test_voiced_noise_before_the_count_in_ends_does_not_shift_latency():
+    """The frontend sends pre-roll down to t=-1.0 s; breath/room noise there is not the first note."""
+    track = performance(shift=0.0)
+    for frame in track:
+        if -0.9 <= frame["t"] < -0.77:  # ~5 voiced frames of noise during the count-in
+            frame.update(hz=523.25, clarity=0.9, rms=0.3)
+    assert sum(1 for f in track if f["t"] < 0 and f["hz"]) >= 3
+    res = score(track)
+    assert res["latency_offset_ms"] == pytest.approx(0, abs=1)
+    assert res["notes_correct"] == 30 and res["approved"] is True
+
+
+def test_an_early_first_note_within_the_window_still_counts():
+    res = score(performance(shift=-0.2))
+    assert res["latency_offset_ms"] == pytest.approx(-200, abs=1)
+    assert res["notes_correct"] == 30
+
+
 def test_latency_is_clamped():
     res = score(performance(shift=0.7))
     assert res["latency_offset_ms"] == 500
