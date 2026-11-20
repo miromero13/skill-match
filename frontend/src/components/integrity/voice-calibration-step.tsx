@@ -82,19 +82,27 @@ export function VoiceCalibrationStep({
   const sampler = useRef<FrameSampler | null>(null)
   const latest = useRef({ recorder, readMouth, captureFrame, submit, onCalibrated })
 
+  const session = useRef(0)
+
   useEffect(() => {
     latest.current = { recorder, readMouth, captureFrame, submit, onCalibrated }
   })
   useEffect(() => {
     mounted.current = true
     return () => {
+      // Unmount (also the simulated one of StrictMode): the running capture is abandoned for good. Without bumping
+      // `session` the old run would resume on the remount with its frame sampler already disposed, and send one frame.
       mounted.current = false
+      session.current++
+      if (running.current) latest.current.recorder.stop()
       sampler.current?.dispose()
+      sampler.current = null
+      running.current = false
     }
   }, [])
 
-  async function countdown(total: number, name: "silence" | "reading" | "pause") {
-    for (let left = total; left > 0 && mounted.current; left -= tickMs) {
+  async function countdown(total: number, name: "silence" | "reading" | "pause", stale: () => boolean) {
+    for (let left = total; left > 0 && !stale(); left -= tickMs) {
       setPhase(
         name === "silence"
           ? { name: "silence", remainingMs: left }
@@ -109,20 +117,23 @@ export function VoiceCalibrationStep({
   async function run() {
     if (running.current) return
     running.current = true
+    const mine = ++session.current
+    const stale = () => !mounted.current || session.current !== mine
+    const own = createFrameSampler(() => latest.current.captureFrame(), frameIntervalMs)
     let recording = false
     try {
       latest.current.recorder.start()
       recording = true
-      sampler.current = createFrameSampler(() => latest.current.captureFrame(), frameIntervalMs)
-      sampler.current.start()
-      await countdown(ambientMs, "silence")
-      await countdown(phraseMs, "reading")
-      if (pauseMs > 0) await countdown(pauseMs, "pause")
-      if (!mounted.current) return // the finally block stops the recorder and the frame timer
+      sampler.current = own
+      own.start()
+      await countdown(ambientMs, "silence", stale)
+      await countdown(phraseMs, "reading", stale)
+      if (pauseMs > 0) await countdown(pauseMs, "pause", stale)
+      if (stale()) return // the finally block stops the frame timer
       recording = false
       const captured = latest.current.recorder.stop()
-      const frames = sampler.current.stop()
-      if (!mounted.current) return
+      const frames = own.stop()
+      if (stale()) return
       if (!captured || captured.samples.length === 0) {
         setPhase({ name: "error", message: CAPTURE_ERROR })
         return
@@ -136,16 +147,18 @@ export function VoiceCalibrationStep({
           ambientMs,
         ),
       )
-      if (!mounted.current) return
+      if (stale()) return
       setPhase({ name: "done", message: outcome.message })
       latest.current.onCalibrated?.(outcome.message)
     } catch (cause) {
-      if (mounted.current) setPhase({ name: "error", message: failure(cause) })
+      if (!stale()) setPhase({ name: "error", message: failure(cause) })
     } finally {
-      if (recording) latest.current.recorder.stop() // leaving midway never leaves the microphone buffer filling up
-      sampler.current?.dispose()
-      sampler.current = null
-      running.current = false
+      // A stale run never touches the recorder or the flags: the unmount cleanup already released them and a newer
+      // run may own them now.
+      if (recording && !stale()) latest.current.recorder.stop() // leaving midway never leaves the microphone filling up
+      own.dispose()
+      if (sampler.current === own) sampler.current = null
+      if (session.current === mine) running.current = false
     }
   }
 
@@ -170,7 +183,7 @@ export function VoiceCalibrationStep({
 
   return (
     <Card className={className} data-testid="voice-calibration">
-      <CardContent className="space-y-4 p-5">
+      <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Mic className="size-5 text-emerald-600 dark:text-emerald-400" />
@@ -180,22 +193,35 @@ export function VoiceCalibrationStep({
             {phase.name === "done" ? "Calibrada" : "Pendiente"}
           </Badge>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Para confirmar que la voz de la prueba es la tuya, primero quedate unos segundos en silencio y después leé en
-          voz alta la frase que aparece, mirando a la cámara. Tiene que hablar solo vos, sin música ni audio reproducido.
-        </p>
+        {(phase.name === "idle" || phase.name === "error") && (
+          <p className="text-sm text-muted-foreground">
+            Primero guardá silencio, luego leé la frase en pantalla y terminá en silencio.
+          </p>
+        )}
+
+        {phase.name === "silence" && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-center text-sm font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+            🤫 Silencio total por unos segundos. No hables todavía.
+          </div>
+        )}
 
         {phase.name === "reading" && (
           <p
             data-testid="voice-phrase"
-            className="rounded-lg border bg-muted/40 p-4 text-center text-lg font-medium leading-snug"
+            className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3.5 text-center text-base font-semibold leading-snug"
           >
             {phrase}
           </p>
         )}
 
+        {phase.name === "pause" && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-center text-sm font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+            🤫 Ya terminaste. No hables ni muevas los labios.
+          </div>
+        )}
+
         <Progress value={progress} aria-label="Avance de la calibración de voz" />
-        <p aria-live="polite" data-testid="voice-calibration-status" className="min-h-5 text-sm">
+        <p aria-live="polite" data-testid="voice-calibration-status" className="min-h-5 text-sm font-medium">
           {phase.name === "silence"
             ? `Quedate en silencio: ${seconds(phase.remainingMs)} s`
             : phase.name === "reading"
@@ -221,15 +247,17 @@ export function VoiceCalibrationStep({
           </Alert>
         )}
 
-        <Button onClick={() => void run()} disabled={disabled || busy} variant={phase.name === "done" ? "outline" : "default"}>
-          {busy
-            ? "Calibrando…"
-            : phase.name === "done"
-              ? "Calibrar de nuevo"
-              : phase.name === "error"
-                ? "Reintentar"
-                : "Empezar calibración de voz"}
-        </Button>
+        {(!autoStart || phase.name === "error" || phase.name === "done") && (
+          <Button onClick={() => void run()} disabled={disabled || busy} variant={phase.name === "done" ? "outline" : "default"} className="w-full sm:w-auto">
+            {busy
+              ? "Calibrando…"
+              : phase.name === "done"
+                ? "Calibrar de nuevo"
+                : phase.name === "error"
+                  ? "Reintentar"
+                  : "Empezar calibración de voz"}
+          </Button>
+        )}
       </CardContent>
     </Card>
   )

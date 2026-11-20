@@ -72,7 +72,7 @@ export function HeadTurnStep({ requestChallenge, captureFrame, onCaptured, disab
     : phase === "RETURN" ? "Volvé al centro y quedate quieto." : ""
   return (
     <Card className={className} data-testid="head-turn">
-      <CardContent className="space-y-4 p-5">
+      <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             {phase === "TURN" && side ? <Arrow className="size-6 text-primary" aria-hidden="true" /> : <Camera className="size-5 text-primary" aria-hidden="true" />}
@@ -80,16 +80,24 @@ export function HeadTurnStep({ requestChallenge, captureFrame, onCaptured, disab
           </div>
           <Badge variant={done ? "default" : "outline"} className={done ? "bg-emerald-600" : ""}>{done ? "Capturado" : "Pendiente"}</Badge>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Mirá al centro, girá la cabeza hacia el lado que se indique y volvé al centro. La vista previa funciona como un espejo; son unos 12 segundos.
-        </p>
+        {!phase && !done && (
+          <p className="text-sm text-muted-foreground">
+            Mirá al frente, girá la cabeza al lado indicado y volvé al centro (~12 s).
+          </p>
+        )}
+        {phase === "TURN" && side && (
+          <div className="flex items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-base font-semibold text-primary">
+            <Arrow className="size-6 shrink-0" aria-hidden="true" />
+            <span>Girá hacia tu {side}</span>
+          </div>
+        )}
         <Progress value={phase ? (PHASE_NUMBER[phase] / 3) * 100 : done ? 100 : 0} aria-label="Avance del giro de cabeza" />
         <p aria-live="polite" data-testid="head-turn-status" className="min-h-5 text-sm font-medium">
-          {phase ? `Paso ${PHASE_NUMBER[phase]} de 3 · ${instruction}` : busy ? "Preparando el movimiento…" : "Listo para empezar cuando quieras."}
+          {phase ? `Paso ${PHASE_NUMBER[phase]} de 3 · ${instruction}` : busy ? "Preparando el movimiento…" : "Presioná el botón cuando estés listo."}
         </p>
         {done && <Alert><CheckCircle2 /><AlertDescription>Movimiento capturado.</AlertDescription></Alert>}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-        <Button onClick={() => void run()} disabled={disabled || busy} variant={done ? "outline" : "default"}>
+        <Button onClick={() => void run()} disabled={disabled || busy} variant={done ? "outline" : "default"} className="w-full sm:w-auto">
           {busy ? "Capturando…" : error ? "Reintentar" : "Empezar giro de cabeza"}
         </Button>
       </CardContent>

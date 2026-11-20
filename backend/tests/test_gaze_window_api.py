@@ -132,8 +132,8 @@ async def test_a_run_across_two_windows_is_recorded_in_the_second_one(scenario, 
     first = await post(client, trial, eight(tab, start))
     assert first.status_code == 200 and first.json()["data"]["anomalies"] == []
     second = await post(client, trial, eight(tab, start + timedelta(milliseconds=2400)))
-    assert second.json()["data"]["anomalies"] == ["GAZE_AWAY"]
-    assert await kinds(client, trial) == ["GAZE_AWAY"]
+    assert second.json()["data"]["anomalies"] == ["GAZE_AWAY_DOWN"]
+    assert await kinds(client, trial) == ["GAZE_AWAY_DOWN"]
 
 
 @pytest.mark.asyncio

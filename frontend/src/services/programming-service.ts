@@ -9,6 +9,14 @@ export async function listChallenges(skillId?: string): Promise<Challenge[]> {
   return response.data || []
 }
 
+export async function previewChallenge(payload: ChallengePayload, code: string): Promise<ChallengeRunResult> {
+  const response = await apiClient.post<ChallengeRunResult>("/admin/challenges/test", { ...payload, code }, {
+    showToastOnError: true,
+    showToastOnSuccess: false,
+  })
+  return response.data
+}
+
 export async function createChallenge(payload: ChallengePayload): Promise<Challenge> {
   const response = await apiClient.post<Challenge>("/admin/challenges", payload, {
     showToastOnError: true,

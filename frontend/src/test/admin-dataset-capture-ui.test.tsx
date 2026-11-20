@@ -8,7 +8,11 @@ import { useAuthStore } from "@/stores/auth-store"
 import { useDatasetCaptureStore } from "@/stores/dataset-capture-store"
 
 vi.mock("@/services/dataset-sample-service", () => ({
-  calculateFileSha256: vi.fn().mockResolvedValue("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"),
+  calculateFileSha256: vi
+    .fn()
+    .mockResolvedValue(
+      "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    ),
   getDatasetSamples: vi.fn().mockResolvedValue({
     statuscode: 200,
     message: "OK",
@@ -21,7 +25,8 @@ vi.mock("@/services/dataset-sample-service", () => ({
         signed_consent: true,
         file_format: "mp4",
         file_size_bytes: 5242880,
-        file_hash_sha256: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        file_hash_sha256:
+          "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         storage_path: "datasets/futbol/sample-1.mp4",
         created_at: "2026-11-15T12:00:00Z",
         updated_at: "2026-11-15T12:00:00Z",
@@ -39,11 +44,53 @@ vi.mock("@/services/dataset-sample-service", () => ({
     message: "Muestra eliminada exitosamente.",
     data: null,
   }),
+
+  getDatasetSampleContent: vi.fn().mockResolvedValue({
+    statuscode: 200,
+    message: "OK",
+    data: {
+      id: "sample-1",
+      file_format: "mp4",
+      mime_type: "video/mp4",
+      data_url: "data:video/mp4;base64,AAAA",
+      text_preview: null,
+    },
+  }),
+
+  getFluteDatasetPreview: vi.fn().mockResolvedValue({
+    statuscode: 200,
+    message: "OK",
+    data: {
+      samples: [],
+      total_count: 0,
+      notes_count: { DO: 0, RE: 0, MI: 0, FA: 0, SOL: 0, LA: 0, SI: 0 },
+      variations_count: {
+        sostenida: 0,
+        rapida: 0,
+        angulo_suave: 0,
+        transicion: 0,
+      },
+      notes_covered: 0,
+      total_notes_required: 7,
+    },
+  }),
+
+  listFluteModels: vi.fn().mockResolvedValue({
+    statuscode: 200,
+    message: "OK",
+    data: [],
+    count: 0,
+  }),
+
+  trainFluteModel: vi.fn(),
+  activateFluteModel: vi.fn(),
+
   getDatasetSamplePreviewUrl: vi.fn().mockResolvedValue({
     statuscode: 200,
     message: "URL de vista previa generada exitosamente.",
     data: {
-      preview_url: "https://s3.example.com/skillmatch-football/sample-1.mp4?signature=abc",
+      preview_url:
+        "https://s3.example.com/skillmatch-football/sample-1.mp4?signature=abc",
       file_format: "mp4",
     },
   }),
@@ -229,7 +276,7 @@ describe("AdminDatasetCapturePage", () => {
         discipline: payload.discipline,
         participant_id: payload.participant_id,
       })
-      return { statuscode: 201, message: "Muestra subida.", data: null }
+      return { statuscode: 201, message: "Muestra subida.", data: null as any }
     })
     vi.mocked(getDatasetSamples).mockImplementation(async () => ({
       statuscode: 200,
@@ -310,7 +357,7 @@ describe("AdminDatasetCapturePage", () => {
     vi.mocked(uploadDatasetSample).mockResolvedValue({
       statuscode: 201,
       message: "Muestra multimedia subida y procesada exitosamente.",
-      data: null,
+      data: null as any,
     })
   })
 
@@ -377,6 +424,25 @@ describe("AdminDatasetCapturePage", () => {
       "src",
       "https://s3.example.com/skillmatch-football/sample-1.mp4?signature=abc"
     )
+  })
+
+  it("switches to Flute Guided Capture when Música category is selected", async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AdminDatasetCapturePage />
+      </MemoryRouter>
+    )
+
+    const musicBtn = screen.getByRole("button", { name: /Música/i })
+    await user.click(musicBtn)
+
+    expect(
+      screen.getByText(/Capturador de Notas y Posición de Manos/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /Grabar Toma Guiada: SI \(4s\)/i })
+    ).toBeInTheDocument()
   })
 })
 

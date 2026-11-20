@@ -179,15 +179,19 @@ export const useDatasetCaptureStore = create<DatasetCaptureState>((set, get) => 
 
     try {
       const hash = state.recordedFileHash || (await calculateFileSha256(blobToUpload))
+      const normalizedDiscipline =
+        state.discipline === "fútbol" || state.discipline === "deporte"
+          ? "futbol"
+          : state.discipline
       const response = await uploadDatasetSample({
         file: blobToUpload,
         fileName,
-        discipline: state.discipline,
+        discipline: normalizedDiscipline,
         challenge: state.challenge,
         hardware_info: state.hardwareInfo,
         signed_consent: state.signedConsent,
         file_hash_sha256: hash,
-        ...(state.discipline === "futbol"
+        ...(normalizedDiscipline === "futbol"
           ? {
               participant_id: state.participantId.trim() || "anon-p01",
               level_label: state.levelLabel,
@@ -207,7 +211,7 @@ export const useDatasetCaptureStore = create<DatasetCaptureState>((set, get) => 
 
       // Limpiar grabación y refrescar lista
       state.resetRecording()
-      await state.fetchSamples(state.discipline)
+      await state.fetchSamples(normalizedDiscipline)
       return true
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error durante la subida"

@@ -108,7 +108,7 @@ describe("devices and fail-closed preparation", () => {
     }
     render(<Review />)
     fireEvent.click(screen.getByRole("button", { name: "Preparar cámara y micrófono" }))
-    await screen.findByTestId("gaze-calibration")
+    await screen.findByTestId("head-turn")
     fireEvent.click(screen.getByRole("button", { name: "Volver a Normas" }))
     expect(screen.getByText("Normas de integridad")).toBeInTheDocument()
     expect(stopTrack).toHaveBeenCalled()
@@ -119,34 +119,28 @@ describe("devices and fail-closed preparation", () => {
 
   it("releases granted devices when it unmounts mid-preparation and on unmount while a step is running", async () => {
     const view = await prepared()
-    await press("Empezar calibración")
+    await press("Empezar giro de cabeza")
     await tick(1500)
     view.unmount()
     expect(stopTrack).toHaveBeenCalled()
     expect(closeRecorder).toHaveBeenCalledOnce()
     expect(stopTracker).toHaveBeenCalledOnce()
     await tick(30_000)
-    expect(requestCalibrationChallenge).not.toHaveBeenCalled()
+    expect(verifyEvaluationCalibration).not.toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
   })
 })
 
 async function runGuidedFlow() {
-  await press("Empezar calibración")
-  await tick(9_500) // centre + four corners
-  expect(requestCalibrationChallenge).not.toHaveBeenCalled()
   await press("Empezar giro de cabeza")
   await tick(11_500)
   await tick(11_500) // the silence and phrase start by themselves: the challenge lives only 45 s
 }
 
 describe("guided flow on the engine contract", () => {
-  it("runs gaze, head turn, silence and phrase in order and sends one contract A request", async () => {
+  it("runs head turn, silence and phrase in order and sends one contract A request", async () => {
     await prepared()
-    expect(screen.getByTestId("gaze-calibration")).toBeInTheDocument()
-    expect(screen.queryByTestId("head-turn")).not.toBeInTheDocument()
-    await press("Empezar calibración")
-    await tick(9_500)
+    expect(screen.queryByTestId("gaze-calibration")).not.toBeInTheDocument()
     expect(screen.getByTestId("head-turn")).toBeInTheDocument()
     expect(requestCalibrationChallenge).not.toHaveBeenCalled() // the challenge is only issued for the head turn
     await press("Empezar giro de cabeza")
@@ -163,8 +157,7 @@ describe("guided flow on the engine contract", () => {
     ])
     expect(evidence.challenge_id).toBe("challenge-1")
     expect(evidence.frames).toHaveLength(12)
-    expect(evidence.gaze_points.map((point) => point.target)).toEqual(["CENTER", "TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT"])
-    expect(evidence.gaze_points.every((point) => point.frames.length >= 1 && point.frames.length <= 6)).toBe(true)
+    expect(evidence.gaze_points).toEqual([])
     expect(evidence.ambient_audio_samples).toHaveLength(48_000)
     expect(evidence.audio_samples.length).toBeGreaterThanOrEqual(112_000)
     expect(evidence.audio_samples.length).toBeLessThanOrEqual(160_000)
@@ -179,8 +172,6 @@ describe("guided flow on the engine contract", () => {
     vi.mocked(requestCalibrationChallenge).mockResolvedValue({ id: "challenge-1", action, expires_at: "2026-11-18T00:00:05Z" })
     const view = await prepared()
     expect(view.container.querySelector("video")).toHaveClass("-scale-x-100")
-    await press("Empezar calibración")
-    await tick(9_500)
     await press("Empezar giro de cabeza")
     await tick(4_500)
     expect(screen.getByTestId("head-turn-status")).toHaveTextContent(`Girá hacia tu ${side}.`)
@@ -233,7 +224,7 @@ describe("failures", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(message)
     expect(screen.getByRole("button", { name: "Comenzar primera prueba" })).toBeDisabled()
     await press("Repetir calibración")
-    expect(screen.getByTestId("gaze-calibration")).toBeInTheDocument()
+    expect(screen.getByTestId("head-turn")).toBeInTheDocument()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
@@ -247,11 +238,10 @@ describe("failures", () => {
 })
 
 describe("shared integrity units (S9)", () => {
-  it("uses the same gaze and voice steps as the trial page", async () => {
+  it("uses the same voice step as the trial page", async () => {
     const panel = (await import("@/components/evaluations/calibration-panel.tsx?raw")).default
     const trial = (await import("@/components/integrity/calibration-gate.tsx?raw")).default // the trial page's gate
     for (const source of [panel, trial]) {
-      expect(source).toContain('from "@/components/integrity/gaze-calibration-step"')
       expect(source).toContain('from "@/components/integrity/voice-calibration-step"')
     }
     expect(panel).toContain('from "@/services/av-capture"')
@@ -259,29 +249,22 @@ describe("shared integrity units (S9)", () => {
 })
 
 describe("challenge expiry (the server issues it for 45 s)", () => {
-  async function throughGaze() {
-    await prepared()
-    await press("Empezar calibración")
-    await tick(9_500)
-  }
-
   it("starts the silence and phrase by itself as soon as the head turn is captured", async () => {
-    await throughGaze()
+    await prepared()
     await press("Empezar giro de cabeza")
     await tick(11_500)
     expect(screen.getByTestId("voice-calibration-status")).toHaveTextContent(/silencio/i)
     expect(screen.queryByRole("button", { name: "Empezar calibración de voz" })).not.toBeInTheDocument()
   })
 
-  it("restarts from a new challenge, keeping the gaze, when too little time is left for the voice step", async () => {
-    await throughGaze()
+  it("restarts from a new challenge when too little time is left for the voice step", async () => {
+    await prepared()
     await press("Empezar giro de cabeza")
     await tick(4_000)
     vi.setSystemTime(Date.now() + 35_000) // the capture stalled: ~35 s of the 45 s are gone
     await tick(7_500)
     expect(screen.getByRole("alert")).toHaveTextContent(/El reto del giro de cabeza venció/)
     expect(screen.getByTestId("head-turn")).toBeInTheDocument()
-    expect(screen.queryByTestId("gaze-calibration")).not.toBeInTheDocument() // the completed gaze step is kept
     expect(screen.queryByTestId("voice-calibration")).not.toBeInTheDocument()
     expect(verifyEvaluationCalibration).not.toHaveBeenCalled()
 
@@ -293,19 +276,18 @@ describe("challenge expiry (the server issues it for 45 s)", () => {
     expect(verifyEvaluationCalibration).toHaveBeenCalledTimes(1)
     const evidence = vi.mocked(verifyEvaluationCalibration).mock.calls[0][1]
     expect(evidence.challenge_id).toBe("challenge-2")
-    expect(evidence.gaze_points).toHaveLength(5)
+    expect(evidence.gaze_points).toEqual([])
   })
 
-  it("shows the server's 410 message verbatim and restarts from the challenge without losing the gaze", async () => {
+  it("shows the server's 410 message verbatim and restarts from the challenge", async () => {
     const expired = "El reto venció. Solicitá uno nuevo; tu intento no se descontó."
     vi.mocked(verifyEvaluationCalibration).mockRejectedValueOnce(new ApiError(expired, 410))
-    await throughGaze()
+    await prepared()
     await press("Empezar giro de cabeza")
     await tick(11_500)
     await tick(11_500)
     expect(screen.getByRole("alert")).toHaveTextContent(expired)
     expect(screen.getByTestId("head-turn")).toBeInTheDocument()
-    expect(screen.queryByTestId("gaze-calibration")).not.toBeInTheDocument()
     expect(screen.queryByTestId("voice-calibration")).not.toBeInTheDocument()
   })
 })

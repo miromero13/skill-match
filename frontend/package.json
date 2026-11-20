@@ -4,6 +4,10 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "prepare:hand-assets": "node scripts/prepare-hand-assets.mjs",
+    "prepare-vision": "node scripts/install-vision-assets.mjs",
+    "predev": "npm run prepare:hand-assets && node scripts/install-vision-assets.mjs --soft",
+    "prebuild": "npm run prepare:hand-assets && node scripts/install-vision-assets.mjs --soft",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
@@ -15,10 +19,7 @@
     "cap:android": "cap open android",
     "cap:ios": "cap open ios",
     "build:mobile": "npm run build && cap sync",
-    "postinstall": "node scripts/install-vision-assets.mjs --wasm-only",
-    "prepare-vision": "node scripts/install-vision-assets.mjs",
-    "predev": "node scripts/install-vision-assets.mjs --soft",
-    "prebuild": "node scripts/install-vision-assets.mjs --soft"
+    "postinstall": "node scripts/install-vision-assets.mjs --wasm-only"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "8.0.1",

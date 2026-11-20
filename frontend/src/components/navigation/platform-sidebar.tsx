@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom"
 import { useAuthStore } from "@/stores/auth-store"
 import {
+  Home,
   User,
   Compass,
   ArrowLeftRight,
@@ -13,6 +14,7 @@ import {
   AlertTriangle,
   ShieldCheck,
   Shield,
+  QrCode,
 } from "lucide-react"
 
 export function PlatformSidebar() {
@@ -29,16 +31,22 @@ export function PlatformSidebar() {
     value?: string
   }> = [
     {
+      label: "Inicio",
+      icon: Home,
+      to: "/app",
+      active: path === "/app" || path === "/app/",
+    },
+    {
       label: "Mis Coincidencias",
       icon: Handshake,
       to: "/matches",
-      active: path === "/matches",
+      active: path === "/matches" || path === "/app/matches",
     },
     {
       label: "Mi Perfil y Horarios",
       icon: User,
       to: "/app/profile",
-      active: path === "/app/profile" || path === "/app",
+      active: path === "/app/profile",
     },
     {
       label: "Explorar Instructores",
@@ -88,6 +96,12 @@ export function PlatformSidebar() {
       icon: Award,
       to: "/app/certificates",
       active: path === "/app/certificates",
+    },
+    {
+      label: "Mi Pasaporte QR",
+      icon: QrCode,
+      to: "/app/passport",
+      active: path.startsWith("/app/passport") || path.startsWith("/passport"),
     },
     {
       label: "Reputación y Reseñas",

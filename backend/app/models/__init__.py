@@ -19,6 +19,7 @@ from app.football.models import (
 from app.models.browser_supervision import BrowserIncident, BrowserTrial
 from app.models.calibration import CalibrationChallenge
 from app.models.catalog import Category, ChallengeType, Rubric, Skill, SkillLevel
+from app.models.complaint import Complaint, ComplaintReason, ComplaintStatus
 from app.models.dataset_sample import DatasetSample
 from app.models.evaluation import Evaluation
 from app.models.exchange_session import (
@@ -47,7 +48,15 @@ from app.models.user_availability import UserAvailability
 from app.models.user_block import UserBlock
 from app.models.user_learning_skill import UrgencyLevel, UserLearningSkill
 from app.models.user_report import ReportReason, ReportStatus, UserReport
-from app.models.wallet import Wallet
+from app.models.wallet import (
+    CashoutRequest,
+    CashoutStatus,
+    PointTransaction,
+    PointTransactionType,
+    Wallet,
+)
+from app.models.wallet_transaction import WalletTransaction
+from app.models.session_review import SessionReview
 from app.models.web_push_subscription import WebPushSubscription
 
 
@@ -57,10 +66,15 @@ __all__ = [
     "BrowserIncident",
     "BrowserTrial",
     "CalibrationChallenge",
+    "CashoutRequest",
+    "CashoutStatus",
     "Category",
     "ChallengeSegment",
     "ChallengeSegmentType",
     "ChallengeType",
+    "Complaint",
+    "ComplaintReason",
+    "ComplaintStatus",
     "DatasetSample",
     "DetectedEvent",
     "DetectedEventStatus",
@@ -80,6 +94,8 @@ __all__ = [
     "NotificationCategory",
     "NotificationPreference",
     "NotificationType",
+    "PointTransaction",
+    "PointTransactionType",
     "Challenge",
     "ChallengeSubmission",
     "ChallengeTestCase",
@@ -94,6 +110,7 @@ __all__ = [
     "SessionReminderDispatch",
     "SessionReminderEmailDelivery",
     "SessionReminderWebPushDelivery",
+    "SessionReview",
     "Skill",
     "SkillEvidence",
     "SkillLevel",
@@ -112,6 +129,7 @@ __all__ = [
     "ValidationSession",
     "ValidationSessionState",
     "Wallet",
+    "WalletTransaction",
     "WebPushSubscription",
     "WeeklySessionQuota",
 ]

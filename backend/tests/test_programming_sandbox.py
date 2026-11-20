@@ -6,6 +6,7 @@ from app.core.exceptions import SkillMatchException
 from app.models.programming import Challenge, ChallengeTestCase
 from app.services.programming_service import ChallengeService
 from app.services.programming_sandbox_runner import SandboxRunResult
+from app.schemas.programming import ChallengePreviewRequest
 
 
 def challenge() -> Challenge:
@@ -52,6 +53,29 @@ async def test_public_run_uses_only_public_tests(monkeypatch):
     assert result.status == "PASSED"
     assert result.passed_tests == 1
     assert result.total_tests == 1
+
+
+@pytest.mark.asyncio
+async def test_preview_runs_unsaved_public_and_hidden_cases(monkeypatch):
+    calls = []
+
+    async def fake_run(**kwargs):
+        calls.append(kwargs["stdin_data"])
+        return SandboxRunResult(stdout=kwargs["stdin_data"], stderr="", exit_code=0, timed_out=False, output_limited=False)
+
+    monkeypatch.setattr(ChallengeService.runner, "run", fake_run)
+    payload = ChallengePreviewRequest(
+        skill_id=uuid.uuid4(), level_number=1, title="Echo challenge",
+        statement="Print the provided input.", evaluation_modality="SANDBOX",
+        execution_profile="PYTHON_3_12", code="print(input())",
+        tests=[
+            {"name": "public", "stdin_data": "public\n", "expected_stdout": "public\n", "visibility": "PUBLIC", "order_index": 0},
+            {"name": "hidden", "stdin_data": "hidden\n", "expected_stdout": "hidden\n", "visibility": "HIDDEN", "order_index": 1},
+        ],
+    )
+    result = await ChallengeService.preview_challenge(payload)
+    assert result.status == "PASSED"
+    assert calls == ["public\n", "hidden\n"]
 
 
 def test_static_validation_rejects_syntax_and_dangerous_imports():
