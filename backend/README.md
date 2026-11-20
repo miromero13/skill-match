@@ -73,7 +73,8 @@ GOOGLE_CLIENT_ID="tu-google-client-id.apps.googleusercontent.com"
 THEORY_GRADING_PROVIDER="disabled" # disabled | openai | gemini
 THEORY_GRADING_MODEL=""            # Identificador explícito, sin modelo por defecto
 OPENAI_API_KEY=""                  # [SECRETO] Si provider=openai
-GEMINI_API_KEY=""                  # [SECRETO] Si provider=gemini
+GEMINI_API_KEY=""                  # [SECRETO] Si provider=gemini o para Asistente Virtual
+ASSISTANT_GEMINI_MODEL="gemini-3.1-flash-lite" # Modelo del Asistente Virtual (gemini-3.1-flash-lite, gemini-flash-latest)
 THEORY_GRADING_TIMEOUT_SECONDS=20
 THEORY_ASR_ENABLED=True # Enable the installed local Whisper runtime for theory exams
 # BROWSER_SUPERVISION_TRIAL_ENABLED=true  # Sin definir = activo solo en development/test, nunca en production (production lo fuerza apagado aunque sea true)

@@ -78,7 +78,11 @@ class Settings(BaseSettings):
     THEORY_GRADING_PROVIDER: str = Field(default="disabled", description="disabled | openai | gemini")
     THEORY_GRADING_MODEL: str = Field(default="", description="Explicit provider model identifier; no implicit default")
     OPENAI_API_KEY: Optional[SecretStr] = Field(default=None, description="OpenAI API key for theory grading")
-    GEMINI_API_KEY: Optional[SecretStr] = Field(default=None, description="Gemini API key for theory grading")
+    GEMINI_API_KEY: Optional[SecretStr] = Field(default=None, description="Gemini API key for theory grading and assistant")
+    ASSISTANT_GEMINI_MODEL: str = Field(
+        default="gemini-3.1-flash-lite",
+        description="Modelo de Gemini para el Asistente Virtual (ej. gemini-3.1-flash-lite, gemini-flash-latest)",
+    )
     THEORY_GRADING_TIMEOUT_SECONDS: int = Field(default=20, ge=1, le=60)
     THEORY_ASR_ENABLED: bool = Field(default=True, description="Enable the installed local ASR runtime for theory exams")
 
