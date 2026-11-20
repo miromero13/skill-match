@@ -38,10 +38,11 @@ def _init_firebase() -> bool:
 
     path = Path(creds_path)
     if not path.is_absolute():
-        # Check backend relative path
+        backend_dir = Path(__file__).resolve().parent.parent.parent
         candidates = [
-            Path("/home/chavezin/Desktop/skill-match/backend") / creds_path,
+            backend_dir / creds_path,
             Path.cwd() / creds_path,
+            Path.cwd() / "backend" / creds_path,
         ]
         found = False
         for c in candidates:
