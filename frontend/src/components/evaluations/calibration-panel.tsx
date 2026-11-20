@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import { ArrowLeft, ArrowRight, Camera, CheckCircle2 } from "lucide-react"
 import { CalibrationChecks } from "@/components/evaluations/calibration-checks"
 import { HeadTurnStep, type HeadTurnResult } from "@/components/evaluations/head-turn-step"
@@ -9,7 +12,9 @@ import { VoiceCalibrationStep } from "@/components/integrity/voice-calibration-s
 import { createMicrophoneRecorder, type MicrophoneRecorder } from "@/services/av-capture"
 import type { VoiceCalibrationRequest } from "@/services/browser-supervision"
 import { buildCalibrationEvidence } from "@/services/calibration-capture"
-import { requestCalibrationChallenge, verifyEvaluationCalibration, type CalibrationState } from "@/services/evaluation-service"
+import {
+  requestCalibrationChallenge, skipEvaluationCalibration, verifyEvaluationCalibration, type CalibrationState,
+} from "@/services/evaluation-service"
 import { startFaceTracker, type FaceTracker } from "@/services/gaze-tracking"
 import { ApiError } from "@/types/api"
 
@@ -28,7 +33,29 @@ const MIN_HEIGHT = 240
 
 interface Devices { recorder: MicrophoneRecorder; tracker: FaceTracker }
 
-export function CalibrationPanel({ evaluationId, targetLevel, onBack }: { evaluationId: string; targetLevel?: number; onBack?: () => void }) {
+/** Field testing only (rendered when the backend flag allows it): skips the live calibration and goes to the exam. */
+function SkipCalibrationButton({ evaluationId, to, onSkip }: { evaluationId: string; to: string; onSkip: () => void }) {
+  const navigate = useNavigate()
+  const [skipping, setSkipping] = useState(false)
+  async function skip() {
+    setSkipping(true)
+    onSkip()
+    try {
+      const state = await skipEvaluationCalibration(evaluationId)
+      if (state.ready) navigate(to)
+      else setSkipping(false)
+    } catch {
+      setSkipping(false)
+    }
+  }
+  return <Button className="h-11 sm:ml-auto sm:px-6" disabled={skipping} onClick={() => void skip()}>
+    Continuar sin calibración<ArrowRight aria-hidden="true" />
+  </Button>
+}
+
+export function CalibrationPanel({ evaluationId, targetLevel, onBack, skipAllowed = false }: {
+  evaluationId: string; targetLevel?: number; onBack?: () => void; skipAllowed?: boolean
+}) {
   const video = useRef<HTMLVideoElement>(null)
   const canvas = useRef<HTMLCanvasElement | null>(null)
   const stream = useRef<MediaStream | null>(null)
@@ -47,6 +74,7 @@ export function CalibrationPanel({ evaluationId, targetLevel, onBack }: { evalua
   const [movement, setMovement] = useState<HeadTurnResult | null>(null)
   const [voice, setVoice] = useState<VoiceCalibrationRequest | null>(null)
   const [result, setResult] = useState<CalibrationState | null>(null)
+  const [skipChecked, setSkipChecked] = useState(false)
 
   const release = useCallback(() => {
     stream.current?.getTracks().forEach(track => track.stop())
@@ -189,6 +217,8 @@ export function CalibrationPanel({ evaluationId, targetLevel, onBack }: { evalua
   const passed = !!result?.ready && Object.values(result.checks).every(Boolean)
   const stepIndex = !movement ? 0 : !voice ? 1 : 2
   const stepsDisabled = !devices || !videoReady
+  const theoryUrl = `/evaluation/${evaluationId}/theory${targetLevel ? `?level=${targetLevel}` : ""}`
+  const showSkip = skipAllowed && !passed
 
   return <section aria-label="Comprobación del ambiente" className="space-y-4">
     <Card className="rounded-xl border py-0 shadow-none ring-0">
@@ -284,11 +314,21 @@ export function CalibrationPanel({ evaluationId, targetLevel, onBack }: { evalua
       </CardContent>
     </Card>
 
+    {showSkip && <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <Checkbox id="calibration-skip" checked={skipChecked} onCheckedChange={value => setSkipChecked(value === true)} />
+        <Label htmlFor="calibration-skip">Saltar calibración (modo pruebas)</Label>
+      </div>
+      <p className="text-xs text-muted-foreground">Solo para pruebas en ambientes con ruido.</p>
+    </div>}
+
     <div className="flex flex-col-reverse justify-between gap-3 sm:flex-row">
       {onBack && <Button variant="outline" className="h-11" onClick={onBack}><ArrowLeft aria-hidden="true" />Volver a Normas</Button>}
       {passed
-        ? <Button asChild className="h-11 sm:ml-auto sm:px-6"><a href={`/evaluation/${evaluationId}/theory${targetLevel ? `?level=${targetLevel}` : ""}`}>Continuar al examen oral<ArrowRight aria-hidden="true" /></a></Button>
-        : <Button disabled className="h-11 sm:ml-auto sm:px-6" title="Completá primero la calibración">Comenzar primera prueba<ArrowRight aria-hidden="true" /></Button>}
+        ? <Button asChild className="h-11 sm:ml-auto sm:px-6"><a href={theoryUrl}>Continuar al examen oral<ArrowRight aria-hidden="true" /></a></Button>
+        : showSkip && skipChecked
+          ? <SkipCalibrationButton evaluationId={evaluationId} to={theoryUrl} onSkip={closeDevices} />
+          : <Button disabled className="h-11 sm:ml-auto sm:px-6" title="Completá primero la calibración">Comenzar primera prueba<ArrowRight aria-hidden="true" /></Button>}
     </div>
   </section>
 }

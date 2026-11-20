@@ -6,6 +6,7 @@ from typing import Any, Optional
 from sqlalchemy import select, update
 from starlette.concurrency import run_in_threadpool
 
+from app.core.config import settings
 from app.core.exceptions import SkillMatchException
 from app.models.calibration import CalibrationChallenge
 from app.models.evaluation import Evaluation
@@ -80,11 +81,24 @@ class EvaluationCalibrationService:
             bool(value) for value in (latest.gaze_zone, latest.voiceprint, latest.occlusion_ref))
         ready = (evaluation.status == "READY_FOR_THEORY" and complete
                  and set(checks) == cls.REQUIRED_CHECKS and all(value is True for value in checks.values()))
+        # Field-testing skip: only while the flag is on; it never produces a seed (valid_seed ignores it).
+        skipped = (not ready and settings.EVALUATION_CALIBRATION_SKIP_ENABLED
+                   and evaluation.status == "READY_FOR_THEORY")
+        ready = ready or skipped
         return CalibrationStateResponse(
-            evaluation_id=evaluation.id, ready=ready,
+            evaluation_id=evaluation.id, ready=ready, skipped=skipped,
             status="READY_FOR_THEORY" if ready else "PENDING_CALIBRATION",
-            started_at=evaluation.started_at, checks=checks,
+            started_at=evaluation.started_at, checks={} if skipped else checks,
         )
+
+    @classmethod
+    async def skip(cls, db, user, evaluation_id):
+        if not settings.EVALUATION_CALIBRATION_SKIP_ENABLED:
+            raise SkillMatchException(statuscode=404, message="Recurso no encontrado")
+        evaluation = await cls.owned(db, user, evaluation_id, lock=True)
+        evaluation.status = "READY_FOR_THEORY"
+        await db.commit()
+        return await cls.state(db, user, evaluation_id)
 
     @classmethod
     async def verify(cls, db, user, evaluation_id, payload):

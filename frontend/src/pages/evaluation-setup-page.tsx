@@ -69,7 +69,7 @@ export function EvaluationSetupPage() {
           <p className="sr-only">Paso {currentStep} de 3</p>
           {currentStep === 3 && consent ? <>
             <p className="sr-only">Consentimiento registrado</p>
-            <CalibrationPanel key={consent.id} evaluationId={consent.id} targetLevel={preflight.target_level_number} onBack={() => { setStep(2); setReviewing(true) }} />
+            <CalibrationPanel key={consent.id} evaluationId={consent.id} targetLevel={preflight.target_level_number} skipAllowed={preflight.calibration_skip_allowed === true} onBack={() => { setStep(2); setReviewing(true) }} />
             <p className="text-xs text-muted-foreground">El intento todavía no comenzó ni se descontó.</p>
           </> : step === 1 ? <>
             <Card className="rounded-xl border bg-muted/20 py-0 shadow-none ring-0">

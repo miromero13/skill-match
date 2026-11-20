@@ -4,6 +4,7 @@ from math import ceil
 
 from sqlalchemy import and_, distinct, func, select
 
+from app.core.config import settings
 from app.core.exceptions import SkillMatchException
 from app.models.catalog import Category, ChallengeType, Skill
 from app.models.evaluation import Evaluation
@@ -132,6 +133,7 @@ class EvaluationPreflightService:
             free_evaluations_left=remaining, attempts_used=0,
             policy_version=POLICY_VERSION,
             pending_evaluation_id=pending.id if pending else None,
+            calibration_skip_allowed=settings.EVALUATION_CALIBRATION_SKIP_ENABLED,
         )
 
     @classmethod
