@@ -117,6 +117,9 @@ PAYPAL_CLIENT_SECRET=""
 WALLET_POINTS_PER_USD=10
 WALLET_CASHOUT_MIN_POINTS=100
 WALLET_PLATFORM_FEE_PERCENTAGE=15.0
+
+# --- Notificaciones Push Nativas (Firebase Cloud Messaging - FCM) ---
+FIREBASE_CREDENTIALS_PATH="firebase-credentials.json"
 ```
 
 ---

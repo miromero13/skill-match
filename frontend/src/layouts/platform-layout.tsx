@@ -1,14 +1,23 @@
-import { Outlet, useLocation } from "react-router-dom"
+import * as React from "react"
+import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import { PlatformHeader } from "@/components/navigation/platform-header"
 import { PlatformSidebar } from "@/components/navigation/platform-sidebar"
 import { MobileBottomBar } from "@/components/navigation/mobile-bottom-bar"
+import { initializeNativePushNotifications } from "@/services/native-push-service"
 
 export function PlatformLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const isFeed =
     location.pathname === "/app" ||
     location.pathname === "/app/"
   const isProfile = location.pathname.startsWith("/app/profile")
+
+  React.useEffect(() => {
+    void initializeNativePushNotifications(() => {
+      navigate("/app/notifications")
+    })
+  }, [navigate])
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground overflow-hidden">

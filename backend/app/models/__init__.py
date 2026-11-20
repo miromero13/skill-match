@@ -58,6 +58,7 @@ from app.models.wallet import (
 from app.models.wallet_transaction import WalletTransaction
 from app.models.session_review import SessionReview
 from app.models.web_push_subscription import WebPushSubscription
+from app.models.device_push_token import DevicePushToken
 
 
 __all__ = [
@@ -73,6 +74,7 @@ __all__ = [
     "ChallengeSegmentType",
     "ChallengeType",
     "Complaint",
+    "DevicePushToken",
     "ComplaintReason",
     "ComplaintStatus",
     "DatasetSample",

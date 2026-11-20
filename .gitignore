@@ -68,6 +68,9 @@ out/
 *.key
 *.cert
 *.crt
+*firebase-adminsdk*.json
+firebase-credentials.json
+backend/firebase-credentials.json
 
 # ------------------------------------------------------------------------------
 # Python & FastAPI

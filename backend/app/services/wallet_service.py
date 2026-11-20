@@ -31,6 +31,7 @@ from app.schemas.wallet import (
     WalletBalanceData,
 )
 from app.services.notification_service import NotificationService
+from app.services.fcm_service import FCMService
 
 # Catálogo canónico de paquetes de compra de SkillPoints
 PACKAGES_CATALOG: dict[str, PointPackageItem] = {
@@ -188,6 +189,22 @@ class WalletService:
 
         await db.commit()
         await db.refresh(wallet)
+
+        # Despacho de notificación push nativa a Firebase (FCM)
+        try:
+            await FCMService.send_push_to_user(
+                db,
+                user_id=user_id,
+                title="Recarga de SkillPoints Exitosa",
+                body=f"Se han acreditado +{total_to_add} SP en tu billetera ({pkg.name}). Saldo disponible: {wallet.balance} SP.",
+                data={
+                    "type": "wallet_topup",
+                    "transaction_id": str(tx_id),
+                    "amount": str(total_to_add),
+                },
+            )
+        except Exception as fcm_err:
+            logger.warning(f"No se pudo enviar push FCM tras recarga: {fcm_err}")
 
         return TopupResult(
             transaction_id=tx_id,
