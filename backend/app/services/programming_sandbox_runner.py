@@ -1,8 +1,7 @@
 import asyncio
+import base64
 import shutil
-import tempfile
 from dataclasses import dataclass
-from pathlib import Path
 
 from app.core.config import settings
 
@@ -36,64 +35,66 @@ class DockerSandboxRunner:
         if binary is None:
             raise SandboxUnavailableError("El sandbox de programación no está disponible en este servidor.")
 
-        with tempfile.TemporaryDirectory(prefix="skillmatch-sandbox-") as directory:
-            root = Path(directory)
-            (root / "solution.py").write_text(code, encoding="utf-8")
-            command = [
-                binary,
-                "run",
-                "--rm",
-                "--network=none",
-                "--cpus=1",
-                f"--memory={memory_limit_mb}m",
-                "--pids-limit=64",
-                "--read-only",
-                "--tmpfs=/tmp:rw,noexec,nosuid,size=16m",
-                "--cap-drop=ALL",
-                "--security-opt=no-new-privileges",
-                "--user=65532:65532",
-                "-v",
-                f"{root}:/workspace:ro",
-                "-i",
-                settings.SANDBOX_DOCKER_IMAGE,
-                "python",
-                "/workspace/solution.py",
-            ]
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+        encoded = base64.b64encode(code.encode("utf-8")).decode("ascii")
+        bootstrap = (
+            f"import base64; "
+            f"exec(compile(base64.b64decode('{encoded}').decode('utf-8'), 'solution.py', 'exec'), "
+            f"{{'__name__': '__main__'}})"
+        )
+        command = [
+            binary,
+            "run",
+            "--rm",
+            "--network=none",
+            "--cpus=1",
+            f"--memory={memory_limit_mb}m",
+            "--pids-limit=64",
+            "--read-only",
+            "--tmpfs=/tmp:rw,noexec,nosuid,size=16m",
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges",
+            "--user=65532:65532",
+            "-i",
+            settings.SANDBOX_DOCKER_IMAGE,
+            "python",
+            "-c",
+            bootstrap,
+        ]
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_task = asyncio.create_task(self._read_bounded(process.stdout, max_output_bytes))
+            stderr_task = asyncio.create_task(self._read_bounded(process.stderr, max_output_bytes))
+            if process.stdin is not None:
+                process.stdin.write(stdin_data.encode("utf-8"))
+                await process.stdin.drain()
+                process.stdin.close()
+            await asyncio.wait_for(process.wait(), timeout=time_limit_ms / 1000)
+            stdout, stdout_limited = await stdout_task
+            stderr, stderr_limited = await stderr_task
+            return SandboxRunResult(
+                stdout=stdout,
+                stderr=stderr,
+                exit_code=process.returncode,
+                timed_out=False,
+                output_limited=stdout_limited or stderr_limited,
             )
-            try:
-                stdout_task = asyncio.create_task(self._read_bounded(process.stdout, max_output_bytes))
-                stderr_task = asyncio.create_task(self._read_bounded(process.stderr, max_output_bytes))
-                if process.stdin is not None:
-                    process.stdin.write(stdin_data.encode("utf-8"))
-                    await process.stdin.drain()
-                    process.stdin.close()
-                await asyncio.wait_for(process.wait(), timeout=time_limit_ms / 1000)
-                stdout, stdout_limited = await stdout_task
-                stderr, stderr_limited = await stderr_task
-                return SandboxRunResult(
-                    stdout=stdout,
-                    stderr=stderr,
-                    exit_code=process.returncode,
-                    timed_out=False,
-                    output_limited=stdout_limited or stderr_limited,
-                )
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-                for task in (stdout_task, stderr_task):
-                    task.cancel()
-                return SandboxRunResult(
-                    stdout="",
-                    stderr="Tiempo de ejecución excedido.",
-                    exit_code=None,
-                    timed_out=True,
-                    output_limited=False,
-                )
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            for task in (stdout_task, stderr_task):
+                task.cancel()
+            return SandboxRunResult(
+                stdout="",
+                stderr="Tiempo de ejecución excedido.",
+                exit_code=None,
+                timed_out=True,
+                output_limited=False,
+            )
 
     @staticmethod
     async def _read_bounded(stream: asyncio.StreamReader | None, limit: int) -> tuple[str, bool]:
