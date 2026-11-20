@@ -140,16 +140,17 @@ DEFAULT_ZONE_GAZE_V = (-0.5, 0.6)
 
 # ---- sustained gaze rule (T6 / S5) -------------------------------------------------------------
 GAZE_TOLERANCE_MS = 1000  # a continuous stretch outside the screen zone shorter than this is tolerated
-GAZE_BLINK_MAX_MS = 800  # eyes closed longer than this are not a blink: attention cannot be verified
+GAZE_BLINK_MAX_MS = 700  # normal spontaneous blinks average 100-400 ms; longer than this is sustained eye closure
 GAZE_MAX_SAMPLE_SPAN_MS = 500  # the time a single sample stands for at most (sparse JPEG frames)
 GAZE_RUN_GAP_MS = 1500  # away samples further apart than this are different runs
 FRAME_TIME_MIN_TOLERANCE_MS = 150  # client frame timestamps may deviate this much (or half a slot) from even spacing
 
 # ---- browser telemetry cross-check (T6 / S12) --------------------------------------------------
 CLIENT_MATCH_MAX_DT_MS = 150  # a telemetry sample is comparable to a frame when it is this close in time
-CLIENT_MISMATCH_HEAD_DEG = 12.0  # head pitch/yaw difference that counts as a disagreement
-CLIENT_MISMATCH_GAZE = 0.4  # gaze_h/gaze_v difference that counts as a disagreement
-CLIENT_MISMATCH_MIN_FRAMES = 2  # disagreeing frames that make the browser a mismatch
+CLIENT_MISMATCH_HEAD_DEG = 18.0  # head pitch/yaw difference that counts as a disagreement
+CLIENT_MISMATCH_GAZE = 0.55  # gaze_h difference that counts as a disagreement
+CLIENT_MISMATCH_GAZE_V = 0.75  # gaze_v has a smaller pixel span on 320px JPEGs, so allow slightly more jitter
+CLIENT_MISMATCH_MIN_FRAMES = 4  # disagreeing frames that make the browser a mismatch
 CLIENT_MIN_COMPARABLE = 2  # frames that must be comparable before the telemetry is trusted
 TELEMETRY_MIN_SPACING_MS = 30  # telemetry faster than ~33 fps is not credible
 TELEMETRY_MAX_SAMPLES = 60
@@ -210,7 +211,7 @@ LIPSYNC_MIN_ACTIVITY_OVERLAP = 0.30  # fraction of voiced time with a varying mo
 LIPSYNC_MIN_VALID_FRACTION = 0.6  # share of the audio timeline a lag must still have mouth readings for
 LIPSYNC_CONFIRM_EVALUATIONS = 2  # consecutive unsynced evaluations that make LIP_SYNC_MISMATCH
 MOUTH_OPEN_MAX = 2.0  # the aperture score is bounded for telemetry validation
-CLIENT_MISMATCH_MOUTH = 0.30  # browser vs server mouth aperture difference on the same frame that is a disagreement
+CLIENT_MISMATCH_MOUTH = 0.40  # browser vs server mouth aperture difference on the same frame that is a disagreement
 
 # ---- continuous voiced buffer, confirmed speakers and background audio (T8 / S2, S4) ----------
 VOICE_BUFFER_MAX_SAMPLES = 96_000  # ~6 s of voiced samples kept per trial (diarization and voiceprint run on it)
