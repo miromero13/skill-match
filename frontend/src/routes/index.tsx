@@ -11,6 +11,7 @@ import { AdminLoginPage } from "@/pages/admin-login-page"
 import { AdminDashboardPage } from "@/pages/admin-dashboard-page"
 import { AdminUsersPage } from "@/pages/admin-users-page"
 import { AdminCatalogPage } from "@/pages/admin-catalog-page"
+import { AdminSkillLabPage } from "@/pages/admin-skill-lab-page"
 import { AdminProgrammingPage } from "@/pages/admin-programming-page"
 import { TheoryBankPage } from "@/pages/theory-bank-page"
 import { LearningSkillsPage } from "@/pages/learning-skills-page"
@@ -312,6 +313,22 @@ export const router = createBrowserRouter([
       {
         index: true,
         element: <AdminCatalogPage />,
+      },
+    ],
+  },
+
+  // 6.1.1 Admin Backoffice - Laboratorio de validación por habilidad (Enviar al laboratorio)
+  {
+    path: "/admin/skill-lab/:skillId",
+    element: (
+      <AdminRouteGuard>
+        <AdminLayout />
+      </AdminRouteGuard>
+    ),
+    children: [
+      {
+        index: true,
+        element: <AdminSkillLabPage />,
       },
     ],
   },

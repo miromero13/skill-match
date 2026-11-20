@@ -1,8 +1,27 @@
 import { useEffect, useState, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import { useAdminCatalogStore } from "@/stores/admin-catalog-store"
 import { categoryPath, isCategoryWithin } from "@/lib/catalog-tree"
-import type { Category, SkillLevel, RubricCriterion } from "@/types/catalog"
 import {
+  METRIC_REFERENCE_REPLICATION,
+  type Category,
+  type SkillLevel,
+  type RubricCriterion,
+} from "@/types/catalog"
+import { useMetricTypes } from "@/features/skill-lab/hooks/use-metric-types"
+import {
+  formatPercent,
+  isWeightsTotalValid,
+  metricRequiresTarget,
+  roundTo2,
+  sumCriteriaWeights,
+  targetLabel,
+  weightsTotalErrorMessage,
+  WARNING_ALERT_CLASS,
+} from "@/features/skill-lab/lib/skill-lab-utils"
+import {
+  AlertTriangle,
+  FlaskConical,
   Plus,
   Search,
   FolderPlus,
@@ -22,6 +41,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Card,
   CardHeader,
@@ -52,7 +72,19 @@ const CANONICAL_LEVELS_DEF = [
   { level_number: 5, name: "Master Pedagogo", defaultMinScore: 90 },
 ]
 
+/** Criterio con tipo de medición explícito (los almacenados sin tipo usan el por defecto, S1). */
+function withDefaultMetric(criterion: RubricCriterion): RubricCriterion {
+  return {
+    ...criterion,
+    description: criterion.description ?? "",
+    metric_type: criterion.metric_type || METRIC_REFERENCE_REPLICATION,
+    target: criterion.target ?? null,
+  }
+}
+
 export function AdminCatalogPage() {
+  const navigate = useNavigate()
+  const metricTypes = useMetricTypes()
   const {
     categories,
     challengeTypes,
@@ -177,7 +209,7 @@ export function AdminCatalogPage() {
         ? {
             min_score: l.rubric.min_score ?? 70,
             instructions: l.rubric.instructions || "",
-            criteria: l.rubric.criteria || [],
+            criteria: (l.rubric.criteria || []).map(withDefaultMetric),
           }
         : {
             min_score: 70,
@@ -252,9 +284,56 @@ export function AdminCatalogPage() {
     })
   }, [skills, readyFilter, searchTerm])
 
+  // Validación local equivalente a la del backend (S1): pesos = 100% y objetivo > 0 cuando aplica.
+  const criteriaIssues = useMemo(() => {
+    const issues: string[] = []
+    for (const lvl of skillFormLevels) {
+      const criteria = lvl.rubric?.criteria ?? []
+      if (criteria.length === 0) continue
+      const total = sumCriteriaWeights(criteria)
+      if (!isWeightsTotalValid(total)) issues.push(weightsTotalErrorMessage(lvl.name, total))
+      for (const crit of criteria) {
+        if (metricRequiresTarget(metricTypes, crit.metric_type) && !(Number(crit.target) > 0)) {
+          issues.push(
+            `El criterio «${crit.name}» del nivel «${lvl.name}» necesita un objetivo de toques mayor a 0.`
+          )
+        }
+      }
+    }
+    return issues
+  }, [skillFormLevels, metricTypes])
+
+  const invalidLevelNumbers = useMemo(() => {
+    const invalid = new Set<number>()
+    for (const lvl of skillFormLevels) {
+      const criteria = lvl.rubric?.criteria ?? []
+      if (criteria.length === 0) continue
+      const badTotal = !isWeightsTotalValid(sumCriteriaWeights(criteria))
+      const badTarget = criteria.some(
+        (crit) => metricRequiresTarget(metricTypes, crit.metric_type) && !(Number(crit.target) > 0)
+      )
+      if (badTotal || badTarget) invalid.add(lvl.level_number)
+    }
+    return invalid
+  }, [skillFormLevels, metricTypes])
+
+  const toPayloadCriterion = (crit: RubricCriterion): RubricCriterion => {
+    const metricType = crit.metric_type || METRIC_REFERENCE_REPLICATION
+    const requiresTarget = metricRequiresTarget(metricTypes, metricType)
+    return {
+      ...(crit.key ? { key: crit.key } : {}),
+      name: crit.name,
+      weight: Number(crit.weight),
+      description: crit.description ?? "",
+      metric_type: metricType,
+      target: requiresTarget && crit.target != null ? Number(crit.target) : null,
+    }
+  }
+
   const handleSaveSkill = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!skillFormCategoryId || !skillFormName.trim()) return
+    if (criteriaIssues.length > 0) return
 
     const payload = {
       category_id: skillFormCategoryId,
@@ -263,7 +342,11 @@ export function AdminCatalogPage() {
       description: skillFormDescription.trim() || undefined,
       min_approval_threshold: Number(skillFormThreshold),
       is_ready_to_publish: skillFormIsReady,
-      levels: skillFormLevels,
+      levels: skillFormLevels.map((lvl) =>
+        lvl.rubric
+          ? { ...lvl, rubric: { ...lvl.rubric, criteria: lvl.rubric.criteria.map(toPayloadCriterion) } }
+          : lvl
+      ),
     }
 
     await saveSkill(payload, editingSkill ? editingSkill.id : undefined)
@@ -324,10 +407,14 @@ export function AdminCatalogPage() {
       prev.map((lvl) => {
         if (lvl.level_number !== levelNum) return lvl
         const rubric = lvl.rubric || { min_score: 70, instructions: "", criteria: [] }
+        // Peso por defecto = porcentaje restante para llegar a 100.
+        const remaining = Math.max(0, roundTo2(100 - sumCriteriaWeights(rubric.criteria)))
         const newCriterion: RubricCriterion = {
           name: "Nuevo Criterio",
-          weight: 20,
+          weight: remaining,
           description: "Descripción de evaluación",
+          metric_type: METRIC_REFERENCE_REPLICATION,
+          target: null,
         }
         return {
           ...lvl,
@@ -343,14 +430,18 @@ export function AdminCatalogPage() {
   const updateCriterion = (
     levelNum: number,
     critIndex: number,
-    field: keyof RubricCriterion,
-    val: string | number
+    field: "name" | "weight" | "metric_type" | "target",
+    val: string | number | null
   ) => {
     setSkillFormLevels((prev) =>
       prev.map((lvl) => {
         if (lvl.level_number !== levelNum || !lvl.rubric) return lvl
         const criteria = [...lvl.rubric.criteria]
-        criteria[critIndex] = { ...criteria[critIndex], [field]: val }
+        const updated: RubricCriterion = { ...criteria[critIndex], [field]: val }
+        if (field === "metric_type" && !metricRequiresTarget(metricTypes, String(val))) {
+          updated.target = null
+        }
+        criteria[critIndex] = updated
         return {
           ...lvl,
           rubric: { ...lvl.rubric, criteria },
@@ -725,8 +816,17 @@ export function AdminCatalogPage() {
                       </Label>
                     </div>
 
-                    {/* Edit and Delete Buttons */}
-                    <div className="flex items-center gap-1.5">
+                    {/* Edit, Lab and Delete Buttons */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/admin/skill-lab/${skill.id}`)}
+                        className="h-8 border-indigo-500/30 bg-[#0F1416] text-[#F0FDFA] hover:bg-[#1A2225] hover:border-indigo-400/60 flex items-center gap-1.5 cursor-pointer shadow-xs text-xs font-medium"
+                      >
+                        <FlaskConical className="h-3.5 w-3.5 text-indigo-400" />
+                        <span>Enviar al laboratorio</span>
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -942,6 +1042,12 @@ export function AdminCatalogPage() {
                               }`}
                             >
                               Nivel {lvl.level_number}
+                              {invalidLevelNumbers.has(lvl.level_number) && (
+                                <span
+                                  className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-400"
+                                  aria-label="con errores de configuración"
+                                />
+                              )}
                             </Button>
                           ))}
                         </div>
@@ -1026,10 +1132,31 @@ export function AdminCatalogPage() {
 
                             {/* Criterios del nivel */}
                             <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-xs font-semibold text-[#8B9D9F] uppercase tracking-wider">
-                                  Criterios de Evaluación ({lvl.rubric?.criteria?.length || 0})
-                                </Label>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Label className="text-xs font-semibold text-[#8B9D9F] uppercase tracking-wider">
+                                    Criterios de Evaluación ({lvl.rubric?.criteria?.length || 0})
+                                  </Label>
+                                  {(lvl.rubric?.criteria?.length ?? 0) > 0 && (() => {
+                                    const total = sumCriteriaWeights(lvl.rubric?.criteria ?? [])
+                                    const valid = isWeightsTotalValid(total)
+                                    return (
+                                      <Badge
+                                        variant="outline"
+                                        data-testid={`criteria-total-${lvl.level_number}`}
+                                        className={
+                                          valid
+                                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 text-xs"
+                                            : "border-amber-500/40 bg-amber-500/10 text-amber-300 text-xs"
+                                        }
+                                      >
+                                        {valid
+                                          ? `Total: ${formatPercent(total)}%`
+                                          : `Total: ${formatPercent(total)}% — debe sumar 100%`}
+                                      </Badge>
+                                    )
+                                  })()}
+                                </div>
                                 <Button
                                   type="button"
                                   variant="link"
@@ -1047,41 +1174,100 @@ export function AdminCatalogPage() {
                                 </div>
                               ) : (
                                 <div className="space-y-2">
-                                  {lvl.rubric?.criteria.map((crit, cIdx) => (
-                                    <div
-                                      key={cIdx}
-                                      className="flex items-center gap-3 p-2.5 rounded-lg bg-[#141C1E] border border-[#1E2629]"
-                                    >
-                                      <Input
-                                        type="text"
-                                        placeholder="Nombre del criterio de evaluación"
-                                        value={crit.name}
-                                        onChange={(e) => updateCriterion(lvl.level_number, cIdx, "name", e.target.value)}
-                                        className="h-8 flex-1 min-w-0 bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] text-xs"
-                                      />
-                                      <div className="flex items-center gap-1.5 shrink-0">
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          max={100}
-                                          value={crit.weight}
-                                          onChange={(e) => updateCriterion(lvl.level_number, cIdx, "weight", Number(e.target.value))}
-                                          className="h-8 w-16 text-center bg-[#0F1416] border-[#1E2629] text-[#2DD4BF] text-xs font-bold"
-                                        />
-                                        <span className="text-xs text-[#8B9D9F] font-bold">%</span>
-                                      </div>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => removeCriterion(lvl.level_number, cIdx)}
-                                        className="h-8 w-8 text-[#8B9D9F] hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
-                                        title="Eliminar criterio"
+                                  {lvl.rubric?.criteria.map((crit, cIdx) => {
+                                    const metricType = crit.metric_type || METRIC_REFERENCE_REPLICATION
+                                    const needsTarget = metricRequiresTarget(metricTypes, metricType)
+                                    const rowId = `crit-${lvl.level_number}-${cIdx}`
+                                    return (
+                                      <div
+                                        key={crit.key ?? cIdx}
+                                        className="flex flex-col gap-2 p-2.5 rounded-lg bg-[#141C1E] border border-[#1E2629]"
                                       >
-                                        <X className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  ))}
+                                        <div className="flex items-center gap-3">
+                                          <Input
+                                            type="text"
+                                            aria-label={`Nombre del criterio ${cIdx + 1}`}
+                                            placeholder="Nombre del criterio de evaluación"
+                                            value={crit.name}
+                                            onChange={(e) => updateCriterion(lvl.level_number, cIdx, "name", e.target.value)}
+                                            className="h-8 flex-1 min-w-0 bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] text-xs"
+                                          />
+                                          <div className="flex items-center gap-1.5 shrink-0">
+                                            <Input
+                                              type="number"
+                                              aria-label={`Peso del criterio ${cIdx + 1}`}
+                                              min={0}
+                                              max={100}
+                                              value={crit.weight}
+                                              onChange={(e) => updateCriterion(lvl.level_number, cIdx, "weight", Number(e.target.value))}
+                                              className="h-8 w-16 text-center bg-[#0F1416] border-[#1E2629] text-[#2DD4BF] text-xs font-bold"
+                                            />
+                                            <span className="text-xs text-[#8B9D9F] font-bold">%</span>
+                                          </div>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => removeCriterion(lvl.level_number, cIdx)}
+                                            className="h-8 w-8 text-[#8B9D9F] hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
+                                            title="Eliminar criterio"
+                                            aria-label={`Eliminar criterio ${cIdx + 1}`}
+                                          >
+                                            <X className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                                          <div className={needsTarget ? "sm:col-span-8 space-y-1" : "sm:col-span-12 space-y-1"}>
+                                            <Label htmlFor={`${rowId}-metric`} className="text-[11px] font-semibold text-[#8B9D9F] uppercase tracking-wider">
+                                              Tipo de medición
+                                            </Label>
+                                            <Select
+                                              value={metricType}
+                                              onValueChange={(val) => updateCriterion(lvl.level_number, cIdx, "metric_type", val)}
+                                            >
+                                              <SelectTrigger
+                                                id={`${rowId}-metric`}
+                                                aria-label={`Tipo de medición del criterio ${cIdx + 1}`}
+                                                className="h-8 w-full bg-[#0F1416] border-[#1E2629] text-[#F0FDFA] text-xs"
+                                              >
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent className="bg-[#141C1E] border-[#1E2629] text-[#F0FDFA]">
+                                                {metricTypes.map((mt) => (
+                                                  <SelectItem key={mt.code} value={mt.code}>
+                                                    {mt.name}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          {needsTarget && (
+                                            <div className="sm:col-span-4 space-y-1">
+                                              <Label htmlFor={`${rowId}-target`} className="text-[11px] font-semibold text-[#8B9D9F] uppercase tracking-wider">
+                                                {targetLabel(metricType)}
+                                              </Label>
+                                              <Input
+                                                id={`${rowId}-target`}
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                value={crit.target ?? ""}
+                                                onChange={(e) =>
+                                                  updateCriterion(
+                                                    lvl.level_number,
+                                                    cIdx,
+                                                    "target",
+                                                    e.target.value === "" ? null : Number(e.target.value)
+                                                  )
+                                                }
+                                                className="h-8 bg-[#0F1416] border-[#1E2629] text-[#2DD4BF] text-xs font-bold"
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -1091,6 +1277,20 @@ export function AdminCatalogPage() {
                   </CardContent>
                 </Card>
               </div>
+
+              {criteriaIssues.length > 0 && (
+                <Alert variant="default" className={WARNING_ALERT_CLASS} data-testid="criteria-issues">
+                  <AlertTriangle />
+                  <AlertTitle>Revisá los criterios antes de guardar</AlertTitle>
+                  <AlertDescription className="text-amber-800/90 dark:text-amber-300/90">
+                    <ul className="list-disc space-y-0.5 pl-4">
+                      {criteriaIssues.map((issue) => (
+                        <li key={issue}>{issue}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {/* Botones de acción en el pie */}
               <DialogFooter className="px-6 py-4 border-t border-[#1E2629] bg-[#141C1E] flex items-center justify-end gap-3 shrink-0">
@@ -1106,7 +1306,7 @@ export function AdminCatalogPage() {
 
                 <Button
                   type="submit"
-                  disabled={isSubmitting || !skillFormCategoryId || !skillFormName.trim()}
+                  disabled={isSubmitting || !skillFormCategoryId || !skillFormName.trim() || criteriaIssues.length > 0}
                   className="bg-[#00786F] hover:bg-[#00665E] text-white font-bold cursor-pointer"
                 >
                   {isSubmitting ? (
