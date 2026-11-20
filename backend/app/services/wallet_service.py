@@ -1,12 +1,11 @@
 """Servicio de Dominio de Billetera, Puntos, Pasarela y Escrow (HU-42)."""
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import List, Optional, Tuple
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -79,7 +78,7 @@ PACKAGES_CATALOG: dict[str, PointPackageItem] = {
 
 class WalletService:
     @staticmethod
-    def get_available_packages() -> List[PointPackageItem]:
+    def get_available_packages() -> list[PointPackageItem]:
         """Devuelve los paquetes de puntos configurados."""
         return list(PACKAGES_CATALOG.values())
 
@@ -101,10 +100,24 @@ class WalletService:
         wallet = await cls.get_or_create_wallet(db, user_id)
 
         # Puntos acumulados por enseñanza y propinas (elegibles para cashout)
-        rewards_stmt = select(func.coalesce(func.sum(PointTransaction.amount), 0)).where(
-            PointTransaction.user_id == user_id,
-            PointTransaction.transaction_type.in_([PointTransactionType.CLASS_PAYMENT.value, PointTransactionType.TIP.value]),
-            PointTransaction.amount > 0,
+        rewards_stmt = (
+            select(func.coalesce(func.sum(PointTransaction.amount), 0))
+            .outerjoin(
+                ExchangeSession,
+                ExchangeSession.id == PointTransaction.reference_id,
+            )
+            .where(
+                PointTransaction.user_id == user_id,
+                PointTransaction.amount > 0,
+                or_(
+                    PointTransaction.transaction_type == PointTransactionType.TIP.value,
+                    and_(
+                        PointTransaction.transaction_type
+                        == PointTransactionType.CLASS_PAYMENT.value,
+                        ExchangeSession.instructor_id == user_id,
+                    ),
+                ),
+            )
         )
         rewards_result = await db.execute(rewards_stmt)
         earned_rewards = rewards_result.scalar_one()
@@ -151,7 +164,7 @@ class WalletService:
         wallet.balance += total_to_add
 
         tx_id = uuid4()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         receipt = f"REC-{now.strftime('%Y%m%d')}-{tx_id.hex[:6].upper()}"
 
         card_detail = f"Tarjeta •••• {payload.card_last_four}" if payload.card_last_four and payload.payment_method == "card" else ("PayPal" if payload.payment_method == "paypal" else "Pasarela")
@@ -261,8 +274,6 @@ class WalletService:
         wallet.balance -= payload.points_amount
 
         req_id = uuid4()
-        now = datetime.now(timezone.utc)
-
         cashout_req = CashoutRequest(
             id=req_id,
             user_id=user_id,
@@ -332,10 +343,10 @@ class WalletService:
     async def list_transactions(
         db: AsyncSession,
         user_id: UUID,
-        type_filter: Optional[str] = None,
+        type_filter: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[PointTransactionItem], int]:
+    ) -> tuple[list[PointTransactionItem], int]:
         """Devuelve el historial paginado de movimientos contables."""
         query = select(PointTransaction).where(PointTransaction.user_id == user_id)
         if type_filter and type_filter != "ALL":
@@ -365,9 +376,20 @@ class WalletService:
         return items, total
 
     @classmethod
-    async def pay_session_escrow(cls, db: AsyncSession, user_id: UUID, session_id: UUID) -> SessionPayResult:
+    async def reserve_session_escrow(
+        cls,
+        db: AsyncSession,
+        user_id: UUID,
+        session_id: UUID,
+        *,
+        points_to_lock: int | None = None,
+    ) -> SessionPayResult:
         """Retiene los puntos de una sesión no recíproca en custodia Escrow (RF-WAL-01)."""
-        stmt = select(ExchangeSession).where(ExchangeSession.id == session_id)
+        stmt = (
+            select(ExchangeSession)
+            .where(ExchangeSession.id == session_id)
+            .with_for_update()
+        )
         res = await db.execute(stmt)
         session = res.scalar_one_or_none()
         if not session:
@@ -378,7 +400,7 @@ class WalletService:
 
         if session.learner_id != user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Solo el aprendiz de la sesión puede realizar el pago en puntos.",
             )
 
@@ -395,9 +417,17 @@ class WalletService:
             )
 
         # Puntos requeridos de la sesión (por defecto 50 SP si no está explícito en la sesión de trueque)
-        points_to_lock = session.points_required if (session.points_required and session.points_required > 0) else 50
+        points_to_lock = points_to_lock or session.points_required or 50
 
-        wallet = await cls.get_or_create_wallet(db, user_id)
+        wallet = (
+            await db.execute(
+                select(Wallet).where(Wallet.user_id == user_id).with_for_update()
+            )
+        ).scalar_one_or_none()
+        if wallet is None:
+            wallet = Wallet(user_id=user_id, balance=0, escrow_balance=0)
+            db.add(wallet)
+            await db.flush()
         if wallet.balance < points_to_lock:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -434,9 +464,7 @@ class WalletService:
             message=f"Se aseguraron {points_to_lock} SP en custodia Escrow para tu sesión ({session.modality}). Fondos protegidos.",
         )
 
-        await db.commit()
-        await db.refresh(wallet)
-        await db.refresh(session)
+        await db.flush()
 
         return SessionPayResult(
             session_id=session.id,
@@ -448,13 +476,77 @@ class WalletService:
         )
 
     @classmethod
-    async def release_session_escrow(cls, db: AsyncSession, session_id: UUID) -> None:
+    async def pay_session_escrow(
+        cls, db: AsyncSession, user_id: UUID, session_id: UUID
+    ) -> SessionPayResult:
+        """Reserve points through the standalone HU-42 endpoint."""
+        result = await cls.reserve_session_escrow(db, user_id, session_id)
+        await db.commit()
+        return result
+
+    @classmethod
+    async def refund_session_escrow(
+        cls,
+        db: AsyncSession,
+        session_id: UUID,
+        *,
+        reason: str,
+    ) -> bool:
+        """Return a reserved escrow deposit to the learner exactly once."""
+        session = (
+            await db.execute(
+                select(ExchangeSession)
+                .where(ExchangeSession.id == session_id)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if session is None or session.payment_state != "RESERVED":
+            return False
+
+        points = session.points_required or 50
+        wallet = (
+            await db.execute(
+                select(Wallet)
+                .where(Wallet.user_id == session.learner_id)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if wallet is None or wallet.escrow_balance < points:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La reserva Escrow de la sesión es inconsistente.",
+            )
+
+        wallet.escrow_balance -= points
+        wallet.balance += points
+        session.payment_state = "REFUNDED"
+        db.add(
+            PointTransaction(
+                id=uuid4(),
+                user_id=session.learner_id,
+                amount=points,
+                balance_after=wallet.balance,
+                escrow_after=wallet.escrow_balance,
+                transaction_type=PointTransactionType.CLASS_PAYMENT.value,
+                reference_id=session.id,
+                description=f"Devolución de garantía Escrow: {reason}",
+            )
+        )
+        await db.flush()
+        return True
+
+    @classmethod
+    async def release_session_escrow(cls, db: AsyncSession, session_id: UUID) -> bool:
         """Libera automáticamente los puntos en custodia al tutor cuando la sesión se completa."""
-        stmt = select(ExchangeSession).where(ExchangeSession.id == session_id)
+        stmt = (
+            select(ExchangeSession)
+            .where(ExchangeSession.id == session_id)
+            .with_for_update()
+        )
         res = await db.execute(stmt)
         session = res.scalar_one_or_none()
         if not session or session.payment_state != "RESERVED":
-            return
+            return False
 
         points = session.points_required or 50
 
@@ -491,6 +583,7 @@ class WalletService:
         )
 
         await db.flush()
+        return True
 
 
 wallet_service = WalletService()

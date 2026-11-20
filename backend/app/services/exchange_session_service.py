@@ -43,6 +43,7 @@ from app.services.exchange_session_policy import (
 )
 from app.services.notification_service import NotificationService
 from app.services.session_calendar_service import build_ics_export, is_calendar_export_allowed
+from app.services.wallet_service import wallet_service
 
 ACTIVE_STATUSES = ("PENDING", "ACCEPTED")
 FREE_LIMIT = 2
@@ -183,6 +184,19 @@ async def get_match_session_options(
     first_start = _ceil_to_half_hour(datetime.now(UTC), display_timezone)
     horizon = datetime.now(UTC) + timedelta(days=SESSION_OPTIONS_HORIZON_DAYS)
     directions: list[SessionBookingDirection] = []
+    quota_rows = list(
+        (
+            await db.scalars(
+                select(WeeklySessionQuota).where(
+                    WeeklySessionQuota.user_id.in_(participant_ids)
+                )
+            )
+        ).all()
+    )
+    quota_used = {
+        (row.user_id, row.week_start): row.used
+        for row in quota_rows
+    }
 
     for instructor_id in participant_ids:
         learner_id = (
@@ -233,6 +247,22 @@ async def get_match_session_options(
                                 timezone=display_timezone,
                                 modality=modality,
                                 duration_minutes=duration,
+                                free_sessions_left=max(
+                                    0,
+                                    FREE_LIMIT
+                                    - quota_used.get(
+                                        (
+                                            learner_id,
+                                            local_week_bounds(
+                                                starts_at,
+                                                by_id[learner_id].timezone,
+                                            )[0]
+                                            .astimezone(ZoneInfo(by_id[learner_id].timezone))
+                                            .date(),
+                                        ),
+                                        0,
+                                    ),
+                                ),
                             )
                         )
                 starts_at += timedelta(minutes=30)
@@ -243,6 +273,8 @@ async def get_match_session_options(
                     learner_id=learner_id,
                     teaching_skill_id=offer.id,
                     skill_name=skill_name,
+                    accepts_points=offer.accepts_points,
+                    hourly_points_rate=offer.hourly_points_rate,
                     modalities=sorted(modalities),
                     common_slots=slots,
                 )
@@ -431,6 +463,8 @@ async def _release_quota(
     *,
     kind: str,
 ) -> None:
+    if not item.is_free:
+        return
     quota = await _locked_quota(db, learner, item.starts_at)
     if quota.used > 0:
         quota.used -= 1
@@ -541,11 +575,15 @@ async def create(
     db: AsyncSession, actor_id: UUID, payload: ExchangeSessionCreate
 ) -> ExchangeSessionResponse:
     await _assert_can_book(db, actor_id)
-    match, instructor, learner, _ = await _resolve_context(db, actor_id, payload)
+    match, instructor, learner, offer = await _resolve_context(db, actor_id, payload)
     await _assert_schedule(
         db, instructor, learner, payload.starts_at, payload.ends_at, payload.modality
     )
-    quota = await _reserve_quota(db, learner, payload.starts_at)
+    quota = None
+    if payload.payment_method == "FREE":
+        quota = await _reserve_quota(db, learner, payload.starts_at)
+    elif not offer.accepts_points or not offer.hourly_points_rate:
+        raise _conflict("El instructor no acepta pagos en puntos para esta habilidad.")
     item = ExchangeSession(
         match_id=match.id,
         teaching_skill_id=payload.teaching_skill_id,
@@ -557,16 +595,34 @@ async def create(
         timezone=payload.timezone,
         modality=payload.modality,
         status="PENDING",
+        is_free=payload.payment_method == "FREE",
+        points_required=(
+            None if payload.payment_method == "FREE" else offer.hourly_points_rate
+        ),
+        payment_state=None if payload.payment_method == "FREE" else "PENDING",
     )
     db.add(item)
     await db.flush()
-    db.add_all(
-        [
-            SessionQuotaMovement(quota_id=quota.id, session_id=item.id, kind="RESERVED", delta=1),
-            _audit(item, actor_id, "CREATED"),
-            _audit(item, actor_id, "QUOTA_RESERVED", quota_id=str(quota.id)),
-        ]
-    )
+    db.add(_audit(item, actor_id, "CREATED"))
+    if quota is not None:
+        db.add_all(
+            [
+                SessionQuotaMovement(
+                    quota_id=quota.id,
+                    session_id=item.id,
+                    kind="RESERVED",
+                    delta=1,
+                ),
+                _audit(item, actor_id, "QUOTA_RESERVED", quota_id=str(quota.id)),
+            ]
+        )
+    else:
+        await wallet_service.reserve_session_escrow(
+            db,
+            learner.id,
+            item.id,
+            points_to_lock=offer.hourly_points_rate,
+        )
     await _notify_counterpart(
         db,
         item,
@@ -639,9 +695,14 @@ async def update_status(
     item.status = new_status
     db.add(_audit(item, actor_id, new_status, from_status=old, to_status=new_status))
     if new_status == "REJECTED":
-        learner = await db.get(User, item.learner_id)
-        await _release_quota(db, item, learner, kind="RELEASED")
-        db.add(_audit(item, actor_id, "QUOTA_RELEASED"))
+        if item.is_free:
+            learner = await db.get(User, item.learner_id)
+            await _release_quota(db, item, learner, kind="RELEASED")
+            db.add(_audit(item, actor_id, "QUOTA_RELEASED"))
+        else:
+            await wallet_service.refund_session_escrow(
+                db, item.id, reason="sesión rechazada"
+            )
     notification_type = (
         NotificationType.SESSION_ACCEPTED
         if new_status == "ACCEPTED"
@@ -688,7 +749,7 @@ async def reschedule(
     )
     old_week = local_week_bounds(item.starts_at, learner.timezone)[0]
     new_week = local_week_bounds(payload.starts_at, learner.timezone)[0]
-    if old_week != new_week:
+    if item.is_free and old_week != new_week:
         await _release_quota(db, item, learner, kind="RELEASED")
         new_quota = await _reserve_quota(db, learner, payload.starts_at)
         db.add(
@@ -740,7 +801,11 @@ async def cancel(
         cancelled_at=now,
         actor_monthly_cancellations=prior,
     )
-    if decision.restore_quota:
+    if not item.is_free:
+        await wallet_service.refund_session_escrow(
+            db, item.id, reason="sesión cancelada"
+        )
+    elif decision.restore_quota:
         learner = await db.get(User, item.learner_id)
         await _release_quota(db, item, learner, kind="RESTORED")
         item.quota_restored = True

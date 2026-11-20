@@ -91,6 +91,44 @@ async def confirm_session(
     session = await _get_session_for_participant(db, session_id, actor.id, lock=True)
     now = datetime.now(UTC)
     pin_secret = settings.SECRET_KEY.get_secret_value()
+    counterpart_id = (
+        session.learner_id if actor.id == session.instructor_id else session.instructor_id
+    )
+
+    replay_confirmation = (
+        await db.execute(
+            select(SessionConfirmation).where(
+                SessionConfirmation.session_id == session.id,
+                SessionConfirmation.user_id == actor.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if replay_confirmation is not None:
+        if replay_confirmation.request_key != payload.request_key:
+            raise _conflict("Ya has confirmado esta sesión")
+        counterpart_replay = (
+            await db.execute(
+                select(SessionConfirmation).where(
+                    SessionConfirmation.session_id == session.id,
+                    SessionConfirmation.user_id == counterpart_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if session.is_free:
+            escrow_status = "NOT_APPLICABLE"
+        elif session.payment_state == "RELEASED":
+            escrow_status = "RELEASED"
+        else:
+            escrow_status = "PENDING_HU42"
+        return SessionConfirmResponse(
+            session_id=session.id,
+            status=session.status,
+            my_confirmation=True,
+            counterpart_confirmation=counterpart_replay is not None,
+            actual_minutes=session.actual_minutes or replay_confirmation.actual_minutes,
+            completed_at=session.completed_at,
+            escrow_release=escrow_status,
+        )
 
     # 1. Validate temporal and lifecycle eligibility before consuming PIN attempts.
     if now < session.ends_at:
@@ -102,10 +140,6 @@ async def confirm_session(
     # 2. Validate modality and presence PIN rules
     if payload.presence_pin is not None and session.modality == "VIRTUAL":
         raise _unprocessable("El PIN de presencia solo aplica a modalidad presencial")
-
-    counterpart_id = (
-        session.learner_id if actor.id == session.instructor_id else session.instructor_id
-    )
 
     if session.modality == "PRESENCIAL":
         if not payload.presence_pin:
@@ -379,6 +413,7 @@ async def report_noshow(
         raise _conflict("La sesión ya tiene un reporte de inasistencia contradictorio")
 
     incident_status = await SessionReputationAdapter.record_noshow_incident(
+        db=db,
         session_id=session.id,
         absent_user_id=counterpart_id,
         reported_by_id=actor.id,

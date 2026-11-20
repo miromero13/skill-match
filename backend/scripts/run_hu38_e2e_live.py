@@ -9,7 +9,7 @@ Ejecuta todas las operaciones de extremo a extremo a través de la red local HTT
 - Cancelar con motivo justificado (>= 24h, restituye cupo).
 - Aislamiento 404 estricto para tercero (Usuario C).
 - Agotar dos cupos semanales.
-- Rechazar tercer agendamiento sin HU-42.
+- Reservar tercer agendamiento pagado mediante escrow HU-42.
 - Comprobar bloqueo bilateral HU-26.
 - Cancelación tardía (< 24h).
 - Comprobar sanción de 7 días (bloqueo exclusivo de agendamiento).
@@ -40,6 +40,7 @@ from app.models.user import User, UserRole
 from app.models.user_availability import UserAvailability
 from app.models.user_block import UserBlock
 from app.models.user_learning_skill import UserLearningSkill
+from app.models.wallet import Wallet
 
 BASE_URL = os.getenv("HU38_E2E_BASE_URL", "http://127.0.0.1:8000")
 
@@ -94,7 +95,14 @@ async def main():
         db.add(skill)
         await db.flush()
 
-        offer = TeachingSkill(user_id=instructor.id, skill_id=skill.id, declared_level="ADVANCED", years_of_experience=3)
+        offer = TeachingSkill(
+            user_id=instructor.id,
+            skill_id=skill.id,
+            declared_level="ADVANCED",
+            years_of_experience=3,
+            accepts_points=True,
+            hourly_points_rate=40,
+        )
         interest = UserLearningSkill(user_id=learner.id, skill_id=skill.id)
         first_id, second_id = sorted([instructor.id, learner.id])
         match = Match(member_a_id=first_id, member_b_id=second_id, status="confirmed")
@@ -111,7 +119,14 @@ async def main():
             for u in (instructor, learner)
             for d in range(7)
         ]
-        db.add_all([offer, interest, match, *avail])
+        db.add_all([
+            offer,
+            interest,
+            match,
+            Wallet(user_id=learner.id, balance=200),
+            Wallet(user_id=instructor.id, balance=0),
+            *avail,
+        ])
         await db.commit()
         for item in (instructor, learner, outsider, offer, match):
             await db.refresh(item)
@@ -316,9 +331,9 @@ async def main():
                 "Consumir cupo gratuito 2 de la semana (cupos agotados)",
             )
 
-            # Paso 9: Rechazar tercer agendamiento sin HU-42
+            # Paso 9: Reservar tercer agendamiento pagado con HU-42
             w3_start = base_w + timedelta(hours=4)
-            check(
+            paid_session = check(
                 await client.post(
                     "/api/sessions",
                     headers=auth_headers(learner),
@@ -330,11 +345,15 @@ async def main():
                         "ends_at": (w3_start + timedelta(minutes=60)).isoformat(),
                         "timezone": learner.timezone,
                         "modality": "VIRTUAL",
+                        "payment_method": "POINTS",
                     },
                 ),
-                409,
-                "Rechazar tercer agendamiento sin cupo por ausencia de HU-42 (409)",
-            )
+                201,
+                "Reservar tercer agendamiento con 40 SkillPoints en escrow (201)",
+            )["data"]
+            assert paid_session["is_free"] is False
+            assert paid_session["points_required"] == 40
+            assert paid_session["payment_state"] == "RESERVED"
 
             # Paso 10: Bloqueo bilateral HU-26
             async with AsyncSessionLocal() as db_block:

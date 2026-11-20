@@ -80,7 +80,10 @@ async def get_my_suggestion(
     description=(
         "Devuelve las direcciones de enseñanza autorizadas y las franjas comunes de los "
         "próximos 14 días. Aplica disponibilidad, modalidad, timezone, buffers, sesiones "
-        "activas y bloqueos. No crea sesiones ni consume cupos. Un tercero recibe 404."
+        "activas y bloqueos. Cada franja informa el cupo gratuito de su propia semana y "
+        "cada dirección informa accepts_points y hourly_points_rate "
+        "para que el cliente elija el flujo pagado sin calcular tarifas. No crea sesiones "
+        "ni consume cupos. Un tercero recibe 404."
     ),
     responses={
         404: {"description": "Match inexistente o ajeno al miembro autenticado"},

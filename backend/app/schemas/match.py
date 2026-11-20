@@ -53,6 +53,11 @@ class CommonSessionSlot(BaseModel):
     timezone: str
     modality: str
     duration_minutes: int = Field(ge=30, le=60)
+    free_sessions_left: int = Field(
+        ge=0,
+        le=2,
+        description="Cupos gratuitos del aprendiz disponibles en la semana de esta franja",
+    )
 
 
 class SessionBookingDirection(BaseModel):
@@ -63,6 +68,14 @@ class SessionBookingDirection(BaseModel):
     learner_id: UUID
     teaching_skill_id: UUID
     skill_name: str
+    accepts_points: bool = Field(
+        description="Indica si la oferta admite sesiones adicionales pagadas con SkillPoints"
+    )
+    hourly_points_rate: int | None = Field(
+        default=None,
+        ge=1,
+        description="Tarifa en SkillPoints aplicada por la oferta cuando se elige pago",
+    )
     modalities: list[str]
     common_slots: list[CommonSessionSlot]
 
