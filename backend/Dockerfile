@@ -47,7 +47,7 @@ FROM ${PYTHON_IMAGE} AS models
 
 WORKDIR /build
 
-COPY scripts/install_vision_models.py scripts/install_calibration_audio_models.py ./scripts/
+COPY scripts ./scripts
 
 # Up to 3 attempts: model downloads come from GitHub/Google Storage and a transient network
 # failure (e.g. while compose pulls images and runs npm ci in parallel) should not fail the
@@ -111,7 +111,7 @@ COPY app ./app
 # plain docker: `docker build --build-context ml=../ml backend`). /app is the working
 # directory, which uvicorn/celery put on sys.path, so `import ml` resolves.
 COPY --from=ml . ./ml
-COPY scripts/install_vision_models.py scripts/install_calibration_audio_models.py ./scripts/
+COPY scripts ./scripts
 COPY --from=models /build/app/models/weights ./app/models/weights
 
 # Re-check the baked models against their pinned SHA-256 (no network, no writes).
