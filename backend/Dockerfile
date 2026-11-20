@@ -49,8 +49,18 @@ WORKDIR /build
 
 COPY scripts/install_vision_models.py scripts/install_calibration_audio_models.py ./scripts/
 
-RUN python scripts/install_vision_models.py \
-    && python scripts/install_calibration_audio_models.py
+# Up to 3 attempts: model downloads come from GitHub/Google Storage and a transient network
+# failure (e.g. while compose pulls images and runs npm ci in parallel) should not fail the
+# whole build. Retrying is safe: both installers download to a temp file, verify the pinned
+# SHA-256 and only then rename into place, and they skip models already installed.
+RUN for attempt in 1 2 3; do \
+        python scripts/install_vision_models.py \
+        && python scripts/install_calibration_audio_models.py \
+        && exit 0; \
+        echo "Model download failed (attempt ${attempt}/3); retrying in $((attempt * 10))s..." >&2; \
+        sleep $((attempt * 10)); \
+    done; \
+    echo "Model download failed after 3 attempts" >&2; exit 1
 
 # ------------------------------------------------------------------------------
 # Stage 3: runtime
