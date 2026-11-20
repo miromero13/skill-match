@@ -21,6 +21,7 @@ import {
 import {
   CheckCircle2,
   Play,
+  Square,
   RotateCcw,
   Volume2,
   Hand,
@@ -30,6 +31,7 @@ import {
   Award,
   AlertTriangle,
   XCircle,
+  Radio,
 } from "lucide-react"
 import {
   FLUTE_NOTES_MAP,
@@ -38,7 +40,15 @@ import {
 } from "./flute-note-specs"
 
 import { FluteHandOverlay } from "./flute-hand-overlay"
-import { FLUTE_VISUAL_SCHEMA, freshHandFrame, type HandFrame } from "./flute-hand-features"
+import {
+  FLUTE_VISUAL_DIM,
+  FLUTE_VISUAL_SCHEMA,
+  LEFT_HAND_PRESENCE_IDX,
+  RIGHT_HAND_PRESENCE_IDX,
+  countDetectedHands,
+  freshHandFrame,
+  type HandFrame,
+} from "./flute-hand-features"
 import { inferFlute, type FluteInference } from "@/services/dataset-sample-service"
 
 interface FluteLiveValidatorProps {
@@ -49,7 +59,6 @@ interface FluteLiveValidatorProps {
 interface ScoreNoteSegment {
   index: number
   targetNote: FluteNoteName
-  targetHz: number
   durationSec: number
   handsRequired: 1 | 2
 }
@@ -57,11 +66,9 @@ interface ScoreNoteSegment {
 interface SegmentEvaluationResult {
   index: number
   targetNote: FluteNoteName
-  targetHz: number
   handsRequired: 1 | 2
-  detectedNote: FluteNoteName | "Silencio" | "Voz / Ruido (No Flauta)"
-  avgMeasuredHz: number | null
-  pitchScorePct: number
+  detectedNote: FluteNoteName | "Voz / Ruido (No Flauta)"
+  soundScorePct: number
   leftHandDetected: boolean
   rightHandDetected: boolean
   handPostureOk: boolean | null
@@ -69,15 +76,20 @@ interface SegmentEvaluationResult {
   segmentTotalPct: number | null
 }
 
+type ValidatorMode = "free" | "exam"
+
 export function FluteLiveValidator({
   skillName = "Flauta Dulce",
 }: FluteLiveValidatorProps) {
   const handFrameRef = useRef<HandFrame | null>(null)
+  const [mode, setMode] = useState<ValidatorMode>("free")
   const [sequenceStarted, setSequenceStarted] = useState(false)
   const [modelInfo, setModelInfo] = useState<FluteInference | null>(null)
+  const [recentConfirmedNotes, setRecentConfirmedNotes] = useState<FluteNoteName[]>([])
   const segmentIndexRef = useRef(0)
   const generationRef = useRef(0)
   const predictionsRef = useRef<FluteInference[]>([])
+  const postureWindowRef = useRef<Array<Array<{ label: string; probability: number }>>>([])
   const [targetLevel, setTargetLevel] = useState<1 | 3>(1)
   const [step, setStep] = useState<"setup" | "playing" | "result">("setup")
   const [plan, setPlan] = useState<ScoreNoteSegment[]>([])
@@ -89,7 +101,6 @@ export function FluteLiveValidator({
   const [cameraReady, setCameraReady] = useState(false)
   const [leftHandLive, setLeftHandLive] = useState(false)
   const [rightHandLive, setRightHandLive] = useState(false)
-  const [liveHz, setLiveHz] = useState<number | null>(null)
   const [liveDetectedNote, setLiveDetectedNote] =
     useState<FluteNoteName | null>(null)
   const [liveVoiceRejected, setLiveVoiceRejected] = useState(false)
@@ -102,9 +113,7 @@ export function FluteLiveValidator({
   const timerRef = useRef<number | null>(null)
   const telemetryIntervalRef = useRef<number | null>(null)
 
-  // Per-segment accumulators
-  const currentSegmentFluteHzRef = useRef<number[]>([])
-  const currentSegmentVoiceRejectionsRef = useRef<number>(0)
+  // Per-segment accumulators (exam mode)
   const currentSegmentTotalFramesRef = useRef<number>(0)
   const currentSegmentLeftHandOkFramesRef = useRef<number>(0)
   const currentSegmentRightHandOkFramesRef = useRef<number>(0)
@@ -126,7 +135,6 @@ export function FluteLiveValidator({
     return sequence.map((note, idx) => ({
       index: idx,
       targetNote: note,
-      targetHz: Math.round(FLUTE_NOTES_MAP[note].hz),
       durationSec,
       handsRequired: FLUTE_NOTES_MAP[note].handsRequired,
     }))
@@ -175,20 +183,11 @@ export function FluteLiveValidator({
     }
   }, [])
 
-  const startLiveValidation = async () => {
-    setCameraError(null)
-    setModelInfo(null)
-    cleanupMedia()
-    const generation = generationRef.current
-    segmentIndexRef.current = 0
-    predictionsRef.current = []
-
-    const generatedPlan = buildChallengePlan(targetLevel)
-    setPlan(generatedPlan)
-    setResults([])
-    setActiveIdx(0)
-    setSegmentProgressPct(0)
-
+  const openCameraAndAudio = async (): Promise<{
+    media: MediaStream
+    analyser: AnalyserNode | null
+    sampleRate: number
+  } | null> => {
     let media: MediaStream
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -210,13 +209,10 @@ export function FluteLiveValidator({
       setCameraError(
         `No se pudo encender la cámara o el micrófono (${msg}). Revisa los permisos del navegador.`
       )
-      return
+      return null
     }
 
     streamRef.current = media
-    setStep("playing")
-
-    // Start Web Audio + Video Hand Zone analysis loop
     let analyser: AnalyserNode | null = null
     let sampleRate = 44100
     if (typeof window !== "undefined" && "AudioContext" in window) {
@@ -228,14 +224,144 @@ export function FluteLiveValidator({
       analyser.fftSize = 2048
       source.connect(analyser)
     }
+    return { media, analyser, sampleRate }
+  }
+
+  const startFreeDetection = async () => {
+    setCameraError(null)
+    setModelInfo(null)
+    setRecentConfirmedNotes([])
+    postureWindowRef.current = []
+    cleanupMedia()
+    const generation = generationRef.current
+
+    const devices = await openCameraAndAudio()
+    if (!devices) return
+    const { analyser, sampleRate } = devices
+
+    setStep("playing")
+    setSequenceStarted(true)
+
+    let pending = false
+    telemetryIntervalRef.current = window.setInterval(async () => {
+      if (!streamRef.current || !streamRef.current.active) return
+      if (pending || !analyser) return
+      const frame = freshHandFrame(handFrameRef.current)
+      const visualFeatures = frame?.features ?? Array<number>(FLUTE_VISUAL_DIM).fill(0)
+      setCameraReady(true)
+      setLeftHandLive(visualFeatures[LEFT_HAND_PRESENCE_IDX] === 1)
+      setRightHandLive(visualFeatures[RIGHT_HAND_PRESENCE_IDX] === 1)
+
+      const audioFeatures = extractFluteAudioFeatures(analyser, sampleRate)
+      pending = true
+      try {
+        const response = await inferFlute({
+          target_note: null,
+          audio_features: audioFeatures,
+          visual_features: visualFeatures,
+          visual_schema: FLUTE_VISUAL_SCHEMA,
+        })
+        if (generation !== generationRef.current) return
+        if (!response.data) throw new Error(response.message)
+        const rawPrediction = response.data
+
+        // 3-frame temporal smoothing for posture probabilities
+        let prediction = rawPrediction
+        if (rawPrediction.posture_evaluable && rawPrediction.top_posture_classes) {
+          postureWindowRef.current = [
+            ...postureWindowRef.current.slice(-2),
+            rawPrediction.top_posture_classes,
+          ]
+          const avgScores = new Map<string, number>()
+          const winLen = postureWindowRef.current.length
+          for (const entries of postureWindowRef.current) {
+            for (const entry of entries) {
+              avgScores.set(entry.label, (avgScores.get(entry.label) ?? 0) + entry.probability / winLen)
+            }
+          }
+          const smoothedTop = [...avgScores.entries()]
+            .map(([label, probability]) => ({ label, probability: Number(probability.toFixed(4)) }))
+            .sort((a, b) => b.probability - a.probability)
+            .slice(0, 3)
+
+          if (smoothedTop.length > 0) {
+            const topPosture = smoothedTop[0]
+            const soundNote = rawPrediction.sound_class
+            const isWrong = topPosture.label === "INCORRECTA" && topPosture.probability >= 0.5
+            const soundInTop3 = smoothedTop.some(
+              (item) => item.label === soundNote && item.probability >= 0.15
+            )
+            const smoothedCombinedMatch = Boolean(
+              rawPrediction.sound_ok && !isWrong && soundInTop3
+            )
+            prediction = {
+              ...rawPrediction,
+              posture_class: topPosture.label,
+              posture_confidence: topPosture.probability,
+              top_posture_classes: smoothedTop,
+              combined_match: smoothedCombinedMatch,
+              combined_note: smoothedCombinedMatch ? soundNote : null,
+            }
+          }
+        } else {
+          postureWindowRef.current = []
+        }
+
+        setModelInfo(prediction)
+        const soundNote = prediction.sound_class
+        setLiveDetectedNote(
+          Object.hasOwn(FLUTE_NOTES_MAP, soundNote)
+            ? (soundNote as FluteNoteName)
+            : null
+        )
+        setLiveVoiceRejected(soundNote === "NO_FLAUTA")
+        if (
+          prediction.combined_match &&
+          prediction.combined_note &&
+          Object.hasOwn(FLUTE_NOTES_MAP, prediction.combined_note)
+        ) {
+          const confirmed = prediction.combined_note as FluteNoteName
+          setRecentConfirmedNotes((prev) =>
+            prev[0] === confirmed ? prev : [confirmed, ...prev].slice(0, 8)
+          )
+        }
+      } catch (err: unknown) {
+        if (generation !== generationRef.current) return
+        cleanupMedia()
+        setCameraError(
+          err instanceof Error ? err.message : "No se pudo ejecutar la inferencia."
+        )
+        setStep("setup")
+      } finally {
+        pending = false
+      }
+    }, 280)
+  }
+
+  const startExamValidation = async () => {
+    setCameraError(null)
+    setModelInfo(null)
+    cleanupMedia()
+    const generation = generationRef.current
+    segmentIndexRef.current = 0
+    predictionsRef.current = []
+
+    const generatedPlan = buildChallengePlan(targetLevel)
+    setPlan(generatedPlan)
+    setResults([])
+    setActiveIdx(0)
+    setSegmentProgressPct(0)
+
+    const devices = await openCameraAndAudio()
+    if (!devices) return
+    const { analyser, sampleRate } = devices
+
+    setStep("playing")
 
     let pending = false
     let started = false
     telemetryIntervalRef.current = window.setInterval(async () => {
-      if (!streamRef.current || !streamRef.current.active) {
-        return
-      }
-
+      if (!streamRef.current || !streamRef.current.active) return
       if (pending || !analyser) return
       const index = segmentIndexRef.current
       const segment = generatedPlan[index]
@@ -243,13 +369,18 @@ export function FluteLiveValidator({
       if (!frame || !segment) return
       const visualFeatures = frame.features
       setCameraReady(true)
-      setLeftHandLive(visualFeatures[0] === 1)
-      setRightHandLive(visualFeatures[64] === 1)
-      if (!started && visualFeatures[0] + visualFeatures[64] < segment.handsRequired) return
+      setLeftHandLive(visualFeatures[LEFT_HAND_PRESENCE_IDX] === 1)
+      setRightHandLive(visualFeatures[RIGHT_HAND_PRESENCE_IDX] === 1)
+      if (!started && countDetectedHands(visualFeatures) < segment.handsRequired) return
       const audioFeatures = extractFluteAudioFeatures(analyser, sampleRate)
       pending = true
       try {
-        const response = await inferFlute({ target_note: segment.targetNote, audio_features: audioFeatures, visual_features: visualFeatures, visual_schema: FLUTE_VISUAL_SCHEMA })
+        const response = await inferFlute({
+          target_note: segment.targetNote,
+          audio_features: audioFeatures,
+          visual_features: visualFeatures,
+          visual_schema: FLUTE_VISUAL_SCHEMA,
+        })
         if (generation !== generationRef.current || index !== segmentIndexRef.current) return
         if (!response.data) throw new Error(response.message)
         const prediction = response.data
@@ -260,31 +391,36 @@ export function FluteLiveValidator({
         }
         predictionsRef.current.push(prediction)
         setModelInfo(prediction)
-        setLiveHz(audioFeatures[24] * 1500 || null)
         const note = prediction.sound_class
-        setLiveDetectedNote(Object.hasOwn(FLUTE_NOTES_MAP, note) ? note as FluteNoteName : null)
+        setLiveDetectedNote(
+          Object.hasOwn(FLUTE_NOTES_MAP, note) ? (note as FluteNoteName) : null
+        )
         setLiveVoiceRejected(note === "NO_FLAUTA")
-        if (note === "NO_FLAUTA") currentSegmentVoiceRejectionsRef.current += 1
-        else currentSegmentFluteHzRef.current.push(audioFeatures[24] * 1500)
       } catch (err: unknown) {
         if (generation !== generationRef.current) return
         cleanupMedia()
-        setCameraError(err instanceof Error ? err.message : "No se pudo ejecutar la inferencia.")
+        setCameraError(
+          err instanceof Error ? err.message : "No se pudo ejecutar la inferencia."
+        )
         setStep("setup")
         return
-      } finally { pending = false }
+      } finally {
+        pending = false
+      }
 
       currentSegmentTotalFramesRef.current += 1
-      if (visualFeatures[0] === 1) currentSegmentLeftHandOkFramesRef.current += 1
-      if (visualFeatures[64] === 1) currentSegmentRightHandOkFramesRef.current += 1
+      if (visualFeatures[LEFT_HAND_PRESENCE_IDX] === 1) {
+        currentSegmentLeftHandOkFramesRef.current += 1
+      }
+      if (visualFeatures[RIGHT_HAND_PRESENCE_IDX] === 1) {
+        currentSegmentRightHandOkFramesRef.current += 1
+      }
     }, 300)
   }
 
   const runPartituraSequence = (segments: ScoreNoteSegment[]) => {
     let segIdx = 0
     let elapsedMs = 0
-    currentSegmentFluteHzRef.current = []
-    currentSegmentVoiceRejectionsRef.current = 0
     currentSegmentTotalFramesRef.current = 0
     currentSegmentLeftHandOkFramesRef.current = 0
     currentSegmentRightHandOkFramesRef.current = 0
@@ -303,12 +439,10 @@ export function FluteLiveValidator({
       setSegmentProgressPct(pct)
 
       if (elapsedMs >= segDurationMs) {
-        const fluteHzReadings = currentSegmentFluteHzRef.current
         const totalFrames = Math.max(1, currentSegmentTotalFramesRef.current)
         const leftRatio = currentSegmentLeftHandOkFramesRef.current / totalFrames
         const rightRatio = currentSegmentRightHandOkFramesRef.current / totalFrames
 
-        // Require hand presence in at least 35% of frames during the note
         const leftDetected =
           currentSegmentTotalFramesRef.current > 0 && leftRatio >= 0.35
         const rightDetected =
@@ -321,37 +455,47 @@ export function FluteLiveValidator({
           setStep("setup")
           return
         }
-        const evaluable = predictions.filter(p => p.posture_evaluable)
-        const handPostureOk = evaluable.length < 3 || evaluable.length / predictions.length < 0.7
-          ? null : evaluable.filter(p => p.posture_ok).length / evaluable.length >= 0.5
+        const evaluable = predictions.filter((p) => p.posture_evaluable)
+        const handPostureOk =
+          evaluable.length < 3 || evaluable.length / predictions.length < 0.7
+            ? null
+            : evaluable.filter((p) => p.posture_ok).length / evaluable.length >= 0.5
 
-        const avgHz = fluteHzReadings.length > 0
-          ? Math.round(fluteHzReadings.reduce((a, b) => a + b, 0) / fluteHzReadings.length) : null
-        const pitchScore = Math.round(100 * predictions.filter(p => p.sound_ok).length / predictions.length)
+        const soundScore = Math.round(
+          (100 * predictions.filter((p) => p.sound_ok).length) / predictions.length
+        )
         const votes = new Map<string, number>()
-        predictions.forEach(p => votes.set(p.sound_class, (votes.get(p.sound_class) ?? 0) + 1))
+        predictions.forEach((p) =>
+          votes.set(p.sound_class, (votes.get(p.sound_class) ?? 0) + 1)
+        )
         const winner = [...votes].sort((a, b) => b[1] - a[1])[0][0]
-        const detected = Object.hasOwn(FLUTE_NOTES_MAP, winner) ? winner as FluteNoteName : "Voz / Ruido (No Flauta)"
-        const handStatusLabel = handPostureOk === null
-          ? predictions.find(p => p.posture_reason)?.posture_reason ?? "Digitación inconclusa: faltan observaciones fiables."
-          : handPostureOk ? "Coincide con la digitación aprendida" : "No coincide con la digitación aprendida"
+        const detected: FluteNoteName | "Voz / Ruido (No Flauta)" = Object.hasOwn(
+          FLUTE_NOTES_MAP,
+          winner
+        )
+          ? (winner as FluteNoteName)
+          : "Voz / Ruido (No Flauta)"
+        const handStatusLabel =
+          handPostureOk === null
+            ? predictions.find((p) => p.posture_reason)?.posture_reason ??
+              "Digitación inconclusa: faltan observaciones fiables."
+            : handPostureOk
+            ? "Coincide con la digitación aprendida"
+            : "No coincide con la digitación aprendida"
 
-        // Combined segment score:
-        // If no valid flute note matched (pitchScore === 0), the note fails (0%).
-        // If the note matched, 75% comes from pitch accuracy and 25% from verified hand posture in camera.
-        const segmentTotalPct = handPostureOk === null ? null :
-          pitchScore === 0
+        const segmentTotalPct =
+          handPostureOk === null
+            ? null
+            : soundScore === 0
             ? 0
-            : Math.round(pitchScore * 0.75 + (handPostureOk ? 25 : 0))
+            : Math.round(soundScore * 0.75 + (handPostureOk ? 25 : 0))
 
         collectedResults.push({
           index: currentSeg.index,
           targetNote: currentSeg.targetNote,
-          targetHz: currentSeg.targetHz,
           handsRequired: currentSeg.handsRequired,
           detectedNote: detected,
-          avgMeasuredHz: avgHz,
-          pitchScorePct: pitchScore,
+          soundScorePct: soundScore,
           leftHandDetected: leftDetected,
           rightHandDetected: rightDetected,
           handPostureOk,
@@ -363,8 +507,6 @@ export function FluteLiveValidator({
         segmentIndexRef.current = segIdx
         predictionsRef.current = []
         elapsedMs = 0
-        currentSegmentFluteHzRef.current = []
-        currentSegmentVoiceRejectionsRef.current = 0
         currentSegmentTotalFramesRef.current = 0
         currentSegmentLeftHandOkFramesRef.current = 0
         currentSegmentRightHandOkFramesRef.current = 0
@@ -381,26 +523,51 @@ export function FluteLiveValidator({
     }, 150)
   }
 
+  const stopLiveSession = () => {
+    cleanupMedia()
+    setStep("setup")
+  }
+
   const activeSegment = plan[activeIdx] || plan[0]
   const activeNoteSpec = activeSegment
     ? FLUTE_NOTES_MAP[activeSegment.targetNote]
     : FLUTE_NOTES_MAP.SI
 
-  const overallScore = results.some(r => r.segmentTotalPct === null) ? null :
-    results.length > 0
-      ? Math.round(
-          results.reduce((acc, r) => acc + (r.segmentTotalPct ?? 0), 0) / results.length
-        )
-      : 0
+  const overallScore = results.some((r) => r.segmentTotalPct === null)
+    ? null
+    : results.length > 0
+    ? Math.round(
+        results.reduce((acc, r) => acc + (r.segmentTotalPct ?? 0), 0) /
+          results.length
+      )
+    : 0
 
   const isApproved = overallScore !== null && overallScore >= 75
 
+  const formatNoteLabel = (label: string) =>
+    Object.hasOwn(FLUTE_NOTES_MAP, label)
+      ? FLUTE_NOTES_MAP[label as FluteNoteName].displayName
+      : label
+
   return (
     <div className="space-y-6">
-      {step === "playing" && !sequenceStarted && <Alert><AlertDescription>Calibra la flauta y muestra tus manos. La secuencia comenzará al recibir la primera inferencia. Los puntos muestran estimaciones de articulaciones, no confirman agujeros tapados.</AlertDescription></Alert>}
-      {modelInfo && <Alert variant={modelInfo.validated ? "default" : "destructive"}>
-        <AlertDescription>Modelo {modelInfo.model_version} · {modelInfo.validated ? "Validado con participantes independientes" : "No verificado con participantes independientes; resultado experimental"}</AlertDescription>
-      </Alert>}
+      {step === "playing" && mode === "exam" && !sequenceStarted && (
+        <Alert>
+          <AlertDescription>
+            Muestra tus manos frente a la cámara. La secuencia comenzará automáticamente al recibir la primera inferencia.
+          </AlertDescription>
+        </Alert>
+      )}
+      {modelInfo && (
+        <Alert variant={modelInfo.validated ? "default" : "default"}>
+          <AlertDescription>
+            Modelo {modelInfo.model_version} ·{" "}
+            {modelInfo.validated
+              ? "Validado con participantes independientes"
+              : "Modo experimental (entrenado con 1 participante)"}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {cameraError && (
         <Alert variant="destructive">
@@ -417,23 +584,82 @@ export function FluteLiveValidator({
               <div className="flex items-center gap-2">
                 <Badge className="bg-emerald-600 text-white text-xs">
                   <Sparkles className="w-3.5 h-3.5 mr-1" />
-                  Validador Estricto en Vivo (Timbre de Flauta + Manos en Cámara)
+                  Validador Dual en Vivo (Sonido de Flauta + Posición de Manos)
                 </Badge>
                 <Badge variant="outline" className="text-xs">
                   {skillName}
                 </Badge>
               </div>
               <CardTitle className="text-lg font-bold mt-1.5">
-                Prueba Interactiva de Flauta (Sonido + Posición de Manos)
+                Detección de Notas por Timbre de Flauta y Digitación en Cámara
               </CardTitle>
               <CardDescription className="text-xs">
-                Compara sonido y articulaciones con tus ejemplos etiquetados.
-                Calibra el eje de la flauta y observa los dedos sobre el video.
-                Sin evidencia visual suficiente, el resultado será inconcluso.
+                Reconoce las notas aprendidas por el sonido real de la flauta (sin medir frecuencia en Hz) y las articulaciones de tus manos.
               </CardDescription>
             </div>
 
             {step === "setup" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={mode === "free" ? "default" : "outline"}
+                  onClick={() => setMode("free")}
+                  className={
+                    mode === "free"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      : ""
+                  }
+                >
+                  <Radio className="w-3.5 h-3.5 mr-1.5" />
+                  Detección Libre
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={mode === "exam" ? "default" : "outline"}
+                  onClick={() => setMode("exam")}
+                  className={
+                    mode === "exam"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      : ""
+                  }
+                >
+                  <Music className="w-3.5 h-3.5 mr-1.5" />
+                  Examen Partitura
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-5">
+          {step === "setup" && mode === "free" && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-2">
+                <span className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-emerald-500" />
+                  Modo Detección Libre en Tiempo Real
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  Ponte frente a la cámara y toca cualquier nota entrenada en tu flauta. Verás en vivo qué nota detecta el modelo de{" "}
+                  <strong>sonido de flauta</strong>, qué nota detecta el modelo de <strong>posición de manos</strong> y cuándo ambos coinciden.
+                </p>
+              </div>
+
+              <Button
+                type="button"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5"
+                onClick={() => void startFreeDetection()}
+              >
+                <Play className="w-4 h-4 mr-2 fill-current" />
+                Iniciar Detección Libre en Vivo (Cámara + Micrófono)
+              </Button>
+            </div>
+          )}
+
+          {step === "setup" && mode === "exam" && (
+            <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -446,7 +672,7 @@ export function FluteLiveValidator({
                       : ""
                   }
                 >
-                  Probar Examen Nivel 1 (Principiante)
+                  Examen Nivel 1 (Principiante)
                 </Button>
                 <Button
                   type="button"
@@ -459,23 +685,17 @@ export function FluteLiveValidator({
                       : ""
                   }
                 >
-                  Probar Examen Nivel 3 (Avanzado)
+                  Examen Nivel 3 (Avanzado)
                 </Button>
               </div>
-            )}
-          </div>
-        </CardHeader>
 
-        <CardContent className="space-y-5">
-          {step === "setup" && (
-            <div className="space-y-4">
               <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-bold text-foreground flex items-center gap-2">
                     <Music className="w-4 h-4 text-emerald-500" />
                     {targetLevel === 1
-                      ? "Partitura Dinámica — Nivel 1 (Principiante: 1 Mano Arriba, Ritmo Pausado)"
-                      : "Partitura Dinámica — Nivel 3 (Avanzado: Ambas Manos + FA# y Agudos)"}
+                      ? "Partitura Dinámica — Nivel 1 (1 Mano Arriba, Ritmo Pausado)"
+                      : "Partitura Dinámica — Nivel 3 (Ambas Manos + FA# y Agudos)"}
                   </span>
                   <Badge variant="secondary" className="text-xs">
                     {plan.length} notas •{" "}
@@ -496,7 +716,7 @@ export function FluteLiveValidator({
                         {FLUTE_NOTES_MAP[seg.targetNote].displayName}
                       </span>
                       <span className="text-[10px] text-muted-foreground font-mono">
-                        ({seg.targetHz}Hz • {seg.durationSec}s • {seg.handsRequired}M)
+                        ({seg.durationSec}s • {seg.handsRequired}M)
                       </span>
                     </div>
                   ))}
@@ -506,15 +726,254 @@ export function FluteLiveValidator({
               <Button
                 type="button"
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5"
-                onClick={() => void startLiveValidation()}
+                onClick={() => void startExamValidation()}
               >
                 <Play className="w-4 h-4 mr-2 fill-current" />
-                Iniciar Prueba en Vivo de Nivel {targetLevel} (Encender Cámara y Micrófono)
+                Iniciar Prueba de Nivel {targetLevel} (Encender Cámara y Micrófono)
               </Button>
             </div>
           )}
 
-          {step === "playing" && activeSegment && (
+          {step === "playing" && mode === "free" && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+              {/* Panel Izquierdo: Detección Combinada + Cabeza Sonido + Cabeza Manos */}
+              <div className="lg:col-span-5 space-y-3">
+                {/* Veredicto combinado */}
+                <div
+                  className={`p-4 rounded-xl border-2 text-center space-y-1.5 transition-colors ${
+                    modelInfo?.combined_match
+                      ? "border-emerald-500 bg-emerald-500/15"
+                      : "border-border bg-card"
+                  }`}
+                >
+                  <span className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground block">
+                    Detección Combinada (Sonido + Manos)
+                  </span>
+                  <div
+                    className={`text-4xl font-extrabold ${
+                      modelInfo?.combined_match
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {modelInfo?.combined_match && modelInfo.combined_note
+                      ? formatNoteLabel(modelInfo.combined_note)
+                      : "—"}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {modelInfo?.combined_match
+                      ? "✓ Sonido de flauta y posición de manos coinciden"
+                      : "Toca una nota frente a la cámara para confirmar sonido y digitación"}
+                  </p>
+                </div>
+
+                {/* Cabeza 1: Sonido de Flauta */}
+                <div className="p-3.5 rounded-xl border border-border bg-card space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold flex items-center gap-1.5">
+                      <Volume2 className="w-4 h-4 text-emerald-500" />
+                      Sonido de Flauta (Timbre)
+                    </span>
+                    <Badge
+                      variant={
+                        modelInfo?.sound_class === "NO_FLAUTA"
+                          ? "secondary"
+                          : "default"
+                      }
+                      className={
+                        modelInfo && modelInfo.sound_class !== "NO_FLAUTA"
+                          ? "bg-emerald-600 text-white font-mono"
+                          : "font-mono"
+                      }
+                    >
+                      {modelInfo
+                        ? `${formatNoteLabel(modelInfo.sound_class)} (${Math.round(modelInfo.sound_confidence * 100)}%)`
+                        : "Escuchando..."}
+                    </Badge>
+                  </div>
+                  <Progress
+                    value={Math.round((modelInfo?.sound_confidence ?? 0) * 100)}
+                    className="h-2"
+                  />
+                  {modelInfo?.top_sound_classes && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {modelInfo.top_sound_classes.map((item) => (
+                        <Badge
+                          key={item.label}
+                          variant="outline"
+                          className="text-[10px] font-mono"
+                        >
+                          {formatNoteLabel(item.label)}: {Math.round(item.probability * 100)}%
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Cabeza 2: Posición de Manos */}
+                <div className="p-3.5 rounded-xl border border-border bg-card space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold flex items-center gap-1.5">
+                      <Hand className="w-4 h-4 text-sky-500" />
+                      Posición de Manos
+                    </span>
+                    <Badge
+                      variant={
+                        !modelInfo?.posture_evaluable ||
+                        modelInfo.posture_class === "INCORRECTA"
+                          ? "secondary"
+                          : "default"
+                      }
+                      className={
+                        modelInfo?.posture_evaluable &&
+                        modelInfo.posture_class !== "INCORRECTA"
+                          ? "bg-sky-600 text-white font-mono"
+                          : "font-mono"
+                      }
+                    >
+                      {modelInfo?.posture_evaluable
+                        ? `${formatNoteLabel(modelInfo.posture_class)} (${Math.round(modelInfo.posture_confidence * 100)}%)`
+                        : "Sin manos / Inconcluso"}
+                    </Badge>
+                  </div>
+                  <Progress
+                    value={
+                      modelInfo?.posture_evaluable
+                        ? Math.round(modelInfo.posture_confidence * 100)
+                        : 0
+                    }
+                    className="h-2"
+                  />
+                  {modelInfo?.posture_reason && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                      {modelInfo.posture_reason}
+                    </p>
+                  )}
+                  {modelInfo?.posture_evaluable && modelInfo.top_posture_classes && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {modelInfo.top_posture_classes.map((item) => (
+                        <Badge
+                          key={item.label}
+                          variant="outline"
+                          className="text-[10px] font-mono"
+                        >
+                          {formatNoteLabel(item.label)}: {Math.round(item.probability * 100)}%
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Historial de notas confirmadas */}
+                {recentConfirmedNotes.length > 0 && (
+                  <div className="p-3 rounded-xl border border-border bg-muted/30 space-y-1.5">
+                    <span className="text-[11px] font-semibold text-muted-foreground block">
+                      Últimas notas confirmadas (sonido + manos):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {recentConfirmedNotes.map((note, idx) => (
+                        <Badge
+                          key={`${note}-${idx}`}
+                          className="bg-emerald-600/90 text-white text-xs"
+                        >
+                          {FLUTE_NOTES_MAP[note].displayName}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="w-full"
+                  onClick={stopLiveSession}
+                >
+                  <Square className="w-3.5 h-3.5 mr-1.5 fill-current" />
+                  Detener Detección en Vivo
+                </Button>
+              </div>
+
+              {/* Panel Derecho: Cámara con Articulaciones de Manos */}
+              <div className="lg:col-span-7 space-y-3">
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-neutral-950 border border-border">
+                  <video
+                    ref={(el) => {
+                      videoRef.current = el
+                      if (el && streamRef.current && el.srcObject !== streamRef.current) {
+                        el.srcObject = streamRef.current
+                        void el.play().catch(() => undefined)
+                      }
+                    }}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="w-full h-full object-contain"
+                  />
+
+                  <FluteHandOverlay
+                    videoRef={videoRef}
+                    onFrame={(frame) => {
+                      handFrameRef.current = frame
+                    }}
+                  />
+
+                  <div className="absolute inset-0 p-3 flex flex-col justify-between pointer-events-none">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <Badge className="bg-black/80 text-white text-xs font-mono">
+                        <Sun className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                        {cameraReady
+                          ? "Cámara activa · Detección libre"
+                          : "Iniciando cámara..."}
+                      </Badge>
+
+                      <Badge
+                        className={
+                          liveVoiceRejected
+                            ? "bg-neutral-800 text-neutral-300 text-xs font-mono"
+                            : liveDetectedNote
+                            ? "bg-emerald-600 text-white text-xs font-mono"
+                            : "bg-black/80 text-neutral-300 text-xs font-mono"
+                        }
+                      >
+                        <Volume2 className="w-3.5 h-3.5 mr-1" />
+                        {liveVoiceRejected
+                          ? "Sin sonido de flauta"
+                          : liveDetectedNote
+                          ? `Flauta: ${FLUTE_NOTES_MAP[liveDetectedNote].displayName}`
+                          : "Esperando sonido de flauta..."}
+                      </Badge>
+                    </div>
+
+                    <div className="ml-auto mt-2 mb-auto w-36 flex flex-col gap-2">
+                      <div
+                        className={`rounded-lg px-3 py-2 text-center border-2 transition-colors text-xs font-bold ${
+                          leftHandLive
+                            ? "border-emerald-400 bg-emerald-950/65 text-emerald-200"
+                            : "border-red-500/80 border-dashed bg-black/60 text-red-300"
+                        }`}
+                      >
+                        {leftHandLive ? "Mano Izq detectada" : "Mano Izq ausente"}
+                      </div>
+
+                      <div
+                        className={`rounded-lg px-3 py-2 text-center border-2 transition-colors text-xs font-bold ${
+                          rightHandLive
+                            ? "border-sky-400 bg-sky-950/65 text-sky-200"
+                            : "border-neutral-500/60 border-dashed bg-black/45 text-neutral-300"
+                        }`}
+                      >
+                        {rightHandLive ? "Mano Der detectada" : "Mano Der ausente"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === "playing" && mode === "exam" && activeSegment && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
               {/* Partitura Activa e Instrucción de Dedos */}
               <div className="lg:col-span-5 p-4 rounded-xl border-2 border-emerald-500 bg-card space-y-4">
@@ -537,9 +996,6 @@ export function FluteLiveValidator({
                   <div className="text-4xl sm:text-5xl font-extrabold text-emerald-600 dark:text-emerald-400">
                     {activeNoteSpec.displayName}
                   </div>
-                  <span className="text-xs font-mono text-muted-foreground block">
-                    Frecuencia objetivo: {activeSegment.targetHz} Hz
-                  </span>
                 </div>
 
                 <p className="text-xs font-medium text-foreground text-center">
@@ -575,9 +1031,20 @@ export function FluteLiveValidator({
                   </div>
                   <Progress value={segmentProgressPct} className="h-2.5" />
                 </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={stopLiveSession}
+                >
+                  <Square className="w-3.5 h-3.5 mr-1.5" />
+                  Cancelar Prueba
+                </Button>
               </div>
 
-              {/* Cámara en Vivo con Detección Real de Zonas de Manos y Filtro Antivoz */}
+              {/* Cámara en Vivo */}
               <div className="lg:col-span-7 space-y-3">
                 <div className="relative aspect-video rounded-xl overflow-hidden bg-neutral-950 border border-border">
                   <video
@@ -594,10 +1061,13 @@ export function FluteLiveValidator({
                     className="w-full h-full object-contain"
                   />
 
-                  <FluteHandOverlay videoRef={videoRef}
-                    onFrame={frame => { handFrameRef.current = frame }} />
+                  <FluteHandOverlay
+                    videoRef={videoRef}
+                    onFrame={(frame) => {
+                      handFrameRef.current = frame
+                    }}
+                  />
                   <div className="absolute inset-0 p-3 flex flex-col justify-between pointer-events-none">
-                    {/* Top Telemetry Bar */}
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Badge className="bg-black/80 text-white text-xs font-mono">
                         <Sun className="w-3.5 h-3.5 mr-1 text-amber-400" />
@@ -610,7 +1080,7 @@ export function FluteLiveValidator({
                         className={
                           liveVoiceRejected
                             ? "bg-red-600 text-white text-xs font-mono"
-                            : liveHz
+                            : liveDetectedNote
                             ? liveDetectedNote === activeSegment.targetNote
                               ? "bg-emerald-600 text-white text-xs font-mono"
                               : "bg-amber-600 text-white text-xs font-mono"
@@ -619,14 +1089,13 @@ export function FluteLiveValidator({
                       >
                         <Volume2 className="w-3.5 h-3.5 mr-1" />
                         {liveVoiceRejected
-                          ? "⚠️ Voz / Ruido rechazado (Usa la flauta)"
-                          : liveHz
-                          ? `Flauta: ${liveDetectedNote} (${liveHz} Hz)`
+                          ? "Sin sonido de flauta"
+                          : liveDetectedNote
+                          ? `Flauta: ${FLUTE_NOTES_MAP[liveDetectedNote].displayName}`
                           : "Esperando sonido de flauta..."}
                       </Badge>
                     </div>
 
-                    {/* Recuadros Reales de Detección de Mano Izquierda (Arriba) y Derecha (Abajo) */}
                     <div className="ml-auto mt-2 mb-auto w-36 flex flex-col gap-2">
                       <div
                         className={`rounded-lg px-3 py-2 text-center border-2 transition-colors text-xs font-bold ${
@@ -636,8 +1105,8 @@ export function FluteLiveValidator({
                         }`}
                       >
                         {leftHandLive
-                          ? "Articulaciones A detectadas"
-                          : "Mano A no detectada"}
+                          ? "Mano Izq detectada"
+                          : "Mano Izq no detectada"}
                       </div>
 
                       <div
@@ -650,14 +1119,13 @@ export function FluteLiveValidator({
                         }`}
                       >
                         {rightHandLive
-                          ? "Articulaciones B detectadas"
+                          ? "Mano Der detectada"
                           : activeNoteSpec.handsRequired === 2
-                          ? "Mano B no detectada"
-                          : "Mano B opcional"}
+                          ? "Mano Der no detectada"
+                          : "Mano Der opcional"}
                       </div>
                     </div>
 
-                    {/* Barra inferior de progreso de toda la partitura */}
                     <div className="flex items-center gap-1.5 bg-black/80 p-2 rounded-lg">
                       {plan.map((seg, idx) => (
                         <div
@@ -696,17 +1164,22 @@ export function FluteLiveValidator({
                       </h3>
                       <Badge
                         className={
-                          overallScore === null ? "bg-amber-600 text-white" : isApproved
+                          overallScore === null
+                            ? "bg-amber-600 text-white"
+                            : isApproved
                             ? "bg-emerald-600 text-white"
                             : "bg-destructive text-white"
                         }
                       >
-                        {overallScore === null ? "INCONCLUSO · NO SE PUNTÚA" : isApproved ? "APROBADO" : "REQUIERE REVISIÓN"}
+                        {overallScore === null
+                          ? "INCONCLUSO · NO SE PUNTÚA"
+                          : isApproved
+                          ? "APROBADO"
+                          : "REQUIERE REVISIÓN"}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Coincidencia de sonido aprendido (75%) y digitación aprendida (25%).
-                      La frecuencia es una estimación independiente, no la etiqueta del modelo.
+                      Coincidencia de sonido aprendido por timbre (75%) y digitación de manos aprendida (25%).
                     </p>
                   </div>
                 </div>
@@ -720,7 +1193,9 @@ export function FluteLiveValidator({
                       isApproved ? "text-emerald-600" : "text-destructive"
                     }`}
                   >
-                    {overallScore === null ? "Sin puntuación" : `${overallScore} / 100`}
+                    {overallScore === null
+                      ? "Sin puntuación"
+                      : `${overallScore} / 100`}
                   </span>
                 </div>
               </div>
@@ -730,10 +1205,10 @@ export function FluteLiveValidator({
                   <TableRow>
                     <TableHead className="text-xs">#</TableHead>
                     <TableHead className="text-xs">Nota Pedida</TableHead>
-                    <TableHead className="text-xs">Nota predicha / Hz estimados</TableHead>
+                    <TableHead className="text-xs">Nota detectada (sonido)</TableHead>
                     <TableHead className="text-xs">Manos en Cámara</TableHead>
                     <TableHead className="text-xs text-right">
-                      Inferencias coincidentes
+                      Coincidencia sonido
                     </TableHead>
                     <TableHead className="text-xs text-right">
                       Total Segmento
@@ -747,22 +1222,28 @@ export function FluteLiveValidator({
                         #{i + 1}
                       </TableCell>
                       <TableCell className="text-xs font-bold">
-                        {FLUTE_NOTES_MAP[r.targetNote].displayName} ({r.targetHz} Hz)
+                        {FLUTE_NOTES_MAP[r.targetNote].displayName}
                       </TableCell>
                       <TableCell className="text-xs font-mono">
                         {r.detectedNote === r.targetNote ? (
                           <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                            ✓ {r.detectedNote} ({r.avgMeasuredHz} Hz)
+                            ✓ {formatNoteLabel(r.detectedNote)}
                           </span>
                         ) : (
                           <span className="text-destructive font-semibold">
-                            ✗ {r.detectedNote}{" "}
-                            {r.avgMeasuredHz ? `(${r.avgMeasuredHz} Hz)` : ""}
+                            ✗ {formatNoteLabel(r.detectedNote)}
                           </span>
                         )}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {r.handPostureOk === null ? <Badge variant="outline" className="text-[10px] whitespace-normal border-amber-500 text-amber-700">{r.handStatusLabel}</Badge> : r.handPostureOk ? (
+                        {r.handPostureOk === null ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] whitespace-normal border-amber-500 text-amber-700"
+                          >
+                            {r.handStatusLabel}
+                          </Badge>
+                        ) : r.handPostureOk ? (
                           <Badge
                             variant="outline"
                             className="border-emerald-500/40 text-emerald-600 text-[10px]"
@@ -771,20 +1252,19 @@ export function FluteLiveValidator({
                             {r.handStatusLabel}
                           </Badge>
                         ) : (
-                          <Badge
-                            variant="destructive"
-                            className="text-[10px]"
-                          >
+                          <Badge variant="destructive" className="text-[10px]">
                             <XCircle className="w-3 h-3 mr-1" />{" "}
                             {r.handStatusLabel}
                           </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-xs font-mono text-right">
-                        {r.pitchScorePct}%
+                        {r.soundScorePct}%
                       </TableCell>
                       <TableCell className="text-xs font-bold text-right">
-                        {r.segmentTotalPct === null ? "Inconcluso" : `${r.segmentTotalPct}%`}
+                        {r.segmentTotalPct === null
+                          ? "Inconcluso"
+                          : `${r.segmentTotalPct}%`}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -798,7 +1278,7 @@ export function FluteLiveValidator({
                   onClick={() => setStep("setup")}
                 >
                   <RotateCcw className="w-4 h-4 mr-1.5" />
-                  Realizar Otra Prueba en Vivo
+                  Volver al inicio
                 </Button>
               </div>
             </div>

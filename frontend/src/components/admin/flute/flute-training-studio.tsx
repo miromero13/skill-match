@@ -47,7 +47,7 @@ export function FluteTrainingStudio({ skillId, skillName = "Flauta Dulce" }: Flu
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Estudio de Entrenamiento — {skillName}</h2>
-      <p className="text-sm text-muted-foreground">Dos cabezas ONNX: sonido (11 notas + NO_FLAUTA) y digitación (11 notas + INCORRECTA).</p>
+      <p className="text-sm text-muted-foreground">Modelo neuronal dual ONNX (MLP): cabeza de timbre de sonido (log-Mel + MFCC, sin medición de frecuencia/Hz; 11 notas + NO_FLAUTA) y cabeza de digitación de manos (articulaciones + flexión de dedos; 11 notas + INCORRECTA).</p>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {message && <Alert><AlertDescription>{message}</AlertDescription></Alert>}
       <Card>
@@ -89,14 +89,14 @@ export function FluteTrainingStudio({ skillId, skillName = "Flauta Dulce" }: Flu
         <CardHeader><CardTitle>Métricas — {selected.version}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <Alert variant={metrics.validated ? "default" : "destructive"}><AlertDescription>{metrics.validation_note || "Validación independiente no verificada."}</AlertDescription></Alert>
-          {metrics.visual_schema !== FLUTE_VISUAL_SCHEMA && <Alert variant="destructive"><AlertDescription>Modelo de cuadrícula antigua: reprocesa los videos y entrena una versión con articulaciones antes de usar el validador.</AlertDescription></Alert>}
-          <p>Entrenamiento: {metrics.train_samples ?? "—"} · Prueba: {metrics.test_samples ?? "—"} {metrics.metric_unit === "feature_frame" ? "fotogramas (no personas independientes)" : "muestras"} · Latencia: {metrics.latency_ms_per_inference ?? "—"} ms</p>
+          {metrics.visual_schema !== FLUTE_VISUAL_SCHEMA && <Alert variant="destructive"><AlertDescription>Modelo de formato anterior: reprocesa los videos con timbre y flexión de dedos y entrena una nueva versión antes de usar el validador.</AlertDescription></Alert>}
+          <p>Entrenamiento: {metrics.train_samples ?? "—"} · Prueba: {metrics.test_samples ?? "—"} {metrics.metric_unit === "feature_frame" ? "fotogramas" : "muestras"} · Latencia: {metrics.latency_ms_per_inference ?? "—"} ms</p>
           {(["sound", "posture"] as const).map(key => {
             const head = metrics[key]
             if (!head) return <p key={key}>Modelo antiguo sin métricas duales; vuelve a entrenar.</p>
             return <section key={key} className="space-y-2">
-              <h3 className="font-semibold">{key === "sound" ? "Sonido" : "Digitación / postura"}</h3>
-              <p>Exactitud: {percent(head.test_accuracy)} · Línea base {key === "sound" ? "acústica" : "mayoritaria"}: {percent(head.rule_baseline_accuracy ?? head.majority_baseline_accuracy)}</p>
+              <h3 className="font-semibold">{key === "sound" ? "Sonido (timbre de flauta)" : "Digitación / posición de manos"}</h3>
+              <p>Entrenamiento: {percent(head.train_accuracy)} · Prueba independiente: {percent(head.test_accuracy)} · Línea base mayoritaria: {percent(head.majority_baseline_accuracy ?? head.rule_baseline_accuracy)}</p>
               <p className="text-xs text-muted-foreground">Matriz de confusión: filas reales, columnas predichas.</p>
               <div className="overflow-x-auto"><Table>
                 <TableHeader><TableRow><TableHead>Real / Predicha</TableHead>{head.classes.map(label => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader>

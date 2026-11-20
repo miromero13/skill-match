@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react"
 import { HandLandmarker, FilesetResolver } from "@mediapipe/tasks-vision"
-import { encodeHandLandmarks, type DetectedHand, type HandFrame } from "./flute-hand-features"
+import { countDetectedHands, encodeHandLandmarks, type DetectedHand, type HandFrame } from "./flute-hand-features"
 
 const BONES = [[0, 1, 2, 3, 4], [0, 5, 6, 7, 8], [5, 9, 10, 11, 12], [9, 13, 14, 15, 16], [13, 17, 18, 19, 20], [0, 17]]
 
@@ -52,9 +52,10 @@ export function FluteHandOverlay({ videoRef, onFrame }: {
             setHands(detected)
             const features = encodeHandLandmarks(detected, video.videoWidth, video.videoHeight)
             callback.current(features ? { features, hands: detected, timestamp } : null)
-            setStatus(!features || features[0] + features[64] === 0
+            const handCount = features ? countDetectedHands(features) : 0
+            setStatus(handCount === 0
               ? "Dedos no detectados con confianza · no evaluable"
-              : `${features[0] + features[64]} mano(s) · 21 articulaciones por mano · análisis local`)
+              : `${handCount} mano(s) · 21 articulaciones por mano · análisis local`)
           } catch {
             callback.current(null)
             setHands([])
