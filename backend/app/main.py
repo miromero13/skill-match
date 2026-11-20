@@ -1,4 +1,5 @@
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -9,6 +10,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.admin.auth import admin_auth_router
 from app.api.admin.catalog import router as admin_catalog_router
 from app.api.admin.complaints import router as admin_complaints_router
+from app.api.admin.push import router as admin_push_router
 from app.api.admin.router import router as admin_management_router
 from app.api.admin.skill_lab import preview_file_router as admin_skill_lab_preview_router
 from app.api.admin.skill_lab import router as admin_skill_lab_router
@@ -55,6 +57,7 @@ from app.db.seed import ensure_initial_admin
 from app.db.session import AsyncSessionLocal
 from app.football.api import router as football_router
 from app.schemas.response import APIResponse
+from app.services import notification_push_dispatcher
 from app.services.notification_connection_manager import notification_connection_manager
 
 # from app.services.realtime_notification_broker import consume_notification_events  # TEMPORAL: ver lifespan
@@ -90,6 +93,11 @@ async def lifespan(app: FastAPI):
     yield
     # broker_listener.cancel()
     # await asyncio.gather(broker_listener, return_exceptions=True)
+    # Let in-flight post-commit native pushes finish (bounded) before shutting down.
+    try:
+        await asyncio.wait_for(notification_push_dispatcher.drain(), timeout=10)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Push nativo pendiente no despachado al apagar: {type(exc).__name__}")
     await notification_connection_manager.close_all()
     logger.info("Cerrando conexiones y apagando servicios de SkillMatch API...")
 
@@ -132,6 +140,7 @@ def create_application() -> FastAPI:
     app.include_router(admin_auth_router, prefix="/api")
     app.include_router(admin_catalog_router, prefix="/api")
     app.include_router(admin_complaints_router, prefix="/api")
+    app.include_router(admin_push_router, prefix="/api")
     app.include_router(admin_programming_router, prefix="/api")
     app.include_router(admin_management_router, prefix="/api")
     app.include_router(admin_skill_lab_router, prefix="/api")
