@@ -62,10 +62,15 @@ out/
 .env
 .env.*
 !.env.example
+.mcp.json
+.agents/
 *.pem
 *.key
 *.cert
 *.crt
+*firebase-adminsdk*.json
+firebase-credentials.json
+backend/firebase-credentials.json
 
 # ------------------------------------------------------------------------------
 # Python & FastAPI
@@ -145,6 +150,10 @@ ios/App/DerivedData/
 # ------------------------------------------------------------------------------
 # Machine Learning, Datasets & Media
 # ------------------------------------------------------------------------------
+# Generated browser hand assets (npm run prepare:hand-assets)
+frontend/public/mediapipe/
+frontend/public/models/hand-landmarker/
+
 # Model weights & checkpoints
 *.pt
 *.pth
@@ -173,3 +182,6 @@ evaluations/recordings/
 *.dump
 minio_data/
 pgdata/
+storage/
+
+.agents/

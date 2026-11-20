@@ -1,15 +1,20 @@
 import { Link, useLocation } from "react-router-dom"
 import { useAuthStore } from "@/stores/auth-store"
 import {
+  Home,
   User,
+  Compass,
   ArrowLeftRight,
+  Handshake,
   Wallet,
   Calendar,
   Award,
+  BookOpen,
   Star,
   AlertTriangle,
   ShieldCheck,
   Shield,
+  QrCode,
 } from "lucide-react"
 
 export function PlatformSidebar() {
@@ -17,35 +22,129 @@ export function PlatformSidebar() {
   const path = location.pathname
   const { user } = useAuthStore()
 
-  const menuItems = [
-    { label: "Mi Perfil", icon: User, to: "/app/profile", active: path === "/app/profile" || path === "/app" },
-    { label: "Intercambios Activos", icon: ArrowLeftRight, to: "/app/swaps", active: path === "/app/swaps", badge: "2" },
-    { label: "Billetera & Cashout", icon: Wallet, to: "/app/wallet", active: path === "/app/wallet", value: "150 pts" },
-    { label: "Disponibilidad y Horarios", icon: Calendar, to: "/app/availability", active: path === "/app/availability" },
-    { label: "Certificados de IA", icon: Award, to: "/app/certificates", active: path === "/app/certificates" },
-    { label: "Reputación y Reseñas", icon: Star, to: "/app/reputation", active: path === "/app/reputation", value: "4.9 ★" },
-    { label: "Centro de Quejas", icon: AlertTriangle, to: "/app/complaints", active: path === "/app/complaints" },
+  const menuItems: Array<{
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+    to: string
+    active: boolean
+    badge?: string
+    value?: string
+  }> = [
+    {
+      label: "Inicio",
+      icon: Home,
+      to: "/app",
+      active: path === "/app" || path === "/app/",
+    },
+    {
+      label: "Mis Coincidencias",
+      icon: Handshake,
+      to: "/matches",
+      active: path === "/matches" || path === "/app/matches",
+    },
+    {
+      label: "Mi Perfil y Horarios",
+      icon: User,
+      to: "/app/profile",
+      active: path === "/app/profile",
+    },
+    {
+      label: "Explorar Instructores",
+      icon: Compass,
+      to: "/app/search",
+      active: path.startsWith("/app/search") || path === "/search",
+    },
+    {
+      label: "Habilidades que enseño",
+      icon: BookOpen,
+      to: "/app/teaching-skills",
+      active: path === "/app/teaching-skills",
+    },
+    {
+      label: "Quiero Aprender",
+      icon: BookOpen,
+      to: "/app/learning-skills",
+      active: path === "/app/learning-skills",
+    },
+    {
+      label: "Mis Sesiones",
+      icon: Calendar,
+      to: "/app/sessions",
+      active: path === "/app/sessions" || path === "/app/swaps",
+    },
+    {
+      label: "Intercambios Activos",
+      icon: ArrowLeftRight,
+      to: "/app/swaps",
+      active: path === "/app/swaps",
+    },
+    {
+      label: "Billetera",
+      icon: Wallet,
+      to: "/app/wallet",
+      active: path === "/app/wallet",
+      value: `${user?.skillPointsBalance ?? 0} pts`,
+    },
+    {
+      label: "Disponibilidad y Agenda",
+      icon: Calendar,
+      to: "/app/availability",
+      active: path === "/app/availability",
+    },
+    {
+      label: "Certificados de IA",
+      icon: Award,
+      to: "/app/certificates",
+      active: path === "/app/certificates",
+    },
+    {
+      label: "Mi Pasaporte QR",
+      icon: QrCode,
+      to: "/app/passport",
+      active: path.startsWith("/app/passport") || path.startsWith("/passport"),
+    },
+    {
+      label: "Reputación y Reseñas",
+      icon: Star,
+      to: "/app/reputation",
+      active: path === "/app/reputation",
+    },
+    {
+      label: "Centro de Quejas",
+      icon: AlertTriangle,
+      to: "/app/complaints",
+      active: path === "/app/complaints",
+    },
   ]
 
   const shortcuts = [
-    { name: "Sofía Rossi", tag: "Guitarra", initials: "SR" },
-    { name: "Mateo Fernández", tag: "Python", initials: "MF" },
-    { name: "Comunidad Python", tag: "Grupo", initials: "CP" },
+    { name: "Buscar Instructores", tag: "Catálogo", to: "/app/search" },
+    { name: "Mis Coincidencias", tag: "Intercambio", to: "/matches" },
+    { name: "Mis Habilidades", tag: "Perfil", to: "/app/teaching-skills" },
   ]
 
   return (
-    <aside className="w-64 shrink-0 space-y-4 p-4 text-sm hidden lg:block">
+    <aside className="hidden h-full w-64 shrink-0 space-y-4 overflow-y-auto border-r border-border bg-card/30 p-4 text-sm lg:block">
       {/* 1. Mini User Card */}
       <div className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-2xs">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground font-black text-xs shrink-0">
-          CM
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-black text-primary-foreground">
+          {user?.fullName
+            .split(" ")
+            .map((name) => name[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase() || "MB"}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
-            <span className="font-bold text-xs text-foreground truncate">Carlos Méndez</span>
-            <ShieldCheck className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="truncate text-xs font-bold text-foreground">
+              {user?.fullName || "Miembro"}
+            </span>
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
           </div>
-          <span className="text-[11px] text-muted-foreground block truncate">@carlos.dev</span>
+          <span className="block truncate text-[11px] text-muted-foreground">
+            {user?.email}
+          </span>
         </div>
       </div>
 
@@ -60,19 +159,16 @@ export function PlatformSidebar() {
               to={item.to}
               className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
                 isActive
-                  ? "bg-primary/10 text-primary font-bold"
+                  ? "bg-primary/10 font-bold text-primary"
                   : "text-foreground/80 hover:bg-muted/70 hover:text-foreground"
               }`}
             >
               <div className="flex items-center gap-3">
-                <Icon className={`h-4 w-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                <Icon
+                  className={`h-4 w-4 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                />
                 <span>{item.label}</span>
               </div>
-              {item.badge && (
-                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
-                  {item.badge}
-                </span>
-              )}
               {item.value && (
                 <span className="text-[11px] font-semibold text-primary">
                   {item.value}
@@ -84,37 +180,35 @@ export function PlatformSidebar() {
       </nav>
 
       {/* 3. Shortcuts */}
-      <div className="pt-2 space-y-2 border-t">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-3 block">
+      <div className="space-y-2 border-t pt-2">
+        <span className="block px-3 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
           ACCESOS DIRECTOS
         </span>
         <div className="space-y-1">
           {shortcuts.map((sc) => (
-            <div
+            <Link
               key={sc.name}
-              className="flex items-center justify-between rounded-lg px-3 py-1.5 text-xs text-foreground/80 hover:bg-muted/50 cursor-pointer transition-colors"
+              to={sc.to}
+              className="flex cursor-pointer items-center justify-between rounded-lg px-3 py-1.5 text-xs text-foreground/80 transition-colors hover:bg-muted/50"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-bold">
-                  {sc.initials}
-                </div>
-                <span className="text-xs font-medium truncate">{sc.name}</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground">{sc.tag}</span>
-            </div>
+              <span className="truncate text-xs font-medium">{sc.name}</span>
+              <span className="text-[10px] text-muted-foreground">
+                {sc.tag}
+              </span>
+            </Link>
           ))}
         </div>
       </div>
 
       {/* 4. Restricción en Sidebar: 'Equipo Administrador' solo visible para UserRole.ADMIN (HU-10) */}
       {user?.role === "ADMIN" && (
-        <div className="pt-2 space-y-2 border-t">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-primary px-3 block">
+        <div className="space-y-2 border-t pt-2">
+          <span className="block px-3 text-[10px] font-bold tracking-wider text-primary uppercase">
             EQUIPO ADMINISTRADOR
           </span>
           <Link
             to="/admin/administrators"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
           >
             <Shield className="h-4 w-4 text-primary" />
             <span>Gestión de Administradores</span>

@@ -6,13 +6,14 @@ Este documento es el **contrato maestro de desarrollo asistido por Inteligencia 
 
 ## 1. Principios Fundamentales del Sistema
 
-### 1.1 Restricción Estricta de IA Propia (Zero Third-Party LLM API)
-- **Prohibido:** OpenAI, Anthropic, Gemini o cualquier proveedor comercial de LLMs / visión / audio en la nube.
-- **Implementación obligatoria:** Todo modelo de inferencia y extracción de características corre en infraestructura propia con librerías open-source:
-  - **Programación:** AST de Python (`ast`), sandbox Docker rootless y evaluación de complejidad ciclomática.
-  - **Música:** Procesamiento espectral de audio (`librosa`) y redes convolucionales en `PyTorch`.
-  - **Fútbol / Deportes:** Visión artificial (`OpenCV`) y estimación de pose en `PyTorch`.
-- **Feedback determinístico:** Las devoluciones pedagógicas y preguntas de defensa se generan mediante reglas y plantillas algorítmicas basadas en métricas numéricas exactas, nunca con prompts generativos en la nube.
+### 1.1 Política de IA para evaluación de respuestas
+- **Proveedores permitidos:** Gemini y la API de OpenAI pueden evaluar las respuestas del usuario y generar feedback según la pregunta, respuesta de referencia y rúbrica definidas por el administrador. El proveedor y modelo se seleccionan mediante configuración del backend en `.env`.
+- **Privacidad y consentimiento:** Por defecto se envía únicamente el texto necesario para la corrección, sin nombres, documentos, rostros ni otros identificadores. Enviar audio o video a un proveedor externo requiere autorización y consentimiento específicos; no se deduce de permitir corregir texto.
+- **Secretos:** Las claves se mantienen exclusivamente en el backend, tipadas con `SecretStr`, nunca en el frontend, repositorio o logs. Toda nueva variable debe documentarse y plantillarse según la sección 3.1.
+- **Corrección controlada:** El backend valida las salidas del proveedor, conserva la versión de la rúbrica y registra qué proveedor/modelo corrigió cada evaluación. Un error o respuesta inválida del proveedor no equivale a una respuesta incorrecta del usuario ni autoriza una aprobación simulada.
+- **Procesamiento especializado local:** Se mantienen los componentes propios/open-source para AST y sandbox de programación, análisis musical con `librosa`/`PyTorch` y visión/pose con `OpenCV`/`PyTorch`. Esta autorización no cambia autenticación, biometría, supervisión ni consumo de intentos.
+- **Banco de preguntas:** Las preguntas y rúbricas se cargan y revisan en el banco administrativo; permitir un corrector externo no autoriza generar preguntas improvisadas durante el examen.
+- **Decisión vigente:** Esta política reemplaza la prohibición anterior de APIs LLM externas para la corrección de respuestas. Las referencias históricas a esa prohibición deben alinearse al implementar el flujo; no deben volver a bloquear esta autorización.
 
 ### 1.2 Formato Estándar de Respuesta API (APIResponse)
 Todas las respuestas HTTP emitidas por el backend siguen estrictamente el esquema unificado:
@@ -32,7 +33,7 @@ Todas las respuestas HTTP emitidas por el backend siguen estrictamente el esquem
 
 ### 1.3 Modelo Canónico de Roles y Accesos (RBAC Estricto)
 Se definen únicamente dos roles en todo el ecosistema (backend y frontend):
-- `MEMBER`: Miembro de la comunidad (aprendiz e instructor). Autenticación **exclusiva** vía proveedores sociales y OTP (**Google**, **GitHub**, **WhatsApp**). Sin contraseñas locales ni recuperación de contraseña.
+- `MEMBER`: Miembro de la comunidad (aprendiz e instructor). Autenticación **exclusiva** vía **Google** (identidad verificada, sin GitHub ni WhatsApp/OTP). Sin contraseñas locales ni recuperación de contraseña.
 - `ADMIN`: Administrador de la plataforma. Autenticación **exclusiva** por correo y contraseña (seed inicial + creación manual por otro ADMIN).
 - **Claim dinámico en JWT:** `"role": user.role.value` (`"MEMBER"` o `"ADMIN"`).
 - **Política de Ofuscación 404 (Security by Obfuscation):** Cualquier intento de acceso no autorizado por un `MEMBER` o visitante anónimo a rutas o endpoints administrativos (`/admin/...` o `/api/admin/...`) debe retornar **`statuscode: 404`** ("Recurso no encontrado"), jamás un `403 Forbidden`. El usuario no debe saber que la funcionalidad existe.
@@ -72,6 +73,7 @@ Antes de generar o modificar código, el agente debe consultar los siguientes do
 
 ### 3.2 Estándares de Frontend (React / TypeScript / Zustand / Tailwind)
 - **Tipado estricto:** TypeScript estricto sin uso de `any`.
+- **Uso Obligatorio de Componentes Shadcn (`frontend/src/components/ui/`):** Está terminantemente prohibido reinventar la rueda o maquetar componentes con elementos HTML nativos (`<button>`, `<select>`, `<input>`, checkboxes nativos o tabs caseros) cuando ya existen componentes oficiales y bien diseñados en `frontend/src/components/ui/` (ej. `Button`, `Input`, `Select`, `Dialog`, `Card`, `Badge`, `Tabs`, `Switch`, `Table`, `Label`, `Textarea`, etc.). Todo agente o desarrollador debe importar y reutilizar sí o sí estos componentes para garantizar la identidad visual del preset **Mist**, consistencia de accesibilidad y evitar pérdida de tiempo.
 - **Estética y Design System:** Shadcn/ui con preset **Mist** (paleta de colores fríos, verde esmeralda institucional, tipografía Inter).
 - **Gestión de Estado:** Tiendas atómicas y modulares con **Zustand**. No inflar estados globales innecesarios.
 - **Responsividad:** 100% responsive en móvil, tablet y desktop; en móvil la navegación principal reside en la barra inferior (Bottom Navigation).

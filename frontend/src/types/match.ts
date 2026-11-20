@@ -1,0 +1,65 @@
+export interface MatchSuggestion {
+    id: string
+    counterpart_name: string
+    counterpart_avatar_url: string | null
+    member_name: string
+    member_avatar_url: string | null
+    you_verified: string[]
+    they_verified: string[]
+    status: string
+    you_teach: string[]
+    they_teach: string[]
+    compatibility_score?: number | null
+}
+
+export interface FactorBreakdown {
+    score: number
+    weight: number
+    weighted_score: number
+    description: string
+}
+
+export interface CompatibilityFactors {
+    skill_affinity: FactorBreakdown
+    schedule_overlap: FactorBreakdown
+    modality_location: FactorBreakdown
+    reputation_verification: FactorBreakdown
+}
+
+export interface MatchCompatibility {
+    match_id: string | null
+    counterpart_id: string
+    counterpart_name: string
+    compatibility_score: number
+    factors: CompatibilityFactors
+    match_reasons: string[]
+}
+
+export interface CommonSessionSlot {
+    starts_at: string
+    ends_at: string
+    timezone: string
+    modality: "VIRTUAL" | "PRESENCIAL"
+    duration_minutes: 30 | 60
+    free_sessions_left?: number
+}
+
+export interface SessionBookingDirection {
+    instructor_id: string
+    instructor_name: string
+    learner_id: string
+    teaching_skill_id: string
+    skill_name: string
+    accepts_points: boolean
+    hourly_points_rate: number | null
+    modalities: Array<"VIRTUAL" | "PRESENCIAL">
+    common_slots: CommonSessionSlot[]
+}
+
+export interface MatchSessionOptions {
+    match_id: string
+    timezone: string
+    horizon_days: number
+    booking_blocked_until: string | null
+    directions: SessionBookingDirection[]
+}

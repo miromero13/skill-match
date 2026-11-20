@@ -1,9 +1,13 @@
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
 import { hybridAuthStorage } from "./storage-adapter"
+import { onAuthRehydrate } from "./auth-hydration"
 
 export type UserRole = "MEMBER" | "ADMIN"
-
+let authSessionVersion = 0
+export function getAuthSessionVersion() {
+  return authSessionVersion
+}
 
 export interface UserProfile {
   id: string
@@ -34,7 +38,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>()(
-  persist(
+  persist<AuthState>(
     (set) => ({
       user: null,
       token: null,
@@ -42,23 +46,27 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
 
-      login: (user, token, refreshToken) =>
+      login: (user, token, refreshToken) => {
+        authSessionVersion++
         set({
           user,
           token,
           refreshToken: refreshToken || null,
           isAuthenticated: true,
           isLoading: false,
-        }),
+        })
+      },
 
-      logout: () =>
+      logout: () => {
+        authSessionVersion++
         set({
           user: null,
           token: null,
           refreshToken: null,
           isAuthenticated: false,
           isLoading: false,
-        }),
+        })
+      },
 
       setTokens: (token, refreshToken) =>
         set({
@@ -77,7 +85,10 @@ export const useAuthStore = create<AuthState>()(
           user: state.user
             ? {
                 ...state.user,
-                skillPointsBalance: Math.max(0, state.user.skillPointsBalance + delta),
+                skillPointsBalance: Math.max(
+                  0,
+                  state.user.skillPointsBalance + delta
+                ),
               }
             : null,
         })),
@@ -87,6 +98,16 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "skillmatch-auth-storage",
       storage: createJSONStorage(() => hybridAuthStorage),
+      onRehydrateStorage: () => {
+        const finish = onAuthRehydrate()
+        return (state, error) => {
+          if (state?.user && state.user.role === "MEMBER" && state.user.reputationScore === 5.0) {
+            state.user.reputationScore = 0
+            state.user.trustLevel = 0
+          }
+          finish(state, error)
+        }
+      },
     }
   )
 )

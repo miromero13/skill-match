@@ -1,5 +1,6 @@
 import pytest
 import uuid
+from contextlib import asynccontextmanager
 from httpx import AsyncClient, ASGITransport
 from jose import jwt
 from app.main import app
@@ -16,6 +17,7 @@ class MockUserSession:
     """Mock de sesión para simular consultas de User en pruebas de sesión."""
     def __init__(self, user: User | None = None):
         self.user = user
+        self.revocations = {}
 
     async def execute(self, statement, *args, **kwargs):
         class MockResult:
@@ -25,7 +27,21 @@ class MockUserSession:
                 return self._item
             def scalar(self):
                 return 1
+        if getattr(statement, "is_insert", False) and statement.table.name == "revoked_tokens":
+            token_hash = statement.compile().params["token_hash"]
+            if token_hash in self.revocations:
+                return MockResult(None)
+            self.revocations[token_hash] = True
+            return MockResult(token_hash)
         return MockResult(self.user)
+
+    async def get(self, model, key):
+        return self.revocations.get(key)
+
+    @asynccontextmanager
+    async def begin_nested(self):
+        """Support the savepoint used by persistent revocation lookups."""
+        yield
 
     async def commit(self):
         pass

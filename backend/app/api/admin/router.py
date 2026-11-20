@@ -9,10 +9,13 @@ from app.schemas.response import APIResponse
 from app.schemas.admin import (
     AdminCreateRequest,
     AdminStatusUpdateRequest,
+    AdminUpdateRequest,
+    AdminPasswordUpdateRequest,
     AdminItemResponse,
     AdminListResponse,
 )
 from app.services.admin_service import AdminService
+
 
 router = APIRouter(
     prefix="/admin",
@@ -37,6 +40,65 @@ async def list_administrators(
         data=[AdminItemResponse.model_validate(admin) for admin in admins],
         count=total_count
     )
+
+@router.get(
+    "/{id}",
+    response_model=APIResponse[AdminItemResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Consultar una cuenta administrativa",
+)
+async def get_administrator(
+    id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    admin = await AdminService.get_administrator(db, id)
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message="Administrador recuperado exitosamente.",
+        data=AdminItemResponse.model_validate(admin),
+    )
+
+
+@router.patch(
+    "/{id}",
+    response_model=APIResponse[AdminItemResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Editar datos de una cuenta administrativa",
+)
+async def update_administrator(
+    id: uuid.UUID,
+    request: AdminUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    updated_admin = await AdminService.update_administrator(db, id, request, current_admin)
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message="Administrador actualizado exitosamente.",
+        data=AdminItemResponse.model_validate(updated_admin),
+    )
+
+
+@router.patch(
+    "/{id}/password",
+    response_model=APIResponse[AdminItemResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Cambiar contraseña de una cuenta administrativa",
+)
+async def update_administrator_password(
+    id: uuid.UUID,
+    request: AdminPasswordUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    updated_admin = await AdminService.update_administrator_password(db, id, request, current_admin)
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message="Contraseña del administrador actualizada exitosamente.",
+        data=AdminItemResponse.model_validate(updated_admin),
+    )
+
 
 @router.post(
     "",

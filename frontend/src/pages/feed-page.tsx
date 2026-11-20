@@ -1,137 +1,50 @@
+import { useEffect } from "react"
 import { Link } from "react-router-dom"
+import { MatchSuggestions } from "@/components/matches/matches-suggestions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import {
   ShieldCheck,
-  ArrowLeftRight,
-  Clock,
-  Sparkles,
   ArrowRight,
   Calendar,
   Star,
+  Plus,
+  BookOpen,
 } from "lucide-react"
+import { useTeachingSkillStore } from "@/stores/teaching-skill-store"
+import { useLearningSkillStore } from "@/stores/learning-skill-store"
 
 export function FeedPage() {
+  const teachingSkills = useTeachingSkillStore((s) => s.items)
+  const loadTeachingSkills = useTeachingSkillStore((s) => s.load)
+  const isTeachingLoading = useTeachingSkillStore((s) => s.loading)
+
+  const learningSkills = useLearningSkillStore((s) => s.learningSkills)
+  const fetchLearningSkills = useLearningSkillStore((s) => s.fetchLearningSkills)
+  const isLearningLoading = useLearningSkillStore((s) => s.isLoading)
+
+  useEffect(() => {
+    void loadTeachingSkills(1)
+    void fetchLearningSkills()
+  }, [loadTeachingSkills, fetchLearningSkills])
+
+  const hasSkills = teachingSkills.length > 0 || learningSkills.length > 0
+  const isLoading = isTeachingLoading || isLearningLoading
+
   return (
-    <div className="flex-1 p-4 lg:p-6 bg-muted/20 min-h-screen">
-      <div className="mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* CENTER COLUMN: Main Feed (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* 1. Deep Teal Hero Banner */}
-          <div className="rounded-2xl bg-primary p-6 text-primary-foreground shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1.5 max-w-md">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 shrink-0" />
-                <h2 className="font-bold text-base sm:text-lg leading-tight">
-                  ¡Tenés 3 nuevos matches para aprender Guitarra!
-                </h2>
-              </div>
-              <p className="text-xs text-primary-foreground/80 leading-relaxed">
-                Usuarios certificados por IA buscan aprender tus conocimientos en Python.
-              </p>
-            </div>
-            <Button
-              size="sm"
-              asChild
-              className="bg-background text-primary hover:bg-background/90 font-bold text-xs rounded-full px-4 shrink-0 shadow-xs"
-            >
-              <Link to="/app/search" className="flex items-center gap-1.5">
-                <span>Explorar Matches</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </div>
-
-          {/* 2. Match Card (Sofía Rossi) */}
-          <Card className="rounded-2xl border shadow-xs bg-card overflow-hidden">
-            <CardContent className="p-5 sm:p-6 space-y-5">
-              {/* Header: User Info & Compatibility Badge */}
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground font-black text-sm shrink-0">
-                    SR
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base text-foreground leading-snug">
-                      Sofía Rossi
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Guitarrista Clásica & Aprendiz de Programación · Buenos Aires
-                    </p>
-                  </div>
-                </div>
-
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary shrink-0">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>98% Compatibilidad</span>
-                </div>
-              </div>
-
-              {/* Reciprocal Swap Box */}
-              <div className="rounded-xl border bg-muted/20 p-4">
-                <div className="grid grid-cols-11 items-center gap-2">
-                  {/* Left: She Teaches */}
-                  <div className="col-span-5 space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                      ELLA TE ENSEÑA
-                    </span>
-                    <div className="flex items-center gap-1 font-bold text-sm text-foreground">
-                      <span>Guitarra Clásica & Solfeo</span>
-                      <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                    </div>
-                    <span className="text-xs font-semibold text-primary block">
-                      Nivel 4 (Avanzado) · Verificado IA
-                    </span>
-                  </div>
-
-                  {/* Center: Bidirectional Swap Icon */}
-                  <div className="col-span-1 flex justify-center">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <ArrowLeftRight className="h-4 w-4" />
-                    </div>
-                  </div>
-
-                  {/* Right: You Teach */}
-                  <div className="col-span-5 space-y-1 text-right">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                      VOS LE ENSEÑAS
-                    </span>
-                    <div className="flex items-center justify-end gap-1 font-bold text-sm text-foreground">
-                      <span>Python Backend & FastAPI</span>
-                      <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-                    </div>
-                    <span className="text-xs font-semibold text-primary block">
-                      Nivel 5 (Master) · Verificado IA
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Schedule Info */}
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span>Coincidencia de horario: Martes y Jueves 18:30 a 20:00 (Modalidad Virtual)</span>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold gap-2 rounded-lg px-5 shadow-xs">
-                  <ArrowLeftRight className="h-3.5 w-3.5" />
-                  <span>Proponer Intercambio</span>
-                </Button>
-                <Button variant="outline" className="text-xs font-semibold gap-2 rounded-lg px-4 border-border">
-                  <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                  <span>Ver Pasaporte de Sofía</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+    <div className="flex-1 flex flex-col lg:flex-row h-full overflow-y-auto lg:overflow-hidden bg-muted/20">
+      {/* CENTER COLUMN: Main Feed (Independent scroll) */}
+      <div className="flex-1 min-w-0 h-full lg:overflow-y-auto p-4 lg:p-6">
+        <div className="mx-auto max-w-3xl space-y-6">
+          <MatchSuggestions preview />
         </div>
+      </div>
 
-        {/* RIGHT COLUMN: User Widgets & Next Session (4 cols) */}
-        <div className="lg:col-span-4 space-y-5">
-          {/* Card 1: Tus Habilidades */}
-          <Card className="rounded-xl border shadow-xs bg-card">
+      {/* RIGHT COLUMN: User Widgets & Next Session (Independent scroll) */}
+      <div className="w-full lg:w-80 xl:w-96 shrink-0 h-full lg:overflow-y-auto p-4 lg:p-6 space-y-5 border-t lg:border-t-0 lg:border-l border-border/60 bg-card/20 pb-12 lg:pb-6">
+        {/* Card 1: Tus Habilidades */}
+        <Card className="rounded-xl border shadow-xs bg-card">
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between pb-1">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -143,73 +56,92 @@ export function FeedPage() {
                 </Link>
               </div>
 
-              {/* Item 1 */}
-              <div className="rounded-lg border bg-primary/5 p-3 space-y-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-bold text-xs text-foreground">
-                    <span>Python Backend</span>
-                    <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+              {isLoading ? (
+                <p className="text-xs text-muted-foreground py-2 text-center">Cargando habilidades...</p>
+              ) : !hasSkills ? (
+                <div className="text-center py-4 px-2 space-y-3 border border-dashed rounded-lg bg-muted/30">
+                  <BookOpen className="h-6 w-6 text-muted-foreground mx-auto" />
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-foreground">Aún no registraste habilidades</p>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Agrega lo que puedes enseñar o lo que deseas aprender para recibir propuestas de intercambio.
+                    </p>
                   </div>
-                  <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
-                    Certificado IA
-                  </span>
+                  <div className="flex flex-col gap-1.5 pt-1">
+                    <Button size="sm" asChild variant="outline" className="w-full text-xs h-7">
+                      <Link to="/app/teaching-skills">
+                        <Plus className="h-3 w-3 mr-1" />
+                        Habilidades que enseño
+                      </Link>
+                    </Button>
+                    <Button size="sm" asChild variant="outline" className="w-full text-xs h-7">
+                      <Link to="/app/learning-skills">
+                        <Plus className="h-3 w-3 mr-1" />
+                        Habilidades que busco
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
-                <span className="text-[11px] text-muted-foreground block">
-                  Enseñas · Nivel 5 (Master)
-                </span>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  {teachingSkills.slice(0, 2).map((item) => (
+                    <div key={`teach-${item.id}`} className="rounded-lg border bg-primary/5 p-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-foreground">
+                          <span className="truncate">{item.skill_name}</span>
+                          {item.status === "VERIFICADA" && (
+                            <ShieldCheck className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )}
+                        </div>
+                        <Badge
+                          variant={item.status === "VERIFICADA" ? "default" : "secondary"}
+                          className="text-[10px] px-1.5 py-0 shrink-0"
+                        >
+                          {item.status === "VERIFICADA" ? "Verificada ✓" : "Declarada"}
+                        </Badge>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground block">
+                        Enseñas · {item.years_of_experience} {item.years_of_experience === 1 ? "año" : "años"} exp.
+                      </span>
+                    </div>
+                  ))}
 
-              {/* Item 2 */}
-              <div className="rounded-lg border bg-card p-3 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-foreground">Bases de Datos SQL</span>
-                  <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                    Declarado
-                  </span>
+                  {learningSkills.slice(0, 2).map((item) => (
+                    <div key={`learn-${item.id}`} className="rounded-lg border bg-card p-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-foreground truncate">
+                          {item.skill?.name || "Habilidad"}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                          Aprendes
+                        </Badge>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground block">
+                        Deseas aprender · Urgencia {item.urgency || "Normal"}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <span className="text-[11px] text-muted-foreground block">
-                  Enseñas · Nivel Intermedio
-                </span>
-              </div>
-
-              {/* Item 3 */}
-              <div className="rounded-lg border bg-card p-3 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-foreground">Guitarra Acústica</span>
-                  <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                    Declarado
-                  </span>
-                </div>
-                <span className="text-[11px] text-muted-foreground block">
-                  Aprendes · Nivel Inicial
-                </span>
-              </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Card 2: Próxima Sesión Agendada */}
-          <Card className="rounded-xl border border-primary/30 shadow-xs bg-primary/5">
+          <Card className="rounded-xl border shadow-xs bg-card">
             <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-2 text-primary font-bold text-xs">
+              <div className="flex items-center gap-2 text-muted-foreground font-bold text-xs">
                 <Calendar className="h-4 w-4" />
                 <span>PRÓXIMA SESIÓN AGENDADA</span>
               </div>
 
-              <div className="space-y-1">
-                <h4 className="font-bold text-sm text-foreground">
-                  Hoy, 19:30 hrs (Virtual)
-                </h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Enseñas Python a Mateo F. Sala abre 10 min antes.
+              <div className="text-center py-4 px-2 space-y-2 border border-dashed rounded-lg bg-muted/30">
+                <p className="text-xs text-muted-foreground">
+                  No tienes sesiones programadas próximamente.
                 </p>
+                <Button size="sm" asChild variant="outline" className="text-xs h-7">
+                  <Link to="/app/search">Buscar instructores</Link>
+                </Button>
               </div>
-
-              <Button size="sm" asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs gap-1.5">
-                <Link to="/app/exam-demo">
-                  <span>Ingresar a la Sala</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
             </CardContent>
           </Card>
 
@@ -220,18 +152,17 @@ export function FeedPage() {
                 ÍNDICE DE CONFIANZA
               </span>
 
-              <div className="flex items-center gap-1.5 font-bold text-base text-foreground">
-                <Star className="h-4 w-4 fill-primary text-primary" />
-                <span>4.95 / 5.0 (14 Reseñas)</span>
+              <div className="flex items-center gap-1.5 font-bold text-sm text-foreground">
+                <Star className="h-4 w-4 text-muted-foreground" />
+                <span>Nuevo Miembro</span>
               </div>
 
               <p className="text-xs text-muted-foreground leading-relaxed">
-                100% puntualidad · 0 quejas · Pasaporte auditado.
+                Completa tus primeros intercambios para construir tu historial y reputación comunitaria.
               </p>
             </CardContent>
           </Card>
         </div>
       </div>
-    </div>
-  )
-}
+    )
+  }

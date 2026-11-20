@@ -27,6 +27,7 @@ class UserMeResponse(BaseModel):
     avatar_url: Optional[str] = Field(default=None, description="URL del avatar del perfil")
     phone_number: Optional[str] = Field(default=None, description="Número de teléfono (si aplica)")
     provider: Optional[str] = Field(default=None, description="Proveedor de autenticación de origen")
+    skill_points_balance: int = Field(default=0, ge=0, description="Saldo real de la billetera del miembro; sin bono inicial")
 
     class Config:
         from_attributes = True

@@ -24,6 +24,9 @@ class MockUserSession:
                 return 1
         return MockResult(self.user)
 
+    async def get(self, model, key):
+        return None
+
     async def commit(self):
         self.committed = True
 

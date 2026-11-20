@@ -1,0 +1,394 @@
+# ==============================================================================
+# SkillMatch — Docker Compose para Coolify (build pack "Docker Compose", Git)
+# ==============================================================================
+# Guía: docs/deployment/docker.md#producción-en-coolify
+#
+# Archivo AUTOCONTENIDO: Coolify lee un único archivo (Docker Compose Location
+# `/compose.coolify.yaml`, Base Directory `/`) y de él saca dominios, etiquetas
+# y variables. No usar comandos de build/start personalizados.
+#
+# Equivale a `compose.yaml` + `compose.prod.yaml`, salvo:
+#   - `migrate` corre en CADA despliegue, antes de backend/worker/beat.
+#     Hacé backup de Postgres antes de desplegar una versión con migraciones.
+#   - SECRET_KEY, POSTGRES_PASSWORD y ADMIN_PASSWORD los genera Coolify
+#     (variables SERVICE_*; se ven y editan en Environment Variables).
+#   - Sin `name:`, sin `ports:`, sin perfiles y sin tags !reset / !override.
+#
+# MANTENER SINCRONIZADO con compose.yaml / compose.prod.yaml.
+# ==============================================================================
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+# Entorno de backend, worker, beat y migrate.
+# - ${VAR:?}      obligatoria: Coolify no despliega mientras esté vacía.
+# - ${VAR:-def}   opcional con valor por defecto (editable en Coolify).
+# - ${SERVICE_*}  generada por Coolify, persistente entre despliegues.
+x-backend-env: &backend-env
+  # Entorno (fijo en producción)
+  PROJECT_NAME: ${PROJECT_NAME:-SkillMatch API}
+  VERSION: ${VERSION:-0.1.0}
+  DESCRIPTION: "${DESCRIPTION:-SkillMatch API: Plataforma colaborativa de intercambio de habilidades con IA propia}"
+  ENVIRONMENT: production
+  DEBUG: "False"
+  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?}
+  # PostgreSQL (host/puerto fijos: servicio interno)
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: ${POSTGRES_USER:-skillmatch_user}
+  POSTGRES_PASSWORD: ${SERVICE_PASSWORD_64_POSTGRES}
+  POSTGRES_DB: ${POSTGRES_DB:-skillmatch_db}
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+  DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-20}
+  DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-30}
+  # Seguridad / JWT y enlaces firmados de video
+  SECRET_KEY: ${SERVICE_HEX_64_SECRETKEY}
+  ALGORITHM: ${ALGORITHM:-HS256}
+  ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+  REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+  WS_TICKET_EXPIRE_SECONDS: ${WS_TICKET_EXPIRE_SECONDS:-30}
+  # Administrador inicial (seed al arrancar la API)
+  ADMIN_EMAIL: ${ADMIN_EMAIL:?}
+  ADMIN_PASSWORD: ${SERVICE_PASSWORD_ADMIN}
+  ADMIN_FULL_NAME: ${ADMIN_FULL_NAME:-Administrador Principal}
+  # Google Identity Services
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?}
+  # Corrección teórica (texto) y ASR local
+  THEORY_GRADING_PROVIDER: ${THEORY_GRADING_PROVIDER:-disabled}
+  THEORY_GRADING_MODEL: ${THEORY_GRADING_MODEL:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  THEORY_GRADING_TIMEOUT_SECONDS: ${THEORY_GRADING_TIMEOUT_SECONDS:-20}
+  THEORY_ASR_ENABLED: ${THEORY_ASR_ENABLED:-True}
+  # Sandbox de programación (daemon dind aislado, ver servicio sandbox-docker)
+  SANDBOX_DOCKER_IMAGE: ${SANDBOX_DOCKER_IMAGE:-python:3.12-slim}
+  SANDBOX_DOCKER_BINARY: ${SANDBOX_DOCKER_BINARY:-docker}
+  SANDBOX_MAX_CONCURRENT_RUNS: ${SANDBOX_MAX_CONCURRENT_RUNS:-2}
+  SANDBOX_WORK_DIR: /sandbox-work
+  DOCKER_HOST: tcp://sandbox-docker:2376
+  DOCKER_TLS_VERIFY: "1"
+  DOCKER_CERT_PATH: /certs/client
+  # Garage S3 (recurso aparte en Coolify, alcanzado por su URL pública)
+  GARAGE_S3_ENDPOINT_URL: ${GARAGE_S3_ENDPOINT_URL:-https://s3.devhooh.com}
+  GARAGE_S3_REGION: ${GARAGE_S3_REGION:-garage}
+  GARAGE_S3_ACCESS_KEY_ID: ${GARAGE_S3_ACCESS_KEY_ID:?}
+  GARAGE_S3_SECRET_ACCESS_KEY: ${GARAGE_S3_SECRET_ACCESS_KEY:?}
+  GARAGE_S3_BUCKET: ${GARAGE_S3_BUCKET:-skillmatch-football}
+  GARAGE_S3_FORCE_PATH_STYLE: ${GARAGE_S3_FORCE_PATH_STYLE:-True}
+  # Celery + Redis (fijos: servicio interno, nunca eager en contenedores)
+  REDIS_URL: redis://redis:6379/0
+  CELERY_TASK_ALWAYS_EAGER: "False"
+  # Correo transaccional (SMTP)
+  EMAIL_ENABLED: ${EMAIL_ENABLED:-False}
+  SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_STARTTLS: ${SMTP_STARTTLS:-True}
+  SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-15}
+  EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-}
+  EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-SkillMatch}
+  EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+  FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?}
+  # Web Push (VAPID)
+  WEB_PUSH_ENABLED: ${WEB_PUSH_ENABLED:-False}
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+  VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+  VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+  # Procesos (leídos por /usr/local/bin/docker-entrypoint)
+  UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+  CELERY_CONCURRENCY: ${CELERY_CONCURRENCY:-2}
+  CELERY_LOG_LEVEL: ${CELERY_LOG_LEVEL:-info}
+
+services:
+  # ---------------------------------------------------------------------------
+  # Datos (red interna `data`, sin salida a Internet ni puertos publicados)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-skillmatch_user}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_64_POSTGRES}
+      POSTGRES_DB: ${POSTGRES_DB:-skillmatch_db}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [data]
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [data]
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging: *logging
+
+  # ---------------------------------------------------------------------------
+  # Sandbox de programación: daemon Docker aislado (dind) con TLS mutuo.
+  # El backend NUNCA monta /var/run/docker.sock del host.
+  # ---------------------------------------------------------------------------
+  sandbox-docker:
+    image: docker:28-dind
+    # Único servicio privilegiado: dind ejecuta su propio dockerd. Aislado en la
+    # red `sandbox`; el código de usuario corre con --network=none.
+    privileged: true
+    restart: unless-stopped
+    hostname: sandbox-docker
+    environment:
+      DOCKER_TLS_CERTDIR: /certs
+      DOCKER_TLS_SAN: DNS:sandbox-docker
+    volumes:
+      - sandbox-docker-data:/var/lib/docker
+      - sandbox-certs-ca:/certs/ca
+      - sandbox-certs-client:/certs/client
+      - sandbox-work:/sandbox-work
+    healthcheck:
+      test: ["CMD", "docker", "-H", "unix:///var/run/docker.sock", "info"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      init-volumes:
+        condition: service_completed_successfully
+    networks: [sandbox]
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    logging: *logging
+
+  sandbox-init:
+    image: docker:28-cli
+    restart: "no"
+    exclude_from_hc: true
+    environment:
+      DOCKER_HOST: tcp://sandbox-docker:2376
+      DOCKER_TLS_VERIFY: "1"
+      DOCKER_CERT_PATH: /certs/client
+    volumes:
+      - sandbox-certs-client:/certs/client:ro
+    # Pre-descarga la imagen del sandbox: la ruta de petición nunca hace pull.
+    command: ["docker", "pull", "${SANDBOX_DOCKER_IMAGE:-python:3.12-slim}"]
+    depends_on:
+      sandbox-docker:
+        condition: service_healthy
+    networks: [sandbox]
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging: *logging
+
+  # ---------------------------------------------------------------------------
+  # One-shots del backend (misma imagen que `backend`)
+  # ---------------------------------------------------------------------------
+  init-volumes:
+    image: ${BACKEND_IMAGE:-skillmatch-backend:local}
+    pull_policy: never # la construye el servicio `backend`
+    user: "0:0"
+    entrypoint: ["chown", "-R", "10001:10001", "/app/storage", "/sandbox-work"]
+    restart: "no"
+    exclude_from_hc: true
+    network_mode: none
+    volumes:
+      - backend-storage:/app/storage
+      - sandbox-work:/sandbox-work
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    logging: *logging
+
+  # alembic upgrade heads en cada despliegue (idempotente sin migraciones nuevas).
+  migrate:
+    image: ${BACKEND_IMAGE:-skillmatch-backend:local}
+    pull_policy: never
+    command: ["migrate"]
+    restart: "no"
+    exclude_from_hc: true
+    environment: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [data]
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  # ---------------------------------------------------------------------------
+  # Aplicación
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      # El backend importa el paquete `ml/` de la raíz del repo.
+      additional_contexts:
+        ml: ./ml
+    image: ${BACKEND_IMAGE:-skillmatch-backend:local}
+    command: ["api"]
+    restart: unless-stopped
+    environment: *backend-env
+    volumes:
+      - backend-storage:/app/storage
+      - sandbox-work:/sandbox-work
+      - sandbox-certs-client:/certs/client:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      init-volumes:
+        condition: service_completed_successfully
+      sandbox-init:
+        condition: service_completed_successfully
+    # /api/health responde HTTP 200 incluso degradado: se valida el cuerpo.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,sys,urllib.request; b=json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)); sys.exit(0 if (b.get('data') or {}).get('status') == 'healthy' else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks: [default, data, sandbox]
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+    logging: *logging
+
+  worker:
+    image: ${BACKEND_IMAGE:-skillmatch-backend:local}
+    pull_policy: never
+    command: ["worker"]
+    restart: unless-stopped
+    environment: *backend-env
+    volumes:
+      - backend-storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      init-volumes:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.core.celery_app.celery_app inspect ping -d celery@$$HOSTNAME --timeout 10"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 60s
+    networks: [default, data]
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+    logging: *logging
+
+  beat:
+    image: ${BACKEND_IMAGE:-skillmatch-backend:local}
+    pull_policy: never
+    command: ["beat"]
+    restart: unless-stopped
+    environment: *backend-env
+    volumes:
+      - backend-storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      init-volumes:
+        condition: service_completed_successfully
+    networks: [default, data]
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging: *logging
+
+  # Único servicio público: dominio en Coolify como https://<dominio>:8080.
+  # nginx sirve el SPA y hace proxy de /api/ y /ws/ al backend.
+  frontend:
+    build:
+      context: ./frontend
+      target: runtime
+      args:
+        # Se incrustan en el bundle al construir: cambiar => redeploy.
+        VITE_API_URL: ${VITE_API_URL:?}
+        VITE_APP_ENV: production
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-${GOOGLE_CLIENT_ID:?}}
+        VITE_GOOGLE_IOS_CLIENT_ID: ${VITE_GOOGLE_IOS_CLIENT_ID:-}
+        VITE_BROWSER_SUPERVISION_TRIAL: ${VITE_BROWSER_SUPERVISION_TRIAL:-}
+    image: ${FRONTEND_IMAGE:-skillmatch-frontend:local}
+    restart: unless-stopped
+    expose:
+      - "8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks: [default]
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    logging: *logging
+
+networks:
+  default: {}
+  # Solo Postgres/Redis y los servicios de app; sin salida a Internet.
+  data:
+    internal: true
+  # Backend <-> daemon dind (no interno: dind descarga la imagen del sandbox).
+  sandbox: {}
+
+volumes:
+  postgres-data:
+  redis-data:
+  backend-storage:
+  sandbox-work:
+  sandbox-docker-data:
+  sandbox-certs-ca:
+  sandbox-certs-client:

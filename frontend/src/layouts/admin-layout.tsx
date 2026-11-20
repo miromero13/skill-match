@@ -1,3 +1,5 @@
+import { NotificationBell } from "@/components/notifications/notification-bell"
+import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom"
 import { useAuthStore } from "@/stores/auth-store"
@@ -9,6 +11,8 @@ import {
   ShieldAlert,
   Scale,
   Brain,
+  Video,
+  Code2,
   Menu,
   X,
   LogOut,
@@ -48,6 +52,12 @@ export function AdminLayout() {
       visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-10)
     },
     {
+      label: "Banco de Preguntas",
+      to: "/admin/theory/questions",
+      icon: BookOpen,
+      visible: user?.role === "ADMIN",
+    },
+    {
       label: "Catálogo de Habilidades",
       to: "/admin/catalog",
       icon: BookOpen,
@@ -64,6 +74,18 @@ export function AdminLayout() {
       to: "/admin/disputes",
       icon: Scale,
       visible: true,
+    },
+    {
+      label: "Captura de Datasets",
+      to: "/admin/capture",
+      icon: Video,
+      visible: user?.role === "ADMIN", // Restricción estricta RBAC (HU-17 / RF-IA-18)
+    },
+    {
+      label: "Retos",
+      to: "/admin/challenges",
+      icon: Code2,
+      visible: user?.role === "ADMIN",
     },
     {
       label: "IA & Datasets",
@@ -85,16 +107,29 @@ export function AdminLayout() {
 
   // Título dinámico para el breadcrumb de la barra superior
   const getBreadcrumbTitle = () => {
+    if (location.pathname.includes("/admin/theory/questions")) return "Banco de Preguntas"
+    if (location.pathname.includes("/admin/dashboard")) {
+      return "Dashboard & Analítica"
+    }
     if (location.pathname.includes("/admin/administrators")) {
       return "Directorio de Miembros & Control de Acceso"
+    }
+    if (location.pathname.includes("/admin/catalog") || location.pathname.includes("/admin/skills")) {
+      return "Catálogo Maestro de Habilidades"
+    }
+    if (location.pathname.includes("/admin/capture") || location.pathname.includes("/admin/ai-datasets")) {
+      return "Ingesta y Captura de Muestras Multimedia"
+    }
+    if (location.pathname.includes("/admin/challenges")) {
+      return "Retos"
     }
     return "Panel Central de Control"
   }
 
   return (
-    <div className="min-h-screen w-full flex bg-[#FFFFFF] text-[#090B0C]">
-      {/* 1. SIDEBAR DESKTOP (Fiel a OpenPencil n6740: w: 260px, fill: #0F1416, stroke: #1E2629) */}
-      <aside className="hidden lg:flex flex-col w-[260px] bg-[#0F1416] text-[#FFFFFF] border-r border-[#1E2629] shrink-0 justify-between p-[20px_16px]">
+    <div className="h-screen w-full flex overflow-hidden bg-[#0F1416] text-[#F0FDFA] dark">
+      {/* 1. SIDEBAR DESKTOP (Fijo en el lateral izquierdo, no se desplaza con el scroll del contenido) */}
+      <aside className="hidden lg:flex flex-col w-[260px] h-full bg-[#0F1416] text-[#FFFFFF] border-r border-[#1E2629] shrink-0 justify-between p-[20px_16px] overflow-y-auto">
         <div className="flex flex-col gap-5">
           {/* BrandRow (n6742) */}
           <div className="flex items-center gap-2.5">
@@ -142,7 +177,7 @@ export function AdminLayout() {
                 {user?.fullName || "Administrador Central"}
               </p>
               <p className="text-[9px] font-medium text-[#00786F] leading-none">
-                Rol: SuperAdmin
+                Rol: ADMIN
               </p>
             </div>
           </div>
@@ -161,29 +196,30 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      {/* 2. CONTENIDO PRINCIPAL Y TOPBAR */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#FFFFFF]">
-        {/* Admin_Topbar (OpenPencil n6774: height: 54px, padding: 0 24px, fill: #FFFFFF, stroke: #E3E7E8) */}
-        <header className="h-[54px] px-4 sm:px-6 bg-white border-b border-[#E3E7E8] flex items-center justify-between sticky top-0 z-30 shadow-2xs">
+      {/* 2. CONTENIDO PRINCIPAL Y TOPBAR (Área con scroll vertical independiente) */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto bg-[#0F1416]">
+        {/* Admin_Topbar (Sticky en la parte superior del contenido) */}
+        <header className="h-[54px] shrink-0 px-4 sm:px-6 bg-[#0F1416] border-b border-[#1E2629] flex items-center justify-between sticky top-0 z-30 shadow-2xs">
           {/* Izquierda: Hamburguesa en mobile + Breadcrumb */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-1.5 rounded-md text-[#090B0C] hover:bg-gray-100 cursor-pointer"
+              className="lg:hidden p-1.5 rounded-md text-[#8B9D9F] hover:text-white hover:bg-[#1A2225] cursor-pointer"
               aria-label="Abrir Menú"
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
-            <div className="text-[12px] font-semibold text-[#67787C]">
+            <div className="text-[12px] font-semibold text-[#8B9D9F]">
               <span className="hidden sm:inline">Consola de Administración / </span>
-              <span className="text-[#090B0C] font-bold">{getBreadcrumbTitle()}</span>
+              <span className="text-[#F0FDFA] font-bold">{getBreadcrumbTitle()}</span>
             </div>
           </div>
 
           {/* Derecha: Badge de Estado del Sistema */}
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E6F7F3] text-[#00786F] text-[11px] font-semibold border border-[#00786F33]">
-              <Circle className="w-2 h-2 fill-[#00786F] text-[#00786F] animate-pulse" />
+            <NotificationBell />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00786F1A] text-[#2DD4BF] text-[11px] font-semibold border border-[#00786F40]">
+              <Circle className="w-2 h-2 fill-[#2DD4BF] text-[#2DD4BF] animate-pulse" />
               <span className="hidden sm:inline">Sistema En Línea · Latencia 24ms</span>
               <span className="sm:hidden">En Línea</span>
             </div>
@@ -225,9 +261,14 @@ export function AdminLayout() {
         )}
 
         {/* 4. ÁREA DE PÁGINAS HIJAS */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8">
           <Outlet />
         </main>
+        <nav aria-label="Navegación móvil de administración" className="fixed inset-x-0 bottom-0 z-40 flex flex-wrap justify-around gap-1 border-t bg-background p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] text-foreground lg:hidden">
+          <Button asChild variant="ghost"><NavLink to="/admin/dashboard">Panel</NavLink></Button>
+          <Button asChild variant="ghost"><NavLink to="/notifications" end>Mis avisos</NavLink></Button>
+          <Button asChild variant="ghost"><NavLink to="/notifications/settings">Preferencias</NavLink></Button>
+        </nav>
       </div>
     </div>
   )

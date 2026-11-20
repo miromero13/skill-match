@@ -1,0 +1,99 @@
+{
+  "candidate": "Whisper Base float32",
+  "cases": 10,
+  "matched": 4,
+  "synthetic_only": true,
+  "exam_approved": false,
+  "results": [
+    {
+      "id": "voice0-case0",
+      "voice": "Mónica",
+      "expected": "Las listas se pueden modificar. Las tuplas no se pueden modificar.",
+      "file": "voice0-case0.wav",
+      "transcript": "Las listas se pueden modificar, las tuplas no se pueden modificar.",
+      "seconds": 0.385,
+      "exact_normalized_match": true
+    },
+    {
+      "id": "voice0-case1",
+      "voice": "Mónica",
+      "expected": "Una lista no es inmutable. Una tupla no es mutable.",
+      "file": "voice0-case1.wav",
+      "transcript": "Una lista no es inmutable, una tuplana no es inmutable.",
+      "seconds": 0.321,
+      "exact_normalized_match": false
+    },
+    {
+      "id": "voice0-case2",
+      "voice": "Mónica",
+      "expected": "La opción correcta es la B, porque una tupla no permite modificar sus elementos.",
+      "file": "voice0-case2.wav",
+      "transcript": "La opción correcta es la \"b\", porque una tuplano permite modificar sus elementos.",
+      "seconds": 0.407,
+      "exact_normalized_match": false
+    },
+    {
+      "id": "voice0-case3",
+      "voice": "Mónica",
+      "expected": "Las tuplas son mutables y las listas son inmutables.",
+      "file": "voice0-case3.wav",
+      "transcript": "Las tuplas son mutables y las listas son inmutables.",
+      "seconds": 0.307,
+      "exact_normalized_match": true
+    },
+    {
+      "id": "voice0-case4",
+      "voice": "Mónica",
+      "expected": "El resultado es quince, no cincuenta.",
+      "file": "voice0-case4.wav",
+      "transcript": "El resultado es 15, no 50.",
+      "seconds": 0.196,
+      "exact_normalized_match": false
+    },
+    {
+      "id": "voice1-case0",
+      "voice": "Paulina (Español (México))",
+      "expected": "Las listas se pueden modificar. Las tuplas no se pueden modificar.",
+      "file": "voice1-case0.wav",
+      "transcript": "Las listas se pueden modificar, las tuplas no se pueden modificar.",
+      "seconds": 0.377,
+      "exact_normalized_match": true
+    },
+    {
+      "id": "voice1-case1",
+      "voice": "Paulina (Español (México))",
+      "expected": "Una lista no es inmutable. Una tupla no es mutable.",
+      "file": "voice1-case1.wav",
+      "transcript": "una lista no es inmutable, una tupla no es inmutable",
+      "seconds": 0.3,
+      "exact_normalized_match": false
+    },
+    {
+      "id": "voice1-case2",
+      "voice": "Paulina (Español (México))",
+      "expected": "La opción correcta es la B, porque una tupla no permite modificar sus elementos.",
+      "file": "voice1-case2.wav",
+      "transcript": "La opción correcta es la begrande, porque una tu plano permite modificar sus elementos.",
+      "seconds": 0.428,
+      "exact_normalized_match": false
+    },
+    {
+      "id": "voice1-case3",
+      "voice": "Paulina (Español (México))",
+      "expected": "Las tuplas son mutables y las listas son inmutables.",
+      "file": "voice1-case3.wav",
+      "transcript": "Las tuplas son mutables y las listas son inmutables.",
+      "seconds": 0.312,
+      "exact_normalized_match": true
+    },
+    {
+      "id": "voice1-case4",
+      "voice": "Paulina (Español (México))",
+      "expected": "El resultado es quince, no cincuenta.",
+      "file": "voice1-case4.wav",
+      "transcript": "El resultado es 15, no 50.",
+      "seconds": 0.206,
+      "exact_normalized_match": false
+    }
+  ]
+}

@@ -2,8 +2,13 @@ import { create } from "zustand"
 import {
   type AdminUser,
   type CreateAdminPayload,
+  type UpdateAdminPayload,
+  type UpdateAdminPasswordPayload,
   getAdministrators,
+  getAdministrator,
   createAdministrator,
+  updateAdministrator,
+  updateAdministratorPassword,
   updateAdministratorStatus,
 } from "@/services/admin-service"
 
@@ -23,6 +28,9 @@ interface AdminStoreState {
   fetchAdministrators: () => Promise<void>
   createAdmin: (payload: CreateAdminPayload) => Promise<boolean>
   toggleStatus: (adminId: string, is_active: boolean, reason?: string) => Promise<boolean>
+  fetchAdministrator: (adminId: string) => Promise<AdminUser | null>
+  updateAdmin: (adminId: string, payload: UpdateAdminPayload) => Promise<boolean>
+  changeAdminPassword: (adminId: string, payload: UpdateAdminPasswordPayload) => Promise<boolean>
 }
 
 export const useAdminStore = create<AdminStoreState>((set, get) => ({
@@ -80,6 +88,43 @@ export const useAdminStore = create<AdminStoreState>((set, get) => ({
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error al crear administrador"
       set({ error: message, isSubmitting: false })
+      return false
+    }
+  },
+
+  fetchAdministrator: async (adminId: string) => {
+    set({ error: null })
+    try {
+      return await getAdministrator(adminId)
+    } catch (err: unknown) {
+      set({ error: err instanceof Error ? err.message : "Error al consultar administrador" })
+      return null
+    }
+  },
+
+  updateAdmin: async (adminId, payload) => {
+    set({ isSubmitting: true, error: null })
+    try {
+      const updatedAdmin = await updateAdministrator(adminId, payload)
+      set((state) => ({
+        administrators: state.administrators.map((admin) => admin.id === adminId ? updatedAdmin : admin),
+        isSubmitting: false,
+      }))
+      return true
+    } catch (err: unknown) {
+      set({ error: err instanceof Error ? err.message : "Error al actualizar administrador", isSubmitting: false })
+      return false
+    }
+  },
+
+  changeAdminPassword: async (adminId, payload) => {
+    set({ isSubmitting: true, error: null })
+    try {
+      await updateAdministratorPassword(adminId, payload)
+      set({ isSubmitting: false })
+      return true
+    } catch (err: unknown) {
+      set({ error: err instanceof Error ? err.message : "Error al cambiar la contraseña", isSubmitting: false })
       return false
     }
   },

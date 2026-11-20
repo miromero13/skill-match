@@ -1,5 +1,7 @@
+import { useEffect } from "react"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { Home, Users, Calendar, Award, ShieldCheck, Bell, Plus, Search, CreditCard, LogOut } from "lucide-react"
+import { Home, Users, Calendar, Award, Plus, Search, CreditCard, LogOut, QrCode } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -13,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuthStore } from "@/stores"
+import { useWalletStore } from "@/stores/wallet-store"
 import { logoutSession } from "@/services/auth-service"
 import { ModeToggle } from "@/components/mode-toggle"
 
@@ -35,7 +38,13 @@ export function PlatformHeader() {
       .slice(0, 2)
       .toUpperCase() || "MB"
 
-  const balancePoints = user?.skillPointsBalance ?? 150
+  const balancePoints = user?.skillPointsBalance ?? 0
+
+  useEffect(() => {
+    if (user?.id) {
+      useWalletStore.getState().loadBalance()
+    }
+  }, [user?.id])
 
 
   const navItems = [
@@ -43,14 +52,14 @@ export function PlatformHeader() {
     { label: "Matches y Comunidad", icon: Users, to: "/app/swaps", active: path === "/app/swaps", badge: 3 },
     { label: "Agenda y Disponibilidad", icon: Calendar, to: "/app/availability", active: path === "/app/availability" },
     { label: "Certificados de IA", icon: Award, to: "/app/certificates", active: path === "/app/certificates" },
-    { label: "Pasaporte de Confianza", icon: ShieldCheck, to: "/app/profile", active: path === "/app/profile" },
+    { label: "Mi Pasaporte QR", icon: QrCode, to: "/app/passport", active: path.includes("passport") },
   ]
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-card text-card-foreground">
       <div className="flex h-14 items-center justify-between px-4 sm:px-6">
         {/* Left: Brand Circular Badge + Rounded Search Pill */}
-        <div className="flex items-center gap-3 w-1/4">
+        <div className="flex items-center gap-3 shrink-0 xl:w-72">
           <Link to="/app" className="flex items-center gap-2 shrink-0">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground font-black text-sm shadow-xs">
               SM
@@ -68,7 +77,7 @@ export function PlatformHeader() {
         </div>
 
         {/* Center: Facebook-style Top Navigation with Underline Indicator */}
-        <nav className="flex items-center justify-center gap-1 sm:gap-2 w-2/4">
+        <nav className="hidden md:flex flex-1 min-w-0 items-center justify-center gap-1 lg:gap-2">
           {navItems.map((item) => {
             const Icon = item.icon
             return (
@@ -76,15 +85,15 @@ export function PlatformHeader() {
                 <TooltipTrigger asChild>
                   <Link
                     to={item.to}
-                    className={`relative flex h-14 w-12 sm:w-16 items-center justify-center transition-colors ${
+                    className={`relative flex h-14 w-11 md:w-12 lg:w-14 shrink-0 items-center justify-center transition-colors ${
                       item.active
                         ? "text-primary border-b-2 border-primary"
                         : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                     }`}
                   >
-                    <Icon className="h-5 w-5" />
+                    <Icon className="size-[22px] stroke-[2.1]" />
                     {item.badge ? (
-                      <span className="absolute top-2.5 right-2 sm:right-3.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#E7000B] px-1 text-[9px] font-black text-white">
+                      <span className="absolute top-2.5 right-1 md:right-1.5 lg:right-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#E7000B] px-1 text-[9px] font-black text-white">
                         {item.badge}
                       </span>
                     ) : null}
@@ -99,18 +108,18 @@ export function PlatformHeader() {
         </nav>
 
         {/* Right: Wallet Pill + Bell + User Avatar */}
-        <div className="flex items-center justify-end gap-2.5 w-1/4">
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2 lg:gap-2.5 shrink-0 xl:w-72">
           {/* Wallet Pill with + Icon */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Link
                 to="/app/wallet"
-                className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold hover:bg-muted/50 transition-colors"
+                className="flex items-center gap-1 sm:gap-1.5 rounded-full border border-border bg-card px-2.5 sm:px-3 py-1 text-xs font-semibold hover:bg-muted/50 transition-colors shrink-0"
               >
-                <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="font-bold text-foreground">{balancePoints} SP</span>
-                <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground ml-0.5">
-                  <Plus className="h-3 w-3 stroke-[3]" />
+                <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                <span className="font-bold text-foreground whitespace-nowrap">{balancePoints} SP</span>
+                <div className="flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded-full bg-primary text-primary-foreground ml-0.5 shrink-0">
+                  <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3 stroke-[3]" />
                 </div>
               </Link>
             </TooltipTrigger>
@@ -119,21 +128,14 @@ export function PlatformHeader() {
             </TooltipContent>
           </Tooltip>
 
-          {/* Bell Icon with dot */}
-          <Link
-            to="/app/notifications"
-            className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-[#E7000B]" />
-          </Link>
+          <NotificationBell />
 
           <ModeToggle />
 
           {/* User Avatar Circle */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full p-0">
+              <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full p-0 shrink-0">
                 <Avatar className="h-9 w-9">
                   {user?.avatarUrl ? (
                     <AvatarImage src={user.avatarUrl} alt={user.fullName} />
@@ -148,18 +150,29 @@ export function PlatformHeader() {
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-semibold leading-none">{user?.fullName || "Miembro de la Comunidad"}</p>
-                  <p className="text-xs leading-none text-muted-foreground">{user?.email || "miembro@skillmatch.io"}</p>
+                  {user?.email && (
+                    <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                  )}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link to="/app/profile">Mi Perfil & Pasaporte</Link>
+                <Link to="/app/profile">Mi Perfil</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/app/passport" className="flex items-center justify-between">
+                  <span>Mi Pasaporte QR</span>
+                  <QrCode className="h-3.5 w-3.5 text-primary" />
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/app/teaching-skills">Mis Habilidades para Enseñar</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/app/learning-skills">Habilidades que Deseo Aprender</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link to="/app/swaps">Mis Intercambios</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/app/exam-demo">Sandbox de Evaluación IA</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

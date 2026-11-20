@@ -1,0 +1,48 @@
+"""add teaching skills
+
+Revision ID: f69de0a4b8f0
+Revises: c3a1b2c4d5e6
+Create Date: 2026-11-05 00:08:45.328404
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = 'f69de0a4b8f0'
+down_revision: Union[str, Sequence[str], None] = 'c3a1b2c4d5e6'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    op.create_table('user_teaching_skills',
+        sa.Column('id', sa.UUID(), nullable=False),
+        sa.Column('user_id', sa.UUID(), nullable=False),
+        sa.Column('skill_id', sa.UUID(), nullable=False),
+        sa.Column('declared_level', sa.String(length=20), nullable=False),
+        sa.Column('years_of_experience', sa.Integer(), nullable=False),
+        sa.Column('description', sa.String(length=2000), nullable=True),
+        sa.Column('accepts_points', sa.Boolean(), nullable=False),
+        sa.Column('hourly_points_rate', sa.Integer(), nullable=True),
+        sa.Column('status', sa.String(length=20), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(['skill_id'], ['skills.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('user_id', 'skill_id', name='uq_teaching_user_skill'),
+        sa.CheckConstraint('years_of_experience BETWEEN 0 AND 60', name='ck_teaching_experience'),
+        sa.CheckConstraint("declared_level IN ('BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT')", name='ck_teaching_level'),
+    )
+    op.create_index(op.f('ix_user_teaching_skills_skill_id'), 'user_teaching_skills', ['skill_id'], unique=False)
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    op.drop_index(op.f('ix_user_teaching_skills_skill_id'), table_name='user_teaching_skills')
+    op.drop_table('user_teaching_skills')

@@ -1,6 +1,9 @@
+import os
+import tempfile
 from pathlib import Path
-from typing import List, Union, Optional
-from pydantic import Field, SecretStr, field_validator
+from typing import List, Optional, Union, Self
+
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Rutas absolutas para resolución de archivos .env (ejecución desde /backend o raíz)
@@ -57,21 +60,60 @@ class Settings(BaseSettings):
     ALGORITHM: str = Field(default="HS256", description="Algoritmo de firma de tokens JWT")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=1440, description="Minutos de expiración de Access Token")
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30, description="Días de expiración de Refresh Token")
+    WS_TICKET_EXPIRE_SECONDS: int = Field(
+        default=30,
+        ge=5,
+        le=120,
+        description="Segundos de vigencia del ticket temporal para handshake WebSocket",
+    )
 
     # Administrador Inicial por Defecto (Cargado estrictamente desde .env)
     ADMIN_EMAIL: str = Field(..., description="Correo institucional del Administrador inicial del sistema")
     ADMIN_PASSWORD: SecretStr = Field(..., description="Contraseña maestra del Administrador inicial (Secreto .env)")
     ADMIN_FULL_NAME: str = Field(default="Administrador Principal", description="Nombre completo del Administrador inicial")
 
-    # Proveedores de Autenticación Social & OTP (Opcionales / Se cargan de .env)
-    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google OAuth Client ID")
-    GOOGLE_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="Google OAuth Client Secret (Secreto .env)")
+    # Google Identity Services: ID-token flow, no client secret or other providers.
+    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None, description="Google OAuth Web Client ID; must match the frontend")
 
-    GITHUB_CLIENT_ID: Optional[str] = Field(default=None, description="GitHub OAuth Client ID")
-    GITHUB_CLIENT_SECRET: Optional[SecretStr] = Field(default=None, description="GitHub OAuth Client Secret (Secreto .env)")
+    # Optional text-only theory grading; selecting a provider requires explicit consent.
+    THEORY_GRADING_PROVIDER: str = Field(default="disabled", description="disabled | openai | gemini")
+    THEORY_GRADING_MODEL: str = Field(default="", description="Explicit provider model identifier; no implicit default")
+    OPENAI_API_KEY: Optional[SecretStr] = Field(default=None, description="OpenAI API key for theory grading")
+    GEMINI_API_KEY: Optional[SecretStr] = Field(default=None, description="Gemini API key for theory grading")
+    THEORY_GRADING_TIMEOUT_SECONDS: int = Field(default=20, ge=1, le=60)
+    THEORY_ASR_ENABLED: bool = Field(default=True, description="Enable the installed local ASR runtime for theory exams")
 
-    WHATSAPP_API_KEY: Optional[SecretStr] = Field(default=None, description="WhatsApp API Key (Secreto .env)")
-    WHATSAPP_PHONE_NUMBER_ID: Optional[str] = Field(default=None, description="WhatsApp Business Phone Number ID")
+    # Browser/audiovisual supervision trial (SM-43): never reachable in production.
+    BROWSER_SUPERVISION_TRIAL_ENABLED: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Expose the browser supervision trial routes. Unset = on only in development/test; "
+            "always off in production, even if set to true"
+        ),
+    )
+
+    # Integrity tuning diagnostics (T11): numeric per-window measurements, never reachable in production.
+    INTEGRITY_DIAGNOSTICS_ENABLED: bool = Field(
+        default=False,
+        description="Append one numeric JSON line per audiovisual window to INTEGRITY_DIAGNOSTICS_DIR; off in production",
+    )
+    INTEGRITY_DIAGNOSTICS_DIR: str = Field(
+        default_factory=lambda: os.path.join(tempfile.gettempdir(), "skillmatch-integrity-diagnostics"),
+        description="Directory of the <trial_id>.jsonl diagnostics files (only created when enabled)",
+    )
+
+    # Deterministic programming sandbox. The image must be pre-pulled by deployment; the
+    # request path never enables Docker networking or downloads an image.
+    SANDBOX_DOCKER_IMAGE: str = Field(default="python:3.12-slim", description="Pinned Python image used by the programming sandbox")
+    SANDBOX_DOCKER_BINARY: str = Field(default="docker", description="Docker-compatible executable for isolated code execution")
+    SANDBOX_MAX_CONCURRENT_RUNS: int = Field(default=2, ge=1, le=16, description="Maximum concurrent sandbox executions")
+    SANDBOX_WORK_DIR: Optional[str] = Field(
+        default=None,
+        description=(
+            "Parent directory for per-run sandbox workspaces; must be the same path for the backend and "
+            "the Docker daemon (e.g. a shared volume under dind). Unset = system temp directory"
+        ),
+    )
 
     # Almacenamiento MinIO / S3
     MINIO_ENDPOINT: str = Field(default="localhost:9000", description="Endpoint de MinIO/S3")
@@ -79,6 +121,170 @@ class Settings(BaseSettings):
     MINIO_ROOT_PASSWORD: Optional[SecretStr] = Field(default=None, description="Contraseña de MinIO (Secreto .env)")
     MINIO_SECURE: bool = Field(default=False, description="Uso de HTTPS para MinIO")
     MINIO_DEFAULT_BUCKET: str = Field(default="skillmatch-media", description="Bucket por defecto")
+
+    # Almacenamiento Garage S3 (Coolify VPS propio)
+    GARAGE_S3_ENDPOINT_URL: str = Field(
+        default="https://s3.devhooh.com",
+        description="Endpoint S3 de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_ADMIN_URL: Optional[str] = Field(
+        default="https://garage-admin.devhooh.com",
+        description="Endpoint Admin API v2 de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_WEB_URL: Optional[str] = Field(
+        default="https://garage-web.devhooh.com",
+        description="Endpoint Web de Garage S3 desplegado en Coolify",
+    )
+    GARAGE_S3_REGION: str = Field(
+        default="garage",
+        description="Región configurada en Garage S3",
+    )
+    GARAGE_S3_ACCESS_KEY_ID: Optional[str] = Field(
+        default=None,
+        description="Access Key ID de Garage S3",
+    )
+    GARAGE_S3_SECRET_ACCESS_KEY: Optional[SecretStr] = Field(
+        default=None,
+        description="Secret Access Key de Garage S3 (Secreto .env)",
+    )
+    GARAGE_S3_ADMIN_TOKEN: Optional[SecretStr] = Field(
+        default=None,
+        description="Token administrativo de Garage S3 (Secreto .env)",
+    )
+    GARAGE_S3_BUCKET: str = Field(
+        default="skillmatch-football",
+        description="Bucket de Garage S3 para sesiones y evidencias de fútbol",
+    )
+    GARAGE_S3_FORCE_PATH_STYLE: bool = Field(
+        default=True,
+        description="Usar direccionamiento path-style (recomendado para Garage S3)",
+    )
+
+    # Cola de Tareas Asíncronas (Celery + Redis)
+    REDIS_URL: str = Field(
+        default="redis://localhost:6379/0",
+        description="URL de conexión a Redis para broker y backend de Celery",
+    )
+    CELERY_TASK_ALWAYS_EAGER: bool = Field(
+        default=False,
+        description="Ejecutar tareas Celery en proceso (True para pruebas sin broker activo)",
+    )
+
+    # Recordatorios externos HU-38 (deshabilitados por defecto)
+    # URL pública del frontend para enlaces transaccionales.
+    FRONTEND_BASE_URL: str = Field(
+        default="http://localhost:5173",
+        description="URL pública del frontend usada en enlaces transaccionales",
+    )
+
+    # Correo transaccional (SMTP).
+    # El proveedor inicial puede ser Google, pero el contrato permanece
+    # desacoplado para permitir su sustitución.
+    EMAIL_ENABLED: bool = Field(
+        default=False,
+        description="Habilitar el envío de correo transaccional",
+    )
+    SMTP_HOST: str = Field(
+        default="smtp.gmail.com",
+        description="Servidor SMTP",
+    )
+    SMTP_PORT: int = Field(
+        default=587,
+        ge=1,
+        le=65535,
+        description="Puerto SMTP",
+    )
+    SMTP_USERNAME: SecretStr | None = Field(
+        default=None,
+        description="Usuario SMTP (Secreto .env)",
+    )
+    SMTP_PASSWORD: SecretStr | None = Field(
+        default=None,
+        description="Contraseña de aplicación SMTP (Secreto .env)",
+    )
+    SMTP_STARTTLS: bool = Field(
+        default=True,
+        description="Elevar la conexión SMTP mediante STARTTLS",
+    )
+    SMTP_TIMEOUT_SECONDS: int = Field(
+        default=15,
+        ge=1,
+        le=120,
+        description="Timeout de conexión y envío SMTP",
+    )
+    EMAIL_FROM_ADDRESS: str | None = Field(
+        default=None,
+        description="Dirección remitente",
+    )
+    EMAIL_FROM_NAME: str = Field(
+        default="SkillMatch",
+        description="Nombre visible del remitente",
+    )
+    EMAIL_REPLY_TO: str | None = Field(
+        default=None,
+        description="Dirección de respuesta",
+    )
+
+    # Web Push navegador/PWA.
+    # La clave pública puede exponerse a miembros autenticados;
+    # la privada nunca abandona el proceso backend.
+    WEB_PUSH_ENABLED: bool = Field(
+        default=False,
+        description="Habilitar entregas Web Push mediante VAPID",
+    )
+    VAPID_PUBLIC_KEY: str | None = Field(
+        default=None,
+        description="Clave pública VAPID en formato URL-safe Base64",
+    )
+    VAPID_PRIVATE_KEY: SecretStr | None = Field(
+        default=None,
+        description="Clave privada VAPID (Secreto .env)",
+    )
+    VAPID_SUBJECT: str | None = Field(
+        default=None,
+        description="Contacto VAPID, normalmente mailto:soporte@dominio",
+    )
+
+    # Economía de Puntos y Pasarela de Pagos (HU-42 / RF-SES-09 / RF-WAL-02)
+    PAYMENT_GATEWAY_PROVIDER: str = Field(
+        default="sandbox",
+        description="Proveedor de pasarela de pagos: sandbox | stripe | paypal",
+    )
+    STRIPE_SECRET_KEY: Optional[SecretStr] = Field(
+        default=None,
+        description="Clave secreta de Stripe para recargas en vivo (Secreto .env)",
+    )
+    STRIPE_PUBLISHABLE_KEY: Optional[str] = Field(
+        default=None,
+        description="Clave pública de Stripe para integración de frontend",
+    )
+    PAYPAL_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        description="Client ID de PayPal para checkout",
+    )
+    PAYPAL_CLIENT_SECRET: Optional[SecretStr] = Field(
+        default=None,
+        description="Client Secret de PayPal para checkout (Secreto .env)",
+    )
+    WALLET_POINTS_PER_USD: int = Field(
+        default=10,
+        description="Tasa de conversión canónica: 10 SkillPoints (SP) equivalen a $1.00 USD",
+    )
+    WALLET_CASHOUT_MIN_POINTS: int = Field(
+        default=100,
+        ge=10,
+        description="Monto mínimo en SkillPoints para solicitar retiro a cuenta bancaria",
+    )
+    WALLET_PLATFORM_FEE_PERCENTAGE: float = Field(
+        default=15.0,
+        ge=0.0,
+        le=50.0,
+        description="Comisión institucional porcentual retenida por la plataforma en retiros (ej. 15.0%)",
+    )
+    FIREBASE_CREDENTIALS_PATH: Optional[str] = Field(
+        default="firebase-credentials.json",
+        description="Ruta al archivo JSON de credenciales de Firebase Admin SDK para notificaciones push",
+    )
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
@@ -88,6 +294,34 @@ class Settings(BaseSettings):
         elif isinstance(v, list):
             return v
         return ["*"]
+
+    @model_validator(mode="after")
+    def validate_web_push_configuration(self) -> Self:
+        if not self.WEB_PUSH_ENABLED:
+            return self
+        if not self.VAPID_PUBLIC_KEY or not self.VAPID_PRIVATE_KEY or not self.VAPID_SUBJECT:
+            raise ValueError(
+                "WEB_PUSH_ENABLED requiere VAPID_PUBLIC_KEY, "
+                "VAPID_PRIVATE_KEY y VAPID_SUBJECT",
+            )
+        if not self.VAPID_SUBJECT.startswith(("mailto:", "https://")):
+            raise ValueError("VAPID_SUBJECT debe usar mailto: o https://")
+        return self
+
+    @property
+    def integrity_diagnostics_enabled(self) -> bool:
+        """Hard deny in production; otherwise the explicit flag (default off)."""
+        return self.ENVIRONMENT.strip().lower() != "production" and self.INTEGRITY_DIAGNOSTICS_ENABLED
+
+    @property
+    def browser_supervision_trial_enabled(self) -> bool:
+        """Hard deny in production; otherwise the explicit flag, else on only in development/test."""
+        environment = self.ENVIRONMENT.strip().lower()
+        if environment == "production":
+            return False
+        if self.BROWSER_SUPERVISION_TRIAL_ENABLED is not None:
+            return self.BROWSER_SUPERVISION_TRIAL_ENABLED
+        return environment in ("development", "test", "testing")
 
     @property
     def async_database_url(self) -> str:

@@ -110,7 +110,7 @@ Desarrollar una plataforma web y móvil para el intercambio de habilidades entre
 - **Frontend Web:** React.js con TypeScript (arquitectura modular basada en componentes).
 - **Frontend Móvil:** Capacitor (empaquetado multiplataforma sobre React/TypeScript con acceso a APIs nativas de cámara y micrófono).
 - **Base de Datos Relacional:** PostgreSQL (integridad referencial, transacciones ACID y alta concurrencia).
-- **Almacenamiento de Objetos:** MinIO autogestionado en VPS para datasets, videos, audios y evidencias.
+- **Almacenamiento de Objetos:** Garage S3 (compatible S3) autogestionado en VPS con Coolify, para datasets, videos, audios y evidencias.
 - **Tiempo Real:** WebSockets integrados en FastAPI.
 - **Seguridad:** JWT (JSON Web Tokens) con control de acceso granular por roles (RBAC).
 
@@ -143,7 +143,7 @@ Desarrollar una plataforma web y móvil para el intercambio de habilidades entre
 
 El diseño del sistema se estructura mediante el **Modelo C4** gestionado centralizadamente con **Enterprise Architect (EA)**:
 - **Nivel 1 (Contexto):** Interacción de usuarios y administradores con SkillMatch y sistemas externos de notificación/almacenamiento.
-- **Nivel 2 (Contenedores):** Separación desacoplada entre SPA Web (React), App Móvil (Capacitor), API Gateway / Core (FastAPI), Inferencia IA (PyTorch Services), Base de Datos (PostgreSQL) y Almacenamiento (MinIO).
+- **Nivel 2 (Contenedores):** Separación desacoplada entre SPA Web (React), App Móvil (Capacitor), API Gateway / Core (FastAPI), Inferencia IA (PyTorch Services), Base de Datos (PostgreSQL) y Almacenamiento (Garage S3).
 - **Nivel 3 (Componentes):** Controladores de autenticación, gestor de catálogo, motor de matching, supervisor anti-fraude y evaluadores de IA por disciplina.
 - **Nivel 4 (Código):** Diagramas de clases e interfaces específicas para los motores de scoring y evaluación.
 

@@ -1,125 +1,175 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuthStore } from "@/stores/auth-store"
-import { getMe, logoutSession } from "@/services/auth-service"
-import { Shield, LogOut, Users, BookOpen, Database, AlertCircle, Loader2 } from "lucide-react"
+import { getMe } from "@/services/auth-service"
+import {
+  Users,
+  BookOpen,
+  Database,
+  ShieldAlert,
+  ArrowRight,
+  Activity,
+  Layers,
+  Sparkles,
+} from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 export function AdminDashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-  // Sincronizar datos frescos del perfil del administrador desde el backend
   useEffect(() => {
     getMe().catch((err) => {
       console.warn("Verificación de sesión en segundo plano:", err)
     })
   }, [])
 
-  const handleLogout = async () => {
-    setIsLoggingOut(true)
-    try {
-      await logoutSession()
-    } finally {
-      setIsLoggingOut(false)
-      navigate("/admin/login", { replace: true })
-    }
-  }
+  const modules = [
+    {
+      title: "Equipo Administrador",
+      description: "Gestión, auditoría y creación de cuentas institucionales con rol ADMIN.",
+      icon: Users,
+      path: "/admin/administrators",
+      badge: "Gobernanza",
+      color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+    },
+    {
+      title: "Catálogo de Habilidades",
+      description: "Administración de taxonomía, niveles canónicos y parámetros de evaluación.",
+      icon: BookOpen,
+      path: "/admin/catalog",
+      badge: "Taxonomía",
+      color: "text-teal-400 bg-teal-500/10 border-teal-500/20",
+    },
+    {
+      title: "Captura & Datasets IA",
+      description: "Consola de etiquetado y curaduría de muestras para modelos biométricos locales.",
+      icon: Database,
+      path: "/admin/capture",
+      badge: "IA Propia",
+      color: "text-sky-400 bg-sky-500/10 border-sky-500/20",
+    },
+    {
+      title: "Auditoría de Fraude",
+      description: "Inspección de telemetría de evaluaciones, alertas de liveness y dictámenes.",
+      icon: ShieldAlert,
+      path: "/admin/fraud-audit",
+      badge: "Supervisión",
+      color: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+    },
+  ]
 
   return (
-    <div className="min-h-screen w-full bg-[#0F1416] text-[#F0FDFA] flex flex-col">
-      {/* Header Administrativo */}
-      <header className="h-16 border-b border-[#1E2629] bg-[#141C1E] px-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-md bg-[#00786F33] text-[#2DD4BF]">
-            <Shield className="w-5 h-5" />
+    <div className="space-y-6 max-w-6xl mx-auto w-full">
+      {/* Banner de Estado del Administrador */}
+      <div className="p-5 sm:p-6 rounded-xl border border-[#1E2629] bg-[#141C1E] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Badge className="bg-[#00786F33] text-[#2DD4BF] border border-[#00786F40] text-[10px] uppercase font-bold tracking-wider">
+              Sesión Activa: Rol {user?.role || "ADMIN"}
+            </Badge>
+            <span className="text-xs text-[#8B9D9F]">• {user?.email}</span>
           </div>
-          <div>
-            <span className="text-xs font-extrabold tracking-wider text-[#2DD4BF] uppercase">
-              SkillMatch Backoffice
-            </span>
-            <h1 className="text-sm font-bold text-[#F0FDFA]">Panel de Control de Administración</h1>
-          </div>
+          <h2 className="text-xl font-bold text-[#F0FDFA]">
+            Bienvenido al Centro de Control de SkillMatch
+          </h2>
+          <p className="text-xs text-[#8B9D9F] max-w-2xl leading-relaxed">
+            Consola centralizada para la administración de usuarios del sistema, supervisión de modelos de inferencia de visión y audio en infraestructura propia, y auditoría de integridad académica.
+          </p>
         </div>
+      </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-right hidden sm:block">
-            <p className="text-xs font-semibold text-[#F0FDFA]">{user?.fullName || "Administrador"}</p>
-            <p className="text-[10px] text-[#8B9D9F]">{user?.email}</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-[#1E2629] bg-[#0B1011] text-[#8B9D9F] hover:text-[#F0FDFA] hover:border-red-500/50 hover:bg-red-500/10 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-          >
-            {isLoggingOut ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2DD4BF]" />
-            ) : (
-              <LogOut className="w-3.5 h-3.5" />
-            )}
-            <span>{isLoggingOut ? "Cerrando..." : "Cerrar Sesión"}</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Contenido Principal */}
-      <main className="flex-1 p-6 max-w-6xl mx-auto w-full flex flex-col gap-6">
-        {/* Banner de Estado del Administrador */}
-        <div className="p-5 rounded-xl border border-[#1E2629] bg-[#141C1E] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-[#00786F33] text-[#2DD4BF] text-[10px] font-bold uppercase tracking-wider mb-2">
-              Sesión Activa: Rol {user?.role}
-            </div>
-            <h2 className="text-lg font-bold text-[#F0FDFA]">Bienvenido al Centro de Control de SkillMatch</h2>
-            <p className="text-xs text-[#8B9D9F] mt-1">
-              Acceso institucional exclusivo para la gestión de catálogo de habilidades, supervisión de datasets y auditoría forense.
-            </p>
-          </div>
-        </div>
-
-        {/* Tarjetas de Módulos Administrativos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div
-            onClick={() => navigate("/admin/administrators")}
-            className="p-5 rounded-xl border border-[#1E2629] bg-[#141C1E] flex flex-col gap-3 cursor-pointer hover:border-[#00786F] hover:bg-[#142022] transition-all group"
-          >
-            <div className="w-9 h-9 rounded-lg bg-[#00786F33] flex items-center justify-center text-[#2DD4BF] group-hover:bg-[#00786F] group-hover:text-white transition-colors">
-              <Users className="w-5 h-5" />
-            </div>
+      {/* Indicadores Rápidos de la Plataforma */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] shadow-xs">
+          <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[#F0FDFA]">Equipo Administrador</h3>
-              <span className="text-[10px] text-[#2DD4BF] font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
-                Gestionar →
-              </span>
+              <CardDescription className="text-xs text-[#8B9D9F]">Inferencia de IA Propia</CardDescription>
+              <Sparkles className="size-4 text-[#2DD4BF]" />
             </div>
-            <p className="text-xs text-[#8B9D9F]">Gestión y creación de cuentas institucionales con rol ADMIN.</p>
-          </div>
+            <CardTitle className="text-lg font-bold">100% Local (ONNX)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-[11px] text-[#8B9D9F]">
+              YuNet (Detección) + SFace (Reconocimiento) activos en servidor.
+            </p>
+          </CardContent>
+        </Card>
 
-          <div className="p-5 rounded-xl border border-[#1E2629] bg-[#141C1E] flex flex-col gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#00786F33] flex items-center justify-center text-[#2DD4BF]">
-              <BookOpen className="w-5 h-5" />
+        <Card className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] shadow-xs">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-xs text-[#8B9D9F]">Control RBAC</CardDescription>
+              <Activity className="size-4 text-[#2DD4BF]" />
             </div>
-            <h3 className="text-sm font-bold text-[#F0FDFA]">Catálogo de Habilidades</h3>
-            <p className="text-xs text-[#8B9D9F]">Administración de taxonomía, niveles y parámetros de intercambio.</p>
-          </div>
+            <CardTitle className="text-lg font-bold">Ofuscación 404</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-[11px] text-[#8B9D9F]">
+              Rutas administrativas ocultas para miembros y anónimos.
+            </p>
+          </CardContent>
+        </Card>
 
-          <div className="p-5 rounded-xl border border-[#1E2629] bg-[#141C1E] flex flex-col gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#00786F33] flex items-center justify-center text-[#2DD4BF]">
-              <Database className="w-5 h-5" />
+        <Card className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA] shadow-xs">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-xs text-[#8B9D9F]">Estado del Catálogo</CardDescription>
+              <Layers className="size-4 text-[#2DD4BF]" />
             </div>
-            <h3 className="text-sm font-bold text-[#F0FDFA]">Captura & Datasets IA</h3>
-            <p className="text-xs text-[#8B9D9F]">Consola de etiquetado y curaduría de modelos biométricos propios.</p>
-          </div>
+            <CardTitle className="text-lg font-bold">Modo Limpio</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-[11px] text-[#8B9D9F]">
+              Provisionamiento exclusivo del administrador inicial.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
-          <div className="p-5 rounded-xl border border-[#1E2629] bg-[#141C1E] flex flex-col gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#00786F33] flex items-center justify-center text-[#2DD4BF]">
-              <AlertCircle className="w-5 h-5" />
-            </div>
-            <h3 className="text-sm font-bold text-[#F0FDFA]">Auditoría & Quejas</h3>
-            <p className="text-xs text-[#8B9D9F]">Resolución arbitral de disputas y dictamen de pruebas sospechosas.</p>
-          </div>
+      {/* Módulos Principales de Administración */}
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-[#8B9D9F] mb-3">
+          Módulos de Gestión Disponibles
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {modules.map((mod) => {
+            const Icon = mod.icon
+            return (
+              <div
+                key={mod.title}
+                onClick={() => navigate(mod.path)}
+                className="p-5 rounded-xl border border-[#1E2629] bg-[#141C1E] flex flex-col justify-between gap-3 cursor-pointer hover:border-[#00786F] hover:bg-[#142022] transition-all group shadow-xs"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${mod.color}`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <Badge variant="outline" className="text-[10px] border-[#1E2629] text-[#8B9D9F]">
+                      {mod.badge}
+                    </Badge>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-[#F0FDFA] group-hover:text-[#2DD4BF] transition-colors">
+                      {mod.title}
+                    </h4>
+                    <p className="text-xs text-[#8B9D9F] mt-1 line-clamp-2">
+                      {mod.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end text-[11px] font-semibold text-[#2DD4BF] opacity-80 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">
+                  <span>Acceder</span>
+                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </div>
+              </div>
+            )
+          })}
         </div>
-      </main>
+      </div>
     </div>
   )
 }

@@ -21,14 +21,17 @@ Este documento define la especificación detallada de los requisitos funcionales
 
 ### 1.1 Restricción de IA Propia (Mandatoria)
 
-SkillMatch **no puede usar proveedores de IA cerrados de pago (OpenAI, Anthropic, Gemini API) ni modelos generativos de terceros en la nube**. Toda la inteligencia de evaluación, extracción de características y clasificación debe ser construida, entrenada y ejecutada por el equipo en infraestructura propia con herramientas open source. Ningún dato de usuario ni evidencia biométrica sale hacia APIs externas.
+SkillMatch **no puede usar proveedores de IA cerrados de pago ni modelos generativos de terceros en la nube para evaluación biométrica, de audio o de video, ni para generar feedback pedagógico o preguntas de defensa**. Toda esa inteligencia de evaluación, extracción de características y clasificación debe ser construida, entrenada y ejecutada por el equipo en infraestructura propia con herramientas open source. Ningún dato biométrico (video, audio, pose) sale hacia APIs externas.
+
+**Excepción autorizada (vigente, ver `AGENTS.md` §1.1):** Gemini y la API de OpenAI pueden usarse exclusivamente para la **corrección de la evaluación teórica escrita** (comparar la respuesta del usuario contra la rúbrica y respuesta de referencia definidas por el administrador), seleccionados por configuración del backend. Solo se envía el texto necesario para la corrección, sin identificadores personales; requiere consentimiento específico si se envía audio o video. Esta excepción no habilita LLMs para ningún otro módulo (visión, audio, matching, antifraude).
 
 | Componente | Tratamiento en SkillMatch | Justificación Técnica |
 |---|---|---|
 | **Librerías y algoritmos clásicos** (OpenCV, librosa, PyTorch, scikit-learn, AST de Python) | **Permitidos** | Son frameworks y herramientas de base matemática/señales, no modelos de terceros empaquetados como servicio. |
 | **Modelos entrenados por el equipo** con datasets propios | **Núcleo del sistema** | Clasificadores de nivel, detectores de eventos y redes sobre audio y video. |
 | **Modelos preentrenados de terceros** (extractores de pose open-source, detectores faciales estándar) | **Solo como apoyo y declarados** | Requieren inventario formal de componentes y aprobación de la cátedra/docente. |
-| **LLMs, modelos generativos o APIs de voz de terceros** | **Fuera de alcance** | La retroalimentación pedagógica y preguntas de defensa se generan determinísticamente con reglas y plantillas. |
+| **LLMs o APIs de terceros (OpenAI, Gemini) para corrección de teoría escrita** | **Permitido, opt-in por configuración** | Única excepción autorizada; ver `AGENTS.md` §1.1. No reemplaza la rúbrica ni autoriza preguntas improvisadas. |
+| **LLMs, modelos generativos o APIs de voz de terceros para biometría, visión, audio o feedback pedagógico** | **Fuera de alcance** | La retroalimentación pedagógica y preguntas de defensa se generan determinísticamente con reglas y plantillas. |
 
 ---
 
@@ -55,16 +58,16 @@ SkillMatch **no puede usar proveedores de IA cerrados de pago (OpenAI, Anthropic
 
 | ID | Requisito Funcional | Prioridad |
 |---|---|:---:|
-| **RF-USR-01** | El sistema permitirá registrar usuarios con nombre, correo, contraseña, fecha de nacimiento y país/ciudad. | A |
-| **RF-USR-02** | El sistema permitirá registro e inicio de sesión mediante proveedores externos (Google, Apple). | M |
-| **RF-USR-03** | El sistema verificará el correo electrónico mediante un enlace o código de un solo uso antes de activar la cuenta. | A |
+| **RF-USR-01** | El sistema registrará miembros exclusivamente con identidad verificada de Google (nombre, correo y avatar), rol MEMBER, sin contraseña local y con billetera inicial de 0 puntos. | A |
+| **RF-USR-02** | El sistema permitirá registro e inicio de sesión de miembros únicamente mediante Google; los ADMIN utilizarán exclusivamente correo y contraseña. | M |
+| **RF-USR-03** | El registro de miembros exigirá el correo verificado y la credencial válida de Google antes de activar la cuenta; no existe OTP ni verificación local por correo. | A |
 | **RF-USR-04** | El sistema permitirá iniciar y cerrar sesión de forma segura mediante tokens JWT con expiración y renovación (*refresh tokens*). | A |
-| **RF-USR-05** | El sistema permitirá recuperar y cambiar la contraseña mediante un enlace temporal firmado. | A |
+| **RF-USR-05** | Los ADMIN podrán cambiar contraseñas administrativas desde la gestión autorizada; no existe recuperación por correo ni contraseña local para miembros. | A |
 | **RF-USR-06** | El sistema ofrecerá autenticación en dos pasos (2FA) opcional vía TOTP. | M |
 | **RF-USR-07** | El usuario podrá ver y editar su perfil: foto, biografía, idiomas, zona horaria y enlaces externos. | A |
 | **RF-USR-08** | El usuario configurará su disponibilidad semanal por franjas horarias y su zona horaria. | A |
 | **RF-USR-09** | El usuario seleccionará su modalidad de intercambio: presencial, virtual o ambas, y su radio geográfico para encuentros presenciales. | A |
-| **RF-USR-10** | El sistema aplicará control de acceso por roles (Usuario, Administrador, Moderador) restringiendo funciones según el rol (RBAC). | A |
+| **RF-USR-10** | El sistema aplicará control de acceso por los dos roles canónicos (MEMBER, ADMIN) restringiendo funciones según el rol (RBAC). | A |
 | **RF-USR-11** | El usuario controlará la privacidad de su perfil: qué datos son públicos, visibles solo para matches o privados. | M |
 | **RF-USR-12** | El usuario podrá ver y revocar sesiones activas en otros dispositivos. | B |
 | **RF-USR-13** | El usuario podrá desactivar o eliminar su cuenta y solicitar la exportación de sus datos personales. | M |

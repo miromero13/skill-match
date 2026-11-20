@@ -1,6 +1,6 @@
 # SkillMatch — Backlog de Historias de Usuario (Jira Ready)
 
-*Planificación ágil por Sprints (Sprint 0 al Sprint 4) con cobertura integral de backend y frontend por historia, Landing Page pública, autenticación social/OTP para miembros (Google, WhatsApp, GitHub), login local exclusivo para Administradores, economía de puntos con recargas, propinas y retiros en dinero (Cashout), gestión de quejas con compensación, política de seguridad 404 Not Found y estado inicial **Por hacer**.*
+*Planificación ágil por Sprints (Sprint 0 al Sprint 4) con cobertura integral de backend y frontend por historia, Landing Page pública, autenticación exclusiva con Google para miembros, login local exclusivo para Administradores, economía de puntos con recargas, propinas y retiros en dinero (Cashout), gestión de quejas con compensación, política de seguridad 404 Not Found y estado inicial **Por hacer**.*
 
 ---
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | **EPIC-01** | Preparación, Documentación y Diseño del Sistema | Redacción técnica formal (Capítulos 1 al 3, anexos y bibliografía), backlog en Jira, prototipo Figma y Landing Page pública. |
 | **EPIC-02** | Inicialización y Estructura del Proyecto | Scaffolding modular del Backend (FastAPI, PostgreSQL, Swagger y migraciones Alembic) y Frontend/Mobile (React, Shadcn Mist, Zustand y Capacitor). |
-| **EPIC-03** | Miembros, Proveedores de Autenticación y Administración | Registro rápido con Google, WhatsApp y GitHub, login de administrador por clave, gestión de administradores y sesión JWT. |
+| **EPIC-03** | Miembros, Proveedores de Autenticación y Administración | Registro rápido exclusivo con Google, login de administrador por clave, gestión de administradores y sesión JWT. |
 | **EPIC-04** | Catálogo y Habilidades | Administración de categorías, oferta y demanda de habilidades, niveles declarados y portafolio de evidencias. |
 | **EPIC-05** | Datasets e Ingesta de Datos para IA | Herramienta de captura web/móvil y consola de anotación de muestras gestionada por administradores para entrenar modelos propios. |
 | **EPIC-06** | Búsqueda y Matching | Búsqueda con filtros, motor de compatibilidad bilateral recíproca, cálculo de afinidad y tarjetas de coincidencia. |
@@ -97,10 +97,10 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 | Sprint | Enfoque Principal | Total HUs | Puntos de Historia (SP) |
 |:---:|---|:---:|:---:|
-| **Sprint 0** | Documentación, backlog, prototipo, inicialización backend/frontend, Landing Page y autenticación social/admin. | 11 | 55 SP |
+| **Sprint 0** | Documentación, backlog, prototipo, inicialización backend/frontend, Landing Page y autenticación social/admin. | 10 | 52 SP |
 | **Sprint 1** | Catálogo de habilidades, gestión de oferta/demanda, perfiles y captura/anotación de datasets por Admin. | 8 | 39 SP |
 | **Sprint 2** | Motor de búsqueda, matching bilateral, cálculo de score y notificaciones en tiempo real vía WebSockets. | 7 | 34 SP |
-| **Sprint 3** | Consentimiento biométrico, evaluador de código (sandbox + AST), prueba teórica y anti-fraude. | 8 | 39 SP |
+| **Sprint 3** | Consentimiento biométrico, evaluador de código (sandbox + AST), prueba teórica y anti-fraude. | 9 | 42 SP |
 | **Sprint 4** | Modelos de IA (música/fútbol), sesiones, valoraciones con propinas, Pasaporte QR, Billetera y Quejas. | 9 | 52 SP |
 | **Total** | | **43 HUs** | **219 SP** |
 
@@ -248,7 +248,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   - [x] Aplicación estricta de la paleta **Mist**, bordes/radios del preset y tipografía **Inter**.
   - [x] Diseño 100% responsive adaptable tanto a pantallas de escritorio (Web) como a dispositivos móviles (Capacitor).
   - [x] Cobertura completa de todos los flujos clave:
-    1. Landing Page de presentación y botones de acceso rápido (Google, WhatsApp, GitHub) y acceso login de Administrador.
+    1. Landing Page de presentación y acceso rápido exclusivo con Google y acceso login de Administrador.
     2. Perfil de miembro y catálogo de habilidades (enseñar / aprender).
     3. Flujo de validación: modal de consentimiento biométrico previo, verificación de entorno, liveness, editor de código sandbox con tests, reto con cámara y reporte de resultados.
     4. Búsqueda con filtros facetados, Match Cards interactivas y chat de coincidencia.
@@ -280,7 +280,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
       - `GET /api/platform/stats`: Estadísticas públicas consolidadas de la plataforma (Diferido a tarea técnica de backlog `TASK-BE-01` para implementación al final cuando existan datos reales de producción en los módulos core).
   - **Frontend:**
     - [x] Ruta `/` pública implementada con el preset Shadcn/ui Mist y tipografía Inter.
-    - [x] **Sección Hero:** Encabezado con propuesta de valor de alto impacto (*Skill Swapping colaborativo con validación objetiva por Inteligencia Artificial*) y botones de llamada a la acción (*Call-to-Action*) directos para iniciar con Google, WhatsApp o GitHub.
+    - [x] **Sección Hero:** Encabezado con propuesta de valor de alto impacto (*Skill Swapping colaborativo con validación objetiva por Inteligencia Artificial*) y botones de llamada a la acción (*Call-to-Action*) directos para iniciar con Google.
     - [x] **Sección Cómo Funciona:** Flujo explicativo interactivo en 3 pasos (1. Registrá tus habilidades a enseñar y aprender; 2. Valida tu nivel con IA propia; 3. Hacé match recíproco y coordiná sesiones de clase).
     - [x] **Sección Áreas de Validación IA:** Demostración visual de las tres verticales (Programación con editor y sandbox, Instrumentos con análisis de audio y Fútbol con visión artificial).
     - [x] **Sección Catálogo y Confianza & Escrow:** Secciones dedicadas a pantalla completa con categorías de habilidades y pilares del contrato Escrow con navegación ancla fluida bidireccional.
@@ -290,41 +290,40 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ---
 
-#### HU-07: Registro rápido y autenticación de miembros con Google, WhatsApp y GitHub
+#### HU-07: Registro rápido y autenticación de miembros exclusivamente con Google
 - **Épica:** `EPIC-03: Miembros, Proveedores de Autenticación y Administración`
 - **Actor Principal:** Visitante / Nuevo Miembro de la Comunidad
 - **Roles Permitidos:** Público (Sin autenticación previa)
 - **Sprint:** Sprint 0
-- **Estado:** Por hacer
+- **Estado:** En validación — implementación y pruebas automatizadas locales
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-USR-01`, `RF-USR-02`
 - **Descripción:**
   > **Como** nuevo miembro o miembro existente de la comunidad,  
-  > **quiero** registrarme e iniciar sesión de forma ágil usando mi cuenta de Google, GitHub o verificación de WhatsApp sin contraseñas,  
+  > **quiero** registrarme e iniciar sesión de forma ágil usando mi cuenta verificada de Google sin contraseñas,  
   > **para** acceder de inmediato a la plataforma sin trámites engorrosos ni necesidad de recordar claves.
 - **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** `28 - Registro & Autenticación de Miembros (Social & OTP)`
+  - **Web Desktop:** `28 - Registro & Autenticación de Miembros` (adaptada a Google exclusivo)
   - **Mobile Responsive:** `30 - Mobile Registro & Auth Miembros`
-  - **Alcance Visual:** Vista Completa — Auth Card con botones de acceso Google y GitHub, selector de prefijo de país y slots de 6 dígitos para código OTP de WhatsApp
+  - **Alcance Visual:** Vista Completa — Tarjeta Shadcn/ui con botón oficial visible de Google; sin GitHub, WhatsApp, OTP ni acceso simulado de desarrollo
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Endpoints documentados en Swagger UI (`/docs`):
+    - [x] Endpoints documentados en Swagger UI (`/docs`):
       - `POST /api/auth/oauth/google`: Intercambia token OAuth de Google por sesión JWT.
-      - `POST /api/auth/oauth/github`: Intercambia código OAuth de GitHub por sesión JWT.
-      - `POST /api/auth/otp/whatsapp/request`: Envía código de un solo uso por WhatsApp.
-      - `POST /api/auth/otp/whatsapp/verify`: Valida código OTP e inicia/crea sesión de miembro.
-    - [ ] Modelo `User` con campos de proveedor: `provider` (google, github, whatsapp), `provider_user_id`, `email`, `phone_number`, `full_name`, `avatar_url`, `role` (`UserRole.MEMBER`), `is_active = true`.
-    - [ ] Creación de billetera automática (`Wallet`) con saldo inicial de 0 puntos asociada al nuevo miembro.
-    - [ ] Provisionamiento automático (*Just-In-Time*): si el usuario no existe, se crea automáticamente en estado verificado y activo con rol `UserRole.MEMBER`.
-    - [ ] Sin gestión de contraseña para este tipo de usuarios (`password_hash = null`).
-    - [ ] Emisión de Access Token y Refresh Token con el claim `"role": "MEMBER"`.
+    - [x] Modelo `User` con campos de proveedor: `provider` (`google`), `provider_user_id`, `email`, `phone_number`, `full_name`, `avatar_url`, `role` (`UserRole.MEMBER`), `is_active = true`.
+    - [x] Creación transaccional de billetera real (`Wallet`) con saldo inicial de 0 puntos; saldo persistido expuesto en la identidad y mostrado sin bono ficticio. No incluye recargas, pagos, transferencias ni retiros.
+    - [x] Provisionamiento automático (*Just-In-Time*): si el usuario no existe, se crea automáticamente con identidad de Google verificada y cuenta activa con rol `UserRole.MEMBER`.
+    - [x] Sin gestión de contraseña para este tipo de usuarios (`hashed_password = null`).
+    - [x] Verificación obligatoria con Google, audiencia configurada, emisor, expiración, email verificado y sujeto; rechazo de cuentas ADMIN y sujetos de Google que no corresponden. Sin fallback no firmado, incluso en desarrollo.
+    - [x] Emisión de Access Token y Refresh Token con el claim `"role": "MEMBER"`.
   - **Frontend:**
-    - [ ] Pantalla de Login / Registro rápido con botones de acción social estilizados con Shadcn/ui (Google, WhatsApp, GitHub).
-    - [ ] Flujo interactivo de ingreso de número telefónico y diálogo de código OTP para WhatsApp.
-    - [ ] Gestión del estado de autenticación y tokens en store de **Zustand**.
-    - [ ] Despliegue de mensajes informativos y de error con el `message` del backend en toasts.
-    - [ ] Interfaz 100% responsive en mobile, tablet y desktop.
+    - [x] Pantalla de Login / Registro con tarjeta Shadcn/ui y botón oficial de Google; sin proveedores ficticios ni tokens fabricados.
+    - [x] Gestión del estado de autenticación y tokens en store de **Zustand**.
+    - [x] Despliegue de mensajes informativos y de error con el `message` del backend en toasts.
+    - [ ] Interfaz 100% responsive en mobile, tablet y desktop. (validación visual/manual pendiente).
+
+- **Verificación pendiente:** Prueba manual con Google real y/o revisión visual web/móvil según la HU. Las pruebas del plugin nativo usan dobles de las APIs; no acreditan ejecución en dispositivo. Este documento no modifica el estado de Jira.
 
 ---
 
@@ -333,7 +332,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Actor Principal:** Administrador de la Plataforma
 - **Roles Permitidos:** Público para login de administración
 - **Sprint:** Sprint 0
-- **Estado:** Por hacer
+- **Estado:** En validación — implementación y pruebas automatizadas locales
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-USR-04`, `RF-USR-10`
@@ -347,19 +346,22 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   - **Alcance Visual:** Vista Completa — Pantalla sobria `#0F1416` con formulario de correo institucional, contraseña cifrada y aviso de seguridad 404 Not Found
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Endpoint documentado en Swagger UI (`/docs`):
+    - [x] Endpoint documentado en Swagger UI (`/docs`):
       - `POST /api/admin/auth/login`: Autentica credenciales administrativas (`email` y `password`).
-    - [ ] Validación estricta de que el usuario posea rol `UserRole.ADMIN` y cuenta activa (`is_active = true`).
-    - [ ] Verificación de contraseña hasheada con Argon2/Bcrypt.
-    - [ ] Emisión de par de tokens JWT conteniendo el claim `"role": "ADMIN"`.
-    - [ ] Sin flujo de recuperación de clave por correo para cuentas administrativas.
-    - [ ] Bloqueo preventivo tras 5 intentos fallidos consecutivos de acceso.
+    - [x] Validación estricta de que el usuario posea rol `UserRole.ADMIN` y cuenta activa (`is_active = true`).
+    - [x] Verificación de contraseña hasheada con Argon2/Bcrypt.
+    - [x] Emisión de par de tokens JWT conteniendo el claim `"role": "ADMIN"`.
+    - [x] Google nunca autentica cuentas ADMIN; el ingreso administrativo es exclusivamente correo y contraseña.
+    - [x] Sin flujo de recuperación de clave por correo para cuentas administrativas.
+    - [x] Bloqueo preventivo tras 5 intentos fallidos consecutivos de acceso.
   - **Frontend:**
-    - [ ] Vista `/admin/login` independiente con formulario de correo y contraseña (diseño discreto Shadcn Mist).
-    - [ ] Almacenamiento seguro del token y del rol `UserRole.ADMIN` en el store de **Zustand**.
-    - [ ] Redirección automática al panel de administración `/admin/dashboard` tras éxito.
-    - [ ] Avisos de error visuales mostrando textualmente el `message` recibido del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Vista `/admin/login` independiente con formulario de correo y contraseña (diseño discreto Shadcn Mist).
+    - [x] Almacenamiento seguro del token y del rol `UserRole.ADMIN` en el store de **Zustand**.
+    - [x] Redirección automática al panel de administración `/admin/dashboard` tras éxito.
+    - [x] Avisos de error visuales mostrando textualmente el `message` recibido del backend.
+    - [ ] Diseño 100% responsive en mobile, tablet y desktop. (validación visual/manual pendiente).
+
+- **Verificación pendiente:** Prueba manual con Google real y/o revisión visual web/móvil según la HU. Las pruebas del plugin nativo usan dobles de las APIs; no acreditan ejecución en dispositivo. Este documento no modifica el estado de Jira.
 
 ---
 
@@ -368,7 +370,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Actor Principal:** Usuario Autenticado (`MEMBER` o `ADMIN`)
 - **Roles Permitidos:** `UserRole.MEMBER`, `UserRole.ADMIN`
 - **Sprint:** Sprint 0
-- **Estado:** Por hacer
+- **Estado:** En validación — implementación y pruebas automatizadas locales
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-USR-04`
@@ -379,20 +381,25 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `01 - Shell Maestro Web` (y cabecera de todas las vistas autenticadas)
   - **Mobile Responsive:** `01 - Mobile Feed (Home)` (y header de todas las vistas autenticadas)
-  - **Alcance Visual:** Solo una parte de esa vista — Topbar / Mobile Header: Avatar de usuario logueado, saldo de puntos (150 SP), botón de logout y persistencia Zustand
+  - **Alcance Visual:** Solo una parte de esa vista — Topbar / Mobile Header: Avatar de usuario logueado, saldo real de la billetera (0 SP al registrarse), botón de logout y persistencia Zustand
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Endpoints documentados en Swagger UI (`/docs`):
+    - [x] Endpoints documentados en Swagger UI (`/docs`):
       - `POST /api/auth/refresh`: Renueva el token de acceso rotando el Refresh Token y preservando el claim `"role"` (ya sea `MEMBER` o `ADMIN`).
       - `POST /api/auth/logout`: Revoca el token de sesión.
       - `GET /api/auth/me`: Retorna la identidad, perfil y rol del usuario autenticado actual.
-    - [ ] Dependencia de FastAPI `get_current_user` que valida vigencia temporal, algoritmo y firma del JWT.
+    - [x] Rotación atómica de refresh, rol normalizado desde la base de datos y emisión del nuevo par antes de consumir el anterior; solo una solicitud concurrente puede ganar.
+    - [x] Revocaciones durables compartidas en PostgreSQL (`revoked_tokens`), sin guardar los JWT en texto plano. Logout verifica la propiedad del refresh antes de revocar.
+    - [x] Dependencia de FastAPI `get_current_user` que valida vigencia temporal, algoritmo y firma del JWT.
   - **Frontend:**
-    - [ ] Store de **Zustand** que administra el ciclo de vida de la sesión, claims de rol y usuario actual.
-    - [ ] Persistencia segura (localStorage en web y Preferences cifradas en Capacitor móvil).
-    - [ ] Interceptor Axios que refresca el token automáticamente ante respuestas `401 Unauthorized`.
-    - [ ] Redirección al login correspondiente y limpieza completa de estado ante cierre de sesión.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Guardia de rutas que espera la hidratación del almacenamiento y rechaza errores de lectura; respuestas tardías de logout/refresh no alteran una sesión posterior.
+    - [x] Store de **Zustand** que administra el ciclo de vida de la sesión, claims de rol y usuario actual.
+    - [x] Persistencia web en localStorage (no cifrada) y almacenamiento nativo cifrado mediante iOS Keychain / Android Keystore. Migración desde Preferences solo después de guardar la copia cifrada; sin fallback a texto plano.
+    - [x] Cliente Fetch tipado con interceptor que refresca el token automáticamente ante respuestas `401 Unauthorized`.
+    - [x] Redirección al login correspondiente y limpieza completa de estado ante cierre de sesión.
+    - [ ] Diseño 100% responsive en mobile, tablet y desktop. (validación visual/manual pendiente).
+
+- **Verificación pendiente:** Prueba manual con Google real y/o revisión visual web/móvil según la HU. Las pruebas del plugin nativo usan dobles de las APIs; no acreditan ejecución en dispositivo. Este documento no modifica el estado de Jira.
 
 ---
 
@@ -401,7 +408,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Actor Principal:** Administrador de la Plataforma
 - **Roles Permitidos:** `UserRole.ADMIN`
 - **Sprint:** Sprint 0
-- **Estado:** Por hacer
+- **Estado:** En validación — implementación y pruebas automatizadas locales
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-USR-10`, `RF-USR-15`
@@ -412,53 +419,26 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `15A - Gestión de Usuarios, Administradores y Control RBAC` y `15B - Modal Alta de Nuevo Administrador & RBAC`
   - **Mobile Responsive:** `17A - Mobile Gestión de Usuarios & RBAC` y `17B - Mobile Modal Alta Nuevo Administrador`
-  - **Alcance Visual:** Vista Completa — En 15A/17A tabla y control de administradores; en 15B/17B modal formulario de alta con asignación de rol y privilegios RBAC
+  - **Alcance Visual:** Vista Completa — En 15A/17A tabla y control de administradores; en 15B/17B modal de alta con rol ADMIN fijo, sin jerarquía SuperAdmin ni privilegios ficticios
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Endpoints limpios documentados en Swagger UI (`/docs`) y protegidos:
+    - [x] Endpoints limpios documentados en Swagger UI (`/docs`) y protegidos:
       - `GET /api/admin`: Listado de cuentas administrativas con `count`.
       - `POST /api/admin`: Crea un nuevo usuario administrador con contraseña hasheada y `role = UserRole.ADMIN`.
+      - `GET /api/admin/{id}`: Detalle de administrador.
+      - `PATCH /api/admin/{id}`: Actualiza nombre/correo.
+      - `PATCH /api/admin/{id}/password`: Cambia contraseña administrativa.
       - `PATCH /api/admin/{id}/status`: Suspende o reactiva un administrador.
-    - [ ] **Política de seguridad 404:** Si un usuario con rol `MEMBER` o sin token intenta llamar a estos endpoints, el backend responde con `statuscode: 404` y `message: "Recurso no encontrado"`.
+    - [x] Cualquier ADMIN activo puede gestionar administradores, independientemente del correo de seed; no se permite la auto-suspensión.
+    - [x] **Política de seguridad 404:** Si un usuario con rol `MEMBER` o sin token intenta llamar a estos endpoints, el backend responde con `statuscode: 404` y `message: "Recurso no encontrado"`.
   - **Frontend:**
-    - [ ] Vista `/admin/administrators` protegida: si el usuario no tiene rol `UserRole.ADMIN`, la guardia de ruta renderiza directamente la página **404 Not Found**.
-    - [ ] **Restricción en Sidebar:** El apartado "Equipo Administrador" solo es visible para `UserRole.ADMIN`.
-    - [ ] Formulario de alta con validación de contraseña robusta y correo único gestionado en **Zustand**.
-    - [ ] Toasts con el `message` del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Vista `/admin/administrators` protegida: si el usuario no tiene rol `UserRole.ADMIN`, la guardia de ruta renderiza directamente la página **404 Not Found**.
+    - [x] **Restricción en Sidebar:** El apartado "Equipo Administrador" solo es visible para `UserRole.ADMIN`.
+    - [x] Formulario de alta con validación de contraseña robusta y correo único gestionado en **Zustand**.
+    - [x] Toasts con el `message` del backend.
+    - [ ] Diseño 100% responsive en mobile, tablet y desktop. (validación visual/manual pendiente).
 
----
-
-#### HU-11: Consentimiento informado de biometría y periféricos al solicitar validación de habilidad
-- **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
-- **Actor Principal:** Miembro de la Comunidad
-- **Roles Permitidos:** `UserRole.MEMBER`
-- **Sprint:** Sprint 0
-- **Estado:** Por hacer
-- **Puntos de Historia:** 3
-- **Prioridad:** Alta
-- **Trazabilidad:** `RF-USR-14`, `RF-FRA-19`
-- **Descripción:**
-  > **Como** miembro que desea validar una habilidad,  
-  > **quiero** revisar y aceptar los términos de uso de cámara, micrófono y procesamiento de biometría justo antes de comenzar mi evaluación,  
-  > **para** dar mi consentimiento informado únicamente cuando decido someterme a una prueba supervisada por IA.
-- **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** `04B - Pre-embarque: Paso 2 (Normas de Integridad)`
-  - **Mobile Responsive:** `06B - Mobile Pre-embarque: Paso 2 (Normas)`
-  - **Alcance Visual:** Vista Completa — Paso 2 del stepper: términos legales, advertencia de periféricos (cámara/micrófono), aviso de 3 pruebas gratis y checkboxes de consentimiento obligatorio
-- **Criterios de Aceptación:**
-  - **Backend:**
-    - [ ] Endpoint documentado en Swagger UI (`/docs`):
-      - `POST /api/evaluations/consent`: Registra la aceptación explícita de biometría y periféricos con timestamp inmutable (`biometric_consent_at`) y versión de política aceptada.
-    - [ ] Bloqueo estricto del inicio de cualquier evaluación práctica si no existe consentimiento registrado previamente para el miembro.
-    - [ ] Verificación de la regla de evaluación gratuita: valida que el miembro no haya superado el límite de 3 habilidades validadas gratis y que mantenga disponible su único intento gratuito por habilidad.
-  - **Frontend:**
-    - [ ] Modal informativo previo al examen detallando qué periféricos se utilizarán (cámara, micrófono) y para qué fines (anti-fraude y evaluación).
-    - [ ] Indicador visual: *"Validación gratuita restante: X/3 habilidades (Intento 1/1)"*.
-    - [ ] Checkboxes explícitos de consentimiento antes de habilitar el botón "Comenzar Evaluación".
-    - [ ] Gestión del estado del consentimiento en store de **Zustand**.
-    - [ ] Notificaciones con el `message` del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+- **Verificación pendiente:** Prueba manual con Google real y/o revisión visual web/móvil según la HU. Las pruebas del plugin nativo usan dobles de las APIs; no acreditan ejecución en dispositivo. Este documento no modifica el estado de Jira.
 
 ---
 
@@ -471,7 +451,7 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
   - Consulta: Público / `UserRole.MEMBER`, `UserRole.ADMIN`
   - Mutación: `UserRole.ADMIN`
 - **Sprint:** Sprint 1
-- **Estado:** Por hacer
+- **Estado:** En validación — implementación y pruebas automatizadas locales
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-HAB-01`
@@ -482,29 +462,33 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `16A - Catálogo Maestro de Habilidades & Aprobaciones` y `16B - Modal Crear Nueva Habilidad / Categoría`
   - **Mobile Responsive:** `18A - Mobile Catálogo Maestro de Habilidades` y `18B - Mobile Modal Nueva Habilidad`
-  - **Alcance Visual:** Vista Completa — Árbol jerárquico de Categorías y Subcategorías, Escalera de Niveles 1 al 5, panel de sugerencias comunitarias y modal de creación
+  - **Alcance Visual:** Vista Completa — Árbol jerárquico de Categorías y Subcategorías, Escalera de Niveles 1 al 5 y modal de creación/edición de categorías y subcategorías; las sugerencias comunitarias quedan fuera de este ajuste
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Modelos relacionales `Category` y `Skill` con claves foráneas, slugs y migración Alembic.
-    - [ ] Restricción de unicidad: `name` y `slug` únicos por categoría normalizados a minúsculas.
-    - [ ] Endpoints documentados en Swagger UI (`/docs`):
+    - [x] Modelos relacionales `Category` y `Skill` con claves foráneas, slugs y migración Alembic. `Category.parent_id` representa la jerarquía; se rechazan referencias inexistentes y ciclos, incluso al editar concurrentemente.
+    - [x] Consulta pública limitada a habilidades activas y ramas con todos sus ancestros activos. Filtrar por una categoría incluye sus descendientes; el backoffice sigue mostrando registros inactivos.
+    - [x] Unicidad de nombres por categoría y de categorías hermanas mediante claves normalizadas (mayúsculas, acentos, Unicode y espacios). Los slugs conservan su unicidad global y sufijos entre categorías distintas. La migración rechaza duplicados previos sin fusionar ni borrar registros.
+    - [x] Endpoints documentados en Swagger UI (`/docs`):
       - `GET /api/skills`: Consulta del catálogo público con filtros por categoría y campo `count`.
       - `GET /api/skills/{id}`: Detalle de habilidad puntual.
-      - `POST /api/admin/skills`: Creación de nueva habilidad (requiere `UserRole.ADMIN`).
-      - `PUT /api/admin/skills/{id}`: Actualización integral (requiere `UserRole.ADMIN`).
-      - `PATCH /api/admin/skills/{id}/status`: Activación/desactivación lógica (requiere `UserRole.ADMIN`).
-      - `DELETE /api/admin/skills/{id}`: Baja lógica protegida, rechazada si hay miembros vinculados (requiere `UserRole.ADMIN`).
-    - [ ] **Política 404 en Backend:** Endpoints administrativos devuelven `statuscode: 404` si un miembro común intenta llamarlos.
+      - `POST /api/admin/catalog/skills`: Creación de nueva habilidad (requiere `UserRole.ADMIN`).
+      - `PUT /api/admin/catalog/skills/{id}`: Actualización integral (requiere `UserRole.ADMIN`).
+      - `PATCH /api/admin/catalog/skills/{id}/status`: Activación/desactivación lógica (requiere `UserRole.ADMIN`).
+      - `DELETE /api/admin/catalog/skills/{id}`: Baja lógica protegida (sin borrado físico), rechazada con 409 si hay miembros vinculados; la desactivación por PATCH preserva sus asociaciones (requiere `UserRole.ADMIN`).
+    - [x] Gestión de categorías en `GET/POST /api/admin/catalog/categories`, `PUT /api/admin/catalog/categories/{id}` y `DELETE /api/admin/catalog/categories/{id}` (desactivación de la rama pública sin borrar registros).
+    - [x] **Política 404 en Backend:** Endpoints administrativos devuelven `statuscode: 404` si un miembro común intenta llamarlos.
   - **Frontend:**
-    - [ ] Store de catálogo gestionado con **Zustand** (búsqueda, caché local y filtros).
-    - [ ] Navegador de catálogo con Command/Combobox de Shadcn/ui y buscador autocompletable.
-    - [ ] Panel de administración en `/admin/skills`: si el usuario autenticado tiene rol `MEMBER`, la guardia de ruta renderiza directamente la página **404 Not Found**.
-    - [ ] **Restricción en Sidebar:** El enlace "Administrar Catálogo" se muestra exclusivamente para el rol `UserRole.ADMIN`.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Store de catálogo gestionado con **Zustand** (búsqueda, caché local y filtros).
+    - [x] Selector accesible Shadcn Select con rutas jerárquicas, filtro por categoría/subcategorías y buscador por nombre; edición y estado de categorías desde el backoffice.
+    - [x] Panel de administración en `/admin/catalog` (alias `/admin/skills` conservado): si el usuario autenticado tiene rol `MEMBER`, la guardia de ruta renderiza directamente la página **404 Not Found**.
+    - [x] **Restricción en Sidebar:** El enlace "Administrar Catálogo" se muestra exclusivamente para el rol `UserRole.ADMIN`.
+    - [ ] Diseño 100% responsive en mobile, tablet y desktop. (validación visual/manual pendiente).
+
+- **Verificación pendiente:** Prueba manual con Google real y/o revisión visual web/móvil según la HU. Las pruebas del plugin nativo usan dobles de las APIs; no acreditan ejecución en dispositivo. Este documento no modifica el estado de Jira.
 
 ---
 
-#### HU-13: Edición de perfil, disponibilidad semanal y modalidad
+#### HU-13: Edición de perfil, disponibilidad semanal, modalidad y enrolamiento biométrico facial
 - **Épica:** `EPIC-03: Miembros, Proveedores de Autenticación y Administración`
 - **Actor Principal:** Miembro Autenticado
 - **Roles Permitidos:** `UserRole.MEMBER`, `UserRole.ADMIN`
@@ -512,29 +496,31 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Estado:** Por hacer
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
-- **Trazabilidad:** `RF-USR-07`, `RF-USR-08`, `RF-USR-09`
+- **Trazabilidad:** `RF-USR-07`, `RF-USR-08`, `RF-USR-09`, `RF-FRA-10 ★`
 - **Descripción:**
   > **Como** miembro activo,  
-  > **quiero** configurar mi biografía, avatar, matriz de disponibilidad semanal y modalidad de intercambio (presencial/virtual),  
-  > **para** establecer las condiciones en las que puedo realizar intercambios formativos.
+  > **quiero** configurar mi biografía, avatar, matriz de disponibilidad semanal, modalidad de intercambio y realizar mi enrolamiento biométrico facial obligatorio,  
+  > **para** establecer las condiciones de mis clases y registrar mi rostro testigo oficial con el que seré verificado en las evaluaciones de habilidades prácticas.
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `09 - Perfil de Usuario & Matriz de Disponibilidad Semanal` y `21 - Disponibilidad, Agenda y Horarios Semanales`
   - **Mobile Responsive:** `11 - Mobile Perfil de Usuario & Matriz Semanal` y `23 - Mobile Disponibilidad y Agenda`
-  - **Alcance Visual:** Vista Completa — En 09/11 edición de biografía, avatar y modalidad; en 21/23 editor completo de franjas de 30 min, toggles por día, sincronización GCal y buffer de descanso
+  - **Alcance Visual:** Vista Completa — En 09/11 edición de biografía, avatar, modalidad y tarjeta de enrolamiento biométrico con cámara web asistida; en 21/23 editor completo de franjas de 30 min, toggles por día, sincronización GCal y buffer de descanso
 - **Criterios de Aceptación:**
   - **Backend:**
-    - [ ] Tablas relacionales `user_profiles` y `user_availabilities` (día de la semana, hora inicio, hora fin).
+    - [ ] Tablas relacionales `user_profiles`, `user_availabilities` y campos de biometría en `user_profiles` (`biometric_embedding`, `biometric_enrolled_at`, `biometric_face_hash`).
     - [ ] Endpoints documentados en Swagger UI (`/docs`):
-      - `GET /api/users/me/profile`: Perfil personal y preferencias.
+      - `GET /api/users/me/profile`: Perfil personal, preferencias y flag `has_biometric_enrollment` (booleano).
       - `PUT /api/users/me/profile`: Actualización total.
       - `PATCH /api/users/me/profile`: Actualización parcial (avatar o biografía).
+      - `POST /api/users/me/biometrics/enroll`: Captura y enrolamiento biométrico oficial. Recibe ráfaga de frames o imagen en alta resolución, detecta rostro único centrado mediante OpenCV, extrae el embedding facial numérico (vector de 128 o 512 dimensiones en PyTorch con modelo local open-source) y guarda el embedding cifrado junto a su hash SHA-256. Prohibido guardar fotos crudas o enviar datos biométricos a APIs externas de terceros.
       - `GET /api/users/me/availability`: Grilla horaria del miembro.
       - `PUT /api/users/me/availability`: Reemplazo de matriz semanal completa.
       - `DELETE /api/users/me/availability/{id}`: Elimina franja horaria específica.
     - [ ] Validación de que el miembro autenticado solo puede modificar sus propios recursos (`/me`).
   - **Frontend:**
     - [ ] Store de perfil y agenda en **Zustand**.
-    - [ ] Pantalla de edición de perfil con pestañas (Datos personales, Horarios, Preferencias).
+    - [ ] Pantalla de edición de perfil con pestañas (Datos personales, Verificación Biométrica, Horarios, Preferencias).
+    - [ ] Componente guiado de enrolamiento biométrico: activación de cámara con guía oval de encuadre, chequeo de iluminación en vivo, detección de rostro centrado y confirmación de enrolamiento con badge "Rostro Testigo Vinculado".
     - [ ] Selector interactivo de bloques horarios semanales (grilla de lunes a domingo).
     - [ ] Selector de modalidad (Virtual, Presencial con radio en kilómetros, o Ambas).
     - [ ] Enlace "Mi Perfil y Horarios" accesible en el Sidebar para miembros y administradores.
@@ -995,6 +981,54 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ### SPRINT 3: Evaluación de Programación, Sandbox y Anti-Fraude
 
+#### HU-11: Pre-embarque de evaluación, instrucciones generales y consentimiento biométrico (Jira: SM-23)
+- **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
+- **Actor Principal:** Miembro de la Comunidad
+- **Roles Permitidos:** `UserRole.MEMBER`
+- **Sprint:** Sprint 3
+- **Estado:** Listo — aceptado por el usuario (SM-23)
+- **Puntos de Historia:** 3
+- **Prioridad:** Alta
+- **Trazabilidad:** `RF-USR-14`, `RF-FRA-19`
+- **Evidencia:** backend `3f33c1e`, adaptación UI `fb91c57`; pruebas públicas de preflight y regresión backend correctas. El usuario acepta SM-23 como terminada. El inicio real y consumo único de intento pertenecen a SM-39, no al consentimiento ni a la calibración. Ver [estado consolidado](status-validacion.md).
+- **Dependencias y Bloqueos:**
+  - **Bloqueada por (Is blocked by):**
+    - `HU-09` (`SM-21`): Sesión activa y autenticación JWT requerida como `UserRole.MEMBER`.
+    - `HU-12` (`SM-24`): Existencia previa del catálogo maestro de habilidades.
+    - `HU-14` (`SM-26`): La habilidad solicitada debe haber sido registrada previamente en el perfil como ofrecida para enseñar (`user_teaching_skills`).
+    - `HU-13` (`SM-25`): **Prerrequisito mandatorio de enrolamiento biométrico**. El usuario debe tener `has_biometric_enrollment == true` (rostro testigo registrado en perfil) antes de poder otorgar consentimiento para una prueba supervisada.
+  - **Bloquea a (Blocks):**
+    - `HU-32` (`SM-44`): Pre-embarque Paso 3 (calibración de cámara/micrófono, liveness y cotejo 1:1). Los periféricos no se pueden activar sin consentimiento inmutable firmado.
+    - `HU-27` (`SM-39`): Inicialización del examen teórico (`POST /api/evaluations/start`).
+    - `HU-28` (`SM-40`): Asignación y ejecución en Sandbox Docker de programación.
+- **Descripción:**
+  > **Como** miembro que desea certificar una habilidad práctica que enseña,  
+  > **quiero** acceder al asistente de pre-embarque para revisar las instrucciones generales del examen (Paso 1) y aceptar los términos de uso de cámara, micrófono y procesamiento biométrico local para cotejo de identidad (Paso 2),  
+  > **para** conocer las condiciones de la prueba, verificar mis cupos gratuitos restantes y formalizar mi consentimiento informado obligatorio que habilita las fases de evaluación práctica.
+- **Vistas Usadas o a Realizar:**
+  - **Web Desktop:** `04A - Pre-embarque: Paso 1 (Instrucciones Generales)` y `04B - Pre-embarque: Paso 2 (Normas de Integridad)`
+  - **Mobile Responsive:** `06A - Mobile Pre-embarque: Paso 1 (Instrucciones)` y `06B - Mobile Pre-embarque: Paso 2 (Normas)`
+  - **Alcance Visual:** Vista Completa — Pasos 1 y 2 del stepper: temario, duración y requisitos en Paso 1; términos legales, advertencia de periféricos (cámara/micrófono), aviso de 3 pruebas gratis y checkboxes de consentimiento obligatorio en Paso 2
+- **Criterios de Aceptación:**
+  - **Backend:**
+    - [x] Endpoints documentados en Swagger UI (`/docs`):
+      - `GET /api/evaluations/skills/{teaching_skill_id}/preflight`: Retorna información previa de la prueba (temario, requisitos técnicos de hardware, duración estimada, intentos previos del usuario y cupos gratuitos restantes: `free_evaluations_left`).
+      - `POST /api/evaluations/skills/{teaching_skill_id}/consent`: Registra la aceptación explícita de biometría y supervisión para la habilidad indicada. Crea o inicializa la entidad `Evaluation` en estado `PENDING_CALIBRATION`. Almacena en base de datos: `biometric_consent_at` (timestamp inmutable), `policy_version` (ej. `"v1.0"`), `ip_address` y `user_agent`.
+    - [x] **Validación de Enrolamiento Previo:** Si el miembro no completó su enrolamiento biométrico oficial en el perfil (`has_biometric_enrollment == false`), el preflight/consent rechaza la petición con `statuscode: 400` (*"Debe registrar su rostro testigo en su perfil antes de solicitar una certificación"*).
+    - [x] **Control de Intentos y Cupos Gratuitos:** Valida que el miembro no supere el tope de 3 habilidades validadas gratis en la plataforma y que mantenga disponible su único intento gratuito por habilidad. Si ya agotó sus cupos, bloquea la solicitud con `statuscode: 403` (*"Límite de evaluaciones gratuitas alcanzado para esta habilidad"*), dejando la recarga por billetera para integración con `HU-42`.
+    - [x] **Bloqueo de calibración:** Exige evaluación propia con consentimiento inmutable y enrolamiento vigente. La protección de `/start` y el débito atómico corresponden a SM-39.
+  - **Frontend:**
+    - [x] Stepper de pre-embarque interactivo en ruta `/evaluation/:skillId/setup`:
+      - **Paso 1 (Instrucciones):** Tarjetas con temario de la prueba, duración estimada, requerimientos de periféricos y botón "Siguiente: Normas de Integridad".
+      - **Paso 2 (Normas y Consentimiento):** Explicación del uso de cámara y micrófono para fines anti-fraude, indicador visual (*"Validación gratuita restante: X/3 habilidades (Intento 1/1)"*) y checkboxes obligatorios de consentimiento.
+    - [x] Botón `Registrar consentimiento` deshabilitado hasta aceptar los checks; el consentimiento confirmado permite continuar a calibración.
+    - [x] Redirección asistida a `/app/profile` si falta el enrolamiento del rostro testigo.
+    - [x] Gestión del estado del asistente en store de **Zustand**.
+    - [x] Mensajes de feedback consumiendo el `message` del backend.
+    - [x] Interfaz responsive de preembarque aceptada por el usuario.
+
+---
+
 #### HU-27: Banco de reactivos teóricos y examen aleatorio
 - **Épica:** `EPIC-08: Evaluación de Código y Sandbox`
 - **Actor Principal:** Miembro Aspirante a Certificación
@@ -1134,66 +1168,69 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ---
 
-#### HU-31: Detección de pérdida de foco, cambio de pestaña y bloqueo de portapapeles
+#### HU-31: Detección de pérdida de foco, cambio de pestaña y bloqueo de portapapeles (Jira: SM-43)
 - **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
 - **Actor Principal:** Sistema Supervisor / Auditoría
 - **Roles Permitidos:** `UserRole.MEMBER`
 - **Sprint:** Sprint 3
-- **Estado:** Por hacer
+- **Estado:** Listo — aceptado por el usuario
 - **Puntos de Historia:** 3
 - **Prioridad:** Alta
 - **Trazabilidad:** `RF-FRA-03`, `RF-FRA-09`
+- **Alcance aceptado:** Módulo funcional de supervisión de navegador probado en una sesión independiente. La conexión al examen real se separa en [la tarea de integración de SM-43/SM-49](supervision-exam-integration.md), sin reabrir esta historia.
 - **Descripción:**
-  > **Como** sistema de integridad,  
-  > **quiero** bloquear el portapapeles y registrar cualquier cambio de pestaña o ventana minimizada,  
-  > **para** impedir que el aspirante busque respuestas externas durante la prueba.
-- **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** `08B - Advertencia Preventiva Anti-Fraude (Aviso 1 de 2)` y `08 - Detección de Trampa e Infracción Anti-Fraude`
-  - **Mobile Responsive:** `10B - Mobile Advertencia Preventiva Anti-Fraude` y `10 - Mobile Alerta Detección de Trampa`
-  - **Alcance Visual:** Vista Completa — Modal de advertencia preventiva ámbar tras primer blur/paste en 08B/10B, y modal terminal rojo de expulsión con bloqueo de 7 días en 08/10
-- **Criterios de Aceptación:**
+  > **Como** sistema de integridad, **quiero** bloquear el portapapeles dentro del área supervisada y registrar pérdidas de foco/cambios de pestaña, **para** disponer de controles reutilizables y una bitácora persistente antes de conectarlos al examen real.
+- **Vista implementada:** `/app/browser-supervision-test`, accesible desde el preembarque. Los modales de advertencia/expulsión del examen se conectan en la tarea de integración, no se consideran implementados aquí.
+- **Criterios de Aceptación — alcance entregado:**
   - **Backend:**
-    - [ ] Endpoints documentados en Swagger UI (`/docs`):
-      - `POST /api/evaluations/{id}/incidents`: Registra incidencia con tipo y timestamp en la tabla `evaluation_incidents`.
-      - `GET /api/evaluations/{id}/incidents`: Consulta histórico con `count`.
+    - [x] API documentada bajo `/api/browser-supervision/trials`: creación, consulta, heartbeat, liberación, cierre y envío/consulta de incidentes.
+    - [x] Propiedad MEMBER, autorización exclusiva por pestaña, plazo de20s y una sesión abierta por usuario con vigencia24h.
+    - [x] Incidentes persistentes con secuencia y recepción del servidor, paginación, lotes atómicos y reintentos idempotentes.
+    - [x] Ninguna sesión de ensayo crea un inicio de examen ni consume intentos.
   - **Frontend:**
-    - [ ] Desactivación de eventos del portapapeles (`copy`, `paste`, `cut`) y menú contextual (`contextmenu`) dentro del Layout de examen.
-    - [ ] Listener de eventos `visibilitychange` y `window.onblur`.
-    - [ ] Envío inmediato de incidencia vía API ante pérdida de foco con alerta visual de advertencia.
-    - [ ] Store de **Zustand** que registra incidentes y despliega advertencias con el `message` del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Bloqueo de `copy`, `paste`, `cut`, menú contextual y drop dentro del área supervisada, sin trampas globales de teclado.
+    - [x] Detección de visibilidad/foco, salida/regreso con duración, red y salida de pantalla completa cuando se usa.
+    - [x] Cola recuperable y acotada; se retiran solo eventos reconocidos, con fallos de almacenamiento y desbordamiento visibles.
+    - [x] Consentimiento explícito, controles de iniciar/detener/cerrar, bitácora restaurable y mensajes del backend.
+    - [x] Liberación de listeners y recursos al detener o navegar; interfaz de ensayo aceptada por el usuario.
+- **Evidencia:** `596f944`, `d668587`, `f01be87`, `efdfc78`; pruebas públicas de API/concurrencia/monitor/vista y prueba favorable del usuario. Ver [guía y límites](browser-supervision.md).
+- **Fuera de esta entrega:** Endpoints y estado del examen, advertencias/expulsión y sanciones; se trasladan a la tarea de integración. La telemetría del navegador no demuestra por sí sola una trampa.
 
 ---
 
-#### HU-32: Verificación de entorno y prueba de vida (*Liveness*) con cámara
+#### HU-32: Verificación de entorno, liveness y cotejo biométrico 1:1 con cámara (Jira: SM-44)
 - **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
 - **Actor Principal:** Miembro Aspirante a Certificación
 - **Roles Permitidos:** `UserRole.MEMBER`
 - **Sprint:** Sprint 3
-- **Estado:** Por hacer
+- **Estado:** Listo — aceptado por el usuario
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
-- **Trazabilidad:** `RF-FRA-07`, `RF-FRA-08`
+- **Trazabilidad:** `RF-FRA-07`, `RF-FRA-08`, `RF-FRA-10 ★`, `RF-FRA-13`
+- **Alcance aceptado:** Calibración secuencial local previa al examen. Se actualizan los criterios originales al comportamiento acordado: reto con45s de vigencia y captura de11s, no3–5s; posiciones faciales, no flujo óptico completo ni parpadeo obligatorio.
 - **Descripción:**
-  > **Como** plataforma que certifica habilidades auténticas,  
-  > **quiero** verificar periféricos y solicitar un gesto motor aleatorio antes de iniciar la evaluación,  
-  > **para** confirmar que la prueba la rinde una persona viva en tiempo real y no una fotografía estática.
-- **Vistas Usadas o a Realizar:**
-  - **Web Desktop:** `04C - Pre-embarque: Paso 3 (Calibración y Validación)`
-  - **Mobile Responsive:** `06C - Mobile Pre-embarque: Paso 3 (Calibración)`
-  - **Alcance Visual:** Vista Completa — Paso 3 del stepper: comprobación de webcam, micrófono, iluminación y reto motor aleatorio de prueba de vida con OpenCV
-- **Criterios de Aceptación:**
-  - **Backend (OpenCV Service):**
-    - [ ] Verificación de flujo óptico y coherencia de movimiento en video corto antes de autorizar el examen.
-    - [ ] Endpoints documentados en Swagger UI (`/docs`):
-      - `POST /api/evaluations/{id}/liveness/check`: Valida ráfaga de frames de movimiento gestual.
-      - `GET /api/evaluations/{id}/environment/verify`: Confirma condiciones mínimas de cámara y luz.
+  > **Como** plataforma, **quiero** comprobar cámara, micrófono, entorno, movimiento facial y coincidencia con el rostro testigo, **para** preparar la evaluación supervisada con consentimiento previo y sin consumir intentos.
+- **Vistas:** Paso3 del preembarque, referencias04C/06C, en `/evaluation/:skillId/setup`.
+- **Criterios de Aceptación — alcance entregado:**
+  - **Backend y modelos locales:**
+    - [x] Exigir consentimiento y enrolamiento vigentes; invalidar preparación si cambia el rostro testigo.
+    - [x] Comprobar iluminación, encuadre y una sola cara con parsing de imágenes acotado.
+    - [x] Reto aleatorio con45s de vigencia:11s de captura guiada de centro, giro y regreso, validado mediante posiciones faciales.
+    - [x] Cotejo1:1 con YuNet/SFace, embedding del usuario y umbral coseno0.363; rechazo explícito ante discrepancia.
+    - [x] Heurística pasiva experimental de pantallas; no se afirma PAD certificado ni detección infalible de fotos/deepfakes.
+    - [x] Secuencia automática11s de movimiento →3s de silencio ambiente →8s de audio/video hablado, con4s de frase y4s de pausa.
+    - [x] Voz/silencio con WebRTC VAD; varios hablantes/superposición con modelos locales Pyannote/3D-Speaker y Sherpa, sin inferencia en nube ni descarga al atender peticiones.
+    - [x] Comprobación temporal de actividad de boca/audio como heurística de movimiento, no lectura semántica de labios.
+    - [x] Preparación solo si pasan los12 controles; rechazo explícito si faltan modelos/evidencia, sin éxito simulado y sin persistir medios crudos.
+    - [x] API documentada: `/liveness/challenge`, `/liveness/verify-identity` y `/environment/verify` bajo `/api/evaluations/{id}`.
   - **Frontend:**
-    - [ ] Asistente interactivo guiado por store de **Zustand** en ruta `/evaluation/:id/setup`.
-    - [ ] Verificación de periféricos: cámara web, micrófono, iluminación y encuadre del rostro.
-    - [ ] Reto interactivo guiado solicitando un movimiento aleatorio (ej. parpadear dos veces, girar levemente el rostro a la derecha).
-    - [ ] Indicaciones y mensajes en pantalla utilizando el `message` del backend.
-    - [ ] Diseño 100% responsive en mobile, tablet y desktop.
+    - [x] Preembarque con Zustand y panel guiado de captura real de cámara/micrófono.
+    - [x] Auditoría de etiquetas de dispositivos para rechazar cámaras virtuales conocidas, sin prometer autenticidad física del dispositivo.
+    - [x] Captura audio/video sincronizada por reloj PCM, instrucciones de giro con espejo solo visual y secuencia sin botones intermedios.
+    - [x] Permisos explícitos, cancelación, liberación de dispositivos y mensajes de error del backend.
+    - [x] Interfaz de calibración aceptada por el usuario.
+- **Evidencia:** `3f33c1e`, `a7052fd`, `9417ee5`, `da5dc06`, `67a7536`, `1061128`; pruebas de preflight/calibración y [contrato/límites](evaluation-calibration.md).
+- **Límites documentados:** La aceptación cierra esta historia; no convierte heurísticas en certificación PAD ni añade evidencia de eficacia física o revisión independiente que no se haya realizado. La supervisión continua pertenece a SM-49.
 
 ---
 
@@ -1340,7 +1377,8 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 
 ---
 
-#### HU-37: Detección de múltiples rostros y voces accesorias durante evaluaciones
+#### HU-37: Detección de múltiples rostros, voces accesorias y verificación continua de identidad durante evaluaciones
+- **Integración al examen:** [SM-57](supervision-exam-integration.md), tarea separada para conectar SM-43/SM-49 desde el entorno de prueba. SM-49 sigue Por hacer; SM-23/SM-43/SM-44 están Listo por aceptación del usuario.
 - **Épica:** `EPIC-09: Supervisión y Prevención de Fraude`
 - **Actor Principal:** Sistema Supervisor / Anti-Fraude
 - **Roles Permitidos:** `UserRole.MEMBER`
@@ -1348,24 +1386,25 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
 - **Estado:** Por hacer
 - **Puntos de Historia:** 5
 - **Prioridad:** Alta
-- **Trazabilidad:** `RF-FRA-05`, `RF-FRA-06`
+- **Trazabilidad:** `RF-FRA-05`, `RF-FRA-06`, `RF-FRA-10 ★`
 - **Descripción:**
   > **Como** sistema supervisor durante pruebas con cámara y micrófono,  
-  > **quiero** alertar si aparece más de una persona en pantalla o se escuchan voces accesorias,  
-  > **para** evitar asistencia externa ilícita.
+  > **quiero** alertar si aparece más de una persona en pantalla, si se escuchan voces accesorias o si quien está frente a la cámara deja de coincidir con el rostro del miembro verificado inicialmente,  
+  > **para** evitar asistencia externa ilícita y suplantación de identidad a mitad de la prueba.
 - **Vistas Usadas o a Realizar:**
   - **Web Desktop:** `06 - Preguntas Orales Técnicas con Cámara` y `08 - Detección de Trampa e Infracción Anti-Fraude`
   - **Mobile Responsive:** `08 - Mobile Preguntas con Cámara` y `10 - Mobile Alerta Detección de Trampa`
-  - **Alcance Visual:** Solo una parte de esa vista — Caja de video con algoritmo de detección facial múltiple y medidor VU de actividad vocal en 06/08, y modal de sanción si se confirma intrusión en 08/10
+  - **Alcance Visual:** Solo una parte de esa vista — Caja de video con algoritmo de detección facial múltiple, medidor VU de actividad vocal en 06/08 y modal de sanción o advertencia si se confirma intrusión o suplantación en 08/10
 - **Criterios de Aceptación:**
   - **Backend:**
     - [ ] Detección facial continua en frames seleccionados con alerta ante `count(faces) > 1` o `count(faces) == 0`.
     - [ ] Detección de actividad vocal (VAD) en segundo plano para identificar susurros o voces extrañas durante la ejecución.
+    - [ ] **Verificación Continua de Identidad (`RF-FRA-10 ★`):** Muestreo periódico silencioso de frames (cada 30 a 60 segundos) comparando el embedding facial actual contra el embedding del perfil. Si el rostro cambia abruptamente a otra persona, se dispara alerta de suplantación y se pausa preventivamente el examen.
     - [ ] Endpoints documentados en Swagger UI (`/docs`):
-      - `POST /api/evaluations/{id}/stream/detect-anomalies`: Analiza frames y fragmentos de audio en busca de anomalías.
+      - `POST /api/evaluations/{id}/stream/detect-anomalies`: Analiza frames y fragmentos de audio en busca de anomalías (múltiples rostros, voces no autorizadas o discrepancia con el rostro enrolado).
   - **Frontend:**
     - [ ] Monitoreo en vivo conectado a store de **Zustand**.
-    - [ ] Notificaciones de advertencia en vivo en la pantalla si se pierde el rostro o se detecta intrusión.
+    - [ ] Notificaciones de advertencia en vivo en la pantalla si se pierde el rostro, si se detecta un tercero o si el sistema no reconoce la identidad del postulante.
     - [ ] Alertas dinámicas reflejando el `message` del backend.
     - [ ] Diseño 100% responsive en mobile, tablet y desktop.
 
@@ -1396,11 +1435,13 @@ Todas las respuestas emitidas por el backend deben seguir estrictamente el sigui
       - Si la cancelación es válida y oportuna, se **restaura automáticamente la sesión gratuita** de la semana.
       - Registro de cancelaciones mensuales: si el miembro acumula cancelaciones reiteradas (más de 3 al mes o sobre la hora), se activa un bloqueo temporal de 7 días para agendar.
     - [ ] Endpoints documentados en Swagger UI (`/docs`):
+      - `GET /api/matches/{match_id}/session-options`: Opciones productivas de agendamiento para un match confirmado; devuelve habilidades autorizadas, IDs canónicos y franjas comunes de 30/60 minutos durante 14 días sin crear sesión ni consumir cupo.
       - `GET /api/sessions`: Listado con `count` y detalle de cupos semanales restantes (`free_sessions_left`).
       - `POST /api/sessions`: Agendar sesión (valida cupo o puntos).
       - `POST /api/sessions/{id}/cancel`: Cancelación con `cancellation_reason` obligatorio.
       - `PUT /api/sessions/{id}/reschedule`: Reprogramación de fecha/hora.
       - `PATCH /api/sessions/{id}/status`: Aceptación o rechazo.
+      - `GET /api/sessions/{id}/calendar-export`: Exportación manual `.ics` y enlace Google para participantes de una sesión aceptada, sin OAuth Calendar ni sincronización automática.
   - **Frontend:**
     - [ ] Widget en Sidebar/Navbar: *"Sesiones gratuitas restantes esta semana: X/2 (máx. 1h c/u)"*.
     - [ ] Calendario interactivo de agendamiento y modal estricto de cancelación con campo de motivo obligatorio.
