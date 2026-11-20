@@ -5,7 +5,7 @@ Esta guía permite al equipo levantar, probar y limpiar el escenario de la **HU-
 ## 1. Funcionalidades incluidas
 
 - Consulta de habilidades, participantes, modalidades y franjas comunes mediante `GET /api/matches/{match_id}/session-options`.
-- Creación de propuestas y control de dos sesiones gratuitas por semana.
+- Creación de propuestas, control de dos sesiones gratuitas por semana y sesiones adicionales pagadas con SkillPoints mediante escrow HU-42.
 - Aceptación, rechazo, reprogramación y cancelación justificada.
 - Restitución de cupo y sanciones por cancelación tardía.
 - Aislamiento `404` para terceros y bloqueo bilateral HU-26.
@@ -13,7 +13,7 @@ Esta guía permite al equipo levantar, probar y limpiar el escenario de la **HU-
 - Recordatorios internos, correo y Web Push web/PWA de 24 horas y 1 hora mediante Celery.
 - Descarga `.ics` y enlace manual a Google Calendar para sesiones `ACCEPTED`.
 
-No forman parte de esta entrega el cobro HU-42, el push nativo Capacitor/FCM/APNs, OAuth de Calendar ni sincronización bidireccional. Correo y Web Push web/PWA están implementados; cada entorno debe aportar sus propias credenciales y completar QA real antes de habilitarlos.
+No forman parte de esta entrega el push nativo Capacitor/FCM/APNs, OAuth de Calendar ni la sincronización bidireccional. El flujo pagado HU-42, correo y Web Push web/PWA están integrados; cada entorno debe aportar sus propias credenciales para los canales externos.
 
 ## 2. Requisitos previos
 
@@ -190,7 +190,7 @@ Todas las respuestas HTTP respetan `APIResponse`. Swagger está disponible con e
 - **No aparecen franjas:** volver a sembrar; las disponibilidades se calculan para el horizonte vigente.
 - **No aparece calendario:** la acción solo está disponible para sesiones `ACCEPTED`.
 - **No llegan recordatorios:** comprobar Redis, Celery worker, Celery Beat y preferencias.
-- **Tercera sesión rechazada con `409`:** es el comportamiento esperado hasta integrar HU-42.
+- **La tercera sesión no se habilita:** la oferta debe aceptar puntos, tener una tarifa y el aprendiz debe disponer del saldo requerido; el frontend enviará `payment_method: "POINTS"` y el backend reservará la tarifa en escrow.
 
 ### Preparación local de Gmail SMTP
 
