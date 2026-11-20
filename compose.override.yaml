@@ -14,8 +14,10 @@
 #
 # Pesos de modelos: el bind-mount de ./backend/app ocultaría
 # /app/app/models/weights (incluidos en la imagen al construir). El volumen
-# `backend-weights` se monta encima; al crearse vacío Docker lo rellena con el
-# contenido de la imagen. Tras reconstruir con modelos nuevos:
+# `backend-weights` se monta encima. Docker solo lo rellena con la imagen la
+# primera vez (volumen vacío), así que `init-volumes` copia en cada arranque los
+# modelos que falten (sin sobrescribir) desde la imagen recién construida; el
+# backend los verifica por SHA-256 al cargarlos. Para rehacerlo desde cero:
 #   docker compose down && docker volume rm skillmatch_backend-weights
 # ==============================================================================
 
@@ -40,6 +42,19 @@ services:
     ports:
       - "127.0.0.1:${REDIS_HOST_PORT:-6380}:6379"
     networks: [data, default]
+
+  # Sincroniza los modelos de la imagen al volumen `backend-weights` (cp -n: solo
+  # agrega los que falten). Aquí no se monta el código del host, por lo que
+  # /app/app/models/weights es el de la imagen.
+  init-volumes:
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        chown -R 10001:10001 /app/storage /sandbox-work
+        && cp -Rn /app/app/models/weights/. /weights-sync/
+    volumes:
+      - backend-weights:/weights-sync
 
   migrate:
     environment: *dev-env

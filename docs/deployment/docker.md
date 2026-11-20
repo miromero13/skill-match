@@ -50,7 +50,7 @@ docker compose up --build
 - `ENVIRONMENT=development`, `DEBUG=True` y `UVICORN_RELOAD=true` salvo que `.env` los fije. `development` habilita la cabecera de pruebas `X-User-Id`: nunca uses el override en un servidor.
 - `./backend/app` y `./backend/alembic` se montan en backend, worker, beat y migrate. Celery no recarga: `docker compose restart worker beat`.
 - Nueva migración: `docker compose run --rm migrate` (o reinicia el stack).
-- **Pesos de modelos:** el bind-mount de `./backend/app` ocultaría `/app/app/models/weights` (descargados al construir). Se monta encima el volumen `backend-weights`, que Docker rellena con el contenido de la imagen al crearse vacío. Tras reconstruir con modelos nuevos: `docker compose down && docker volume rm skillmatch_backend-weights`. Docker crea la carpeta vacía `backend/app/models/weights` en el host como punto de montaje (ignorada por Git).
+- **Pesos de modelos:** el bind-mount de `./backend/app` ocultaría `/app/app/models/weights` (descargados al construir). Se monta encima el volumen `backend-weights`. Docker solo lo rellena con la imagen la primera vez (volumen vacío), así que en cada arranque `init-volumes` copia los modelos que falten desde la imagen recién construida (`cp -n`, sin sobrescribir). Para rehacerlo desde cero: `docker compose down && docker volume rm skillmatch_backend-weights`. Docker crea la carpeta vacía `backend/app/models/weights` en el host como punto de montaje (ignorada por Git).
 
 ## Prod-like en local
 
