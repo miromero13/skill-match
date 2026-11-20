@@ -30,6 +30,14 @@ class SkillLabSampleResponse(BaseModel):
     created_at: datetime
 
 
+class SkillLabPreviewUrlResponse(BaseModel):
+    """Short-lived playback URL (relative to the API origin, e.g. `/api/admin/skill-lab/samples/{id}/file?token=`)."""
+
+    url: str
+    expires_at: datetime
+    content_type: Literal["video/mp4", "video/webm", "video/quicktime"]
+
+
 class SkillLabModelResponse(BaseModel):
     id: UUID
     skill_id: Optional[UUID] = None

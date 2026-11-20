@@ -1,8 +1,13 @@
-"""Per-skill training lab (admin only; members and anonymous get 404 by obfuscation)."""
+"""Per-skill training lab (admin only; members and anonymous get 404 by obfuscation).
+
+`router` requires an ADMIN bearer. `preview_file_router` holds only the video file route, which a `<video>`
+element calls without headers: it is authorized exclusively by the short-lived signed token (S10).
+"""
 import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_admin_user
@@ -14,6 +19,7 @@ from app.schemas.skill_lab import (
     SampleRole,
     SkillLabConfigResponse,
     SkillLabModelResponse,
+    SkillLabPreviewUrlResponse,
     SkillLabSampleResponse,
     SkillValidationResult,
 )
@@ -24,6 +30,9 @@ router = APIRouter(
     tags=["admin-skill-lab"],
     dependencies=[Depends(get_current_admin_user)],
 )
+
+# No admin dependency on purpose: the signed token is the only authorization (see module docstring).
+preview_file_router = APIRouter(prefix="/admin/skill-lab", tags=["admin-skill-lab"])
 
 
 @router.get("/metric-types", response_model=APIResponse[list[MetricTypeResponse]])
@@ -89,6 +98,37 @@ async def list_lab_samples(
 async def delete_lab_sample(sample_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     await skill_lab_service.delete_lab_sample(db, sample_id)
     return APIResponse(statuscode=200, message="Muestra eliminada exitosamente.", data=None)
+
+
+@router.post(
+    "/samples/{sample_id}/preview-url",
+    response_model=APIResponse[SkillLabPreviewUrlResponse],
+    summary="URL firmada (10 minutos) para reproducir el video de una muestra",
+)
+async def create_sample_preview_url(sample_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    data = await skill_lab_service.create_sample_preview(db, sample_id)
+    return APIResponse(statuscode=200, message="URL de previsualización generada exitosamente.", data=data)
+
+
+@preview_file_router.get(
+    "/samples/{sample_id}/file",
+    response_class=FileResponse,
+    include_in_schema=False,
+)
+async def get_sample_preview_file(
+    sample_id: str,
+    token: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Streams the stored video (HTTP Range → 206). Invalid/expired/foreign token or missing file → 404."""
+    path, media_type, filename = await skill_lab_service.resolve_preview_file(db, sample_id, token)
+    return FileResponse(
+        path,
+        media_type=media_type,
+        filename=filename,
+        content_disposition_type="inline",
+        headers={"Cache-Control": skill_lab_service.PREVIEW_CACHE_CONTROL},
+    )
 
 
 @router.get("/skills/{skill_id}/models", response_model=APIResponse[list[SkillLabModelResponse]])

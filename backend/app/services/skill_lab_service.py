@@ -9,11 +9,14 @@ member-facing flow must call; the admin `/validate` endpoint is a thin upload wr
 """
 import asyncio
 import hashlib
+import hmac
 import logging
 import os
 import re
 import tempfile
+import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -23,6 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.exceptions import SkillMatchException
 from app.football.models import ModelVersion
 from app.football.services.storage import garage_s3_storage
@@ -498,6 +502,93 @@ async def delete_lab_sample(db: AsyncSession, sample_id: uuid.UUID) -> None:
     await db.delete(sample)
     await db.commit()
     DatasetStorageService.delete_file(storage_path)
+
+
+# ------------------------------------------------------------------ playback (S10)
+#
+# A `<video>` element cannot send the Authorization header, so the admin mints a short-lived URL whose
+# token is an HMAC-SHA256 (SECRET_KEY) over purpose|sample_id|expires_epoch. The file route is authorized
+# only by that token; anything invalid answers the same 404 as the admin routes (AGENTS.md §1.3).
+
+PREVIEW_TOKEN_TTL_SECONDS = 600
+PREVIEW_TOKEN_PURPOSE = "skill-lab-preview"
+PREVIEW_CACHE_CONTROL = f"private, max-age={PREVIEW_TOKEN_TTL_SECONDS}"
+NOT_FOUND_MESSAGE = "Recurso no encontrado"
+SAMPLE_NOT_FOUND_MESSAGE = "Muestra no encontrada."
+SAMPLE_FILE_UNAVAILABLE_MESSAGE = "El video de la muestra no está disponible."
+
+
+def _preview_signature(sample_id: uuid.UUID, expires: int) -> str:
+    message = f"{PREVIEW_TOKEN_PURPOSE}|{sample_id}|{expires}".encode()
+    key = settings.SECRET_KEY.get_secret_value().encode()
+    return hmac.new(key, message, hashlib.sha256).hexdigest()
+
+
+def sign_preview_token(sample_id: uuid.UUID, expires: int) -> str:
+    """Token `<expires_epoch>.<hex hmac>` bound to one sample."""
+    return f"{expires}.{_preview_signature(sample_id, expires)}"
+
+
+def preview_token_is_valid(sample_id: uuid.UUID, token: Optional[str]) -> bool:
+    if not token or "." not in token:
+        return False
+    expires_raw, signature = token.split(".", 1)
+    if not (expires_raw.isascii() and expires_raw.isdigit()):
+        return False
+    expires = int(expires_raw)
+    if not hmac.compare_digest(signature, _preview_signature(sample_id, expires)):
+        return False
+    return time.time() < expires
+
+
+async def _get_lab_sample(db: AsyncSession, sample_id: uuid.UUID) -> Optional[DatasetSample]:
+    stmt = select(DatasetSample).where(DatasetSample.id == sample_id, DatasetSample.skill_id.is_not(None))
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+def sample_playable_file(sample: DatasetSample) -> Optional[tuple[Path, str]]:
+    """(path, media type) of the sample's local copy, only if it is a file inside the storage root."""
+    media_type = _CONTENT_TYPES.get((sample.file_format or "").lower())
+    if media_type is None:
+        return None
+    root = DatasetStorageService.get_base_storage_dir().parent.resolve()
+    path = sample_local_path(sample).resolve()
+    if not path.is_relative_to(root) or not path.is_file():
+        return None
+    return path, media_type
+
+
+async def create_sample_preview(db: AsyncSession, sample_id: uuid.UUID) -> dict[str, Any]:
+    sample = await _get_lab_sample(db, sample_id)
+    if sample is None:
+        raise _not_found(SAMPLE_NOT_FOUND_MESSAGE)
+    playable = sample_playable_file(sample)
+    if playable is None:
+        raise _not_found(SAMPLE_FILE_UNAVAILABLE_MESSAGE)
+    expires = int(time.time()) + PREVIEW_TOKEN_TTL_SECONDS
+    return {
+        "url": f"/api/admin/skill-lab/samples/{sample.id}/file?token={sign_preview_token(sample.id, expires)}",
+        "expires_at": datetime.fromtimestamp(expires, tz=timezone.utc),
+        "content_type": playable[1],
+    }
+
+
+async def resolve_preview_file(
+    db: AsyncSession, sample_id: str, token: Optional[str]
+) -> tuple[Path, str, str]:
+    """(path, media type, safe filename) for a valid token; every failure is the obfuscated 404."""
+    try:
+        parsed_id = uuid.UUID(sample_id)
+    except ValueError:
+        raise _not_found(NOT_FOUND_MESSAGE) from None
+    if not preview_token_is_valid(parsed_id, token):
+        raise _not_found(NOT_FOUND_MESSAGE)
+    sample = await _get_lab_sample(db, parsed_id)
+    playable = sample_playable_file(sample) if sample is not None else None
+    if playable is None:
+        raise _not_found(NOT_FOUND_MESSAGE)
+    path, media_type = playable
+    return path, media_type, f"muestra-{parsed_id}.{sample.file_format.lower()}"
 
 
 # ------------------------------------------------------------------ analysis cache (S3-S5)
