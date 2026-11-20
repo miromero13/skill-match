@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { Loader2 } from "lucide-react"
 import { theoryExam, type OralSubmission } from "@/services/theory-exam-service"
 import { useTheoryExamStore } from "@/stores/theory-exam-store"
 import { useEvaluationPreflightStore } from "@/stores/evaluation-preflight-store"
@@ -262,7 +263,18 @@ export function TheoryExamPage() {
               {state.current_question.choices.map(choice => <p key={choice.code}>{choice.code}: {choice.text}</p>)}
               <div className="flex flex-wrap gap-3">
                 <Button disabled={busy || recording || retryReady || remaining <= 0} onClick={record}>Grabar respuesta</Button>
-                <Button disabled={busy || (!recording && !retryReady)} onClick={send}>{retryReady ? "Reenviar misma respuesta" : "Terminar y enviar respuesta"}</Button>
+                <Button disabled={busy || (!recording && !retryReady)} onClick={send}>
+                  {busy && !recording ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      <span>Procesando respuesta…</span>
+                    </>
+                  ) : retryReady ? (
+                    "Reenviar misma respuesta"
+                  ) : (
+                    "Terminar y enviar respuesta"
+                  )}
+                </Button>
                 {recording && <Button variant="outline" disabled={busy} onClick={() => { captureAbort.current?.abort(); capture.current = null; setRecording(false) }}>Cancelar grabación</Button>}
               </div>
               {recording && <p role="status" className="text-sm font-medium text-primary">Micrófono grabando. Terminá y enviá tu respuesta antes de que se acabe el tiempo.</p>}

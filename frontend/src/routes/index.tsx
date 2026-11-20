@@ -65,7 +65,15 @@ import { AdminComplaintsPage } from "@/pages/admin/admin-complaints-page"
 export const router = createBrowserRouter([
   { path: "/evaluation/:id/theory", element: <MemberRouteGuard><TheoryExamPage /></MemberRouteGuard> },
   { path: "/evaluation/:id/code", element: <MemberRouteGuard><ProgrammingExamPage /></MemberRouteGuard> },
-  { path: "/evaluation/:id/result", element: <MemberRouteGuard><EvaluationResultPage /></MemberRouteGuard> },
+  {
+    path: "/evaluation/:id/result",
+    element: (
+      <MemberRouteGuard>
+        <PlatformLayout />
+      </MemberRouteGuard>
+    ),
+    children: [{ index: true, element: <EvaluationResultPage /> }],
+  },
   ...(browserSupervisionTrialEnabled
     ? [{ path: "/app/browser-supervision-test", element: <MemberRouteGuard><BrowserSupervisionPage /></MemberRouteGuard> }]
     : []),

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
+import { Loader2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -248,7 +249,16 @@ export function ProgrammingExamPage() {
                   Grabar explicación
                 </Button>
                 <Button disabled={busy || (!recording && !retryReady)} onClick={() => void sendDefense()}>
-                  {retryReady ? "Reenviar explicación y finalizar" : "Enviar defensa y finalizar"}
+                  {busy && !recording ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      <span>Procesando defensa…</span>
+                    </>
+                  ) : retryReady ? (
+                    "Reenviar explicación y finalizar"
+                  ) : (
+                    "Enviar defensa y finalizar"
+                  )}
                 </Button>
                 {recording && (
                   <Button

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { CheckCircle2, Award, AlertCircle, RotateCcw } from "lucide-react"
+import { CheckCircle2, Award, AlertCircle, Loader2, RotateCcw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,11 +30,17 @@ export function EvaluationResultPage() {
   }, [id])
 
   useEffect(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.().catch(() => undefined)
+    }
+  }, [])
+
+  useEffect(() => {
     void finalize()
   }, [finalize])
 
   return (
-    <main className="min-h-screen bg-[#0F1416] p-4 text-[#F0FDFA] md:p-8">
+    <main className="p-4 text-[#F0FDFA] md:p-8">
       <div className="mx-auto max-w-4xl space-y-6">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -53,9 +59,10 @@ export function EvaluationResultPage() {
 
         {loading && (
           <Card className="border-[#1E2629] bg-[#141C1E] text-[#F0FDFA]">
-            <CardContent className="py-12 text-center space-y-2">
-              <p className="text-base font-medium">Evaluando tus respuestas con IA…</p>
-              <p className="text-xs text-[#8B9D9F]">Esto puede tardar unos segundos mientras se corrigen tus explicaciones.</p>
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+              <Loader2 className="h-8 w-8 animate-spin text-[#2DD4BF]" aria-hidden="true" />
+              <p className="text-base font-medium">Procesando y calificando tus respuestas…</p>
+              <p className="text-xs text-[#8B9D9F]">Esto puede tardar unos segundos mientras la IA evalúa tu examen.</p>
             </CardContent>
           </Card>
         )}
