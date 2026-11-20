@@ -35,7 +35,7 @@ ENVIRONMENT="development"
 DEBUG=True
 
 # Orígenes autorizados para CORS (separados por coma)
-ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173,https://localhost,http://localhost,capacitor://localhost,http://192.168.1.8:5173,http://192.168.1.8:8000"
 
 # --- Base de Datos PostgreSQL Asíncrona (asyncpg) ---
 POSTGRES_HOST="localhost"
