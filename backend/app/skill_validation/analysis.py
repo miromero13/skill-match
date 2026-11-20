@@ -1,7 +1,8 @@
 """`analyze_video`: one local pass over a video -> compact, JSON-serializable measurements.
 
-Never raises. Nothing leaves the server (AGENTS.md §1.1): pose via the local MediaPipe model, ball via the
-existing football pipeline. A missing model is reported in Spanish notes, never replaced by fake data.
+Never raises. Nothing leaves the server (AGENTS.md §1.1): pose via the local MediaPipe model, ball touches via the
+dedicated juggling counter (`ball_touches`, EfficientDet-Lite0); the football pipeline (classical detector) is used
+only when that model is missing or fails. A missing model is reported in Spanish notes, never replaced by fake data.
 """
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ from typing import Any
 import cv2
 import numpy as np
 
+from app.skill_validation import ball_touches
 from app.skill_validation import pose as pose_module
 from app.skill_validation.contract import ENGINE_VERSION
 
@@ -38,6 +40,7 @@ NOTE_NO_BALL = "No se detectó balón en el video."
 NOTE_NO_TOUCHES = "No se detectaron toques válidos."
 NOTE_BALL_MODEL_MISSING = "Modelo EfficientDet-Lite0 no instalado; se usó solo el detector clásico de balón."
 NOTE_BALL_MODEL_LOAD_FAILED = "No se pudo cargar el modelo EfficientDet-Lite0; se usó solo el detector clásico."
+NOTE_BALL_TRUNCATED = "Se analizaron solo los primeros {secs} s del video para contar los toques."
 
 LOW_PERSON_RATIO = 0.5
 
@@ -122,45 +125,55 @@ def _extract_pose(path: Path, fps: float, max_seconds: float, extractor) -> tupl
     return block, index, truncated
 
 
-def _analyze_ball(path: Path, fps: float, width: int, max_seconds: float, notes: list[str]) -> dict[str, Any]:
+def _analyze_ball(path: Path, fps: float, notes: list[str]) -> dict[str, Any]:
+    """Dedicated juggling counter (`ball_touches`); the football pipeline only when EfficientDet is unusable."""
     from app.football.pipeline import efficientdet_ball_detector
-    from app.football.pipeline.ball_tracker import track_ball_in_video
-    from app.football.pipeline.features import compute_touch_streaks, extract_session_features
-    from app.football.pipeline.fusion import fuse_audio_video_events
-    from app.football.pipeline.touch_events import detect_video_touch_events
 
-    fused = None
+    max_seconds = ball_touches.MAX_SECONDS
     model_path = efficientdet_ball_detector.efficientdet_model_path()
     if not model_path.is_file():
         notes.append(NOTE_BALL_MODEL_MISSING)
     else:
         try:
-            model = efficientdet_ball_detector.MediaPipeEfficientDetBallDetector(model_path)
-            fused = efficientdet_ball_detector.FusedEfficientDetClassicalDetector(
-                model_detector=model, frame_width=width, fps=fps
+            ball = ball_touches.analyze_ball_video(
+                path, lambda: ball_touches.EfficientDetObjectDetector(model_path), max_seconds=max_seconds
             )
         except Exception as exc:
-            logger.warning("EfficientDet-Lite0 could not be loaded: %s", exc)
+            logger.warning("Dedicated ball counter failed, using the classical football pipeline: %s", exc)
             notes.append(NOTE_BALL_MODEL_LOAD_FAILED)
+        else:
+            if ball["truncated"]:
+                notes.append(NOTE_BALL_TRUNCATED.format(secs=int(max_seconds)))
+            _ball_notes(ball, notes)
+            return ball
+    ball = _analyze_ball_classical(path, fps, max_seconds)
+    _ball_notes(ball, notes)
+    return ball
+
+
+def _ball_notes(ball: dict[str, Any], notes: list[str]) -> None:
+    if not ball["ball_detected"]:
+        notes.append(NOTE_NO_BALL)
+    elif ball["total_touches"] == 0:
+        notes.append(NOTE_NO_TOUCHES)
+
+
+def _analyze_ball_classical(path: Path, fps: float, max_seconds: float) -> dict[str, Any]:
+    """Fallback: the football pipeline with its classical (MOG2/Hough) detector only."""
+    from app.football.pipeline.ball_tracker import track_ball_in_video
+    from app.football.pipeline.features import compute_touch_streaks, extract_session_features
+    from app.football.pipeline.fusion import fuse_audio_video_events
+    from app.football.pipeline.touch_events import detect_video_touch_events
+
     max_frames = max(1, round(max_seconds * fps))
-    try:
-        try:
-            track = track_ball_in_video(path, detector=fused, max_frames=max_frames)
-        except Exception:
-            if fused is None:
-                raise
-            logger.exception("Fused ball detector failed; retrying classical only")
-            track = track_ball_in_video(path, detector=None, max_frames=max_frames)
-    finally:
-        if fused is not None:
-            fused.close()
+    track = track_ball_in_video(path, detector=None, max_frames=max_frames)
     duration = track.frames_read / float(track.fps or fps) if track.frames_read else 0.0
     candidates = detect_video_touch_events(track)
     fusion = fuse_audio_video_events(video_events=candidates, audio_events=[])
     features = extract_session_features(track=track, fusion=fusion, challenge_eval=None, session_duration_s=duration)
     streaks = [int(s) for s in compute_touch_streaks(fusion)]
     ball_frames = sum(1 for pt in track.points if not pt.interpolated)
-    ball = {
+    return {
         "ball_detected": bool(track.points) and ball_frames > 0,
         "total_touches": int(features["total_touches"]),
         "max_streak": int(features["max_streak"]),
@@ -168,13 +181,8 @@ def _analyze_ball(path: Path, fps: float, width: int, max_seconds: float, notes:
         "ground_contacts": int(features["ground_bounce_count"]),
         "ball_frames": int(ball_frames),
         "frames_analyzed": int(track.frames_read),
-        "detector": "efficientdet+classical" if fused is not None else "classical",
+        "detector": "classical",
     }
-    if not ball["ball_detected"]:
-        notes.append(NOTE_NO_BALL)
-    elif ball["total_touches"] == 0:
-        notes.append(NOTE_NO_TOUCHES)
-    return ball
 
 
 def analyze_video(video_path, *, need_pose: bool = True, need_ball: bool = False) -> dict:
@@ -192,7 +200,7 @@ def _analyze(path: Path, need_pose: bool, need_ball: bool, notes: list[str]) -> 
     probe = _probe(path)
     if probe is None:
         return _empty([NOTE_UNREADABLE])
-    fps, frame_count, width, _ = probe
+    fps, frame_count, _, _ = probe
     max_seconds = pose_module.MAX_ANALYZED_SECONDS
     result = _empty(notes)
     result["readable"] = True
@@ -238,7 +246,7 @@ def _analyze(path: Path, need_pose: bool, need_ball: bool, notes: list[str]) -> 
 
     if need_ball:
         try:
-            ball = _analyze_ball(path, fps, width, max_seconds, notes)
+            ball = _analyze_ball(path, fps, notes)
             result["ball"] = ball
             result["ball_status"] = BALL_OK
             if not result["frames_analyzed"]:

@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-ENGINE_VERSION = "skill-validation-1.0"
+ENGINE_VERSION = "skill-validation-1.1"  # 1.1: dedicated juggling touch counter (S6)
 
 METRIC_REFERENCE_REPLICATION = "REFERENCE_REPLICATION"
 METRIC_BALL_TOUCH_STREAK = "BALL_TOUCH_STREAK"
