@@ -1,6 +1,8 @@
 """HU-25 inbox domain. Caller supplies the authorized user's ID and owns commit.
 
 No WebSocket, push/email dispatch, broker or public creation endpoint lives here.
+New in-app notifications are only *recorded* for native push; the dispatch runs after
+the caller's commit (see notification_push_dispatcher).
 """
 from uuid import UUID
 
@@ -18,6 +20,7 @@ from app.schemas.notification import (
     NotificationFilters, NotificationPreferencesResponse, NotificationPreferencesWrite,
     NotificationResponse,
 )
+from app.services.notification_push_dispatcher import record_new_notification
 
 
 class NotificationService:
@@ -161,6 +164,15 @@ class NotificationService:
         return NotificationService._effective_channels(prefs, kind)
 
     @staticmethod
+    async def category_enabled(db: AsyncSession, user_id: UUID, notification_type: NotificationType | str) -> bool:
+        """Native push gate (native-push S4/L4): the category flag only, never the push toggle."""
+        kind = NotificationType(notification_type)
+        await db.flush()
+        await NotificationService._ensure_recipient(db, user_id)
+        prefs = await NotificationService.get_preferences(db, user_id)
+        return bool(getattr(prefs.categories, NOTIFICATION_CATEGORIES[kind].value))
+
+    @staticmethod
     async def _existing(db: AsyncSession, payload: NotificationEmission) -> Notification | None:
         # Include tombstones: replay must never resurrect an erased inbox item.
         return await db.scalar(select(Notification).where(
@@ -203,6 +215,8 @@ class NotificationService:
         ).on_conflict_do_nothing(constraint="uq_notifications_user_event").returning(Notification)
         inserted = await db.scalar(statement)
         if inserted is not None:
+            # Native push for NEW rows only, dispatched after the outermost commit.
+            record_new_notification(db, inserted)
             return inserted
         # Concurrent winner is visible in the next READ COMMITTED statement.
         winner = await NotificationService._existing(db, payload)

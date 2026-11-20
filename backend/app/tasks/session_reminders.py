@@ -112,6 +112,10 @@ def dispatch_session_reminders() -> dict[str, int]:
         finally:
             # A Celery worker invokes this sync task through a fresh asyncio.run loop.
             # Never retain asyncpg pooled connections bound to a loop that is about to close.
+            # Native pushes scheduled after commit must finish before the loop closes.
+            from app.services import notification_push_dispatcher
+
+            await notification_push_dispatcher.drain()
             await async_engine.dispose()
 
     return asyncio.run(run_once())
