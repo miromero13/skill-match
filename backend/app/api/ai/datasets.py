@@ -1,6 +1,6 @@
 
 import base64
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
@@ -15,6 +15,7 @@ from app.schemas.dataset_sample import DatasetSampleCreate, DatasetSampleRespons
 from app.schemas.response import APIResponse
 from app.services.dataset_sample_service import DatasetSampleService
 from app.services.dataset_storage_service import DatasetStorageService
+from app.services.flute_song_service import list_flute_songs, score_flute_song
 from app.services.flute_training_service import (
     _load_sample_bytes,
     activate_flute_model,
@@ -50,6 +51,64 @@ class FluteLabelsRequest(FluteFeaturesRequest):
 
 class FluteInferRequest(FluteFeaturesRequest):
     target_note: str | None = None
+
+
+class FlutePitchFrame(BaseModel):
+    t: FiniteFloat = Field(ge=-1.0, description="Segundos desde t0 (puede ser negativo hasta -1.0 s)")
+    hz: Annotated[FiniteFloat, Field(ge=0)] | None = None
+    clarity: FiniteFloat = Field(ge=0, le=1)
+    rms: FiniteFloat = Field(ge=0)
+
+
+class FluteTimedFeatures(BaseModel):
+    t: FiniteFloat
+    # Exact dimensions (62 audio / 50 visual) are validated by the service.
+    features: list[FiniteFloat] = Field(max_length=128)
+
+
+class FluteSongScoreRequest(BaseModel):
+    song_id: str = Field(min_length=1, max_length=64)
+    tempo_bpm: int = Field(ge=60, le=120)
+    pitch_track: list[FlutePitchFrame] = Field(max_length=4000)
+    audio_schema: Literal["flute-audio-pitch-v1"]
+    audio_frames: list[FluteTimedFeatures] = Field(default_factory=list, max_length=1000)
+    visual_schema: Literal["hand-landmarks-palm-v5"]
+    hand_frames: list[FluteTimedFeatures] = Field(default_factory=list, max_length=1000)
+
+
+# Static /flute/... song routes are registered before any /{sample_id} route.
+@router.get(
+    "/flute/songs",
+    response_model=APIResponse[list[dict[str, Any]]],
+    status_code=status.HTTP_200_OK,
+    summary="Listar canciones disponibles para el modo Canción de flauta",
+)
+async def list_flute_songs_endpoint():
+    flute_songs = list_flute_songs()
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message="Canciones de flauta recuperadas exitosamente.",
+        data=flute_songs,
+        count=len(flute_songs),
+    )
+
+
+@router.post(
+    "/flute/score-song",
+    response_model=APIResponse[dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Evaluar una interpretación completa de una canción en flauta",
+)
+async def score_flute_song_endpoint(
+    payload: FluteSongScoreRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    data = await score_flute_song(db=db, **payload.model_dump())
+    return APIResponse(
+        statuscode=status.HTTP_200_OK,
+        message=data["message"],
+        data=data,
+    )
 
 
 @router.post("/{sample_id}/flute-labels", response_model=APIResponse[dict[str, Any]])
