@@ -215,8 +215,13 @@ class CalibrationProfile:
         if measured.vad_unavailable:
             return [_fail("microphone", m.VAD_UNAVAILABLE, 503)]
         voiced, run = run_stats(measured.voiced_flags)
+        rms = signal_rms(phrase)
+        logger.info(
+            "calibration speech segment: voiced_chunks=%d voiced_s=%.2f run=%d rms=%.5f total_chunks=%d",
+            voiced, voiced * t.VAD_CHUNK_SAMPLES / t.AUDIO_SAMPLE_RATE, run, rms, len(measured.voiced_flags),
+        )
         loud_enough = (voiced >= t.CAL_SPEECH_MIN_VOICED_CHUNKS and run >= t.CAL_SPEECH_MIN_RUN_CHUNKS
-                       and signal_rms(phrase) >= t.CAL_SPEECH_MIN_RMS)
+                       and rms >= t.CAL_SPEECH_MIN_RMS)
         if not loud_enough:
             return [_fail("microphone", m.NOT_ENOUGH_SPEECH)]
         pause_from = int(t.CAL_PAUSE_FROM_S * t.AUDIO_SAMPLE_RATE / t.VAD_CHUNK_SAMPLES)
