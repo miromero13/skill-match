@@ -11,6 +11,7 @@ from app.api.admin.auth import admin_auth_router
 from app.api.admin.catalog import router as admin_catalog_router
 from app.api.admin.complaints import router as admin_complaints_router
 from app.api.admin.router import router as admin_management_router
+from app.api.admin.skill_lab import router as admin_skill_lab_router
 from app.api.admin.theory_questions import router as theory_question_router
 from app.api.ai.datasets import router as ai_dataset_router
 from app.api.auth import auth_router
@@ -129,6 +130,7 @@ def create_application() -> FastAPI:
     app.include_router(admin_complaints_router, prefix="/api")
     app.include_router(admin_programming_router, prefix="/api")
     app.include_router(admin_management_router, prefix="/api")
+    app.include_router(admin_skill_lab_router, prefix="/api")
     app.include_router(theory_question_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
     app.include_router(evaluation_preflight_router, prefix="/api")

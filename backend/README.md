@@ -335,3 +335,17 @@ La migración de catálogo conserva los registros y rehúsa nombres normalizados
 - `DELETE` de categoría/habilidad desactiva, no borra físicamente. La eliminación de habilidades con miembros vinculados devuelve 409; `PATCH` con `is_active=false` conserva las asociaciones.
 
 Las pruebas HTTP de esta entrega usan PostgreSQL aislado y mocks de Google. No acreditan disponibilidad de Google real, configuración de sus clientes ni ejecución en hardware nativo.
+
+### Laboratorio por habilidad
+
+Requiere la migración `e7a4c1d9b352` (`alembic upgrade head`). Es aditiva: no reescribe filas existentes.
+
+- **Criterios del catálogo:** cada criterio de `rubrics.criteria` es `{key, name, weight, description, metric_type, target}`. `key` lo genera el servidor si falta y se conserva en las actualizaciones (si se envía sin `key`, se reutiliza la del criterio guardado con el mismo nombre). `metric_type` ∈ `REFERENCE_REPLICATION` (predeterminado) | `BALL_TOUCH_STREAK` (`target` > 0 obligatorio = toques seguidos que valen el 100%). Si un nivel tiene criterios, sus pesos deben sumar 100 (±0.01); si no, la escritura responde 400 con «Los porcentajes de los criterios del nivel «<nombre>» deben sumar 100% (actual: <suma>%).». Los criterios guardados sin `key`/`metric_type` se leen con una clave determinista y el tipo predeterminado, sin reescribirlos.
+- **Niveles estables:** al editar una habilidad, los niveles se actualizan en su lugar emparejados por `level_number`; solo se crean los números nuevos y se eliminan los ausentes. Los videos de un nivel eliminado quedan con `skill_level_id = NULL` (ON DELETE SET NULL).
+- **Columnas nuevas:** `dataset_samples.skill_id` (FK `skills`, SET NULL), `skill_level_id` (FK `skill_levels`, SET NULL), `criterion_key` (64), `sample_role` (`TRAINING` | `REFERENCE`, predeterminado `TRAINING`), `analysis` (JSON, caché del análisis del motor) y `file_format` admite además `webm`/`mov`. `model_versions.skill_id` (FK `skills`, CASCADE) identifica el validador por habilidad (`nombre='skill_validator'`); un índice único parcial permite una sola versión activa por habilidad sin afectar a `level_classifier` ni a los modelos de flauta (sin `skill_id`).
+- **Endpoints (solo ADMIN; MEMBER y anónimos reciben 404 «Recurso no encontrado»):**
+  - `GET /api/admin/skill-lab/metric-types`: tipos de métrica con `requires_target`/`requires_reference`.
+  - `GET /api/admin/skill-lab/skills/{skill_id}`: configuración tomada del catálogo (categoría, tipo de desafío, umbral, niveles, puntaje mínimo, criterios), conteos de videos por nivel/criterio, referencia vigente, `active_model` y `readiness.issues`.
+  - `POST /api/admin/skill-lab/skills/{skill_id}/samples` (multipart): `file` (mp4/webm/mov, máx. 200 MB), `skill_level_id`, `sample_role`, `criterion_key` opcional, `participant_id` opcional y `signed_consent=true`. Un nuevo `REFERENCE` para el mismo nivel/criterio reemplaza al anterior (fila y archivo). El archivo se guarda en `storage/datasets/skill-lab/<categoría>/` y se replica en Garage S3 si hay credenciales.
+  - `GET /api/admin/skill-lab/skills/{skill_id}/samples` (filtro opcional `sample_role`) y `DELETE /api/admin/skill-lab/samples/{sample_id}`.
+  - `GET /api/admin/skill-lab/skills/{skill_id}/models`: versiones `skill_validator` de la habilidad.
