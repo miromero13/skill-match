@@ -155,7 +155,11 @@ export interface FluteDatasetPreviewResponse {
   can_validate_independently: boolean
 }
 
-export function saveFluteLabels(sampleId: string, payload: FluteLabels) {
+export function saveFluteLabels(
+  sampleId: string,
+  payload: FluteLabels,
+  options: { showToastOnSuccess?: boolean } = {}
+) {
   return apiClient.post<
     Pick<
       FluteLabels,
@@ -164,7 +168,7 @@ export function saveFluteLabels(sampleId: string, payload: FluteLabels) {
   >(
     `/ai/datasets/samples/${sampleId}/flute-labels`,
     payload,
-    { showToastOnSuccess: true }
+    { showToastOnSuccess: options.showToastOnSuccess ?? true }
   )
 }
 
