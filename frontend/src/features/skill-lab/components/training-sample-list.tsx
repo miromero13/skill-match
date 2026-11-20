@@ -44,7 +44,7 @@ export function TrainingSampleList({ level, samples, onChanged }: TrainingSample
   }
 
   if (samples.length === 0) {
-    return <p className="text-xs text-muted-foreground">Todavía no hay videos de entrenamiento en este nivel.</p>
+    return <p className="text-xs text-muted-foreground">Sin videos todavía.</p>
   }
 
   return (
@@ -72,7 +72,7 @@ export function TrainingSampleList({ level, samples, onChanged }: TrainingSample
                         : "border-amber-500/40 text-amber-700 dark:text-amber-300"
                     }
                   >
-                    {sample.analysis_ready ? "Analizado" : "Análisis pendiente"}
+                    {sample.analysis_ready ? "Analizado" : "Pendiente"}
                   </Badge>
                 </div>
                 {sample.analysis_notes.length > 0 && (
@@ -101,10 +101,8 @@ export function TrainingSampleList({ level, samples, onChanged }: TrainingSample
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && !isDeleting && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar este video de entrenamiento?</AlertDialogTitle>
-            <AlertDialogDescription>
-              El video dejará de usarse para entrenar el modelo de esta habilidad. Esta acción no se puede deshacer.
-            </AlertDialogDescription>
+            <AlertDialogTitle>¿Eliminar este video?</AlertDialogTitle>
+            <AlertDialogDescription>Deja de usarse para entrenar. No se puede deshacer.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>

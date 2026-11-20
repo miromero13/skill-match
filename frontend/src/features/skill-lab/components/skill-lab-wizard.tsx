@@ -59,7 +59,7 @@ export function SkillLabWizard({ skillId, config, samples, metricTypes, reload }
     <div className="space-y-6">
       {levels.length === 0 && (
         <p className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
-          Esta habilidad no tiene niveles configurados en el catálogo.
+          Sin niveles en el catálogo.
         </p>
       )}
 
@@ -70,7 +70,7 @@ export function SkillLabWizard({ skillId, config, samples, metricTypes, reload }
           <Alert variant="default" className={WARNING_ALERT_CLASS} data-testid="skill-lab-incomplete-hint">
             <Info />
             <AlertDescription className="flex flex-col gap-2 text-amber-800/90 sm:flex-row sm:items-center sm:justify-between dark:text-amber-300/90">
-              <span>{`${visibleHint.message} Podés volver cuando quieras.`}</span>
+              <span>{visibleHint.message}</span>
               <Button
                 type="button"
                 variant="outline"

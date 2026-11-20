@@ -204,7 +204,7 @@ describe("AdminSkillLabPage", () => {
     expect(cards.map((card) => card.getAttribute("data-testid"))).toEqual(["skill-lab-level-lvl-1"])
 
     const beginner = await levelCard("lvl-1")
-    expect(beginner.getByText("Puntaje mínimo 60%")).toBeInTheDocument()
+    expect(beginner.getByText("Mínimo 60%")).toBeInTheDocument()
     const touchRow = beginner.getByRole("row", { name: /Toques seguidos/ })
     expect(touchRow).toHaveTextContent("Toques seguidos con balón")
     expect(touchRow).toHaveTextContent("40%")
@@ -235,10 +235,10 @@ describe("AdminSkillLabPage", () => {
     const upload = card.getByRole("button", { name: /Subir referencia/ })
     expect(upload).toBeDisabled()
     const file = video("referencia.mp4")
-    await user.upload(card.getByLabelText("Video de referencia (MP4, WebM o MOV)"), file)
+    await user.upload(card.getByLabelText("Video"), file)
     await user.click(card.getByRole("combobox", { name: "Criterio de la referencia" }))
     await user.click(await screen.findByRole("option", { name: "Técnica de golpeo" }))
-    await user.click(card.getByRole("switch", { name: /consentimiento de la persona que aparece en el video de referencia/ }))
+    await user.click(card.getByRole("switch", { name: "Tengo el consentimiento de la persona del video" }))
     await user.click(upload)
 
     await waitFor(() =>
@@ -262,16 +262,16 @@ describe("AdminSkillLabPage", () => {
 
     const first = video("a.mp4")
     const second = video("b.mp4")
-    await user.upload(card.getByLabelText("Videos de entrenamiento (MP4, WebM o MOV)"), [first, second])
+    await user.upload(card.getByLabelText("Videos"), [first, second])
     await user.click(card.getByRole("combobox", { name: "Criterio de los videos" }))
     await user.click(await screen.findByRole("option", { name: "Toques seguidos" }))
-    await user.type(card.getByLabelText("ID de participante (opcional)"), "P-09")
+    await user.type(card.getByLabelText("Participante (opcional)"), "P-09")
 
     const uploadButton = card.getByRole("button", { name: /Subir 2 videos/ })
     expect(uploadButton).toBeDisabled()
-    expect(card.getByText(/Activá el consentimiento para subir los videos/)).toBeInTheDocument()
+    expect(card.getByText("Activá el consentimiento.")).toBeInTheDocument()
 
-    await user.click(card.getByRole("switch", { name: /consentimiento de las personas que aparecen en los videos/ }))
+    await user.click(card.getByRole("switch", { name: "Tengo el consentimiento de las personas de los videos" }))
     expect(uploadButton).toBeEnabled()
     await user.click(uploadButton)
 
@@ -310,6 +310,9 @@ describe("AdminSkillLabPage", () => {
 
     const panel = await screen.findByTestId("skill-lab-active-model")
     expect(panel).toHaveTextContent("v2")
+    expect(panel).toHaveTextContent("Videos4")
+    expect(panel).not.toHaveTextContent("Principiante: 3")
+    await user.click(within(panel).getByRole("button", { name: "Detalles" }))
     expect(panel).toHaveTextContent("Principiante: 3")
     expect(panel).toHaveTextContent("Intermedio: 1")
     expect(panel).toHaveTextContent("75%")
@@ -325,11 +328,11 @@ describe("AdminSkillLabPage", () => {
     const validateButton = await screen.findByRole("button", { name: /Validar video/ })
     expect(validateButton).toBeDisabled()
     const file = video()
-    await user.upload(screen.getByLabelText("Video a validar (MP4, WebM o MOV)"), file)
+    await user.upload(screen.getByLabelText("Video"), file)
     await user.click(validateButton)
 
     expect(api.validate).toHaveBeenCalledWith("skill-1", file, null)
-    expect(await screen.findByText("Analizando video… puede tardar unos minutos")).toBeInTheDocument()
+    expect(await screen.findByText("Analizando… puede tardar unos minutos")).toBeInTheDocument()
     resolveValidation(RESULT)
 
     expect(await screen.findByTestId("skill-lab-achieved-level")).toHaveTextContent("Principiante")
@@ -343,12 +346,15 @@ describe("AdminSkillLabPage", () => {
     expect(notes).toHaveTextContent("El ángulo de cámara difiere de la referencia.")
     expect(notes).not.toHaveClass("text-destructive")
 
+    // S9: the per-level/criterion breakdown starts collapsed.
     const beginner = screen.getByTestId("skill-lab-result-level-lvl-1")
+    expect(within(beginner).queryByText("Postura corporal")).not.toBeInTheDocument()
+    const content = within(screen.getByTestId("skill-lab-step-content"))
+    await user.click(content.getByRole("button", { name: /Principiante/ }))
     expect(within(beginner).getByText("Postura corporal")).toBeInTheDocument()
     expect(within(beginner).getByText("Se contaron 7 de 10 toques.")).toBeInTheDocument()
     expect(within(beginner).getByText("Superado")).toBeInTheDocument()
 
-    const content = within(screen.getByTestId("skill-lab-step-content"))
     await user.click(content.getByRole("button", { name: /Intermedio/ }))
     const intermediate = screen.getByTestId("skill-lab-result-level-lvl-2")
     // level status badge + the criterion that could not be scored
@@ -366,7 +372,7 @@ describe("AdminSkillLabPage", () => {
     renderLab("/admin/skill-lab/skill-1?paso=4")
     await screen.findByRole("heading", { name: "Dominadas" })
     const file = video()
-    await user.upload(screen.getByLabelText("Video a validar (MP4, WebM o MOV)"), file)
+    await user.upload(screen.getByLabelText("Video"), file)
     await user.click(screen.getByRole("combobox", { name: "Nivel a validar" }))
     await user.click(await screen.findByRole("option", { name: "Nivel 2 · Intermedio" }))
     await user.click(screen.getByRole("button", { name: /Validar video/ }))
@@ -379,7 +385,7 @@ describe("AdminSkillLabPage", () => {
     renderLab("/admin/skill-lab/skill-1?paso=4")
     await screen.findByRole("heading", { name: "Dominadas" })
     const file = video()
-    await user.upload(screen.getByLabelText("Video a validar (MP4, WebM o MOV)"), file)
+    await user.upload(screen.getByLabelText("Video"), file)
     await user.click(screen.getByRole("button", { name: /Validar video/ }))
 
     const warning = await screen.findByTestId("skill-lab-validation-warning")
@@ -394,5 +400,17 @@ describe("AdminSkillLabPage", () => {
     expect(api.validate).toHaveBeenLastCalledWith("skill-1", file, null)
     expect(await screen.findByTestId("skill-lab-score")).toHaveTextContent("74.5/100")
     expect(screen.queryByTestId("skill-lab-validation-warning")).not.toBeInTheDocument()
+  })
+})
+
+describe("Skill lab copy (S9)", () => {
+  it("moves the reference explanation behind an info tooltip reachable by its accessible name", async () => {
+    const user = userEvent.setup()
+    renderLab()
+    const card = await levelCard("lvl-1")
+    expect(screen.queryByText(/deberá replicar en vivo/)).not.toBeInTheDocument()
+
+    await user.click(card.getByRole("button", { name: "Ayuda: video de referencia" }))
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Lo que la persona deberá replicar en vivo para este nivel.")
   })
 })

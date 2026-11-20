@@ -19,6 +19,7 @@ import {
   SKILL_LAB_VIDEO_ACCEPT,
 } from "../lib/skill-lab-utils"
 import type { SkillLabLevel, SkillLabSample } from "../types"
+import { InfoTip } from "./info-tip"
 
 export const WHOLE_LEVEL = "__level__"
 
@@ -85,12 +86,15 @@ export function ReferenceUploader({ skillId, level, samples, onChanged }: Refere
 
   return (
     <section aria-labelledby={headingId} className="space-y-3 rounded-lg border border-border/60 p-3 sm:p-4">
-      <div className="space-y-0.5">
+      <div className="flex items-center gap-1">
         <h3 id={headingId} className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
           <Video className="size-4 text-emerald-500" />
           Video de referencia
         </h3>
-        <p className="text-xs text-muted-foreground">Lo que la persona deberá replicar en vivo para este nivel.</p>
+        <InfoTip label="Ayuda: video de referencia">
+          Lo que la persona deberá replicar en vivo para este nivel. Uno por nivel u opcionalmente por criterio;
+          subir otro reemplaza el anterior. MP4, WebM o MOV.
+        </InfoTip>
       </div>
 
       <div data-testid="skill-lab-reference-current" className="text-xs text-muted-foreground">
@@ -99,7 +103,7 @@ export function ReferenceUploader({ skillId, level, samples, onChanged }: Refere
             Actual: <span className="font-medium text-foreground">{describeSample(level.reference)}</span>
           </p>
         ) : (
-          <p>Sin video de referencia para todo el nivel.</p>
+          <p>Sin referencia del nivel.</p>
         )}
       </div>
       {criterionReferences.length > 0 && (
@@ -116,7 +120,7 @@ export function ReferenceUploader({ skillId, level, samples, onChanged }: Refere
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={fileId} className="text-xs">
-            Video de referencia (MP4, WebM o MOV)
+            Video
           </Label>
           <Input
             ref={inputRef}
@@ -149,13 +153,13 @@ export function ReferenceUploader({ skillId, level, samples, onChanged }: Refere
       <div className="flex items-start gap-2">
         <Switch id={consentId} checked={consent} onCheckedChange={setConsent} disabled={isUploading} />
         <Label htmlFor={consentId} className="text-xs leading-snug font-normal">
-          Cuento con el consentimiento de la persona que aparece en el video de referencia
+          Tengo el consentimiento de la persona del video
         </Label>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {file && !consent ? (
-          <p className="text-xs text-amber-700 dark:text-amber-400">Activá el consentimiento para subir el video.</p>
+          <p className="text-xs text-amber-700 dark:text-amber-400">Activá el consentimiento.</p>
         ) : (
           <span />
         )}

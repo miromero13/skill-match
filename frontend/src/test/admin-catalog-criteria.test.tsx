@@ -81,7 +81,7 @@ describe("AdminCatalogPage criteria configuration", () => {
     ])
     const user = await openEdit(skill)
 
-    expect(await screen.findByText("Total: 80% — debe sumar 100%")).toBeInTheDocument()
+    expect(await screen.findByText("Total: 80% de 100%")).toBeInTheDocument()
     expect(
       screen.getByText("Los porcentajes de los criterios del nivel «Principiante» deben sumar 100% (actual: 80%).")
     ).toBeInTheDocument()
@@ -115,7 +115,7 @@ describe("AdminCatalogPage criteria configuration", () => {
 
     await user.clear(screen.getByLabelText("Peso del criterio 1"))
     await user.type(screen.getByLabelText("Peso del criterio 1"), "70")
-    expect(screen.getByText("Total: 70% — debe sumar 100%")).toBeInTheDocument()
+    expect(screen.getByText("Total: 70% de 100%")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "+ Agregar Criterio" }))
     expect(screen.getByLabelText("Peso del criterio 2")).toHaveValue(30)
     expect(screen.getByText("Total: 100%")).toBeInTheDocument()

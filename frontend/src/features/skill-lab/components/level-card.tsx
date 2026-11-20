@@ -12,6 +12,7 @@ import {
 import type { MetricTypeInfo } from "@/types/catalog"
 import { formatPercent, metricTypeLabel } from "../lib/skill-lab-utils"
 import type { SkillLabLevel, SkillLabSample } from "../types"
+import { InfoTip } from "./info-tip"
 import { ReferenceUploader } from "./reference-uploader"
 import { TrainingSampleList } from "./training-sample-list"
 import { TrainingUploader } from "./training-uploader"
@@ -37,8 +38,8 @@ export function LevelCard({ skillId, level, samples, metricTypes, onChanged }: L
           <span>
             Nivel {level.level_number} · {level.name}
           </span>
-          <Badge variant="outline">{`Puntaje mínimo ${formatPercent(level.min_score)}%`}</Badge>
-          <Badge variant="secondary">{`${level.training_samples} videos de entrenamiento`}</Badge>
+          <Badge variant="outline">{`Mínimo ${formatPercent(level.min_score)}%`}</Badge>
+          <Badge variant="secondary">{`${level.training_samples} videos`}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -48,7 +49,7 @@ export function LevelCard({ skillId, level, samples, metricTypes, onChanged }: L
             className="flex items-center gap-1.5 text-sm font-semibold text-foreground"
           >
             <ListChecks className="size-4 text-emerald-500" />
-            Criterios de evaluación
+            Criterios
           </h3>
           <Table>
             <TableHeader>
@@ -57,7 +58,7 @@ export function LevelCard({ skillId, level, samples, metricTypes, onChanged }: L
                 <TableHead>Tipo</TableHead>
                 <TableHead className="text-right">Peso</TableHead>
                 <TableHead className="text-right">Objetivo</TableHead>
-                <TableHead className="text-right">Videos de entrenamiento</TableHead>
+                <TableHead className="text-right">Videos</TableHead>
                 <TableHead>Referencia</TableHead>
               </TableRow>
             </TableHeader>
@@ -65,7 +66,7 @@ export function LevelCard({ skillId, level, samples, metricTypes, onChanged }: L
               {level.criteria.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-xs whitespace-normal text-muted-foreground">
-                    Sin criterios: el nivel se evalúa como replicación del video de referencia (100%).
+                    Sin criterios: replica la referencia (100%).
                   </TableCell>
                 </TableRow>
               ) : (
@@ -93,7 +94,7 @@ export function LevelCard({ skillId, level, samples, metricTypes, onChanged }: L
             aria-labelledby={`level-training-heading-${level.id}`}
             className="space-y-3 rounded-lg border border-border/60 p-3 sm:p-4"
           >
-            <div className="space-y-0.5">
+            <div className="flex items-center gap-1">
               <h3
                 id={`level-training-heading-${level.id}`}
                 className="flex items-center gap-1.5 text-sm font-semibold text-foreground"
@@ -101,9 +102,9 @@ export function LevelCard({ skillId, level, samples, metricTypes, onChanged }: L
                 <Film className="size-4 text-emerald-500" />
                 Videos de entrenamiento
               </h3>
-              <p className="text-xs text-muted-foreground">
-                Ejemplos etiquetados de este nivel para calibrar el modelo.
-              </p>
+              <InfoTip label="Ayuda: videos de entrenamiento">
+                Ejemplos etiquetados de este nivel para calibrar el modelo. MP4, WebM o MOV.
+              </InfoTip>
             </div>
             <TrainingUploader skillId={skillId} level={level} onChanged={onChanged} />
             <TrainingSampleList level={level} samples={trainingSamples} onChanged={onChanged} />

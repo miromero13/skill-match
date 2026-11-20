@@ -97,7 +97,7 @@ export function TrainingUploader({ skillId, level, onChanged }: TrainingUploader
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5 sm:col-span-2">
           <Label htmlFor={fileId} className="text-xs">
-            Videos de entrenamiento (MP4, WebM o MOV)
+            Videos
           </Label>
           <Input
             ref={inputRef}
@@ -128,7 +128,7 @@ export function TrainingUploader({ skillId, level, onChanged }: TrainingUploader
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={participantFieldId} className="text-xs">
-            ID de participante (opcional)
+            Participante (opcional)
           </Label>
           <Input
             id={participantFieldId}
@@ -143,13 +143,13 @@ export function TrainingUploader({ skillId, level, onChanged }: TrainingUploader
       <div className="flex items-start gap-2">
         <Switch id={consentId} checked={consent} onCheckedChange={setConsent} disabled={isUploading} />
         <Label htmlFor={consentId} className="text-xs leading-snug font-normal">
-          Cuento con el consentimiento de las personas que aparecen en los videos
+          Tengo el consentimiento de las personas de los videos
         </Label>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {files.length > 0 && !consent ? (
-          <p className="text-xs text-amber-700 dark:text-amber-400">Activá el consentimiento para subir los videos.</p>
+          <p className="text-xs text-amber-700 dark:text-amber-400">Activá el consentimiento.</p>
         ) : (
           <span />
         )}

@@ -14,10 +14,10 @@ const STATUS_META: Record<SkillLabStepStatus, { icon: typeof CheckCircle2; tone:
   neutral: { icon: FlaskConical, tone: "text-muted-foreground" },
 }
 
-export function SkillLabStepStatusBadge({ status }: { status: SkillLabStepStatus }) {
+export function SkillLabStepStatusBadge({ status, className }: { status: SkillLabStepStatus; className?: string }) {
   const { icon: Icon, tone } = STATUS_META[status]
   return (
-    <Badge variant="outline" className={cn("shrink-0 border-border/60", tone)}>
+    <Badge variant="outline" className={cn("shrink-0 border-border/60", tone, className)}>
       <Icon />
       {STEP_STATUS_LABEL[status]}
     </Badge>
@@ -53,6 +53,7 @@ export function SkillLabStepper({ steps, current, onSelect }: SkillLabStepperPro
           const number = index + 1
           const isCurrent = number === current
           const { icon: StatusIcon, tone } = STATUS_META[step.status]
+          const showStatus = step.status !== "neutral"
           const statusLabel = STEP_STATUS_LABEL[step.status]
           return (
             <li key={`${step.kind}-${step.title}`} className="flex shrink-0 items-center md:min-w-0 md:flex-1 md:last:flex-none">
@@ -86,15 +87,13 @@ export function SkillLabStepper({ steps, current, onSelect }: SkillLabStepperPro
                     )}
                   />
                 </span>
-                <span className="hidden min-w-0 flex-col items-start text-left md:flex">
-                  <span className="text-xs font-semibold text-foreground">{step.label}</span>
-                  {step.kind === "level" && (
-                    <span className="max-w-full truncate text-[11px] text-muted-foreground">{step.level.name}</span>
-                  )}
-                  <span className={cn("flex items-center gap-1 text-[11px] font-medium", tone)}>
-                    <StatusIcon className="size-3!" />
-                    {statusLabel}
+                <span className="hidden min-w-0 flex-col items-start gap-0.5 text-left md:flex">
+                  <span className="max-w-full truncate text-xs font-semibold text-foreground">
+                    {step.kind === "level" ? `${step.label} · ${step.level.name}` : step.label}
                   </span>
+                  {showStatus && (
+                    <SkillLabStepStatusBadge status={step.status} className="h-4 px-1.5 text-[10px] [&>svg]:size-2.5!" />
+                  )}
                 </span>
               </Button>
               {number < total && (

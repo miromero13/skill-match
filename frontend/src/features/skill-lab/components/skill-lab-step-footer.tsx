@@ -26,10 +26,16 @@ export function SkillLabStepFooter({ current, total, nextTitle, onPrevious, onNe
         <ChevronLeft />
         Anterior
       </Button>
-      <span className="hidden text-xs text-muted-foreground tabular-nums sm:inline">{`Paso ${current} de ${total}`}</span>
+      <span className="hidden text-xs text-muted-foreground tabular-nums sm:inline">{`${current}/${total}`}</span>
       {nextTitle ? (
-        <Button type="button" onClick={onNext} className="min-w-0 max-w-[70%] sm:max-w-sm">
-          <span className="truncate">{`Siguiente: ${nextTitle}`}</span>
+        <Button
+          type="button"
+          onClick={onNext}
+          aria-label={`Siguiente: ${nextTitle}`}
+          title={nextTitle}
+          className="min-w-0 max-w-[70%] sm:max-w-sm"
+        >
+          Siguiente
           <ChevronRight />
         </Button>
       ) : (

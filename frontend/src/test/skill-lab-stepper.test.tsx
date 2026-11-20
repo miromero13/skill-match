@@ -185,8 +185,8 @@ describe("Skill lab step-by-step navigation (S8)", () => {
     const names = nav.getAllByRole("button").map((button) => button.getAttribute("aria-label"))
     expect(names).toEqual([
       "Paso 1: Nivel 1 · Básico — Completo",
-      "Paso 2: Nivel 2 · Saltos — Sin videos de entrenamiento",
-      "Paso 3: Nivel 3 · Avanzado — Falta referencia",
+      "Paso 2: Nivel 2 · Saltos — Sin videos",
+      "Paso 3: Nivel 3 · Avanzado — Sin referencia",
       "Paso 4: Entrenamiento — Sin entrenar",
       "Paso 5: Probar validación — Opcional",
     ])
@@ -275,9 +275,9 @@ describe("Skill lab step-by-step navigation (S8)", () => {
     expect(stepButton(1)).toHaveAttribute("data-status", "complete")
     expect(stepButton(1)).toHaveTextContent("Completo")
     expect(stepButton(2)).toHaveAttribute("data-status", "no-training")
-    expect(stepButton(2)).toHaveTextContent("Sin videos de entrenamiento")
+    expect(stepButton(2)).toHaveTextContent("Sin videos")
     expect(stepButton(3)).toHaveAttribute("data-status", "missing-reference")
-    expect(stepButton(3)).toHaveTextContent("Falta referencia")
+    expect(stepButton(3)).toHaveTextContent("Sin referencia")
     expect(stepButton(4)).toHaveAttribute("data-status", "complete")
     expect(stepButton(4)).toHaveTextContent("Completo")
     expect(stepButton(5)).toHaveAttribute("data-status", "neutral")
@@ -292,7 +292,7 @@ describe("Skill lab step-by-step navigation (S8)", () => {
     await user.click(screen.getByRole("button", { name: "Siguiente: Entrenamiento" }))
     expect(await screen.findByRole("button", { name: /Entrenar modelo/ })).toBeInTheDocument()
     const hint = screen.getByTestId("skill-lab-incomplete-hint")
-    expect(hint).toHaveTextContent("Nivel 3 · Avanzado quedó incompleto: falta el video de referencia.")
+    expect(hint).toHaveTextContent("Nivel 3 · Avanzado: falta la referencia.")
     expect(hint).not.toHaveClass("text-destructive")
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
 
@@ -321,7 +321,7 @@ describe("Skill lab step-by-step navigation (S8)", () => {
       "Paso 1: Entrenamiento — Sin entrenar",
       "Paso 2: Probar validación — Opcional",
     ])
-    expect(screen.getByText("Esta habilidad no tiene niveles configurados en el catálogo.")).toBeInTheDocument()
+    expect(screen.getByText("Sin niveles en el catálogo.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Entrenar modelo/ })).toBeInTheDocument()
   })
 
@@ -332,7 +332,7 @@ describe("Skill lab step-by-step navigation (S8)", () => {
     )
     renderLab()
     const readiness = await screen.findByTestId("skill-lab-readiness")
-    expect(readiness).toHaveTextContent("Pendientes antes de validar (4)")
+    expect(readiness).toHaveTextContent("Pendientes (4)")
     expect(readiness).toHaveTextContent("Pendiente A")
     expect(readiness).toHaveTextContent("Pendiente B")
     expect(readiness).not.toHaveTextContent("Pendiente C")

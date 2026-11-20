@@ -41,14 +41,12 @@ interface ValidationResultViewProps {
 
 export function ValidationResultView({ result, metricTypes }: ValidationResultViewProps) {
   const levels = [...result.levels].sort((a, b) => a.level_number - b.level_number)
-  const defaultOpen = result.achieved_level?.level_id ?? levels.find((level) => level.evaluable)?.level_id
   const score = clampScore(result.score)
 
   return (
     <div className="space-y-4" data-testid="skill-lab-validation-result">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">Nivel alcanzado:</span>
           <Badge
             data-testid="skill-lab-achieved-level"
             variant="outline"
@@ -58,9 +56,27 @@ export function ValidationResultView({ result, metricTypes }: ValidationResultVi
                 : "h-6 px-3 text-sm"
             }
           >
-            {result.achieved_level
-              ? `Nivel ${result.achieved_level.level_number} · ${result.achieved_level.name}`
-              : "Sin nivel alcanzado"}
+            {result.achieved_level ? (
+              <>
+                <span className="sr-only">Nivel alcanzado: </span>
+                {`Nivel ${result.achieved_level.level_number} · ${result.achieved_level.name}`}
+              </>
+            ) : (
+              "Sin nivel alcanzado"
+            )}
+          </Badge>
+          <Badge
+            data-testid="skill-lab-approved"
+            variant="outline"
+            className={
+              result.approved
+                ? "h-6 border-emerald-500/40 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300"
+                : "h-6 px-3 text-sm font-semibold text-muted-foreground"
+            }
+          >
+            {result.approved ? <CheckCircle2 /> : <XCircle />}
+            {result.approved ? "Aprobado" : "No aprobado"}
+            <span className="font-normal">{`(mín. ${formatPercent(result.min_approval_threshold)}%)`}</span>
           </Badge>
         </div>
         <p className="text-3xl font-bold text-foreground tabular-nums" data-testid="skill-lab-score">
@@ -70,31 +86,18 @@ export function ValidationResultView({ result, metricTypes }: ValidationResultVi
       </div>
       <Progress value={score} aria-label="Puntaje obtenido" />
 
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span
-          data-testid="skill-lab-approved"
-          className={
-            result.approved
-              ? "flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400"
-              : "flex items-center gap-1 font-semibold text-muted-foreground"
-          }
-        >
-          {result.approved ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
-          {`${result.approved ? "Aprobado" : "No aprobado"} (umbral ${formatPercent(result.min_approval_threshold)}%)`}
-        </span>
-        {result.model_level_estimate && (
-          <span data-testid="skill-lab-model-estimate" className="text-muted-foreground">
-            {`· Estimación del modelo: ${result.model_level_estimate.name} (${formatPercent(
-              result.model_level_estimate.confidence * 100
-            )}% de confianza)`}
-          </span>
-        )}
-      </div>
+      {result.model_level_estimate && (
+        <p data-testid="skill-lab-model-estimate" className="text-xs text-muted-foreground">
+          {`Estimación: ${result.model_level_estimate.name} (${formatPercent(
+            result.model_level_estimate.confidence * 100
+          )}%)`}
+        </p>
+      )}
 
       {result.notes.length > 0 && (
         <Alert variant="default" className={WARNING_ALERT_CLASS} data-testid="skill-lab-result-notes">
           <Info />
-          <AlertTitle>Observaciones del análisis</AlertTitle>
+          <AlertTitle>Observaciones</AlertTitle>
           <AlertDescription className="text-amber-800/90 dark:text-amber-300/90">
             <ul className="list-disc space-y-0.5 pl-4">
               {result.notes.map((note) => (
@@ -105,7 +108,7 @@ export function ValidationResultView({ result, metricTypes }: ValidationResultVi
         </Alert>
       )}
 
-      <Accordion type="multiple" defaultValue={defaultOpen ? [defaultOpen] : []} className="rounded-lg border border-border/60 px-3">
+      <Accordion type="multiple" defaultValue={[]} className="rounded-lg border border-border/60 px-3">
         {levels.map((level) => (
           <AccordionItem key={level.level_id} value={level.level_id} data-testid={`skill-lab-result-level-${level.level_id}`}>
             <AccordionTrigger className="py-3">
@@ -160,10 +163,10 @@ export function ValidationResultView({ result, metricTypes }: ValidationResultVi
       </Accordion>
 
       <p className="text-[11px] break-words text-muted-foreground">
-        Motor: <span className="font-mono">{result.engine_version}</span> · Modelo:{" "}
+        Motor <span className="font-mono">{result.engine_version}</span> · Modelo{" "}
         <span className="font-mono">{result.model_version ?? "sin calibrar"}</span>
-        {result.pose_detected_ratio !== null && ` · Persona detectada: ${formatPercent(result.pose_detected_ratio * 100)}% de los frames`}
-        {result.duration_seconds !== null && ` · Duración: ${result.duration_seconds.toFixed(1)} s`}
+        {result.pose_detected_ratio !== null && ` · Persona ${formatPercent(result.pose_detected_ratio * 100)}%`}
+        {result.duration_seconds !== null && ` · ${result.duration_seconds.toFixed(1)} s`}
       </p>
     </div>
   )

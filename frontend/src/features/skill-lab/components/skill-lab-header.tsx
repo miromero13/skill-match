@@ -63,7 +63,7 @@ export function SkillLabHeader({ config }: { config: SkillLabConfig }) {
         <div className="min-w-0 space-y-2">
           <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-emerald-600 uppercase dark:text-emerald-400">
             <FlaskConical className="size-3.5" />
-            Laboratorio de validación
+            Laboratorio
           </p>
           <h1 className="text-2xl font-extrabold tracking-tight break-words text-foreground md:text-3xl">
             {skill.name}
@@ -94,23 +94,18 @@ export function SkillLabHeader({ config }: { config: SkillLabConfig }) {
         >
           <CheckCircle2 />
           <AlertTitle>Listo para validar</AlertTitle>
-          <AlertDescription className="text-emerald-800/90 dark:text-emerald-300/90">
-            Todos los niveles tienen lo necesario para calificar videos.
-          </AlertDescription>
         </Alert>
       ) : (
         <Alert variant="default" data-testid="skill-lab-readiness" className={WARNING_ALERT_CLASS}>
           <Info />
           <AlertTitle>
-            {readiness.issues.length > 0
-              ? `Pendientes antes de validar (${readiness.issues.length})`
-              : "Pendientes antes de validar"}
+            {readiness.issues.length > 0 ? `Pendientes (${readiness.issues.length})` : "Pendientes"}
           </AlertTitle>
           <AlertDescription className="text-amber-800/90 dark:text-amber-300/90">
             {readiness.issues.length > 0 ? (
               <ReadinessIssues issues={readiness.issues} />
             ) : (
-              <p>El laboratorio todavía no está listo para validar.</p>
+              <p>Todavía no está listo para validar.</p>
             )}
           </AlertDescription>
         </Alert>

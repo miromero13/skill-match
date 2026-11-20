@@ -1,6 +1,6 @@
 import { useRef, useState, type ChangeEvent } from "react"
 import { AlertTriangle, FileVideo, Loader2, RotateCcw, Sparkles, UploadCloud } from "lucide-react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -21,11 +21,10 @@ import {
   WARNING_ALERT_CLASS,
 } from "../lib/skill-lab-utils"
 import type { SkillLabLevel, SkillValidationResult } from "../types"
+import { InfoTip } from "./info-tip"
 import { ValidationResultView } from "./validation-result"
 
 const AUTO_LEVEL = "__auto__"
-const VALIDATION_REQUEST_FAILURE =
-  "No se pudo conectar con el servidor para validar el video. Verificá la conexión e intentá de nuevo."
 
 type ValidationState =
   | { kind: "idle" }
@@ -65,7 +64,7 @@ export function ValidationCard({ skillId, levels, metricTypes }: ValidationCardP
       setState({ kind: "result", result })
     } catch (error) {
       if (requestId !== requestIdRef.current) return
-      setState({ kind: "request-failed", message: requestFailureMessage(error, VALIDATION_REQUEST_FAILURE) })
+      setState({ kind: "request-failed", message: requestFailureMessage(error) })
     }
   }
 
@@ -75,17 +74,18 @@ export function ValidationCard({ skillId, levels, metricTypes }: ValidationCardP
         <CardTitle className="flex items-center gap-2 text-lg font-semibold">
           <FileVideo className="size-5 text-emerald-500" />
           Probar validación
+          <InfoTip label="Ayuda: probar validación">
+            Califica un video con toda la configuración de la habilidad. Herramienta de laboratorio: no genera una
+            validación oficial. MP4, WebM o MOV.
+          </InfoTip>
         </CardTitle>
-        <CardDescription>
-          Subí un video para calificarlo con toda la configuración de la habilidad. Herramienta de laboratorio: no
-          consume intentos ni genera una validación oficial.
-        </CardDescription>
+        <CardDescription>No consume intentos.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_1fr_auto]">
           <div className="space-y-1.5">
             <Label htmlFor="skill-lab-validate-file" className="text-xs">
-              Video a validar (MP4, WebM o MOV)
+              Video
             </Label>
             <Input
               id="skill-lab-validate-file"
@@ -103,7 +103,7 @@ export function ValidationCard({ skillId, levels, metricTypes }: ValidationCardP
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={AUTO_LEVEL}>Detectar nivel automáticamente</SelectItem>
+                <SelectItem value={AUTO_LEVEL}>Automático</SelectItem>
                 {levels.map((level) => (
                   <SelectItem key={level.id} value={level.id}>
                     {`Nivel ${level.level_number} · ${level.name}`}
@@ -129,8 +129,7 @@ export function ValidationCard({ skillId, levels, metricTypes }: ValidationCardP
 
         {file && (
           <p className="text-xs break-all text-muted-foreground">
-            Archivo seleccionado: <span className="font-medium text-foreground">{file.name}</span> (
-            {formatFileSize(file.size)})
+            <span className="font-medium text-foreground">{file.name}</span> · {formatFileSize(file.size)}
           </p>
         )}
 
@@ -140,14 +139,13 @@ export function ValidationCard({ skillId, levels, metricTypes }: ValidationCardP
             role="status"
           >
             <Loader2 className="size-4 shrink-0 animate-spin text-emerald-500" />
-            <span>Analizando video… puede tardar unos minutos</span>
+            <span>Analizando… puede tardar unos minutos</span>
           </div>
         )}
 
         {state.kind === "request-failed" && (
           <Alert variant="default" className={WARNING_ALERT_CLASS} data-testid="skill-lab-validation-warning">
             <AlertTriangle />
-            <AlertTitle>No se pudo completar la solicitud</AlertTitle>
             <AlertDescription className="space-y-2 text-amber-800/90 dark:text-amber-300/90">
               <p>{state.message}</p>
               <Button variant="outline" size="sm" onClick={runValidation} disabled={!file}>
@@ -162,7 +160,7 @@ export function ValidationCard({ skillId, levels, metricTypes }: ValidationCardP
           <>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
               <Sparkles className="size-3.5" />
-              Resultado de la validación
+              Resultado
             </div>
             <ValidationResultView result={state.result} metricTypes={metricTypes} />
           </>

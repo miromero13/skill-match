@@ -1150,9 +1150,10 @@ export function AdminCatalogPage() {
                                             : "border-amber-500/40 bg-amber-500/10 text-amber-300 text-xs"
                                         }
                                       >
+                                        {valid ? <CheckCircle2 /> : <AlertTriangle />}
                                         {valid
                                           ? `Total: ${formatPercent(total)}%`
-                                          : `Total: ${formatPercent(total)}% — debe sumar 100%`}
+                                          : `Total: ${formatPercent(total)}% de 100%`}
                                       </Badge>
                                     )
                                   })()}
@@ -1219,7 +1220,7 @@ export function AdminCatalogPage() {
                                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
                                           <div className={needsTarget ? "sm:col-span-8 space-y-1" : "sm:col-span-12 space-y-1"}>
                                             <Label htmlFor={`${rowId}-metric`} className="text-[11px] font-semibold text-[#8B9D9F] uppercase tracking-wider">
-                                              Tipo de medición
+                                              Medición
                                             </Label>
                                             <Select
                                               value={metricType}
@@ -1281,7 +1282,7 @@ export function AdminCatalogPage() {
               {criteriaIssues.length > 0 && (
                 <Alert variant="default" className={WARNING_ALERT_CLASS} data-testid="criteria-issues">
                   <AlertTriangle />
-                  <AlertTitle>Revisá los criterios antes de guardar</AlertTitle>
+                  <AlertTitle>Revisá los criterios</AlertTitle>
                   <AlertDescription className="text-amber-800/90 dark:text-amber-300/90">
                     <ul className="list-disc space-y-0.5 pl-4">
                       {criteriaIssues.map((issue) => (

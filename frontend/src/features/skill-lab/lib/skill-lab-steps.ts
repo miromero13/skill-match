@@ -20,8 +20,8 @@ export type SkillLabStep =
 
 export const STEP_STATUS_LABEL: Record<SkillLabStepStatus, string> = {
   complete: "Completo",
-  "missing-reference": "Falta referencia",
-  "no-training": "Sin videos de entrenamiento",
+  "missing-reference": "Sin referencia",
+  "no-training": "Sin videos",
   untrained: "Sin entrenar",
   neutral: "Opcional",
 }
@@ -62,8 +62,8 @@ export function levelStepStatus(level: SkillLabLevel): LevelStepStatus {
 /** Aviso no bloqueante al salir de un nivel incompleto; `null` cuando el nivel está completo. */
 export function incompleteLevelMessage(level: SkillLabLevel): string | null {
   const status = levelStepStatus(level)
-  if (status === "missing-reference") return `${levelTitle(level)} quedó incompleto: falta el video de referencia.`
-  if (status === "no-training") return `${levelTitle(level)} quedó incompleto: no tiene videos de entrenamiento.`
+  if (status === "missing-reference") return `${levelTitle(level)}: falta la referencia.`
+  if (status === "no-training") return `${levelTitle(level)}: sin videos de entrenamiento.`
   return null
 }
 
