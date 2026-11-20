@@ -1,5 +1,6 @@
 """Explicit deployment-only provisioning of the local vision models: face models (YuNet, SFace, MediaPipe
-FaceLandmarker) and the football ball detector (MediaPipe EfficientDet-Lite0, COCO "sports ball").
+FaceLandmarker), the football ball detector (MediaPipe EfficientDet-Lite0, COCO "sports ball") and the
+skill validation body pose model (MediaPipe PoseLandmarker full).
 
 No request path imports or runs this script. Every artifact is pinned by SHA-256: it is verified after
 download and again on every run, written atomically (temp file + rename) and never overwritten when
@@ -41,7 +42,16 @@ FOOTBALL_MODELS: dict[str, tuple[str, str]] = {
         "40338edf5ec70d43e318b0a716a84d4564cd1802759a7a07170c7e43796dbf58",
     ),
 }
-ALL_MODELS: dict[str, tuple[str, str]] = {**MODELS, **FOOTBALL_MODELS}
+# Skill validation engine (app/skill_validation/pose.py): 3D body pose for reference-video replication.
+# "full" balances CPU cost (~20-30 CPU s per minute of 720p at 10 fps) and landmark stability; "heavy"
+# costs ~3x more for no measurable gain on the local footage.
+SKILL_VALIDATION_MODELS: dict[str, tuple[str, str]] = {
+    "pose_landmarker_full.task": (
+        MEDIAPIPE + "pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+        "5134a3aad27a58b93da0088d431f366da362b44e3ccfbe3462b3827a839011b1",
+    ),
+}
+ALL_MODELS: dict[str, tuple[str, str]] = {**MODELS, **FOOTBALL_MODELS, **SKILL_VALIDATION_MODELS}
 
 
 def digest(path: Path) -> str:
@@ -103,7 +113,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Install pinned local vision models (YuNet, SFace, MediaPipe FaceLandmarker, "
-            "EfficientDet-Lite0); never overwrite existing files."
+            "EfficientDet-Lite0, PoseLandmarker full); never overwrite existing files."
         )
     )
     parser.add_argument("--verify-only", action="store_true", help="Check existing SHA256 hashes without network or file writes.")
