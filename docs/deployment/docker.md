@@ -23,7 +23,7 @@ Requisitos: Docker Engine con Compose **≥ 2.24** (`!reset`/`!override`). Imág
 | `sandbox-docker` | `docker:28-dind` (**privileged**) | Daemon Docker aislado del sandbox, TLS en `:2376` | `sandbox` | `sandbox-docker-data`, `sandbox-certs-ca`, `sandbox-certs-client`, `sandbox-work` | — |
 | `sandbox-init` | `docker:28-cli` (one-shot) | `docker pull $SANDBOX_DOCKER_IMAGE` en dind | `sandbox` | `sandbox-certs-client` (ro) | — |
 | `init-volumes` | backend (one-shot, root) | `chown 10001` de `/app/storage` y `/sandbox-work` | ninguna | `backend-storage`, `sandbox-work` | — |
-| `migrate` | backend (one-shot) | `alembic upgrade heads` (en prod: perfil `ops`) | `data` | — | — |
+| `migrate` | backend (one-shot) | `alembic upgrade heads` (VPS con overlay: perfil `ops`; Coolify: en cada deploy) | `data` | — | — |
 | `backend` | backend (`api`) | FastAPI/uvicorn `:8000` | `default`, `data`, `sandbox` | `backend-storage`, `sandbox-work`, `sandbox-certs-client` (ro) | dev: `127.0.0.1:8000` |
 | `worker` | backend (`worker`) | Celery worker | `default`, `data` | `backend-storage` | — |
 | `beat` | backend (`beat`) | Celery beat (recordatorios) | `default`, `data` | `backend-storage` | — |
