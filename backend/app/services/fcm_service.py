@@ -53,7 +53,8 @@ def _resolve_credentials_path(raw: str) -> Path | None:
     path = Path(raw)
     if path.is_absolute():
         return path if path.exists() else None
-    for candidate in (Path.cwd() / path, BASE_DIR / path):
+    # BASE_DIR is backend/; also accept running from the repo root (cwd/backend/...).
+    for candidate in (BASE_DIR / path, Path.cwd() / path, Path.cwd() / "backend" / path):
         if candidate.exists():
             return candidate
     return None
