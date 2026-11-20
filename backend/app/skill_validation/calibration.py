@@ -5,6 +5,10 @@ labeled videos per level this module (1) fits how tolerant the reference compari
 examples of a level score well while lower-level examples do not pass it, bounded around the defaults,
 and (2) stores one prototype per level over a small feature vector (similarity to every level reference
 + ball streak) for a nearest-prototype level estimate with a confidence. Works with zero samples.
+
+People are not perfect and do not all film from the same angle (S6), so a level/criterion tolerance may
+always be loosened, but it is only tightened below the defaults with ``MIN_SAMPLES_TO_TIGHTEN`` genuine
+examples, and never so far that one of those genuine examples fails its own level when that is avoidable.
 """
 from __future__ import annotations
 
@@ -28,6 +32,7 @@ from app.skill_validation.evaluation import Comparator, criterion_reference, lev
 logger = logging.getLogger("skillmatch.skill_validation.calibration")
 
 RECOMMENDED_SAMPLES_PER_LEVEL = 3
+MIN_SAMPLES_TO_TIGHTEN = 5  # genuine examples a level/criterion needs before its tolerance may go below the default
 FIT_D_FULL_RANGE = (0.6, 2.0)  # multipliers of the default
 FIT_D_ZERO_RANGE = (0.7, 1.6)
 FIT_GRID = 13
@@ -43,6 +48,9 @@ NOTE_NO_POSE = "{n} video(s) de entrenamiento no tienen una pose utilizable y no
 NOTE_NO_LEVEL_REFERENCE = "El nivel «{name}» no tiene video de referencia; sus videos no ajustaron tolerancias."
 NOTE_ESTIMATOR_NEEDS_LEVELS = "Se necesitan videos de al menos 2 niveles para estimar el nivel del usuario."
 NOTE_LOO_NEEDS_SAMPLES = "Se necesitan al menos 2 videos en algún nivel para medir la precisión del modelo."
+NOTE_NO_TIGHTEN = (
+    f"Con menos de {MIN_SAMPLES_TO_TIGHTEN} videos por nivel la tolerancia no se reduce; solo puede ampliarse."
+)
 NOTE_INTERNAL = "Ocurrió un fallo interno al entrenar; se guardó una calibración por defecto."
 
 
@@ -61,31 +69,63 @@ def _default_calibration(skill_id: str) -> dict[str, Any]:
     }
 
 
+def _grid(default: float, bounds: tuple[float, float]) -> list[float]:
+    values = {float(v) for v in np.geomspace(default * bounds[0], default * bounds[1], FIT_GRID)}
+    values.add(float(default))
+    return sorted(values)
+
+
 def fit_tolerance(
     positives: list[similarity.Comparison], negatives: list[similarity.Comparison], min_score: float,
-    default: tuple[float, float],
+    default: tuple[float, float], *, allow_tighten: bool = True,
 ) -> tuple[float, float]:
-    """Bounded grid search: positives above ``min_score``, negatives below, close to the default."""
+    """Bounded grid search: positives above ``min_score``, negatives below, close to the default.
+
+    Without ``allow_tighten`` no candidate is below the default. Candidates that keep every positive at or
+    above ``min_score`` win over any that fails one; only when none exists does the plain objective decide.
+    """
     f0, z0 = default
-    best: tuple[float, float, float] | None = None
-    fulls = np.geomspace(f0 * FIT_D_FULL_RANGE[0], f0 * FIT_D_FULL_RANGE[1], FIT_GRID)
-    zeros = np.geomspace(z0 * FIT_D_ZERO_RANGE[0], z0 * FIT_D_ZERO_RANGE[1], FIT_GRID)
-    for f in fulls:
-        for z in zeros:
-            clean = similarity.sanitize_tolerance(f, z)
+    best: tuple[bool, float, float, float] | None = None
+    for f in _grid(f0, FIT_D_FULL_RANGE):
+        for z in _grid(z0, FIT_D_ZERO_RANGE):
+            clean = similarity.sanitize_tolerance(round(f, 2), round(z, 2))
             if clean is None:
                 continue
             f_c, z_c = clean
-            pos = np.mean([np.clip((c.score(f_c, z_c) - min_score) / FIT_MARGIN, -1, 1) for c in positives])
+            if not allow_tighten and (f_c < f0 - 1e-9 or z_c < z0 - 1e-9):
+                continue
+            scores = [c.score(f_c, z_c) for c in positives]
+            all_pass = bool(scores) and all(score >= min_score for score in scores)
+            pos = np.mean([np.clip((score - min_score) / FIT_MARGIN, -1, 1) for score in scores])
             neg = (np.mean([np.clip((min_score - c.score(f_c, z_c)) / FIT_MARGIN, -1, 1) for c in negatives])
                    if negatives else 0.0)
             reg = FIT_REGULARIZATION * (abs(math.log(f_c / f0)) + abs(math.log(z_c / z0)))
             objective = float(pos + neg - reg)
-            if best is None or objective > best[0] + 1e-9:
-                best = (objective, f_c, z_c)
+            if (best is None or (all_pass and not best[0])
+                    or (all_pass == best[0] and objective > best[1] + 1e-9)):
+                best = (all_pass, objective, f_c, z_c)
     if best is None:
         return default
-    return best[1], best[2]
+    return best[2], best[3]
+
+
+def _fit(
+    positives: list[similarity.Comparison], negatives: list[similarity.Comparison], min_score: float,
+    default: tuple[float, float],
+) -> tuple[float, float, dict[str, Any]]:
+    """Fit with the sample-count rule; ``info`` says whether tightening was allowed or skipped."""
+    allowed = len(positives) >= MIN_SAMPLES_TO_TIGHTEN
+    f, z = fit_tolerance(positives, negatives, min_score, default, allow_tighten=allowed)
+    skipped = False
+    if not allowed:
+        f_free, z_free = fit_tolerance(positives, negatives, min_score, default, allow_tighten=True)
+        skipped = f_free < default[0] - 1e-9 or z_free < default[1] - 1e-9
+    info = {
+        "tightening_allowed": allowed,
+        "tightening_skipped": skipped,
+        "positives_pass": bool(positives) and all(c.score(f, z) >= min_score for c in positives),
+    }
+    return f, z, info
 
 
 def _usable_reference(reference: dict | None) -> bool:
@@ -259,6 +299,7 @@ def _calibrate(skill: SkillSpec, samples: list[Any]) -> dict[str, Any]:
     no_pose = sum(1 for group in per_level.values() for s in group if comparator_for(s).user is None)
     metrics_tol: dict[str, Any] = {}
     metrics_fit: dict[str, Any] = {}
+    tightening_skipped = False
     for level in levels:
         lid = str(level.level_id)
         group = per_level[lid]
@@ -279,15 +320,17 @@ def _calibrate(skill: SkillSpec, samples: list[Any]) -> dict[str, Any]:
             pos = comparisons(level.reference, group)
             neg = comparisons(level.reference, lower)
             if pos:
-                f, z = fit_tolerance(pos, neg, float(level.min_score), default)
+                f, z, info = _fit(pos, neg, float(level.min_score), default)
+                tightening_skipped = tightening_skipped or info["tightening_skipped"]
                 entry["tolerance"] = _tol(f, z)
-                metrics_tol[lid] = {**_tol(f, z), "source": "level"}
+                metrics_tol[lid] = {**_tol(f, z), "source": "level", "tightening_allowed": info["tightening_allowed"]}
                 metrics_fit[lid] = {
                     "positives": len(pos),
                     "negatives": len(neg),
                     "mean_distance_deg": round(float(np.mean([c.distance for c in pos])), 2),
                     "mean_score_default": round(float(np.mean([c.score(*default) for c in pos])), 2),
                     "mean_score_calibrated": round(float(np.mean([c.score(f, z) for c in pos])), 2),
+                    **info,
                 }
         for criterion in level_criteria(level):
             if criterion.metric_type != METRIC_REFERENCE_REPLICATION:
@@ -301,11 +344,18 @@ def _calibrate(skill: SkillSpec, samples: list[Any]) -> dict[str, Any]:
             if not pos:
                 continue
             neg = comparisons(reference, lower)
-            f, z = fit_tolerance(pos, neg, float(level.min_score), default)
+            f, z, info = _fit(pos, neg, float(level.min_score), default)
+            tightening_skipped = tightening_skipped or info["tightening_skipped"]
             entry["criteria"][str(criterion.key)] = {
                 "reference_fingerprint": similarity.pose_fingerprint(reference.get("pose")),
                 "tolerance": _tol(f, z),
                 "samples": len(crit_group),
+            }
+            metrics_tol.setdefault(lid, {}).setdefault("criteria", {})[str(criterion.key)] = {
+                **_tol(f, z), "tightening_allowed": info["tightening_allowed"],
+            }
+            metrics_fit.setdefault(lid, {}).setdefault("criteria", {})[str(criterion.key)] = {
+                "positives": len(pos), "negatives": len(neg), **info,
             }
         calibration["levels"][lid] = entry
 
@@ -355,6 +405,8 @@ def _calibrate(skill: SkillSpec, samples: list[Any]) -> dict[str, Any]:
             n = len(per_level[str(level.level_id)])
             if 0 < n < RECOMMENDED_SAMPLES_PER_LEVEL:
                 notes.append(NOTE_FEW_SAMPLES.format(name=level.name, n=n))
+    if tightening_skipped:
+        notes.append(NOTE_NO_TIGHTEN)
     if unknown:
         notes.append(NOTE_UNKNOWN_LEVEL.format(n=unknown))
     if no_pose:
@@ -376,5 +428,6 @@ def _calibrate(skill: SkillSpec, samples: list[Any]) -> dict[str, Any]:
         "tolerances": metrics_tol,
         "fit": metrics_fit,
         "default_tolerance": _tol(*default),
+        "min_samples_to_tighten": MIN_SAMPLES_TO_TIGHTEN,
     }
     return {"calibration": calibration, "metrics": metrics, "notes": notes}
