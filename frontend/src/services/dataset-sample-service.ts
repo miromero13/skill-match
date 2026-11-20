@@ -8,9 +8,12 @@ import type {
 import type { APIResponse } from "@/types/api"
 
 export interface FluteFeatures {
+  /** 62 floats, layout documented in flute-note-specs.ts (flute-audio-pitch-v1). */
   audio_features: number[]
+  audio_schema: "flute-audio-pitch-v1"
+  /** 50 floats (25 per hand slot, slot 0 = user's left hand). */
   visual_features: number[]
-  visual_schema: "hand-landmarks-palm-v4"
+  visual_schema: "hand-landmarks-palm-v5"
 }
 
 export interface FluteLabels extends FluteFeatures {
@@ -26,34 +29,78 @@ export interface FluteClassProbability {
   probability: number
 }
 
+/** State of one front hole (1-3 left hand, 4-7 right hand) seen by the camera. */
+export interface FluteFingerState {
+  hole: number
+  /** Expected state for the evaluated note (true = covered), null when no note is evaluated. */
+  expected: boolean | null
+  covered_probability: number
+  /** null when no note is evaluated or the camera is unsure (probability in 0.35..0.65). */
+  match: boolean | null
+}
+
 export interface FluteInference {
   model_id: string
   model_version: string
   validated: boolean
   experimental?: boolean
   target_note: string | null
+  /** Pitch-first decision: detected note, or NO_FLAUTA when silent/not flute/out of tune. */
   sound_class: string
   sound_confidence: number
   sound_ok: boolean
   top_sound_classes?: FluteClassProbability[]
-  posture_class: string
-  posture_confidence: number
+  voiced: boolean
+  pitch_hz: number | null
+  pitch_note: string | null
+  pitch_cents_off: number | null
+  /** Probability (0..1) that the frame sounds like a flute (MLP head). */
+  flute_probability: number
   posture_ok: boolean | null
   posture_evaluable: boolean
   posture_reason: string | null
-  top_posture_classes?: FluteClassProbability[]
+  finger_states: FluteFingerState[] | null
+  finger_match_ratio: number | null
+  /** Holes the camera confidently sees in the wrong state (any one fails the posture). */
+  mismatched_holes: number[]
+  /** Holes the camera cannot see clearly (at most one is tolerated). */
+  uncertain_holes: number[]
   combined_note?: string | null
   combined_match?: boolean
 }
 
+export interface FluteClassReport {
+  precision: number | null
+  recall: number | null
+  support: number
+}
+
 interface FluteHeadMetrics {
   train_accuracy?: number | null
+  /** Frame-level accuracy on the held-out split. */
   test_accuracy: number | null
-  rule_baseline_accuracy?: number | null
+  /** Take-level accuracy (frames of one video aggregated) on the held-out split. */
+  sample_test_accuracy?: number | null
   majority_baseline_accuracy?: number | null
   classes: string[]
+  /** Take-level confusion matrix [true][pred] on the held-out split. */
   confusion_matrix: number[][]
+  per_class?: Record<string, FluteClassReport>
+  per_participant?: Record<string, number | null>
   train_class_counts: Record<string, number>
+  loss_history: Array<{ epoch: number; loss: number }>
+}
+
+interface FluteFingerMetrics {
+  holes: number[]
+  /** Mean per-hole accuracy (frames). */
+  train_accuracy: number | null
+  test_accuracy: number | null
+  majority_baseline_accuracy: number | null
+  /** Fraction of held-out takes whose fingering was fully recognised. */
+  sample_test_accuracy: number | null
+  per_hole: Array<{ hole: number; test_accuracy: number | null; baseline: number | null }>
+  train_frames: number
   loss_history: Array<{ epoch: number; loss: number }>
 }
 
@@ -64,13 +111,17 @@ export interface FluteModelVersionItem {
   metricas: {
     validated: boolean
     validation_note: string
+    /** participant = independent people; session = same person, other day; take = same session. */
+    split_mode?: "participant" | "session" | "take" | "none"
     labeled_samples: number
     train_samples: number
     test_samples: number
     sound: FluteHeadMetrics
-    posture: FluteHeadMetrics
+    fingers?: FluteFingerMetrics
+    tuning_offset_cents?: number
     latency_ms_per_inference: number
     visual_schema?: string
+    audio_schema?: string
     metric_unit?: string
   }
 }

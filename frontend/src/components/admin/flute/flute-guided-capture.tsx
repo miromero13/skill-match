@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Video,
   Play,
@@ -23,12 +24,16 @@ import {
   Volume2,
 } from "lucide-react"
 import {
+  FLUTE_AUDIO_SCHEMA,
   FLUTE_NOTES_MAP,
   FLUTE_ORDERED_NOTES,
   FLUTE_VARIATIONS_LIST,
   RECOMMENDED_TAKES_PER_NOTE,
+  computePitchAgreement,
   extractFluteAudioFeatures,
+  gateFluteFrames,
   measureAudioActivity,
+  pitchAgreementRejection,
   type FluteNoteName,
   type FluteVariationType,
 } from "./flute-note-specs"
@@ -85,6 +90,13 @@ export function FluteGuidedCapture({
   const [clipProgressPct, setClipProgressPct] = useState(0)
   const [isSavingClip, setIsSavingClip] = useState(false)
   const [statusBanner, setStatusBanner] = useState<string | null>(null)
+  // Pitch agreement of the last flute take (review UI + quality gate)
+  const [pitchReview, setPitchReview] = useState<{
+    note: FluteNoteName
+    agreement: number
+    voicedFrames: number
+    rejection: string | null
+  } | null>(null)
 
   // Live audio activity (energy only, no frequency/Hz) & hand telemetry
   const [audioActive, setAudioActive] = useState(false)
@@ -210,6 +222,7 @@ export function FluteGuidedCapture({
           if (visualFeatures && recorderRef.current?.state === "recording") {
             featureFramesRef.current.push({
               audio_features: extractFluteAudioFeatures(analyser, ctx.sampleRate),
+              audio_schema: FLUTE_AUDIO_SCHEMA,
               visual_features: visualFeatures,
               visual_schema: FLUTE_VISUAL_SCHEMA,
             })
@@ -305,6 +318,7 @@ export function FluteGuidedCapture({
     targetVar: FluteVariationType
   ) => {
     featureFramesRef.current = []
+    setPitchReview(null)
     setIsRecordingClip(true)
     setClipProgressPct(0)
 
@@ -367,11 +381,25 @@ export function FluteGuidedCapture({
     setIsSavingClip(true)
     setStatusBanner(`Guardando muestra de Nota ${targetNote} (${targetVar})...`)
     try {
-      const frames = featureFramesRef.current.filter(
-        (frame) =>
-          postureLabel !== "correcta" ||
-          countDetectedHands(frame.visual_features) >= FLUTE_NOTES_MAP[targetNote].handsRequired
+      // Silence gating: flute takes keep only voiced frames (voz/ruido negatives keep all), max 120.
+      const frames = gateFluteFrames(
+        featureFramesRef.current.filter(
+          (frame) =>
+            postureLabel !== "correcta" ||
+            countDetectedHands(frame.visual_features) >= FLUTE_NOTES_MAP[targetNote].handsRequired
+        ),
+        soundLabel
       )
+      if (soundLabel === "flauta") {
+        // Quality gate: the detected pitch must match the labeled note before anything is uploaded.
+        const pitch = computePitchAgreement(frames.map((frame) => frame.audio_features), targetNote)
+        const rejection = pitchAgreementRejection(pitch, targetNote)
+        setPitchReview({ note: targetNote, agreement: pitch.agreement, voicedFrames: pitch.voicedFrames, rejection })
+        if (rejection) {
+          setStatusBanner(null)
+          return
+        }
+      }
       const features = frames[Math.floor(frames.length / 2)]
       if (!features || frames.length < 3) {
         throw new Error(
@@ -464,7 +492,7 @@ export function FluteGuidedCapture({
               Capturador de Notas y Posición de Manos (Sonido de Flauta: DO a SI + Agudos y FA#)
             </CardTitle>
             <CardDescription className="text-xs">
-              Captura el <strong>timbre real del sonido de la flauta</strong> (sin medición por frecuencia/Hz) junto con las{" "}
+              Captura el <strong>timbre y la altura (Hz) del sonido de la flauta</strong> junto con las{" "}
               <strong>21 articulaciones y flexión de dedos por mano</strong>. 11 notas × 2 tomas de 4s = 22 grabaciones cortas.
             </CardDescription>
           </div>
@@ -783,6 +811,19 @@ export function FluteGuidedCapture({
                 </div>
               )}
             </div>
+
+            {pitchReview && (
+              <Alert variant={pitchReview.rejection ? "destructive" : "default"}>
+                <AlertTitle>
+                  Altura detectada · Nota {pitchReview.note}: coincidencia{" "}
+                  {Math.round(pitchReview.agreement * 100)}% ({pitchReview.voicedFrames} fotogramas con sonido)
+                </AlertTitle>
+                <AlertDescription>
+                  {pitchReview.rejection ??
+                    "La altura coincide con la nota etiquetada. Solo se guardan los fotogramas con sonido."}
+                </AlertDescription>
+              </Alert>
+            )}
 
             {statusBanner && (
               <div className="p-2.5 rounded-lg bg-background border border-emerald-500/30 text-xs font-medium text-foreground flex items-center justify-between">

@@ -4,7 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getDatasetSampleContent, saveFluteLabels, type FluteFeatures, type FlutePreviewSample } from "@/services/dataset-sample-service"
-import { FLUTE_NOTES_MAP, extractFluteAudioFeatures, type FluteNoteName } from "./flute-note-specs"
+import {
+  FLUTE_AUDIO_SCHEMA, FLUTE_MAX_FEATURE_FRAMES, FLUTE_NOTES_MAP, computePitchAgreement, extractFluteAudioFeatures,
+  gateFluteFrames, isVoicedAudioFrame, pitchAgreementRejection, type FluteNoteName,
+} from "./flute-note-specs"
 import { FLUTE_VISUAL_SCHEMA, countDetectedHands, freshHandFrame, type HandFrame } from "./flute-hand-features"
 import { FluteHandOverlay } from "./flute-hand-overlay"
 
@@ -14,7 +17,7 @@ export function FluteVideoReprocessor({ samples, onSaved }: { samples: FlutePrev
   return <Card>
     <CardHeader><CardTitle>Reutilizar videos guardados</CardTitle></CardHeader>
     <CardContent className="space-y-3">
-      <p className="text-sm">No hace falta subirlos otra vez. Selecciona un video etiquetado, reprodúcelo para detectar las manos y extraer el timbre de audio + articulaciones de dedos. Se conservan participante y etiquetas.</p>
+      <p className="text-sm">No hace falta subirlos otra vez. Selecciona un video etiquetado, reprodúcelo para detectar las manos y extraer timbre + altura de audio (flute-audio-pitch-v1) y articulaciones de dedos (hand-landmarks-palm-v5). Se conservan participante y etiquetas.</p>
       <Select value={id} onValueChange={setId}><SelectTrigger aria-label="Video para reprocesar"><SelectValue placeholder="Seleccionar video" /></SelectTrigger>
         <SelectContent>{samples.filter(s => s.file_format === "mp4" && s.sound_label && s.posture_label && s.participant_id).map(s =>
           <SelectItem key={s.id} value={s.id}>{s.participant_id} · {s.note_label ?? s.sound_label} · {s.id.slice(0, 8)} {s.labeled ? "(articulaciones)" : "(pendiente)"}</SelectItem>)}</SelectContent>
@@ -35,6 +38,10 @@ function ReprocessVideo({ sample, onSaved }: { sample: FlutePreviewSample; onSav
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState("Cargando video guardado…")
   const [count, setCount] = useState(0)
+  const [pitchSummary, setPitchSummary] = useState<{ agreement: number; voicedFrames: number; rejected: boolean } | null>(null)
+  const isFluteTake = sample.sound_label === "flauta"
+  const labeledNote = sample.note_label && Object.hasOwn(FLUTE_NOTES_MAP, sample.note_label)
+    ? sample.note_label as FluteNoteName : null
   useEffect(() => {
     let disposed = false
     void getDatasetSampleContent(sample.id).then(response => {
@@ -56,9 +63,17 @@ function ReprocessVideo({ sample, onSaved }: { sample: FlutePreviewSample; onSav
     processingRef.current = false
     clearInterval(timerRef.current)
     try {
-      const frames = framesRef.current
-      if (frames.length < 3) throw new Error("No se detectaron suficientes articulaciones. No se modificaron las etiquetas anteriores.")
       if (!sample.participant_id || !sample.sound_label || !sample.posture_label) throw new Error("Faltan etiquetas revisadas.")
+      const frames = gateFluteFrames(framesRef.current, sample.sound_label)
+      if (isFluteTake && labeledNote) {
+        const pitch = computePitchAgreement(frames.map(frame => frame.audio_features), labeledNote)
+        const rejection = pitchAgreementRejection(pitch, labeledNote)
+        setPitchSummary({ agreement: pitch.agreement, voicedFrames: pitch.voicedFrames, rejected: rejection !== null })
+        if (rejection) throw new Error(`${rejection} No se modificaron las etiquetas anteriores.`)
+      }
+      if (frames.length < 3) throw new Error(isFluteTake
+        ? "No se detectaron suficientes fotogramas con manos y sonido. No se modificaron las etiquetas anteriores."
+        : "No se detectaron suficientes articulaciones. No se modificaron las etiquetas anteriores.")
       const response = await saveFluteLabels(sample.id, { ...frames[Math.floor(frames.length / 2)],
         feature_frames: frames, participant_id: sample.participant_id, note_label: sample.note_label,
         sound_label: sample.sound_label, posture_label: sample.posture_label })
@@ -91,6 +106,7 @@ function ReprocessVideo({ sample, onSaved }: { sample: FlutePreviewSample; onSav
       handRef.current = null
       framesRef.current = []
       setCount(0)
+      setPitchSummary(null)
       setBusy(true)
       processingRef.current = true
       await video.play()
@@ -98,13 +114,15 @@ function ReprocessVideo({ sample, onSaved }: { sample: FlutePreviewSample; onSav
         const frame = freshHandFrame(handRef.current)
         const audio = audioRef.current
         if (!frame || !audio || video.paused || video.seeking) return
-        const required = sample.note_label && Object.hasOwn(FLUTE_NOTES_MAP, sample.note_label)
-          ? FLUTE_NOTES_MAP[sample.note_label as FluteNoteName].handsRequired : 1
+        const required = labeledNote ? FLUTE_NOTES_MAP[labeledNote].handsRequired : 1
         if (sample.posture_label === "correcta" && countDetectedHands(frame.features) < required) return
+        const audioFeatures = extractFluteAudioFeatures(audio.analyser, audio.ctx.sampleRate)
+        // Silence gating: flute takes keep only voiced frames; voz/ruido negatives keep all.
+        if (isFluteTake && !isVoicedAudioFrame(audioFeatures)) return
         framesRef.current.push({ visual_schema: FLUTE_VISUAL_SCHEMA, visual_features: frame.features,
-          audio_features: extractFluteAudioFeatures(audio.analyser, audio.ctx.sampleRate) })
+          audio_schema: FLUTE_AUDIO_SCHEMA, audio_features: audioFeatures })
         setCount(framesRef.current.length)
-        if (framesRef.current.length >= 120) { video.pause(); void finish() }
+        if (framesRef.current.length >= FLUTE_MAX_FEATURE_FRAMES) { video.pause(); void finish() }
       }, 160)
       setMessage("Extrayendo varios fotogramas del video original…")
     } catch (error: unknown) {
@@ -115,7 +133,10 @@ function ReprocessVideo({ sample, onSaved }: { sample: FlutePreviewSample; onSav
   }
 
   return <div className="space-y-3">
-    <Alert><AlertDescription>{message}</AlertDescription></Alert>
+    <Alert variant={pitchSummary?.rejected ? "destructive" : "default"}><AlertDescription>{message}</AlertDescription></Alert>
+    {pitchSummary && <Alert variant={pitchSummary.rejected ? "destructive" : "default"}>
+      <AlertDescription>Coincidencia de altura con la nota {labeledNote}: {Math.round(pitchSummary.agreement * 100)}% ({pitchSummary.voicedFrames} fotogramas con sonido)</AlertDescription>
+    </Alert>}
     {url && <div className="relative aspect-video bg-black">
       <video ref={videoRef} src={url} playsInline controls={!busy} loop={!busy} muted className="h-full w-full object-contain" onEnded={() => void finish()} />
       <FluteHandOverlay videoRef={videoRef} onFrame={frame => { handRef.current = frame }} />
@@ -124,7 +145,7 @@ function ReprocessVideo({ sample, onSaved }: { sample: FlutePreviewSample; onSav
       void videoRef.current?.play().catch(() => setMessage("No se pudo reproducir el video original."))
     }}>Reproducir video</Button>
     <Button disabled={!url || busy} onClick={() => void start()}>Reprocesar conservando etiquetas</Button>
-    <span className="ml-3 text-sm">{count} fotogramas</span>
+    <span className="ml-3 text-sm">{count} fotogramas{isFluteTake ? " con sonido" : ""}</span>
     <p className="text-xs text-muted-foreground">Extracción de articulaciones de manos relativas a la palma y muñeca sobre el video grabado.</p>
   </div>
 }

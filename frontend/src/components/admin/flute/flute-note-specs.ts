@@ -29,7 +29,16 @@ export interface FluteNoteSpec {
   difficultyLevel: 1 | 3
 }
 
-export const FLUTE_AUDIO_DIM = 48
+export const FLUTE_AUDIO_SCHEMA = "flute-audio-pitch-v1" as const
+/** Previous timbre block (log-Mel + MFCC + RMS/flatness/low-band), kept as dims [0..47]. */
+export const FLUTE_TIMBRE_DIM = 48
+/** Pitch block appended at [48..61]: voiced, clarity, octaves above C5, 11 note affinities. */
+export const FLUTE_PITCH_DIM = 14
+export const FLUTE_AUDIO_DIM = FLUTE_TIMBRE_DIM + FLUTE_PITCH_DIM // 62
+export const FLUTE_VOICED_IDX = 48
+export const FLUTE_CLARITY_IDX = 49
+export const FLUTE_OCTAVES_IDX = 50
+export const FLUTE_AFFINITY_START_IDX = 51
 export const FLUTE_MEL_BANDS = 32
 export const FLUTE_MFCC_COUNT = 13
 
@@ -202,7 +211,7 @@ export interface AudioActivityStatus {
   hasSound: boolean
 }
 
-/** Lightweight acoustic activity detector (energy only, no pitch/Hz). */
+/** Lightweight acoustic activity detector (energy only). */
 export function measureAudioActivity(analyser: AnalyserNode): AudioActivityStatus {
   const waveform = new Float32Array(analyser.fftSize)
   analyser.getFloatTimeDomainData(waveform)
@@ -215,12 +224,16 @@ export function measureAudioActivity(analyser: AnalyserNode): AudioActivityStatu
 }
 
 /**
- * Pure acoustic timbre feature extractor (48 floats, NO pitch/Hz measurement):
+ * Acoustic feature extractor, schema `flute-audio-pitch-v1` (62 floats):
  * - [0..31]: 32 L2-normalized log-Mel filterbank energies (captures flute note timbre + overtones)
  * - [32..44]: 13 MFCCs (DCT-II c1..c13 of log-Mel, separates woodwind timbre from voice/noise)
  * - [45]: RMS energy (clamped 0..1)
  * - [46]: Spectral flatness (tonal woodwind vs broadband room noise)
  * - [47]: Low-band energy ratio (<420 Hz share, distinguishes chest voice from flute)
+ * - [48]: voiced (1 when YIN found a stable pitch in 430..1600 Hz, else 0)
+ * - [49]: YIN clarity 0..1 (1 - cumulative mean normalized difference at the chosen lag)
+ * - [50]: octaves above C5 = log2(f0 / 523.2511) (0 if unvoiced)
+ * - [51..61]: affinity per note in FLUTE_PITCH_NOTE_ORDER = exp(-0.5·(cents/35)²) (0 if unvoiced)
  */
 export function extractFluteAudioFeatures(
   analyser: AnalyserNode,
@@ -310,7 +323,218 @@ export function extractFluteAudioFeatures(
     meanFlutePower > 1e-12 ? Math.min(1, geoMeanFlutePower / meanFlutePower) : 1
   const lowEnergyRatio = totalPower > 1e-12 ? Math.min(1, lowPower / totalPower) : 0
 
-  return [...normMel, ...mfccs, rms, spectralFlatness, lowEnergyRatio].map((v) =>
-    Number.isFinite(v) ? v : 0
-  )
+  const pitch = estimatePitchYin(waveform, sampleRate)
+  return [
+    ...normMel,
+    ...mfccs,
+    rms,
+    spectralFlatness,
+    lowEnergyRatio,
+    ...buildPitchFeatures(pitch.hz, pitch.clarity),
+  ].map((v) => (Number.isFinite(v) ? v : 0))
+}
+
+// ---------------------------------------------------------------------------
+// Pitch (f0) estimation — YIN (de Cheveigné & Kawahara, 2002)
+// ---------------------------------------------------------------------------
+
+/** Backend note order for the affinity block [51..61]. Do not reorder. */
+export const FLUTE_PITCH_NOTE_ORDER: readonly FluteNoteName[] = [
+  "DO", "RE", "MI", "FA", "FA#", "SOL", "LA", "SI", "DO6", "RE6", "MI6",
+]
+
+/** Equal temperament, A4 = 440 Hz (soprano recorder sounds C5..E6). */
+export const FLUTE_NOTE_FREQUENCIES_HZ: Record<FluteNoteName, number> = {
+  DO: 523.2511,
+  RE: 587.3295,
+  MI: 659.2551,
+  FA: 698.4565,
+  "FA#": 739.9888,
+  SOL: 783.9909,
+  LA: 880,
+  SI: 987.7666,
+  DO6: 1046.502,
+  RE6: 1174.659,
+  MI6: 1318.51,
+}
+
+export const FLUTE_PITCH_MIN_HZ = 430
+export const FLUTE_PITCH_MAX_HZ = 1600
+export const FLUTE_PITCH_MIN_CLARITY = 0.8
+export const FLUTE_PITCH_MIN_RMS = 0.012
+const YIN_THRESHOLD = 0.15
+const AFFINITY_SIGMA_CENTS = 35
+const C5_HZ = FLUTE_NOTE_FREQUENCIES_HZ.DO
+
+export interface PitchEstimate {
+  /** Fundamental frequency in Hz, or null when unvoiced/unstable. */
+  hz: number | null
+  /** 1 - CMND at the chosen lag, clamped 0..1. */
+  clarity: number
+}
+
+/**
+ * YIN f0 estimate restricted to 430..1600 Hz: difference function, cumulative mean
+ * normalized difference (CMND), absolute threshold 0.15 (falls back to the global minimum)
+ * and parabolic interpolation. hz is null when clarity < 0.8 or RMS < 0.012.
+ */
+export function estimatePitchYin(waveform: Float32Array, sampleRate: number): PitchEstimate {
+  const n = waveform.length
+  if (!(sampleRate > 0) || !Number.isFinite(sampleRate) || n < 8) return { hz: null, clarity: 0 }
+
+  let sumSq = 0
+  for (let i = 0; i < n; i++) sumSq += waveform[i] * waveform[i]
+  const rms = Math.sqrt(sumSq / n)
+
+  const tauMin = Math.max(2, Math.floor(sampleRate / FLUTE_PITCH_MAX_HZ))
+  const tauMax = Math.min(Math.ceil(sampleRate / FLUTE_PITCH_MIN_HZ), Math.floor(n / 2) - 1)
+  if (tauMax <= tauMin + 1) return { hz: null, clarity: 0 }
+
+  // 1. Difference function d(τ) over a fixed window (τ up to tauMax + 1 for interpolation)
+  const lastTau = tauMax + 1
+  const windowSize = n - lastTau
+  const diff = new Float64Array(lastTau + 1)
+  for (let tau = 1; tau <= lastTau; tau++) {
+    let sum = 0
+    for (let j = 0; j < windowSize; j++) {
+      const delta = waveform[j] - waveform[j + tau]
+      sum += delta * delta
+    }
+    diff[tau] = sum
+  }
+
+  // 2. Cumulative mean normalized difference d'(τ)
+  const cmnd = new Float64Array(lastTau + 1)
+  cmnd[0] = 1
+  let running = 0
+  for (let tau = 1; tau <= lastTau; tau++) {
+    running += diff[tau]
+    cmnd[tau] = running > 1e-12 ? (diff[tau] * tau) / running : 1
+  }
+
+  // 3. Absolute threshold (first dip, followed to its local minimum), else global minimum
+  let best = -1
+  for (let tau = tauMin; tau <= tauMax; tau++) {
+    if (cmnd[tau] < YIN_THRESHOLD) {
+      while (tau + 1 <= tauMax && cmnd[tau + 1] < cmnd[tau]) tau++
+      best = tau
+      break
+    }
+  }
+  if (best < 0) {
+    best = tauMin
+    for (let tau = tauMin + 1; tau <= tauMax; tau++) if (cmnd[tau] < cmnd[best]) best = tau
+  }
+  const clarity = Math.max(0, Math.min(1, 1 - cmnd[best]))
+
+  // 4. Parabolic interpolation around the chosen lag (on the raw difference function)
+  let refinedTau = best
+  const a = diff[best - 1]
+  const b = diff[best]
+  const c = diff[best + 1]
+  const denom = a - 2 * b + c
+  if (Math.abs(denom) > 1e-12) {
+    const shift = (0.5 * (a - c)) / denom
+    if (Math.abs(shift) < 1) refinedTau = best + shift
+  }
+  const hz = sampleRate / refinedTau
+
+  if (
+    rms < FLUTE_PITCH_MIN_RMS ||
+    clarity < FLUTE_PITCH_MIN_CLARITY ||
+    !Number.isFinite(hz) ||
+    hz < FLUTE_PITCH_MIN_HZ ||
+    hz > FLUTE_PITCH_MAX_HZ
+  ) {
+    return { hz: null, clarity }
+  }
+  return { hz, clarity }
+}
+
+/** Nearest note of the recorder range and the signed deviation in cents. */
+export function nearestFluteNote(hz: number): { note: FluteNoteName; centsOff: number } {
+  let note: FluteNoteName = FLUTE_PITCH_NOTE_ORDER[0]
+  let centsOff = Number.POSITIVE_INFINITY
+  for (const candidate of FLUTE_PITCH_NOTE_ORDER) {
+    const c = 1200 * Math.log2(hz / FLUTE_NOTE_FREQUENCIES_HZ[candidate])
+    if (Math.abs(c) < Math.abs(centsOff)) {
+      note = candidate
+      centsOff = c
+    }
+  }
+  return { note, centsOff }
+}
+
+/** Pitch block [48..61]: voiced, clarity, octaves above C5, 11 note affinities (14 values). */
+export function buildPitchFeatures(hz: number | null, clarity: number): number[] {
+  const safeClarity = Number.isFinite(clarity) ? Math.max(0, Math.min(1, clarity)) : 0
+  if (hz === null || !Number.isFinite(hz) || hz <= 0) {
+    return [0, safeClarity, 0, ...Array<number>(FLUTE_PITCH_NOTE_ORDER.length).fill(0)]
+  }
+  const affinities = FLUTE_PITCH_NOTE_ORDER.map((note) => {
+    const cents = 1200 * Math.log2(hz / FLUTE_NOTE_FREQUENCIES_HZ[note])
+    return Math.exp(-0.5 * (cents / AFFINITY_SIGMA_CENTS) ** 2)
+  })
+  return [1, safeClarity, Math.log2(hz / C5_HZ), ...affinities]
+}
+
+// ---------------------------------------------------------------------------
+// Capture quality gates (silence gating + pitch agreement)
+// ---------------------------------------------------------------------------
+
+export const FLUTE_MAX_FEATURE_FRAMES = 120
+export const FLUTE_MIN_PITCH_AGREEMENT = 0.3
+export const FLUTE_MIN_VOICED_FRAMES = 3
+const PITCH_MATCH_TOLERANCE_CENTS = 60
+
+export function isVoicedAudioFrame(audioFeatures: readonly number[]): boolean {
+  return audioFeatures[FLUTE_VOICED_IDX] === 1
+}
+
+/** Keeps only voiced frames for flute takes (voice/noise negatives keep all) and caps at 120. */
+export function gateFluteFrames<T extends { audio_features: readonly number[] }>(
+  frames: readonly T[],
+  soundLabel: string
+): T[] {
+  const kept = soundLabel === "flauta"
+    ? frames.filter((frame) => isVoicedAudioFrame(frame.audio_features))
+    : [...frames]
+  return kept.slice(0, FLUTE_MAX_FEATURE_FRAMES)
+}
+
+export interface PitchAgreement {
+  voicedFrames: number
+  matchingFrames: number
+  /** matchingFrames / voicedFrames (0 when nothing is voiced). */
+  agreement: number
+}
+
+/** Fraction of voiced frames whose detected pitch is the labeled note (±60 cents). */
+export function computePitchAgreement(
+  audioFrames: readonly (readonly number[])[],
+  note: FluteNoteName
+): PitchAgreement {
+  let voicedFrames = 0
+  let matchingFrames = 0
+  for (const audio of audioFrames) {
+    if (!isVoicedAudioFrame(audio)) continue
+    voicedFrames += 1
+    const hz = C5_HZ * 2 ** audio[FLUTE_OCTAVES_IDX]
+    const nearest = nearestFluteNote(hz)
+    if (nearest.note === note && Math.abs(nearest.centsOff) <= PITCH_MATCH_TOLERANCE_CENTS) {
+      matchingFrames += 1
+    }
+  }
+  return { voicedFrames, matchingFrames, agreement: voicedFrames > 0 ? matchingFrames / voicedFrames : 0 }
+}
+
+/** Spanish rejection message when a flute take does not sound like its labeled note, else null. */
+export function pitchAgreementRejection(result: PitchAgreement, note: FluteNoteName): string | null {
+  if (result.voicedFrames < FLUTE_MIN_VOICED_FRAMES) {
+    return `No se detectó una altura estable de flauta para la nota ${note} (${result.voicedFrames} fotogramas con sonido). Repetí la toma.`
+  }
+  if (result.agreement < FLUTE_MIN_PITCH_AGREEMENT) {
+    return `La altura detectada no corresponde a la nota ${note} (coincidencia ${Math.round(result.agreement * 100)}%). Repetí la toma.`
+  }
+  return null
 }
