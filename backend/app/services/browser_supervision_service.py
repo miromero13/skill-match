@@ -16,7 +16,6 @@ from app.schemas.browser_supervision import (
     AVWindowRequest, GazeCalibrationRequest, IncidentKind, IncidentResponse, VoiceCalibrationRequest,
 )
 from app.services.continuous_supervision_service import ContinuousSupervisionService
-from app.services.evaluation_calibration_service import EvaluationCalibrationService
 from app.services.integrity import diagnostics, messages
 from app.services.integrity.gaze import GazeCalibrationError, compute_zone
 from app.services.integrity.voiceprint import EnrollmentError, SpeakerModelUnavailable
@@ -95,21 +94,14 @@ class BrowserSupervisionService:
             trial.closed_at = now
             await db.flush()  # Release the partial unique index before inserting.
             trial = None
-        seed = None
         if trial is None:
             trial = BrowserTrial(user_id=user.id, created_at=now, expires_at=now + timedelta(hours=24), event_count=0)
-            # A valid recent calibration seeds the new trial (zone and voiceprint); without one it starts unseeded.
-            seed = await EvaluationCalibrationService.valid_seed(db, user, now)
-            if seed is not None:
-                trial.gaze_zone, trial.voiceprint = seed.gaze_zone.to_dict(), dict(seed.voiceprint)
             db.add(trial)
         elif trial.tab_id != payload.tab_id and trial.lease_until and trial.lease_until > now:
             reject(409, LOCKED)
         trial.tab_id = payload.tab_id
         trial.lease_until = now + timedelta(seconds=20)
         await db.commit()
-        if seed is not None:
-            ContinuousSupervisionService.seed_trial(str(trial.id), seed.occlusion_ref)
         return trial
 
     @classmethod

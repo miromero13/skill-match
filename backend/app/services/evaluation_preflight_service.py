@@ -140,7 +140,12 @@ class EvaluationPreflightService:
             raise SkillMatchException(statuscode=409, message="Las condiciones cambiaron. Volvé a leerlas antes de aceptar.")
         offer, skill, _, _, pending, _ = await cls.context(db, user, teaching_skill_id, lock=True)
         if pending is not None:
-            # Replays retain the original consent timestamp, policy and audit data.
+            # Replays retain the original consent timestamp, policy and audit data,
+            # but never reuse a prior calibration before the exam has started.
+            if pending.started_at is None and pending.status == "READY_FOR_THEORY":
+                pending.status = "PENDING_CALIBRATION"
+                await db.commit()
+                await db.refresh(pending)
             return pending
         evaluation = Evaluation(
             user_id=user.id, skill_id=skill.id, teaching_skill_id=offer.id,

@@ -18,12 +18,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { CalibrationGate, isCalibrated } from "@/components/integrity/calibration-gate"
 import { TrialLabelSelect, type TrialLabel } from "@/components/integrity/trial-label-select"
 import { useAvSupervision } from "@/hooks/use-av-supervision"
 import { useTrialSession } from "@/hooks/use-trial-session"
 import { useAuthStore } from "@/stores/auth-store"
-import { calibrateGaze, calibrateVoice, type GazeCalibrationPoint } from "@/services/browser-supervision"
 
 const labels: Record<string, string> = {
   AWAY: "Salida / pérdida de foco",
@@ -111,7 +109,7 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
     videoRef,
     canvasRef,
     overlayCanvasRef,
-    windowsEnabled: active && isCalibrated(trial),
+    windowsEnabled: active,
     onAnomalies: () => void session.refreshLedger().catch(() => undefined),
     label: import.meta.env.DEV ? trialLabel : undefined,
   })
@@ -121,21 +119,6 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
     mouthMoving, mouthSync, multipleSpeakers, voiceMatch, lipSync, noiseLevel,
   } = av.telemetry
   const presenceAlert = cameraBlocked || faceCovered || mouthCovered
-
-  async function submitGazeCalibration(points: GazeCalibrationPoint[]) {
-    if (!trial) throw new Error("La prueba no está activa.")
-    const { result, message: serverMessage } = await calibrateGaze(trial.id, session.tabId(), points)
-    av.setZone(result.zone)
-    session.setTrial((previous) => (previous ? { ...previous, gaze_zone: result.zone } : previous))
-    return { message: serverMessage }
-  }
-
-  async function submitVoiceCalibration(request: Parameters<typeof calibrateVoice>[2]) {
-    if (!trial) throw new Error("La prueba no está activa.")
-    const { result, message: serverMessage } = await calibrateVoice(trial.id, session.tabId(), request)
-    session.setTrial((previous) => (previous ? { ...previous, voice_enrolled: result.voice_enrolled } : previous))
-    return { message: serverMessage }
-  }
 
   /** What the acoustic card says: ownership of the voice first, then its link with the lips. */
   function acousticStatus(): { label: string; text: string; alert: boolean } {
@@ -159,12 +142,6 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
       }
     if (speechDetected && mouthSync === false)
       return { label: "Voz sin boca coincidente", text: "Alerta: Se detectó voz sin movimiento labial coincidente.", alert: true }
-    if (speechDetected && !trial?.voice_enrolled)
-      return {
-        label: "Voz sin verificar",
-        text: "Calibrá tu voz para poder comprobar que quien habla sos vos.",
-        alert: false,
-      }
     if (speechDetected)
       return {
         label: mouthSync ? "Voz propia (boca activa)" : "Voz detectada",
@@ -503,9 +480,6 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">{acoustic.text}</p>
-                  <p data-testid="voice-status" className="text-xs text-muted-foreground">
-                    Huella de voz: {trial?.voice_enrolled ? "calibrada" : "pendiente"}
-                  </p>
                 </div>
                 {/* Eye gaze (iris) */}
                 <div className="rounded-lg border p-3 bg-card space-y-1 sm:col-span-2" data-testid="iris-gaze-card">
@@ -528,17 +502,6 @@ function SupervisionTrial({ owner }: { owner: string | undefined }) {
           </div>
         </CardContent>
       </Card>
-
-      {avActive && active && trial && !trial.closed_at && (
-        <CalibrationGate
-          trial={trial}
-          captureFrame={av.captureFrame}
-          recorder={av.recorder}
-          readMouth={av.readMouth}
-          submitGaze={submitGazeCalibration}
-          submitVoice={submitVoiceCalibration}
-        />
-      )}
 
       {/* Supervised Text Area */}
       <div ref={area} className="space-y-3 rounded-xl border bg-card p-5">
