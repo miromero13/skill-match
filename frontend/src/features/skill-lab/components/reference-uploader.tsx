@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from "react"
-import { Loader2, Video } from "lucide-react"
+import { Eye, EyeOff, Loader2, Play, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,6 +20,7 @@ import {
 } from "../lib/skill-lab-utils"
 import type { SkillLabLevel, SkillLabSample } from "../types"
 import { InfoTip } from "./info-tip"
+import { LocalVideoPreview, SamplePreviewDialog, VideoPreview } from "./video-preview"
 
 export const WHOLE_LEVEL = "__level__"
 
@@ -41,6 +42,8 @@ export function ReferenceUploader({ skillId, level, samples, onChanged }: Refere
   const [consent, setConsent] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showReference, setShowReference] = useState(false)
+  const [previewSample, setPreviewSample] = useState<SkillLabSample | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const criterionReferences = samples.filter(
@@ -99,19 +102,46 @@ export function ReferenceUploader({ skillId, level, samples, onChanged }: Refere
 
       <div data-testid="skill-lab-reference-current" className="text-xs text-muted-foreground">
         {level.reference ? (
-          <p>
-            Actual: <span className="font-medium text-foreground">{describeSample(level.reference)}</span>
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p>
+              Actual: <span className="font-medium text-foreground">{describeSample(level.reference)}</span>
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              aria-label={showReference ? "Ocultar video de referencia" : "Ver video de referencia"}
+              aria-expanded={showReference}
+              onClick={() => setShowReference((open) => !open)}
+            >
+              {showReference ? <EyeOff /> : <Eye />}
+              {showReference ? "Ocultar" : "Ver"}
+            </Button>
+          </div>
         ) : (
           <p>Sin referencia del nivel.</p>
         )}
       </div>
+      {level.reference && showReference && (
+        <VideoPreview sampleId={level.reference.id} label="Reproductor de referencia" className="max-w-md" />
+      )}
       {criterionReferences.length > 0 && (
         <ul className="space-y-0.5 text-xs text-muted-foreground">
           {criterionReferences.map((sample) => (
-            <li key={sample.id}>
-              <span className="font-medium text-foreground">{criterionName(sample.criterion_key)}</span>:{" "}
-              {describeSample(sample)}
+            <li key={sample.id} className="flex items-center justify-between gap-2">
+              <span>
+                <span className="font-medium text-foreground">{criterionName(sample.criterion_key)}</span>:{" "}
+                {describeSample(sample)}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`Ver referencia ${criterionName(sample.criterion_key)}`}
+                onClick={() => setPreviewSample(sample)}
+              >
+                <Play />
+              </Button>
             </li>
           ))}
         </ul>
@@ -150,6 +180,8 @@ export function ReferenceUploader({ skillId, level, samples, onChanged }: Refere
         </div>
       </div>
 
+      {file && <LocalVideoPreview file={file} label="Vista previa de la referencia" className="max-w-md" />}
+
       <div className="flex items-start gap-2">
         <Switch id={consentId} checked={consent} onCheckedChange={setConsent} disabled={isUploading} />
         <Label htmlFor={consentId} className="text-xs leading-snug font-normal">
@@ -175,6 +207,13 @@ export function ReferenceUploader({ skillId, level, samples, onChanged }: Refere
         </Button>
       </div>
       {error && <p className="text-xs text-amber-700 dark:text-amber-400">{error}</p>}
+
+      <SamplePreviewDialog
+        sampleId={previewSample?.id ?? null}
+        title={`Referencia · ${criterionName(previewSample?.criterion_key ?? null)}`}
+        description={previewSample ? describeSample(previewSample) : undefined}
+        onClose={() => setPreviewSample(null)}
+      />
     </section>
   )
 }

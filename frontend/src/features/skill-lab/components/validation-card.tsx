@@ -22,6 +22,7 @@ import {
 } from "../lib/skill-lab-utils"
 import type { SkillLabLevel, SkillValidationResult } from "../types"
 import { InfoTip } from "./info-tip"
+import { LocalVideoPreview } from "./video-preview"
 import { ValidationResultView } from "./validation-result"
 
 const AUTO_LEVEL = "__auto__"
@@ -128,9 +129,12 @@ export function ValidationCard({ skillId, levels, metricTypes }: ValidationCardP
         </div>
 
         {file && (
-          <p className="text-xs break-all text-muted-foreground">
-            <span className="font-medium text-foreground">{file.name}</span> · {formatFileSize(file.size)}
-          </p>
+          <div className="space-y-2">
+            <p className="text-xs break-all text-muted-foreground">
+              <span className="font-medium text-foreground">{file.name}</span> · {formatFileSize(file.size)}
+            </p>
+            <LocalVideoPreview file={file} label="Vista previa del video a validar" className="max-w-md" />
+          </div>
         )}
 
         {isAnalyzing && (

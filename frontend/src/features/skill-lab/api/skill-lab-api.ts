@@ -1,6 +1,7 @@
 import { apiClient } from "@/services/api-client"
 import type { MetricTypeInfo } from "@/types/catalog"
 import type {
+  SamplePreviewUrl,
   SkillLabConfig,
   SkillLabModel,
   SkillLabSample,
@@ -9,6 +10,19 @@ import type {
 } from "../types"
 
 const BASE = "/admin/skill-lab"
+
+/** Misma base que el `apiClient` (`VITE_API_URL`, siempre terminada en `/api`). */
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000/api").replace(/\/$/, "")
+
+/**
+ * El backend devuelve la ruta del archivo con su prefijo `/api/...`; se resuelve contra la
+ * raíz de la API (la base sin su `/api` final) para obtener la URL absoluta del `<video>`.
+ */
+export function resolveApiPath(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path
+  const root = API_BASE_URL.replace(/\/api$/, "")
+  return `${root}${path.startsWith("/") ? path : `/${path}`}`
+}
 
 /**
  * Cliente del laboratorio de validación por habilidad (solo ADMIN). Los mensajes del
@@ -58,6 +72,16 @@ export const skillLabApi = {
       showToastOnSuccess: true,
       showToastOnError: true,
     })
+  },
+
+  /** URL firmada y temporal para reproducir una muestra. Sin toast: la UI muestra su propio estado. */
+  async getSamplePreviewUrl(sampleId: string): Promise<SamplePreviewUrl> {
+    const response = await apiClient.post<SamplePreviewUrl>(
+      `${BASE}/samples/${sampleId}/preview-url`,
+      undefined,
+      { showToastOnSuccess: false, showToastOnError: false }
+    )
+    return { ...response.data, url: resolveApiPath(response.data.url) }
   },
 
   async train(skillId: string): Promise<SkillLabModel> {

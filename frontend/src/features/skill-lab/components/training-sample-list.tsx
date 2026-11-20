@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Trash2 } from "lucide-react"
+import { Play, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,6 +15,7 @@ import {
 import { skillLabApi } from "../api/skill-lab-api"
 import { formatDateTime, formatFileSize } from "../lib/skill-lab-utils"
 import type { SkillLabLevel, SkillLabSample } from "../types"
+import { SamplePreviewDialog } from "./video-preview"
 
 interface TrainingSampleListProps {
   level: SkillLabLevel
@@ -25,6 +26,7 @@ interface TrainingSampleListProps {
 export function TrainingSampleList({ level, samples, onChanged }: TrainingSampleListProps) {
   const [pendingDelete, setPendingDelete] = useState<SkillLabSample | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [preview, setPreview] = useState<{ sample: SkillLabSample; number: number } | null>(null)
 
   const criterionName = (key: string | null) =>
     key ? level.criteria.find((criterion) => criterion.key === key)?.name ?? key : "Todo el nivel"
@@ -83,20 +85,43 @@ export function TrainingSampleList({ level, samples, onChanged }: TrainingSample
                   </ul>
                 )}
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Eliminar video de entrenamiento ${who}`}
-                onClick={() => setPendingDelete(sample)}
-                className="self-end text-muted-foreground hover:text-red-500 sm:self-auto"
-              >
-                <Trash2 />
-              </Button>
+              <div className="flex shrink-0 items-center gap-0.5 self-end sm:self-auto">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Ver video ${index + 1}`}
+                  onClick={() => setPreview({ sample, number: index + 1 })}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Play />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Eliminar video de entrenamiento ${who}`}
+                  onClick={() => setPendingDelete(sample)}
+                  className="text-muted-foreground hover:text-red-500"
+                >
+                  <Trash2 />
+                </Button>
+              </div>
             </li>
           )
         })}
       </ul>
+
+      <SamplePreviewDialog
+        sampleId={preview?.sample.id ?? null}
+        title={preview ? `Video ${preview.number}` : "Video"}
+        description={
+          preview
+            ? `${criterionName(preview.sample.criterion_key)} · ${preview.sample.file_format.toUpperCase()} · ${formatFileSize(preview.sample.file_size_bytes)}`
+            : undefined
+        }
+        onClose={() => setPreview(null)}
+      />
 
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && !isDeleting && setPendingDelete(null)}>
         <AlertDialogContent>

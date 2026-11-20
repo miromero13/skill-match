@@ -138,6 +138,14 @@ export interface SkillValidationResult {
   notes: string[]
 }
 
+/** `data` de `POST /api/admin/skill-lab/samples/{sample_id}/preview-url` (S10). */
+export interface SamplePreviewUrl {
+  /** URL absoluta lista para `<video src>`; el token caduca en `expires_at`. */
+  url: string
+  expires_at: string
+  content_type: "video/mp4" | "video/webm" | "video/quicktime"
+}
+
 export interface UploadSamplePayload {
   file: File
   skillLevelId: string

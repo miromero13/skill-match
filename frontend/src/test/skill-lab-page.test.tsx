@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { AdminSkillLabPage } from "@/pages/admin-skill-lab-page"
@@ -22,6 +22,7 @@ vi.mock("@/features/skill-lab/api/skill-lab-api", () => ({
     train: vi.fn(),
     listModels: vi.fn(),
     validate: vi.fn(),
+    getSamplePreviewUrl: vi.fn(),
   },
 }))
 
@@ -182,6 +183,9 @@ beforeEach(() => {
   api.getConfig.mockResolvedValue(makeConfig())
   api.listSamples.mockResolvedValue([REFERENCE, TRAINING_SAMPLE])
   api.listModels.mockResolvedValue([])
+  let objectUrls = 0
+  URL.createObjectURL = vi.fn(() => `blob:preview-${++objectUrls}`)
+  URL.revokeObjectURL = vi.fn()
 })
 
 describe("AdminSkillLabPage", () => {
@@ -412,5 +416,124 @@ describe("Skill lab copy (S9)", () => {
 
     await user.click(card.getByRole("button", { name: "Ayuda: video de referencia" }))
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Lo que la persona deberá replicar en vivo para este nivel.")
+  })
+})
+
+describe("Video previews (S10)", () => {
+  const FUTURE = "2999-01-01T00:00:00Z"
+  const signedUrl = (id: string, token = "t1") =>
+    `http://localhost:8000/api/admin/skill-lab/samples/${id}/file?token=${token}`
+
+  async function videoIn(container: HTMLElement): Promise<HTMLVideoElement> {
+    let found: HTMLVideoElement | null = null
+    await waitFor(() => {
+      found = container.querySelector("video")
+      expect(found).not.toBeNull()
+    })
+    return found as unknown as HTMLVideoElement
+  }
+
+  it("'Ver' on a training sample opens a dialog that plays the signed URL", async () => {
+    const user = userEvent.setup()
+    api.getSamplePreviewUrl.mockResolvedValue({ url: signedUrl("train-1"), expires_at: FUTURE, content_type: "video/webm" })
+    renderLab()
+    const card = await levelCard("lvl-1")
+    expect(api.getSamplePreviewUrl).not.toHaveBeenCalled()
+
+    await user.click(card.getByRole("button", { name: "Ver video 1" }))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByText("Video 1")).toBeInTheDocument()
+    const player = await videoIn(dialog)
+    expect(player).toHaveAttribute("src", signedUrl("train-1"))
+    expect(player).toHaveAttribute("controls")
+    expect(player).toHaveAttribute("preload", "metadata")
+    expect(api.getSamplePreviewUrl).toHaveBeenCalledTimes(1)
+    expect(api.getSamplePreviewUrl).toHaveBeenCalledWith("train-1")
+  })
+
+  it("the reference block expands a player for the current reference on 'Ver'", async () => {
+    const user = userEvent.setup()
+    api.getSamplePreviewUrl.mockResolvedValue({ url: signedUrl("ref-1"), expires_at: FUTURE, content_type: "video/mp4" })
+    renderLab()
+    const card = await levelCard("lvl-1")
+    expect(card.queryByLabelText("Reproductor de referencia")).not.toBeInTheDocument()
+
+    await user.click(card.getByRole("button", { name: "Ver video de referencia" }))
+
+    expect(api.getSamplePreviewUrl).toHaveBeenCalledWith("ref-1")
+    expect(await card.findByLabelText("Reproductor de referencia")).toHaveAttribute("src", signedUrl("ref-1"))
+    await user.click(card.getByRole("button", { name: "Ocultar video de referencia" }))
+    expect(card.queryByLabelText("Reproductor de referencia")).not.toBeInTheDocument()
+  })
+
+  it("a failed URL request shows 'Video no disponible' instead of a player", async () => {
+    const user = userEvent.setup()
+    api.getSamplePreviewUrl.mockRejectedValue(new ApiError("El video de la muestra no está disponible.", 404))
+    renderLab()
+    const card = await levelCard("lvl-1")
+    await user.click(card.getByRole("button", { name: "Ver video 1" }))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(await within(dialog).findByText("Video no disponible")).toBeInTheDocument()
+    expect(dialog.querySelector("video")).toBeNull()
+  })
+
+  it("re-requests a fresh URL once when the token expired, then gives up", async () => {
+    const user = userEvent.setup()
+    api.getSamplePreviewUrl
+      .mockResolvedValueOnce({ url: signedUrl("train-1", "old"), expires_at: "2000-01-01T00:00:00Z", content_type: "video/webm" })
+      .mockResolvedValueOnce({ url: signedUrl("train-1", "new"), expires_at: FUTURE, content_type: "video/webm" })
+    renderLab()
+    const card = await levelCard("lvl-1")
+    await user.click(card.getByRole("button", { name: "Ver video 1" }))
+    const dialog = await screen.findByRole("dialog")
+
+    fireEvent.error(await videoIn(dialog))
+    await waitFor(() => expect(dialog.querySelector("video")).toHaveAttribute("src", signedUrl("train-1", "new")))
+    expect(api.getSamplePreviewUrl).toHaveBeenCalledTimes(2)
+
+    fireEvent.error(await videoIn(dialog))
+    expect(await within(dialog).findByText("Video no disponible")).toBeInTheDocument()
+    expect(api.getSamplePreviewUrl).toHaveBeenCalledTimes(2)
+  })
+
+  it("previews the file selected for validation and revokes its object URL on change and unmount", async () => {
+    const user = userEvent.setup()
+    const view = renderLab("/admin/skill-lab/skill-1?paso=4")
+    await screen.findByRole("heading", { name: "Dominadas" })
+    const first = video("uno.mp4")
+    await user.upload(screen.getByLabelText("Video"), first)
+
+    const preview = await screen.findByLabelText("Vista previa del video a validar")
+    expect(URL.createObjectURL).toHaveBeenCalledWith(first)
+    expect(preview).toHaveAttribute("src", "blob:preview-1")
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+
+    await user.upload(screen.getByLabelText("Video"), video("dos.mp4"))
+    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:preview-1"))
+    expect(screen.getByLabelText("Vista previa del video a validar")).toHaveAttribute("src", "blob:preview-2")
+
+    view.unmount()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:preview-2")
+    expect(api.getSamplePreviewUrl).not.toHaveBeenCalled()
+  })
+
+  it("previews the reference file and the clicked pending training file before upload", async () => {
+    const user = userEvent.setup()
+    renderLab()
+    const card = await levelCard("lvl-1")
+
+    const reference = video("referencia.mp4")
+    await user.upload(card.getByLabelText("Video"), reference)
+    expect(await card.findByLabelText("Vista previa de la referencia")).toHaveAttribute("src", "blob:preview-1")
+
+    await user.upload(card.getByLabelText("Videos"), [video("a.mp4"), video("b.mp4")])
+    expect(await card.findByLabelText("Vista previa de a.mp4")).toBeInTheDocument()
+    const pending = card.getByRole("list", { name: "Videos seleccionados" })
+    await user.click(within(pending).getByRole("button", { name: /b\.mp4/ }))
+    expect(await card.findByLabelText("Vista previa de b.mp4")).toBeInTheDocument()
+    expect(card.queryByLabelText("Vista previa de a.mp4")).not.toBeInTheDocument()
+    expect(within(pending).getByRole("button", { name: /b\.mp4/ })).toHaveAttribute("aria-pressed", "true")
   })
 })

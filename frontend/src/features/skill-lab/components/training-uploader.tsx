@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from "react"
-import { CheckCircle2, CircleDashed, Loader2, TriangleAlert, UploadCloud } from "lucide-react"
+import { CheckCircle2, CircleDashed, FileVideo, Loader2, TriangleAlert, UploadCloud } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,7 @@ import { skillLabApi } from "../api/skill-lab-api"
 import { requestFailureMessage, SKILL_LAB_VIDEO_ACCEPT } from "../lib/skill-lab-utils"
 import type { SkillLabLevel } from "../types"
 import { WHOLE_LEVEL } from "./reference-uploader"
+import { LocalVideoPreview } from "./video-preview"
 
 type UploadStatus = "pending" | "uploading" | "done" | "error"
 
@@ -40,6 +41,7 @@ interface TrainingUploaderProps {
 /** Videos etiquetados por nivel y criterio para calibrar el modelo (S3). Subida secuencial. */
 export function TrainingUploader({ skillId, level, onChanged }: TrainingUploaderProps) {
   const [files, setFiles] = useState<File[]>([])
+  const [previewIndex, setPreviewIndex] = useState(0)
   const [criterionKey, setCriterionKey] = useState(WHOLE_LEVEL)
   const [participantId, setParticipantId] = useState("")
   const [consent, setConsent] = useState(false)
@@ -49,6 +51,7 @@ export function TrainingUploader({ skillId, level, onChanged }: TrainingUploader
 
   const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
     setFiles(Array.from(event.target.files ?? []))
+    setPreviewIndex(0)
   }
 
   const setItem = (id: string, patch: Partial<QueueItem>) =>
@@ -139,6 +142,37 @@ export function TrainingUploader({ skillId, level, onChanged }: TrainingUploader
           />
         </div>
       </div>
+
+      {files.length > 0 && !isUploading && (
+        <div className="space-y-2">
+          {files.length > 1 && (
+            <ul className="flex flex-wrap gap-1" aria-label="Videos seleccionados">
+              {files.map((file, index) => (
+                <li key={`${index}-${file.name}`}>
+                  <Button
+                    type="button"
+                    variant={index === previewIndex ? "secondary" : "ghost"}
+                    size="xs"
+                    aria-pressed={index === previewIndex}
+                    onClick={() => setPreviewIndex(index)}
+                    className="max-w-48"
+                  >
+                    <FileVideo />
+                    <span className="truncate">{file.name}</span>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {files[previewIndex] && (
+            <LocalVideoPreview
+              file={files[previewIndex]}
+              label={`Vista previa de ${files[previewIndex].name}`}
+              className="max-w-md"
+            />
+          )}
+        </div>
+      )}
 
       <div className="flex items-start gap-2">
         <Switch id={consentId} checked={consent} onCheckedChange={setConsent} disabled={isUploading} />
