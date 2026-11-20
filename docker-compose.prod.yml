@@ -36,6 +36,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      additional_contexts:
+        ml: ./ml
     container_name: skillmatch-backend
     restart: always
     env_file:
@@ -62,10 +64,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: runtime
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://102.133.227.191/api}
     container_name: skillmatch-frontend
     restart: always
     ports:
-      - "80:80"
+      - "80:8080"
     depends_on:
       - backend
     networks:
