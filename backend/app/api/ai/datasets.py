@@ -33,9 +33,11 @@ router = APIRouter(
 
 
 class FluteFeaturesRequest(BaseModel):
-    audio_features: list[FiniteFloat] = Field(min_length=48, max_length=48)
+    # 48 timbre values + 14 pitch values (voiced, clarity, octaves above C5, 11 note affinities).
+    audio_features: list[FiniteFloat] = Field(min_length=62, max_length=62)
+    audio_schema: Literal["flute-audio-pitch-v1"]
     visual_features: list[FiniteFloat] = Field(min_length=50, max_length=50)
-    visual_schema: Literal["hand-landmarks-palm-v4"]
+    visual_schema: Literal["hand-landmarks-palm-v5"]
 
 
 class FluteLabelsRequest(FluteFeaturesRequest):
