@@ -39,7 +39,7 @@ export function SessionBookingForm({ matchId, teachingSkillId, instructorId, tim
     const duration = start && end ? (end.getTime() - start.getTime()) / 60_000 : 0
     if (!start || !end || duration < 1 || duration > 60) { setError("La sesión debe durar entre 1 y 60 minutos."); return }
     setError(null); setSubmitting(true)
-    try { await onSubmit({ match_id: matchId, teaching_skill_id: teachingSkillId, instructor_id: instructorId, starts_at: start.toISOString(), ends_at: end.toISOString(), timezone, modality }) }
+    try { await onSubmit({ match_id: matchId, teaching_skill_id: teachingSkillId, instructor_id: instructorId, starts_at: start.toISOString(), ends_at: end.toISOString(), timezone, modality, payment_method: "FREE" }) }
     finally { setSubmitting(false) }
   }
   return (

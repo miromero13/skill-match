@@ -66,6 +66,7 @@ it("submits the canonical modality and ratified identifiers", async () => {
     ends_at: "2026-11-20T19:00:00.000Z",
     timezone: "America/La_Paz",
     modality: "VIRTUAL",
+    payment_method: "FREE",
   })
 })
 
