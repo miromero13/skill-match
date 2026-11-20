@@ -28,8 +28,7 @@ import {
   FLUTE_VARIATIONS_LIST,
   RECOMMENDED_TAKES_PER_NOTE,
   extractFluteAudioFeatures,
-  analyzeFluteAudioFrame,
-  findClosestFluteNote,
+  measureAudioActivity,
   type FluteNoteName,
   type FluteVariationType,
 } from "./flute-note-specs"
@@ -44,12 +43,20 @@ import { useDatasetCaptureStore } from "@/stores/dataset-capture-store"
 import type { DatasetSample } from "@/types/dataset-sample"
 
 import { FluteHandOverlay } from "./flute-hand-overlay"
-import { FLUTE_VISUAL_SCHEMA, freshHandFrame, type HandFrame } from "./flute-hand-features"
+import {
+  FLUTE_VISUAL_SCHEMA,
+  LEFT_HAND_PRESENCE_IDX,
+  RIGHT_HAND_PRESENCE_IDX,
+  countDetectedHands,
+  freshHandFrame,
+  type HandFrame,
+} from "./flute-hand-features"
 
 interface FluteGuidedCaptureProps {
   skillName: string
   samples: DatasetSample[]
   signedConsent: boolean
+  onSignedConsentChange?: (checked: boolean) => void
   hardwareInfo: string
   onSampleUploaded: () => Promise<void>
 }
@@ -58,6 +65,7 @@ export function FluteGuidedCapture({
   skillName,
   samples,
   signedConsent,
+  onSignedConsentChange,
   hardwareInfo,
   onSampleUploaded,
 }: FluteGuidedCaptureProps) {
@@ -78,11 +86,9 @@ export function FluteGuidedCapture({
   const [isSavingClip, setIsSavingClip] = useState(false)
   const [statusBanner, setStatusBanner] = useState<string | null>(null)
 
-  // Live audio & hand telemetry
-  const [liveHz, setLiveHz] = useState<number | null>(null)
-  const [detectedNote, setDetectedNote] = useState<FluteNoteName | null>(null)
-  const [isInTune, setIsInTune] = useState(false)
-  const [voiceRejected, setVoiceRejected] = useState(false)
+  // Live audio activity (energy only, no frequency/Hz) & hand telemetry
+  const [audioActive, setAudioActive] = useState(false)
+  const [audioLevelPct, setAudioLevelPct] = useState(0)
   const [leftHandLive, setLeftHandLive] = useState(false)
   const [rightHandLive, setRightHandLive] = useState(false)
   const [lastPreviewUrl, setLastPreviewUrl] = useState<string | null>(null)
@@ -91,7 +97,6 @@ export function FluteGuidedCapture({
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
-  const measuredHzListRef = useRef<number[]>([])
   const continuousActiveRef = useRef<boolean>(false)
   const abortTimerRef = useRef<number | null>(null)
 
@@ -186,7 +191,7 @@ export function FluteGuidedCapture({
         void videoRef.current.play().catch(() => undefined)
       }
 
-      // Attach real-time pitch detector & hand zone analyzer
+      // Attach real-time acoustic timbre & hand landmark capture loop
       if (typeof window !== "undefined" && "AudioContext" in window) {
         const ctx = new window.AudioContext()
         audioCtxRef.current = ctx
@@ -195,43 +200,26 @@ export function FluteGuidedCapture({
         analyser.fftSize = 2048
         source.connect(analyser)
 
-        const pitchTimer = window.setInterval(() => {
+        const captureTimer = window.setInterval(() => {
           if (!streamRef.current || !streamRef.current.active) {
-            window.clearInterval(pitchTimer)
+            window.clearInterval(captureTimer)
             return
           }
           const frame = freshHandFrame(handFrameRef.current)
           const visualFeatures = frame?.features
-          if (visualFeatures) {
-            if (recorderRef.current?.state === "recording") {
-              featureFramesRef.current.push({
-                audio_features: extractFluteAudioFeatures(analyser, ctx.sampleRate),
-                visual_features: visualFeatures,
-                visual_schema: FLUTE_VISUAL_SCHEMA,
-              })
-            }
+          if (visualFeatures && recorderRef.current?.state === "recording") {
+            featureFramesRef.current.push({
+              audio_features: extractFluteAudioFeatures(analyser, ctx.sampleRate),
+              visual_features: visualFeatures,
+              visual_schema: FLUTE_VISUAL_SCHEMA,
+            })
           }
-          const audioInfo = analyzeFluteAudioFrame(analyser, ctx.sampleRate)
-          if (audioInfo.isFluteTimbre && audioInfo.hz) {
-            setLiveHz(audioInfo.hz)
-            setVoiceRejected(false)
-            const match = findClosestFluteNote(audioInfo.hz)
-            setDetectedNote(match.note)
-            setIsInTune(match.isInTune)
-            measuredHzListRef.current.push(audioInfo.hz)
-          } else if (audioInfo.rejectionReason === "voz_o_ruido") {
-            setLiveHz(audioInfo.hz)
-            setDetectedNote(null)
-            setIsInTune(false)
-            setVoiceRejected(true)
-          } else {
-            setLiveHz(null)
-            setDetectedNote(null)
-            setVoiceRejected(false)
-          }
+          const activity = measureAudioActivity(analyser)
+          setAudioActive(activity.hasSound)
+          setAudioLevelPct(Math.min(100, Math.round(activity.rms * 400)))
 
-          setLeftHandLive(visualFeatures?.[0] === 1)
-          setRightHandLive(visualFeatures?.[64] === 1)
+          setLeftHandLive(visualFeatures?.[LEFT_HAND_PRESENCE_IDX] === 1)
+          setRightHandLive(visualFeatures?.[RIGHT_HAND_PRESENCE_IDX] === 1)
         }, 160)
       }
 
@@ -272,7 +260,7 @@ export function FluteGuidedCapture({
     if (!signedConsent) {
       useDatasetCaptureStore.setState({
         error:
-          "Activa primero el interruptor de 'Consentimiento Informado Firmado' abajo antes de grabar.",
+          "Activa primero el interruptor de 'Consentimiento Informado Firmado' antes de grabar.",
       })
       return
     }
@@ -280,8 +268,10 @@ export function FluteGuidedCapture({
     useDatasetCaptureStore.setState({ error: null })
     const stream = await ensureCameraAndMicStream()
     if (!stream) return
-    if (!freshHandFrame(handFrameRef.current)) {
-      setStatusBanner("Calibra el eje de la flauta sobre el video. Después pulsa Grabar otra vez.")
+    if (postureLabel !== "sin_manos" && !freshHandFrame(handFrameRef.current)) {
+      setStatusBanner(
+        "Cámara encendida. Muestra tus manos frente a la cámara hasta que se detecten las articulaciones y pulsa Grabar otra vez."
+      )
       return
     }
 
@@ -314,7 +304,6 @@ export function FluteGuidedCapture({
     targetNote: FluteNoteName,
     targetVar: FluteVariationType
   ) => {
-    measuredHzListRef.current = []
     featureFramesRef.current = []
     setIsRecordingClip(true)
     setClipProgressPct(0)
@@ -353,7 +342,7 @@ export function FluteGuidedCapture({
       setIsRecordingClip(false)
       setClipProgressPct(100)
 
-      const clipBlob = new Blob(chunks, { type: "video/mp4" })
+      const clipBlob = new Blob(chunks, { type: mimeType })
       if (lastPreviewUrl) URL.revokeObjectURL(lastPreviewUrl)
       setLastPreviewUrl(URL.createObjectURL(clipBlob))
 
@@ -378,19 +367,18 @@ export function FluteGuidedCapture({
     setIsSavingClip(true)
     setStatusBanner(`Guardando muestra de Nota ${targetNote} (${targetVar})...`)
     try {
-      const frames = featureFramesRef.current.filter(frame => postureLabel !== "correcta" ||
-        frame.visual_features[0] + frame.visual_features[64] >= FLUTE_NOTES_MAP[targetNote].handsRequired)
+      const frames = featureFramesRef.current.filter(
+        (frame) =>
+          postureLabel !== "correcta" ||
+          countDetectedHands(frame.visual_features) >= FLUTE_NOTES_MAP[targetNote].handsRequired
+      )
       const features = frames[Math.floor(frames.length / 2)]
-      if (!features || frames.length < 3) throw new Error("No hay 3 fotogramas con articulaciones suficientes. No se guardaron etiquetas; revisa el encuadre y la calibración.")
+      if (!features || frames.length < 3) {
+        throw new Error(
+          "No hay 3 fotogramas con articulaciones suficientes. Revisa que tus manos se vean claras frente a la cámara."
+        )
+      }
       const hash = await calculateFileSha256(blob)
-      const avgMeasuredHz =
-        measuredHzListRef.current.length > 0
-          ? Math.round(
-              measuredHzListRef.current.reduce((a, b) => a + b, 0) /
-                measuredHzListRef.current.length
-            )
-          : null
-
       const fileName = `flauta-${targetNote.toLowerCase()}-${targetVar}-${Date.now()}.mp4`
 
       const res = await uploadDatasetSample({
@@ -403,7 +391,6 @@ export function FluteGuidedCapture({
         file_hash_sha256: hash,
         participant_id: participantId.trim(),
         level_label: targetNote,
-        manual_touch_count: avgMeasuredHz ?? undefined,
         noise_level: soundLabel,
         surface: targetVar,
         split: "train",
@@ -474,12 +461,11 @@ export function FluteGuidedCapture({
               </Badge>
             </div>
             <CardTitle className="text-base sm:text-lg font-bold mt-1.5">
-              Capturador de Notas y Posición de Manos (DO a SI + Agudos y FA#)
+              Capturador de Notas y Posición de Manos (Sonido de Flauta: DO a SI + Agudos y FA#)
             </CardTitle>
             <CardDescription className="text-xs">
-              Son 11 notas × 2 tomas obligatorias de 4s (1 Larga + 1 Rápida) ={" "}
-              <strong>22 grabaciones cortas en total (~2 minutos)</strong>. El
-              sistema te da 3 segundos entre toma y toma y avanza solo.
+              Captura el <strong>timbre real del sonido de la flauta</strong> (sin medición por frecuencia/Hz) junto con las{" "}
+              <strong>21 articulaciones y flexión de dedos por mano</strong>. 11 notas × 2 tomas de 4s = 22 grabaciones cortas.
             </CardDescription>
           </div>
         </div>
@@ -487,25 +473,42 @@ export function FluteGuidedCapture({
 
       <CardContent className="space-y-4">
         <fieldset disabled={isRecordingClip || isSavingClip || countdown !== null} className="space-y-3">
-          <Label htmlFor="flute-participant">ID estable de participante (misma persona = mismo ID)</Label>
-          <Input id="flute-participant" value={participantId} onChange={e => setParticipantId(e.target.value)} placeholder="participante-01" />
-          <p className="text-xs text-muted-foreground">Selecciona las etiquetas reales de la próxima toma, incluidos ejemplos negativos.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+            <div className="space-y-1.5">
+              <Label htmlFor="flute-participant">ID estable de participante (misma persona = mismo ID)</Label>
+              <Input id="flute-participant" value={participantId} onChange={e => setParticipantId(e.target.value)} placeholder="participante-01" />
+            </div>
+            {onSignedConsentChange && (
+              <div className="flex items-center gap-2.5 rounded-lg border border-emerald-500/30 bg-background/80 px-3 py-2">
+                <Switch
+                  id="flute-consent-switch"
+                  checked={signedConsent}
+                  onCheckedChange={onSignedConsentChange}
+                />
+                <Label htmlFor="flute-consent-switch" className="cursor-pointer text-xs font-semibold leading-tight">
+                  Consentimiento Informado Firmado
+                </Label>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">Selecciona las etiquetas reales de la próxima toma (incluye también ejemplos negativos de voz/ruido o digitación incorrecta).</p>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Etiqueta de sonido">
             {(["flauta", "voz", "ruido"] as const).map(label => (
-              <Button key={label} variant={soundLabel === label ? "default" : "outline"} onClick={() => setSoundLabel(label)}>{label}</Button>
+              <Button key={label} type="button" variant={soundLabel === label ? "default" : "outline"} onClick={() => setSoundLabel(label)}>{label}</Button>
             ))}
           </div>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Etiqueta de digitación">
             {(["correcta", "incorrecta", "sin_manos"] as const).map(label => (
-              <Button key={label} variant={postureLabel === label ? "default" : "outline"} onClick={() => setPostureLabel(label)}>{label}</Button>
+              <Button key={label} type="button" variant={postureLabel === label ? "default" : "outline"} onClick={() => setPostureLabel(label)}>{label}</Button>
             ))}
           </div>
         </fieldset>
+
         {/* 1. Barra de las 11 Notas con contador de ejemplos grabados */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-foreground">
-              Paso A —Las 11 Notas (meta: {RECOMMENDED_TAKES_PER_NOTE} tomas por nota = 22 en total):
+              Paso A — Las 11 Notas (meta: {RECOMMENDED_TAKES_PER_NOTE} tomas por nota = 22 en total):
             </span>
             <span className="text-muted-foreground font-mono text-[11px]">
               1 Mano: SI, LA, SOL, DO6, RE6 • 2 Manos: FA, FA#, MI, RE, DO, MI6
@@ -537,7 +540,7 @@ export function FluteGuidedCapture({
                     {isComplete && <CheckCircle2 className="w-3 h-3" />}
                   </div>
                   <span className="text-[10px] opacity-85 font-mono">
-                    {Math.round(spec.hz)}Hz • {count}/{RECOMMENDED_TAKES_PER_NOTE}
+                    {spec.handsRequired}M • {count}/{RECOMMENDED_TAKES_PER_NOTE}
                   </span>
                 </Button>
               )
@@ -580,7 +583,7 @@ export function FluteGuidedCapture({
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <Badge variant="secondary" className="text-xs font-bold">
-                  NOTA {currentNoteSpec.displayName} ({Math.round(currentNoteSpec.hz)} Hz)
+                  NOTA {currentNoteSpec.displayName}
                 </Badge>
                 <Badge
                   variant="outline"
@@ -661,7 +664,7 @@ export function FluteGuidedCapture({
             </div>
           </div>
 
-          {/* Visor de Cámara en Vivo con HUD de Nota y Manos */}
+          {/* Visor de Cámara en Vivo con HUD de Sonido y Manos */}
           <div className="md:col-span-7 space-y-3">
             <div className="relative aspect-video rounded-lg overflow-hidden bg-neutral-950 border border-border flex items-center justify-center">
               <video
@@ -682,44 +685,45 @@ export function FluteGuidedCapture({
                 onFrame={frame => { handFrameRef.current = frame }} />}
 
               {!cameraActive && (
-                <div className="text-center p-6 text-muted-foreground space-y-2">
+                <div className="text-center p-6 text-muted-foreground space-y-3">
                   <Video className="w-10 h-10 mx-auto stroke-1 text-emerald-400 opacity-75" />
                   <p className="text-xs">
-                    Presiona <strong>&ldquo;Grabar Toma Guiada (4s)&rdquo;</strong> para
-                    activar cámara y micrófono con cuenta regresiva.
+                    Activa la cámara para verificar la detección de tus manos y luego graba tus tomas guiadas.
                   </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void ensureCameraAndMicStream()}
+                  >
+                    <Video className="w-3.5 h-3.5 mr-1.5" />
+                    Activar Cámara y Vista Previa
+                  </Button>
                 </div>
               )}
 
-              {/* Guías visuales de posición de manos sobre el video */}
+              {/* Guías visuales de posición de manos y actividad acústica sobre el video */}
               {cameraActive && (
                 <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <Badge className="bg-black/75 text-white border-white/20 text-xs font-mono">
-                      Objetivo: {currentNoteSpec.displayName} ({Math.round(currentNoteSpec.hz)} Hz) •{" "}
-                      {currentVariationSpec.shortLabel}
+                      Objetivo: {currentNoteSpec.displayName} • {currentVariationSpec.shortLabel}
                     </Badge>
                     <Badge
                       className={
-                        voiceRejected
-                          ? "bg-red-600 text-white text-xs font-mono"
-                          : liveHz
-                          ? isInTune && detectedNote === selectedNote
-                            ? "bg-emerald-600 text-white text-xs font-mono"
-                            : "bg-amber-600 text-white text-xs font-mono"
+                        audioActive
+                          ? "bg-emerald-600 text-white text-xs font-mono"
                           : "bg-black/70 text-neutral-300 text-xs font-mono"
                       }
                     >
                       <Volume2 className="w-3.5 h-3.5 mr-1" />
-                      {voiceRejected
-                        ? "⚠️ Voz / Ruido rechazado (Usa la flauta)"
-                        : liveHz
-                        ? `Flauta: ${detectedNote} (${liveHz} Hz)`
-                        : "Escuchando flauta..."}
+                      {audioActive
+                        ? `Sonido captado (${audioLevelPct}%)`
+                        : "En silencio..."}
                     </Badge>
                   </div>
 
-                  {/* Marcos de detección real para Mano Izquierda (Arriba) y Derecha (Abajo) */}
+                  {/* Marcos de detección real para Mano Izquierda y Derecha */}
                   <div className="ml-auto mt-2 mb-auto w-36 flex flex-col gap-1.5">
                     <div
                       className={`rounded px-2.5 py-1.5 text-center border-2 text-[11px] font-bold transition-colors ${
@@ -729,8 +733,8 @@ export function FluteGuidedCapture({
                       }`}
                     >
                       {leftHandLive
-                        ? "Articulaciones A detectadas"
-                        : "Mano A no detectada"}
+                        ? "Mano Izq detectada"
+                        : "Mano Izq no detectada"}
                     </div>
                     <div
                       className={`rounded px-2.5 py-1.5 text-center border-2 text-[11px] font-bold transition-colors ${
@@ -742,10 +746,10 @@ export function FluteGuidedCapture({
                       }`}
                     >
                       {rightHandLive
-                        ? "Articulaciones B detectadas"
+                        ? "Mano Der detectada"
                         : currentNoteSpec.handsRequired === 2
-                        ? "Mano B no detectada"
-                        : "Mano B opcional"}
+                        ? "Mano Der no detectada"
+                        : "Mano Der opcional"}
                     </div>
                   </div>
 

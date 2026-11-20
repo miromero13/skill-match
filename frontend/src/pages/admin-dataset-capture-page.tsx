@@ -257,6 +257,9 @@ export function AdminDatasetCapturePage() {
   const handleSelectCategory = (slug: string) => {
     setActiveCategorySlug(slug)
     setDiscipline(slug === "deporte" ? "futbol" : slug)
+    if (slug === "musica") {
+      setFilterDiscipline("musica")
+    }
     const skillsInCat = catalogSkills.filter((sk) => {
       const cat = categories.find((c) => c.id === sk.category_id)
       const cSlug = cat ? cat.slug.toLowerCase() : ""
@@ -309,6 +312,9 @@ export function AdminDatasetCapturePage() {
   }
 
   const selectedSkill = catalogSkills.find((s) => s.id === selectedSkillId)
+  const isFluteSelected =
+    activeCategorySlug === "musica" &&
+    (!selectedSkillName || selectedSkillName.toLowerCase().includes("flauta"))
 
   useEffect(() => {
     fetchSamples()
@@ -814,11 +820,12 @@ export function AdminDatasetCapturePage() {
         </TabsContent>
 
         <TabsContent value="dataset-ingest" className="space-y-6">
-          {activeCategorySlug === "musica" && (
+          {isFluteSelected && (
             <FluteGuidedCapture
               skillName={selectedSkillName || "Flauta"}
               samples={samples}
               signedConsent={signedConsent}
+              onSignedConsentChange={setSignedConsent}
               hardwareInfo={hardwareInfo}
               onSampleUploaded={async () => {
                 await fetchSamples(
@@ -830,7 +837,8 @@ export function AdminDatasetCapturePage() {
 
           {/* Grid Central Responsive */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            {/* Columna Izquierda: Panel de Grabación & Ingesta */}
+            {/* Columna Izquierda: Panel de Grabación & Ingesta (oculto para Música/Flauta) */}
+            {!isFluteSelected && (
             <div className="space-y-6 lg:col-span-7">
               <Card className="border-border/60 shadow-sm">
                 <CardHeader className="pb-3">
@@ -1483,9 +1491,10 @@ export function AdminDatasetCapturePage() {
                 </CardContent>
               </Card>
             </div>
+            )}
 
             {/* Columna Derecha: Catálogo de Muestras Capturadas */}
-            <div className="space-y-6 lg:col-span-5">
+            <div className={`space-y-6 ${isFluteSelected ? "lg:col-span-12" : "lg:col-span-5"}`}>
               <Card className="border-border/60 shadow-sm">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
