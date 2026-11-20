@@ -1,9 +1,12 @@
 """Skill lab admin API (S2, S3, S4, S7) through HTTP + APIResponse, in an uncommitted isolated schema.
 
 Every row lives in a throwaway PostgreSQL schema that is rolled back, and every stored file is
-written under the pytest tmp path (cwd is switched there and S3 replication is disabled).
+written under the pytest tmp path (cwd is switched there, temp files go to a pytest tmp dir and S3
+replication is disabled). The engine's `analyze_video` is replaced by `FakeAnalyzer`, which reads the
+uploaded bytes (`video_bytes(...)`) and returns synthetic pose/ball analyses, so no pose model is needed.
 """
 import hashlib
+import tempfile
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,16 +21,66 @@ from app.main import app
 from app.models.catalog import Category, Rubric, Skill, SkillLevel
 from app.models.user import User
 from app.services import skill_lab_service
+from app.skill_validation import ENGINE_VERSION
 from auth_catalog_fixtures import isolated_db  # noqa: F401
+from tests.skill_validation import synthetic as syn
 
 LAB = "/api/admin/skill-lab"
 NOT_FOUND = {"statuscode": 404, "message": "Recurso no encontrado", "data": None}
+
+MOTIONS = {"juggle": syn.juggle, "squat": syn.squat, "jack": syn.jumping_jack, "static": syn.static}
+_SIGNATURES: dict[tuple, dict] = {}
+
+
+def video_bytes(motion: str = "juggle", *, seed: int = 0, yaw: float = 0.0, streak: int = 0) -> bytes:
+    """Upload content the fake analyzer understands (seed > 0 adds 2° of landmark noise)."""
+    return f"motion={motion};seed={seed};yaw={yaw};streak={streak}".encode()
+
+
+def _signature(motion: str, seed: int, yaw: float) -> dict:
+    key = (motion, seed, yaw)
+    if key not in _SIGNATURES:
+        _SIGNATURES[key] = syn.signature(MOTIONS[motion], seconds=6, noise_deg=2 if seed else 0, seed=seed,
+                                         view_yaw_deg=yaw)
+    return _SIGNATURES[key]
+
+
+class FakeAnalyzer:
+    """Stands in for `app.skill_validation.analyze_video` (same signature, same dict shape)."""
+
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    def __call__(self, video_path, *, need_pose=True, need_ball=False):
+        path = Path(str(video_path))
+        self.calls.append({"name": path.name, "path": path, "need_pose": need_pose, "need_ball": need_ball})
+        if not path.is_file():  # same as the engine: nothing decodable
+            return {**syn.analysis(None), "readable": False, "duration_seconds": 0.0, "pose_status": "unreadable",
+                    "notes": ["No se pudo leer el video (formato no soportado o archivo dañado)."]}
+        raw = path.read_bytes()
+        params = dict(item.split("=", 1) for item in raw.decode(errors="ignore").split(";") if "=" in item)
+        motion = params.get("motion", "juggle")
+        if motion not in MOTIONS:
+            motion = "juggle"
+        pose = _signature(motion, int(params.get("seed", 0)), float(params.get("yaw", 0))) if need_pose else None
+        streak = int(params.get("streak", 0))
+        ball = ({"ball_detected": streak > 0, "total_touches": streak, "max_streak": streak, "streaks": [streak],
+                 "ground_contacts": 0} if need_ball else None)
+        analysis = syn.analysis(pose, ball=ball)
+        analysis["pose_status"] = "ok" if need_pose else "not_requested"
+        assert analysis["engine_version"] == ENGINE_VERSION
+        return analysis
 
 
 @pytest.fixture
 async def lab(isolated_db, tmp_path, monkeypatch):  # noqa: F811
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(garage_s3_storage, "access_key_id", None)
+    temp_dir = tmp_path / "tmp"
+    temp_dir.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp_dir))
+    analyzer = FakeAnalyzer()
+    monkeypatch.setattr(skill_lab_service, "analyze_video", analyzer)
     users = [User(id=uuid.uuid4(), email=f"lab-{role.lower()}@example.com", full_name=role, role=role,
                   is_active=True, is_locked=False) for role in ("ADMIN", "MEMBER")]
     isolated_db.add_all(users)
@@ -35,7 +88,7 @@ async def lab(isolated_db, tmp_path, monkeypatch):  # noqa: F811
     headers = [{"Authorization": f"Bearer {create_access_token(str(user.id), user.role)}"} for user in users]
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
         yield SimpleNamespace(client=client, admin=headers[0], member=headers[1], db=isolated_db,
-                              storage=tmp_path / "storage", catalog={})
+                              storage=tmp_path / "storage", catalog={}, analyzer=analyzer, temp_dir=temp_dir)
 
 
 async def _create_skill(ctx, **overrides):
@@ -263,7 +316,7 @@ async def test_training_sample_upload_list_delete_linked_to_level_and_criterion(
     assert {key: sample[key] for key in sample if key not in ("id", "created_at")} == {
         "skill_id": skill["id"], "skill_level_id": level_id, "criterion_key": "postura", "sample_role": "TRAINING",
         "file_format": "mov", "file_size_bytes": len(content), "participant_id": "P-01",
-        "analysis_ready": False, "analysis_notes": [],
+        "analysis_ready": True, "analysis_notes": [],
     }
     files = _stored_files(lab)
     assert [path.name for path in files] == [f"{sample['id']}.mov"]
@@ -366,6 +419,7 @@ async def test_invalid_uploads_are_rejected_without_rows_or_files(lab, monkeypat
                               "message": "El tamaño del archivo supera el límite máximo permitido de 200 MB."}
     assert (await _samples(lab, skill["id"]))["count"] == 0
     assert _stored_files(lab) == []
+    assert lab.analyzer.calls == []  # rejected uploads are never analyzed
 
 
 def test_upload_limits_match_the_contract():

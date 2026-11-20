@@ -15,6 +15,7 @@ from app.schemas.skill_lab import (
     SkillLabConfigResponse,
     SkillLabModelResponse,
     SkillLabSampleResponse,
+    SkillValidationResult,
 )
 from app.services import skill_lab_service
 
@@ -95,3 +96,35 @@ async def list_lab_models(skill_id: uuid.UUID, db: AsyncSession = Depends(get_db
     models = await skill_lab_service.list_skill_models(db, skill_id)
     items = [skill_lab_service.model_to_response(model) for model in models]
     return APIResponse(statuscode=200, message="Modelos de la habilidad recuperados exitosamente.", data=items, count=len(items))
+
+
+@router.post(
+    "/skills/{skill_id}/train",
+    response_model=APIResponse[SkillLabModelResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Entrenar (calibrar) el validador de la habilidad con los videos etiquetados",
+)
+async def train_lab_model(skill_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Few-shot calibration; works with zero videos (default tolerances). The new version becomes active."""
+    model = await skill_lab_service.train_skill_validator(db, skill_id)
+    return APIResponse(
+        statuscode=201,
+        message="Modelo de la habilidad entrenado exitosamente.",
+        data=skill_lab_service.model_to_response(model),
+    )
+
+
+@router.post(
+    "/skills/{skill_id}/validate",
+    response_model=APIResponse[SkillValidationResult],
+    summary="Validar un video contra la configuración de la habilidad (no se guarda nada)",
+)
+async def validate_lab_video(
+    skill_id: uuid.UUID,
+    file: Optional[UploadFile] = File(default=None, description="Video a validar (máximo 200 MB)"),
+    skill_level_id: Optional[uuid.UUID] = Form(default=None, description="Evaluar solo este nivel (opcional)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Always 200 for a received file: unreadable/empty/oversize videos score 0 with an explanatory note."""
+    result = await skill_lab_service.validate_uploaded_video(db, skill_id, file, skill_level_id)
+    return APIResponse(statuscode=200, message="Validación completada.", data=result)

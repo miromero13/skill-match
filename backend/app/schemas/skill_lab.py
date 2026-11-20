@@ -91,3 +91,60 @@ class SkillLabConfigResponse(BaseModel):
     levels: list[SkillLabLevel] = Field(default_factory=list)
     active_model: Optional[SkillLabModelResponse] = None
     readiness: SkillLabReadiness
+
+
+# ---------------------------------------------------------------- Validation result (engine contract)
+
+
+class ValidationCriterionResult(BaseModel):
+    key: str
+    name: str
+    weight: float
+    metric_type: str
+    evaluable: bool
+    score: Optional[float] = None  # null when the criterion is not evaluable
+    detail: dict[str, Any] = Field(default_factory=dict)
+    note: Optional[str] = None
+
+
+class ValidationLevelResult(BaseModel):
+    level_id: str
+    level_number: int
+    name: str
+    min_score: float
+    evaluable: bool
+    score: Optional[float] = None  # null when the level is not evaluable
+    passed: bool
+    not_evaluable_reason: Optional[str] = None
+    criteria: list[ValidationCriterionResult] = Field(default_factory=list)
+
+
+class ValidationLevelRef(BaseModel):
+    level_id: str
+    level_number: int
+    name: str
+
+
+class ModelLevelEstimate(BaseModel):
+    level_id: str
+    name: str
+    confidence: float
+
+
+class SkillValidationResult(BaseModel):
+    skill_id: str
+    skill_name: str
+    engine_version: str
+    model_version: Optional[str] = None
+    analysis_complete: bool
+    target_level_id: Optional[str] = None
+    achieved_level: Optional[ValidationLevelRef] = None
+    score: float
+    min_approval_threshold: float
+    meets_skill_threshold: bool
+    approved: bool
+    model_level_estimate: Optional[ModelLevelEstimate] = None
+    levels: list[ValidationLevelResult] = Field(default_factory=list)
+    pose_detected_ratio: Optional[float] = None
+    duration_seconds: Optional[float] = None
+    notes: list[str] = Field(default_factory=list)
