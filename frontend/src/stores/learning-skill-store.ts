@@ -1,5 +1,7 @@
 import { create } from "zustand"
 import { learningSkillService } from "@/services/learning-skill-service"
+import { searchService } from "@/services/search-service"
+import type { Category } from "@/types/catalog"
 import type {
   UserLearningSkill,
   UserLearningSkillCreate,
@@ -10,12 +12,14 @@ import type {
 interface LearningSkillState {
   learningSkills: UserLearningSkill[]
   catalogSkills: CatalogSkillOption[]
+  categories: Category[]
   isLoading: boolean
   isCatalogLoading: boolean
   error: string | null
 
   fetchLearningSkills: () => Promise<void>
-  fetchCatalogSkills: (search?: string) => Promise<void>
+  fetchCategories: () => Promise<void>
+  fetchCatalogSkills: (search?: string, categoryId?: string) => Promise<void>
   addLearningSkill: (payload: UserLearningSkillCreate) => Promise<boolean>
   updateLearningSkill: (id: string, payload: UserLearningSkillUpdate) => Promise<boolean>
   deleteLearningSkill: (id: string) => Promise<boolean>
@@ -24,6 +28,7 @@ interface LearningSkillState {
 export const useLearningSkillStore = create<LearningSkillState>((set) => ({
   learningSkills: [],
   catalogSkills: [],
+  categories: [],
   isLoading: false,
   isCatalogLoading: false,
   error: null,
@@ -39,10 +44,19 @@ export const useLearningSkillStore = create<LearningSkillState>((set) => ({
     }
   },
 
-  fetchCatalogSkills: async (search?: string) => {
+  fetchCategories: async () => {
+    try {
+      const categories = await searchService.getCategories()
+      set({ categories })
+    } catch {
+      set({ categories: [] })
+    }
+  },
+
+  fetchCatalogSkills: async (search?: string, categoryId?: string) => {
     set({ isCatalogLoading: true })
     try {
-      const catalog = await learningSkillService.getAvailableCatalogSkills(undefined, search)
+      const catalog = await learningSkillService.getAvailableCatalogSkills(categoryId, search)
       set({ catalogSkills: catalog, isCatalogLoading: false })
     } catch {
       set({ isCatalogLoading: false })
