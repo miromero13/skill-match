@@ -21,6 +21,7 @@ import { TeachingSkillsPage } from "@/pages/teaching-skills-page"
 import { EvaluationSetupPage } from "@/pages/evaluation-setup-page"
 import { TheoryExamPage } from "@/pages/theory-exam-page"
 import { ProgrammingExamPage } from "@/pages/programming-exam-page"
+import { EvaluationResultPage } from "@/pages/evaluation-result-page"
 import { BrowserSupervisionPage } from "@/pages/browser-supervision-page"
 import { browserSupervisionTrialEnabled } from "@/lib/feature-flags"
 import { ProfilePage } from "@/pages/profile-page"
@@ -63,6 +64,7 @@ import { AdminComplaintsPage } from "@/pages/admin/admin-complaints-page"
 export const router = createBrowserRouter([
   { path: "/evaluation/:id/theory", element: <MemberRouteGuard><TheoryExamPage /></MemberRouteGuard> },
   { path: "/evaluation/:id/code", element: <MemberRouteGuard><ProgrammingExamPage /></MemberRouteGuard> },
+  { path: "/evaluation/:id/result", element: <MemberRouteGuard><EvaluationResultPage /></MemberRouteGuard> },
   ...(browserSupervisionTrialEnabled
     ? [{ path: "/app/browser-supervision-test", element: <MemberRouteGuard><BrowserSupervisionPage /></MemberRouteGuard> }]
     : []),

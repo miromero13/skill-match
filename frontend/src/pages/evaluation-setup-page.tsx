@@ -108,12 +108,12 @@ export function EvaluationSetupPage() {
                   <li><strong className="text-foreground">Cámara y micrófono disponibles.</strong> Prepará un ambiente iluminado y un rostro visible, centrado y sin obstrucciones.</li>
                   <li><strong className="text-foreground">Una sola persona y sin ayuda externa.</strong> La teoría, la práctica y la defensa deben realizarse de forma individual.</li>
                   <li><strong className="text-foreground">Sin copiar soluciones.</strong> Los cambios de pestaña y las acciones del portapapeles podrán registrarse como incidentes durante la evaluación.</li>
-                  <li><strong className="text-foreground">Procesamiento propio.</strong> Se utilizarán cámara y micrófono para comprobar el ambiente y cotejar tu identidad con el rostro enrolado.</li>
+                  <li><strong className="text-foreground">Procesamiento propio y corrección textual.</strong> Se utilizarán cámara y micrófono para comprobar el ambiente y cotejar tu identidad con el rostro enrolado; la transcripción de tus respuestas teóricas se evaluará con el corrector configurado sin enviar audio, video ni datos de cuenta.</li>
                 </ul>
                 <div className="flex items-start gap-2 rounded-lg border border-primary/15 bg-primary/5 p-3 text-xs leading-relaxed text-primary"><ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><p>Habilidades gratuitas disponibles: {preflight.free_evaluations_left}/3 · Intentos utilizados para esta habilidad: {preflight.attempts_used}/1</p></div>
                 <div className="space-y-3 rounded-lg bg-primary/5 p-3">
                   <div className="flex items-start gap-3"><Checkbox id="biometric-consent" checked={biometric} disabled={saving} onCheckedChange={value => setBiometric(value === true)} />
-                    <Label className="text-xs leading-relaxed" htmlFor="biometric-consent">Acepto el procesamiento biométrico y el uso de cámara y micrófono para esta evaluación.</Label></div>
+                    <Label className="text-xs leading-relaxed" htmlFor="biometric-consent">Acepto el procesamiento biométrico, el uso de cámara y micrófono, y el envío de transcripciones textuales (sin audio ni datos personales) para su corrección.</Label></div>
                   <div className="flex items-start gap-3"><Checkbox id="integrity-consent" checked={integrity} disabled={saving} onCheckedChange={value => setIntegrity(value === true)} />
                     <Label className="text-xs leading-relaxed" htmlFor="integrity-consent">Acepto las normas de integridad y la supervisión durante las tres etapas.</Label></div>
                   <div className="flex items-start gap-3"><Checkbox id="attempt-rule" checked={attemptRule} disabled={saving} onCheckedChange={value => setAttemptRule(value === true)} />
